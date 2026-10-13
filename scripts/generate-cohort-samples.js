@@ -19,7 +19,7 @@ const recoveredChildren = [
   { nik: '3301045210220008', nama: 'Fitri Handayani', tglLahir: '2022-10-12', jk: 'P', puskesmas: 'Puskesmas Pedurungan', desa: 'Tlogosari' },
   { nik: '3301050505230009', nama: 'Farhan Maulana', tglLahir: '2023-05-05', jk: 'L', puskesmas: 'Puskesmas Semarang Barat', desa: 'Krobokan' },
   { nik: '3301054707220010', nama: 'Nadia Putri', tglLahir: '2022-07-07', jk: 'P', puskesmas: 'Puskesmas Semarang Selatan', desa: 'Peterongan' },
-  { nik: '3301061912220011', nama: 'Rafi Pratama', tglLahir: '2022-12-19', jk: 'L', puskesmas: 'Puskesmas Semarang Timur', desa: 'Rejosari' }
+  { nik: '3301061912220011', nama: 'Rafi Pratama', tglLahir: '2021-08-19', jk: 'L', puskesmas: 'Puskesmas Semarang Timur', desa: 'Rejosari' }
 ];
 
 // 3. Kasus Baru Masuk Stunting (TIDAK ada di P1, ADA di P2) - 5 anak

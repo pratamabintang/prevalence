@@ -328,8 +328,6 @@ export class StuntingCohortComponent {
       this.period2Label.set('Periode 2 (Juli 2026)');
       this.period2Columns.set(cols2);
       this.p2Mapping.set(StuntingCohortEngine.detectColumnKeys(cols2));
-
-      this.evaluationDate.set('2026-07-01');
     } catch (err: unknown) {
       this.errorMessage.set(`Gagal memuat data contoh: ${String(err)}`);
     } finally {
