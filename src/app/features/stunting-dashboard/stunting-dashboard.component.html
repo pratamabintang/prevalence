@@ -1,0 +1,1718 @@
+<div class="min-h-screen bg-slate-50 text-slate-800 pb-20 antialiased">
+  <!-- ============================================================ -->
+  <!-- SECTION A: HEADER & INTRODUCTION -->
+  <!-- ============================================================ -->
+  <!-- UNIFIED PAGE HEADER -->
+  <ui-page-header
+    title="Stunting Jawa Tengah"
+    [subtitle]="'Perkembangan prevalensi stunting dan capaian intervensi spesifik selama ' + periods().length + ' triwulan (' + firstPeriod() + ' – ' + latestPeriod() + ')'"
+    badge="Publikasi Data Resmi"
+  >
+    <div actions class="flex flex-wrap items-center gap-2 text-xs">
+      <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 shadow-2xs">
+        <span class="text-slate-500">Periode:</span>
+        <strong class="ml-1 text-slate-800">{{ firstPeriod() }} – {{ latestPeriod() }} ({{ periods().length }} Triwulan)</strong>
+      </div>
+      <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 shadow-2xs">
+        <span class="text-slate-500">Cakupan:</span>
+        <strong class="ml-1 text-slate-800">{{ summaryCards().wilayah_count }} Kabupaten/Kota</strong>
+      </div>
+      <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 shadow-2xs">
+        <span class="text-slate-500">Indikator:</span>
+        <strong class="ml-1 text-slate-800">9 Intervensi Spesifik</strong>
+      </div>
+    </div>
+  </ui-page-header>
+
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 pt-6">
+    <!-- INTRODUCTORY EXPLANATION -->
+    <ui-card padding="sm" class="mb-4 bg-slate-100/70">
+      <div class="text-xs leading-relaxed text-slate-700">
+        Dashboard ini menyajikan perkembangan data stunting dan indikator intervensi pada {{ summaryCards().wilayah_count }} kabupaten/kota di Jawa Tengah. Data ditampilkan untuk membantu memahami perubahan antarperiode dan perbedaan antarwilayah secara transparan dan objektif tanpa klaim kausal berlebihan.
+        <div class="mt-1 text-slate-500 font-mono text-[11px]">
+          {{ metadata().source }}
+        </div>
+      </div>
+    </ui-card>
+
+    <!-- EXCEL UPLOAD TOOLBAR & STATUS -->
+    <div class="mb-6 rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Hidden file input -->
+        <input
+          type="file"
+          #excelFileInput
+          (change)="onFileSelected($event)"
+          accept=".xlsx"
+          class="hidden"
+        />
+
+        <button
+          type="button"
+          uiButton
+          variant="secondary"
+          size="sm"
+          (click)="excelFileInput.click()"
+          [disabled]="uploading()"
+        >
+          <span>{{ uploading() ? 'Memproses Berkas...' : 'Unggah Berkas Excel (.xlsx)' }}</span>
+        </button>
+
+        <button
+          type="button"
+          uiButton
+          variant="outline"
+          size="sm"
+          (click)="showConstraintModal.set(true)"
+        >
+          <span>Ketentuan &amp; Skrip Berkas</span>
+        </button>
+
+        @if (isCustomData()) {
+          <div class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs">
+            <span class="font-semibold text-slate-900">Data Kustom:</span>
+            <span class="text-slate-700 font-mono text-[11px]">{{ uploadedFileName() }}</span>
+            <button
+              type="button"
+              (click)="onResetDefaultData()"
+              class="ml-1 text-[11px] text-slate-600 hover:text-slate-900 underline font-medium cursor-pointer"
+            >
+              Kembalikan Default
+            </button>
+          </div>
+        }
+      </div>
+
+      <div class="text-[11px] text-slate-500">
+        Format standar: 10 Sheet (X1–X9 + Y Stunting) × 35 Wilayah
+      </div>
+    </div>
+
+    <!-- UPLOAD SUCCESS NOTIFICATION -->
+    @if (uploadSuccessMessage()) {
+      <div class="mb-4">
+        <ui-alert type="success" [dismissible]="true" (dismissed)="uploadSuccessMessage.set(null)">
+          {{ uploadSuccessMessage() }}
+        </ui-alert>
+      </div>
+    }
+
+    <!-- UPLOAD ERROR NOTIFICATION -->
+    @if (uploadError()) {
+      <div class="mb-4">
+        <ui-alert type="error" title="Berkas Tidak Memenuhi Ketentuan Format:" [dismissible]="true" (dismissed)="uploadError.set(null)">
+          <ul class="list-disc pl-5 space-y-1 mt-1 text-xs">
+            @for (err of uploadError()!; track err) {
+              <li>{{ err }}</li>
+            }
+          </ul>
+          <div class="mt-2 text-[11px]">
+            Klik tombol <strong>"Ketentuan &amp; Skrip Berkas"</strong> di atas untuk panduan struktur sheet dan nama kolom.
+          </div>
+        </ui-alert>
+      </div>
+    }
+  </div>
+
+  <!-- MODAL: KETENTUAN FORMAT EXCEL & SKRIP VALIDASI -->
+  @if (showConstraintModal()) {
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+      <div class="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg border border-slate-200 bg-white p-6 shadow-xl">
+        <div class="flex items-start justify-between border-b border-slate-200 pb-3">
+          <div>
+            <h3 class="text-base font-bold text-slate-900">
+              Ketentuan Berkas Excel (.xlsx) & Skrip Otomatis
+            </h3>
+            <p class="text-xs text-slate-500 mt-0.5">
+              Standar format untuk visualisasi langsung data stunting dan 9 indikator intervensi
+            </p>
+          </div>
+          <button
+            type="button"
+            (click)="showConstraintModal.set(false)"
+            class="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 text-lg leading-none"
+          >
+            ×
+          </button>
+        </div>
+
+        <div class="mt-4 space-y-4 text-xs text-slate-700 leading-relaxed">
+          <!-- 10 SHEETS TABLE -->
+          <div>
+            <h4 class="font-bold text-slate-900 uppercase tracking-wider text-[11px] mb-1.5">
+              1. Sepuluh (10) Sheet Wajib yang Harus Ada
+            </h4>
+            <p class="mb-2 text-slate-600 text-[11px]">
+              Setiap sheet merepresentasikan satu indikator (nama sheet tidak sensitif huruf besar/kecil):
+            </p>
+            <div class="overflow-x-auto border border-slate-200 rounded">
+              <table class="w-full text-[11px] text-left">
+                <thead class="bg-slate-100 text-slate-800 font-semibold border-b border-slate-200">
+                  <tr>
+                    <th class="px-2.5 py-1.5 border-r border-slate-200">Kode</th>
+                    <th class="px-2.5 py-1.5 border-r border-slate-200">Nama Sheet di Excel</th>
+                    <th class="px-2.5 py-1.5">Definisi Indikator</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 font-mono">
+                  <tr><td class="px-2.5 py-1 border-r border-slate-200 font-sans font-medium">X1</td><td class="px-2.5 py-1 border-r border-slate-200 font-bold">TTD REMATRI</td><td class="px-2.5 py-1 font-sans">TTD Remaja Putri (%)</td></tr>
+                  <tr><td class="px-2.5 py-1 border-r border-slate-200 font-sans font-medium">X2</td><td class="px-2.5 py-1 border-r border-slate-200 font-bold">TTD IBU HAMIL</td><td class="px-2.5 py-1 font-sans">TTD Ibu Hamil (%)</td></tr>
+                  <tr><td class="px-2.5 py-1 border-r border-slate-200 font-sans font-medium">X3</td><td class="px-2.5 py-1 border-r border-slate-200 font-bold">PMT bumil KEK mendapat PMT</td><td class="px-2.5 py-1 font-sans">PMT Bumil KEK (%)</td></tr>
+                  <tr><td class="px-2.5 py-1 border-r border-slate-200 font-sans font-medium">X4</td><td class="px-2.5 py-1 border-r border-slate-200 font-bold">Balita ditimbang DS</td><td class="px-2.5 py-1 font-sans">Balita Ditimbang D/S (%)</td></tr>
+                  <tr><td class="px-2.5 py-1 border-r border-slate-200 font-sans font-medium">X5</td><td class="px-2.5 py-1 border-r border-slate-200 font-bold">ASI eksklusif</td><td class="px-2.5 py-1 font-sans">ASI Eksklusif (%)</td></tr>
+                  <tr><td class="px-2.5 py-1 border-r border-slate-200 font-sans font-medium">X6</td><td class="px-2.5 py-1 border-r border-slate-200 font-bold">MP-ASI Beragam</td><td class="px-2.5 py-1 font-sans">MP-ASI Beragam (%)</td></tr>
+                  <tr><td class="px-2.5 py-1 border-r border-slate-200 font-sans font-medium">X7</td><td class="px-2.5 py-1 border-r border-slate-200 font-bold">PMT gizi kurang</td><td class="px-2.5 py-1 font-sans">PMT Balita Gizi Kurang (%)</td></tr>
+                  <tr><td class="px-2.5 py-1 border-r border-slate-200 font-sans font-medium">X8</td><td class="px-2.5 py-1 border-r border-slate-200 font-bold">Tatalaksana gizi buruk</td><td class="px-2.5 py-1 font-sans">Tatalaksana Gizi Buruk (%)</td></tr>
+                  <tr><td class="px-2.5 py-1 border-r border-slate-200 font-sans font-medium">X9</td><td class="px-2.5 py-1 border-r border-slate-200 font-bold">Balita IDL</td><td class="px-2.5 py-1 font-sans">Balita Imunisasi Lengkap (%)</td></tr>
+                  <tr class="bg-slate-50"><td class="px-2.5 py-1 border-r border-slate-200 font-sans font-bold">Y</td><td class="px-2.5 py-1 border-r border-slate-200 font-bold">Stunting</td><td class="px-2.5 py-1 font-sans font-semibold">Prevalensi Stunting (%) [Outcome]</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- COLUMN & ROW CONSTRAINTS -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="rounded border border-slate-200 bg-slate-50 p-3">
+              <strong class="text-slate-900 block font-semibold mb-1">2. Struktur Kolom</strong>
+              <ul class="list-disc list-inside space-y-1 text-[11px] text-slate-600">
+                <li>Kolom 1: <code>Kabupaten/Kota</code> (identitas wilayah).</li>
+                <li>Kolom 2 ke kanan: Nama periode (misal: <code>TW1 2025</code>, <code>TW2 2025</code>, dst.).</li>
+                <li>Nama kolom periode harus <strong>sama persis</strong> di seluruh 10 sheet.</li>
+              </ul>
+            </div>
+
+            <div class="rounded border border-slate-200 bg-slate-50 p-3">
+              <strong class="text-slate-900 block font-semibold mb-1">3. Struktur Baris</strong>
+              <ul class="list-disc list-inside space-y-1 text-[11px] text-slate-600">
+                <li>35 baris wilayah Jawa Tengah (contoh: <code>Kab. Cilacap</code>, <code>Kota Semarang</code>).</li>
+                <li>Baris rangkuman (<code>TARGET</code>, <code>JUMLAH</code>) otomatis diabaikan.</li>
+                <li>Nilai sel wajib angka numerik (%) tanpa teks hilang/error.</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- PYTHON SCRIPT HELPER -->
+          <div class="rounded border border-slate-200 bg-slate-900 text-slate-100 p-3 font-mono text-[11px]">
+            <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
+              <span class="text-slate-400 font-sans text-xs">Skrip Validasi Python (Mandiri / Offline):</span>
+              <div class="flex items-center gap-2 font-sans">
+                <button
+                  type="button"
+                  (click)="copyPythonScript()"
+                  class="rounded bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
+                >
+                  Salin Skrip
+                </button>
+                <button
+                  type="button"
+                  (click)="downloadPythonScript()"
+                  class="rounded bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
+                >
+                  Unduh .py
+                </button>
+              </div>
+            </div>
+            <pre class="overflow-x-auto text-[10px] leading-tight text-slate-300">{{ pythonScriptText }}</pre>
+          </div>
+
+          @if (copyFeedback()) {
+            <div class="text-[11px] font-semibold text-slate-900">
+              {{ copyFeedback() }}
+            </div>
+          }
+        </div>
+
+        <div class="mt-5 pt-3 border-t border-slate-200 flex justify-end">
+          <button
+            type="button"
+            (click)="showConstraintModal.set(false)"
+            class="rounded border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+          >
+            Tutup Panduan
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <main class="mx-auto max-w-6xl px-4 py-8 sm:px-6 space-y-8">
+    <!-- ============================================================ -->
+    <!-- SECTION B: RINGKASAN KONDISI -->
+    <!-- ============================================================ -->
+    <section>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <!-- CARD 1 -->
+        <div class="rounded-lg border border-slate-200 bg-white p-5">
+          <span class="text-xs font-medium text-slate-500 uppercase tracking-wider block">
+            Jumlah Wilayah
+          </span>
+          <div class="mt-2 text-2xl font-bold text-slate-900">
+            {{ summaryCards().wilayah_count }}
+          </div>
+          <p class="mt-1 text-xs text-slate-600">
+            Kabupaten dan Kota di Jawa Tengah
+          </p>
+        </div>
+
+        <!-- CARD 2 -->
+        <div class="rounded-lg border border-slate-200 bg-white p-5">
+          <span class="text-xs font-medium text-slate-500 uppercase tracking-wider block">
+            Rentang Waktu
+          </span>
+          <div class="mt-2 text-2xl font-bold text-slate-900">
+            {{ summaryCards().period_count }} Triwulan
+          </div>
+          <p class="mt-1 text-xs text-slate-600">
+            {{ firstPeriod() }} s.d. {{ latestPeriod() }} berurutan
+          </p>
+        </div>
+
+        <!-- CARD 3 -->
+        <div class="rounded-lg border border-slate-200 bg-white p-5">
+          <span class="text-xs font-medium text-slate-500 uppercase tracking-wider block">
+            Median Antar Kabupaten/Kota
+          </span>
+          <div class="mt-2 text-2xl font-bold text-slate-900">
+            {{ summaryCards().median_latest | number:'1.2-2' }}%
+          </div>
+          <p class="mt-1 text-xs text-slate-600">
+            Nilai tengah pada {{ latestPeriod() }}
+          </p>
+        </div>
+
+        <!-- CARD 4 -->
+        <div class="rounded-lg border border-slate-200 bg-white p-5">
+          <span class="text-xs font-medium text-slate-500 uppercase tracking-wider block">
+            Perubahan Median Bersih
+          </span>
+          <div class="mt-2 text-2xl font-bold text-slate-900 flex items-center gap-1.5">
+            <span>{{ summaryCards().median_change > 0 ? '+' : '' }}{{ summaryCards().median_change | number:'1.2-2' }}</span>
+            <span class="text-xs font-normal text-slate-500">poin persentase</span>
+          </div>
+          <p class="mt-1 text-xs text-slate-600">
+            Dari {{ firstPeriod() }} ({{ summaryCards().median_first | number:'1.2-2' }}%) ke {{ latestPeriod() }}
+          </p>
+        </div>
+      </div>
+
+      <div class="mt-2 text-[11px] text-slate-500 italic">
+        * Catatan: Nilai di atas merupakan <strong>median antar kabupaten/kota</strong> (nilai tengah dari {{ summaryCards().wilayah_count }} wilayah), bukan angka rata-rata agregat provinsi Jawa Tengah.
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- SECTION C: TREND PREVALENSI STUNTING -->
+    <!-- ============================================================ -->
+    <section class="rounded-lg border border-slate-200 bg-white p-5 sm:p-6">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4">
+        <div>
+          <h2 class="text-base font-bold text-slate-900">
+            Tren Prevalensi Stunting ({{ periods().length }} Triwulan)
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">
+            Perkembangan prevalensi stunting (%) per triwulan dari {{ firstPeriod() }} hingga {{ latestPeriod() }}.
+          </p>
+        </div>
+
+        <!-- WILAYAH SELECTOR -->
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="flex items-center gap-2">
+            <label class="text-xs font-medium text-slate-700 whitespace-nowrap">
+              Pilih Wilayah:
+            </label>
+            <select
+              [value]="selectedWilayah()"
+              (change)="onWilayahChange($event)"
+              class="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 focus:border-slate-500 focus:outline-none min-w-[200px]"
+            >
+              <option value="MEDIAN">Median Antarwilayah (Default)</option>
+              @for (w of wilayahList(); track w) {
+                <option [value]="w">{{ w }}</option>
+              }
+            </select>
+          </div>
+
+          <label class="inline-flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
+            <input
+              type="checkbox"
+              [checked]="showBackgroundLines()"
+              (change)="showBackgroundLines.set(!showBackgroundLines())"
+              class="rounded border-slate-300 text-slate-900 focus:ring-0"
+            />
+            <span>Tampilkan latar seluruh wilayah</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- LINE CHART SVG -->
+      <div class="mt-6 overflow-x-auto">
+        <div class="flex justify-center" [style.minWidth.px]="chartWidth">
+          <svg
+            [attr.viewBox]="'0 0 ' + chartWidth + ' ' + chartHeight"
+            [style.maxWidth.px]="chartWidth"
+            class="w-full h-auto overflow-visible select-none"
+          >
+            <!-- GRID LINES -->
+            @for (gridVal of [0, 5, 10, 15, 20]; track gridVal) {
+              @let gy = trendY(gridVal);
+              <line
+                [attr.x1]="padding.left"
+                [attr.y1]="gy"
+                [attr.x2]="chartWidth - padding.right"
+                [attr.y2]="gy"
+                stroke="#e2e8f0"
+                stroke-width="1"
+                stroke-dasharray="3,3"
+              />
+              <text
+                [attr.x]="padding.left - 8"
+                [attr.y]="gy + 4"
+                text-anchor="end"
+                class="text-[10px] fill-slate-400 font-mono"
+              >
+                {{ gridVal }}%
+              </text>
+            }
+
+            <!-- BACKGROUND TRAJECTORIES (ALL 35 DISTRICTS) -->
+            @if (showBackgroundLines()) {
+              @for (traj of backgroundTrajectories(); track traj.wilayah) {
+                @let dStr = 'M ' + traj.points[0].x + ' ' + traj.points[0].y + ' ' +
+                  traj.points.slice(1).map(p => 'L ' + p.x + ' ' + p.y).join(' ');
+                <path
+                  [attr.d]="dStr"
+                  fill="none"
+                  stroke="#cbd5e1"
+                  stroke-width="1"
+                  stroke-opacity="0.5"
+                />
+              }
+            }
+
+            <!-- MAIN TREND LINE -->
+            @let pts = trendLineData().points;
+            @let linePath = 'M ' + trendX(0) + ' ' + trendY(pts[0].value) + ' ' +
+              pts.slice(1).map((p, i) => 'L ' + trendX(i + 1) + ' ' + trendY(p.value)).join(' ');
+
+            <path
+              [attr.d]="linePath"
+              fill="none"
+              stroke="#0f172a"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+
+            <!-- POINT CIRCLES & LABELS -->
+            @for (pt of pts; track pt.period; let idx = $index) {
+              @let px = trendX(idx);
+              @let py = trendY(pt.value);
+
+              <g class="cursor-pointer group">
+                <circle
+                  [attr.cx]="px"
+                  [attr.cy]="py"
+                  r="5"
+                  fill="#0f172a"
+                  stroke="#ffffff"
+                  stroke-width="2"
+                  class="transition-all duration-150 group-hover:stroke-slate-900 group-hover:stroke-[3.5px]"
+                  style="transform-box: fill-box; transform-origin: center;"
+                />
+
+                <!-- Point Value Label -->
+                <text
+                  [attr.x]="px"
+                  [attr.y]="py - 10"
+                  text-anchor="middle"
+                  class="text-[11px] font-bold fill-slate-900 font-mono"
+                >
+                  {{ pt.value | number:'1.2-2' }}%
+                </text>
+
+                <!-- X Axis Period Label -->
+                <text
+                  [attr.x]="px"
+                  [attr.y]="chartHeight - 12"
+                  text-anchor="middle"
+                  class="text-[11px] font-medium fill-slate-600"
+                >
+                  {{ pt.period }}
+                </text>
+              </g>
+            }
+          </svg>
+        </div>
+      </div>
+
+      <!-- DYNAMIC INTERPRETATION BOX -->
+      <div class="mt-5 rounded border border-slate-200 bg-slate-50 p-3.5 text-xs text-slate-700 leading-relaxed">
+        <div class="font-semibold text-slate-900 mb-1 flex items-center gap-2">
+          <span>Interpretasi Tren:</span>
+          <span class="rounded bg-slate-200 px-1.5 py-0.2 text-[10px] text-slate-700">
+            {{ trendLineData().wilayahName }}
+          </span>
+        </div>
+        <p>{{ trendLineData().interpretationText }}</p>
+        <p class="mt-1 text-[11px] text-slate-500">
+          * Catatan: Fluktuasi antartriwulan merefleksikan dinamika pencatatan rutin, bukan bukti keberhasilan atau kegagalan program intervensi secara langsung.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- SECTION D: PERUBAHAN ANTARTRIWULAN -->
+    <!-- ============================================================ -->
+    <section class="rounded-lg border border-slate-200 bg-white p-5 sm:p-6">
+      <div class="border-b border-slate-100 pb-3">
+        <h2 class="text-base font-bold text-slate-900">
+          Perubahan Antartriwulan (Poin Persentase)
+        </h2>
+        <p class="text-xs text-slate-500 mt-0.5">
+          Perubahan dihitung dari selisih nilai triwulan berjalan dikurangi triwulan sebelumnya untuk <strong>{{ trendLineData().wilayahName }}</strong>.
+        </p>
+      </div>
+
+      <!-- BAR CHART TRANSITIONS -->
+      <div class="mt-6 overflow-x-auto">
+        <div class="flex justify-center" [style.minWidth.px]="barChartWidth">
+          <svg
+            [attr.viewBox]="'0 0 ' + barChartWidth + ' ' + barChartHeight"
+            [style.maxWidth.px]="barChartWidth"
+            class="w-full h-auto overflow-visible select-none"
+          >
+            <!-- ZERO BASELINE -->
+            @let zeroY = barZeroY();
+            <line
+              [attr.x1]="barPadding.left"
+              [attr.y1]="zeroY"
+              [attr.x2]="barChartWidth - barPadding.right"
+              [attr.y2]="zeroY"
+              stroke="#94a3b8"
+              stroke-width="1.5"
+            />
+            <text
+              [attr.x]="barPadding.left - 6"
+              [attr.y]="zeroY + 4"
+              text-anchor="end"
+              class="text-[10px] fill-slate-500 font-mono font-semibold"
+            >
+              0,00 pp
+            </text>
+
+            <!-- TRANSITION BARS -->
+            @let trans = quarterlyTransitions();
+            @let barSlotW = (barChartWidth - barPadding.left - barPadding.right) / (trans.length || 1);
+
+            @for (t of trans; track t.interval; let idx = $index) {
+              @let barCenterX = barPadding.left + (idx + 0.5) * barSlotW;
+              @let bw = Math.min(48, Math.max(16, barSlotW * 0.5));
+              @let valY = barY(t.delta);
+              @let barTop = t.delta >= 0 ? valY : zeroY;
+              @let barH = Math.max(2, Math.abs(valY - zeroY));
+
+              <g class="group">
+                <!-- Bar Rect -->
+                <rect
+                  [attr.x]="barCenterX - bw / 2"
+                  [attr.y]="barTop"
+                  [attr.width]="bw"
+                  [attr.height]="barH"
+                  rx="3"
+                  [attr.fill]="t.delta >= 0 ? '#475569' : '#64748b'"
+                  class="transition-opacity hover:opacity-80"
+                />
+
+                <!-- Value Label -->
+                <text
+                  [attr.x]="barCenterX"
+                  [attr.y]="t.delta >= 0 ? barTop - 6 : barTop + barH + 13"
+                  text-anchor="middle"
+                  class="text-[11px] font-bold fill-slate-900 font-mono"
+                >
+                  {{ t.label }}
+                </text>
+
+                <!-- Interval Label -->
+                <text
+                  [attr.x]="barCenterX"
+                  [attr.y]="barChartHeight - 8"
+                  text-anchor="middle"
+                  class="text-[10px] font-medium fill-slate-600"
+                >
+                  {{ t.interval }}
+                </text>
+              </g>
+            }
+          </svg>
+        </div>
+      </div>
+
+      <!-- EXPLANATION NOTE -->
+      <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs border-t border-slate-100 pt-3 text-slate-600">
+        <div class="flex items-center gap-2">
+          <span class="inline-block h-3 w-3 rounded bg-slate-600"></span>
+          <span><strong>Nilai negatif</strong> = Prevalensi menurun</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="inline-block h-3 w-3 rounded bg-slate-700"></span>
+          <span><strong>Nilai positif</strong> = Prevalensi meningkat</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="inline-block h-3 w-3 rounded border border-slate-300 bg-white"></span>
+          <span><strong>Mendekati nol</strong> = Perubahan relatif kecil</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- SECTION E: HEATMAP WILAYAH × TRIWULAN -->
+    <!-- ============================================================ -->
+    <section class="rounded-lg border border-slate-200 bg-white p-5 sm:p-6">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3">
+        <div>
+          <h2 class="text-base font-bold text-slate-900">
+            Heatmap Prevalensi: {{ summaryCards().wilayah_count }} Wilayah × {{ periods().length }} Triwulan
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">
+            Semakin tinggi nilai prevalensi, semakin tinggi intensitas warna. Warna digunakan untuk membantu membaca perbedaan nilai, bukan sebagai label keberhasilan atau kegagalan daerah.
+          </p>
+        </div>
+
+        <!-- SEARCH INPUT -->
+        <div class="w-full sm:w-64">
+          <input
+            type="text"
+            [value]="heatmapSearch()"
+            (input)="onHeatmapSearchInput($event)"
+            placeholder="Cari kabupaten / kota..."
+            class="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-slate-500 focus:outline-none"
+          />
+        </div>
+      </div>
+
+      <!-- HEATMAP TABLE -->
+      <div class="mt-4 overflow-x-auto max-h-[460px] overflow-y-auto border border-slate-200 rounded">
+        <table class="w-full text-xs text-left border-collapse">
+          <thead class="bg-slate-100 text-slate-700 font-semibold sticky top-0 z-10 border-b border-slate-200">
+            <tr>
+              <th class="px-3 py-2 border-r border-slate-200 w-10 text-center">No</th>
+              <th class="px-3 py-2 border-r border-slate-200 min-w-[200px]">Kabupaten / Kota</th>
+              @for (p of periods(); track p) {
+                <th class="px-3 py-2 text-center border-r border-slate-200 min-w-[90px]">
+                  {{ p }}
+                </th>
+              }
+              <th class="px-3 py-2 text-center w-24">Perubahan Bersih</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 font-mono">
+            @for (row of heatmapRows(); track row.wilayah; let idx = $index) {
+              <tr class="hover:bg-slate-50/80 transition-colors">
+                <td class="px-3 py-2 text-center text-slate-400 font-sans border-r border-slate-200">
+                  {{ idx + 1 }}
+                </td>
+                <td class="px-3 py-2 font-medium font-sans text-slate-900 border-r border-slate-200 whitespace-nowrap">
+                  {{ row.wilayah }}
+                </td>
+                @for (valObj of row.values; track valObj.period) {
+                  <td
+                    class="px-3 py-2 text-center border-r border-slate-200 transition-opacity"
+                    [style.backgroundColor]="getHeatmapBg(valObj.value)"
+                  >
+                    <span [class]="getHeatmapTextClass(valObj.value)">
+                      {{ valObj.value | number:'1.2-2' }}%
+                    </span>
+                  </td>
+                }
+                <td class="px-3 py-2 text-center font-bold font-sans">
+                  <span
+                    class="rounded px-1.5 py-0.5 text-[11px]"
+                    [class.text-slate-700]="row.deltaOverall === 0"
+                    [class.text-emerald-800]="row.deltaOverall < 0"
+                    [class.text-rose-800]="row.deltaOverall > 0"
+                  >
+                    {{ row.deltaOverall > 0 ? '+' : '' }}{{ row.deltaOverall | number:'1.2-2' }} pp
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+        <div>
+          Rentang prevalensi teramati: <strong>{{ heatmapMinMax().min | number:'1.2-2' }}%</strong> s.d. <strong>{{ heatmapMinMax().max | number:'1.2-2' }}%</strong>.
+        </div>
+        <div class="text-[11px] text-slate-400">
+          Data tidak diurutkan berdasarkan peringkat guna mencegah pelabelan daerah tanpa dasar metodologis.
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- SECTION F: DISTRIBUSI STATISTIK (BOXPLOT) -->
+    <!-- ============================================================ -->
+    <section class="rounded-lg border border-slate-200 bg-white p-5 sm:p-6">
+      <div class="border-b border-slate-100 pb-3">
+        <h2 class="text-base font-bold text-slate-900">
+          Distribusi Statistik Prevalensi Antarwilayah (Boxplot)
+        </h2>
+        <p class="text-xs text-slate-500 mt-0.5">
+          Median menunjukkan nilai tengah antarwilayah. Sebaran menunjukkan seberapa berbeda kondisi prevalensi antar kabupaten/kota di Jawa Tengah.
+        </p>
+      </div>
+
+      <!-- BOXPLOT SVG -->
+      <div class="mt-6 overflow-x-auto">
+        <div class="flex justify-center" [style.minWidth.px]="chartWidth">
+          <svg
+            [attr.viewBox]="'0 0 ' + chartWidth + ' ' + (chartHeight + 20)"
+            [style.maxWidth.px]="chartWidth"
+            class="w-full h-auto overflow-visible select-none"
+          >
+            <!-- GRID LINES -->
+            @for (gridVal of [0, 5, 10, 15, 20]; track gridVal) {
+              @let gy = trendY(gridVal);
+              <line
+                [attr.x1]="padding.left"
+                [attr.y1]="gy"
+                [attr.x2]="chartWidth - padding.right"
+                [attr.y2]="gy"
+                stroke="#e2e8f0"
+                stroke-width="1"
+                stroke-dasharray="3,3"
+              />
+              <text
+                [attr.x]="padding.left - 8"
+                [attr.y]="gy + 4"
+                text-anchor="end"
+                class="text-[10px] fill-slate-400 font-mono"
+              >
+                {{ gridVal }}%
+              </text>
+            }
+
+            <!-- 5 BOXPLOTS -->
+            @for (bp of boxplotData(); track bp.period; let idx = $index) {
+              @let cx = trendX(idx);
+              @let s = bp.stats;
+              @let boxW = 42;
+              @let yMin = trendY(s.min);
+              @let yMax = trendY(s.max);
+              @let yQ1 = trendY(s.q1);
+              @let yQ3 = trendY(s.q3);
+              @let yMed = trendY(s.median);
+
+              <g class="group">
+                <!-- Whisker Line (Min to Max) -->
+                <line
+                  [attr.x1]="cx"
+                  [attr.y1]="yMin"
+                  [attr.x2]="cx"
+                  [attr.y2]="yMax"
+                  stroke="#475569"
+                  stroke-width="1.5"
+                />
+
+                <!-- Min Whisker Cap -->
+                <line
+                  [attr.x1]="cx - 12"
+                  [attr.y1]="yMin"
+                  [attr.x2]="cx + 12"
+                  [attr.y2]="yMin"
+                  stroke="#475569"
+                  stroke-width="1.5"
+                />
+
+                <!-- Max Whisker Cap -->
+                <line
+                  [attr.x1]="cx - 12"
+                  [attr.y1]="yMax"
+                  [attr.x2]="cx + 12"
+                  [attr.y2]="yMax"
+                  stroke="#475569"
+                  stroke-width="1.5"
+                />
+
+                <!-- Box (Q1 to Q3) -->
+                <rect
+                  [attr.x]="cx - boxW / 2"
+                  [attr.y]="yQ3"
+                  [attr.width]="boxW"
+                  [attr.height]="Math.abs(yQ1 - yQ3)"
+                  fill="#f1f5f9"
+                  stroke="#334155"
+                  stroke-width="1.5"
+                  rx="2"
+                  class="transition-colors group-hover:fill-slate-200"
+                />
+
+                <!-- Median Line -->
+                <line
+                  [attr.x1]="cx - boxW / 2"
+                  [attr.y1]="yMed"
+                  [attr.x2]="cx + boxW / 2"
+                  [attr.y2]="yMed"
+                  stroke="#0f172a"
+                  stroke-width="2.5"
+                />
+
+                <!-- Median Label -->
+                <text
+                  [attr.x]="cx"
+                  [attr.y]="yMed - 5"
+                  text-anchor="middle"
+                  class="text-[10px] font-bold fill-slate-900 font-mono"
+                >
+                  {{ s.median | number:'1.2-2' }}%
+                </text>
+
+                <!-- Period X Label -->
+                <text
+                  [attr.x]="cx"
+                  [attr.y]="chartHeight + 10"
+                  text-anchor="middle"
+                  class="text-[11px] font-medium fill-slate-700"
+                >
+                  {{ bp.period }}
+                </text>
+              </g>
+            }
+          </svg>
+        </div>
+      </div>
+
+      <!-- BOXPLOT SUMMARY METRIC TABLE -->
+      <div class="mt-6 overflow-x-auto border border-slate-200 rounded">
+        <table class="w-full text-xs text-left border-collapse">
+          <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+            <tr>
+              <th class="px-3 py-2 border-r border-slate-200">Periode</th>
+              <th class="px-3 py-2 text-right border-r border-slate-200">Minimum</th>
+              <th class="px-3 py-2 text-right border-r border-slate-200">Kuartil 1 (Q1)</th>
+              <th class="px-3 py-2 text-right border-r border-slate-200 font-bold text-slate-900">Median (Q2)</th>
+              <th class="px-3 py-2 text-right border-r border-slate-200">Kuartil 3 (Q3)</th>
+              <th class="px-3 py-2 text-right border-r border-slate-200">Maksimum</th>
+              <th class="px-3 py-2 text-right">Rentang (Max - Min)</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 font-mono">
+            @for (bp of boxplotData(); track bp.period) {
+              <tr class="hover:bg-slate-50">
+                <td class="px-3 py-2 font-medium font-sans text-slate-900 border-r border-slate-200">
+                  {{ bp.period }}
+                </td>
+                <td class="px-3 py-2 text-right border-r border-slate-200">{{ bp.stats.min | number:'1.2-2' }}%</td>
+                <td class="px-3 py-2 text-right border-r border-slate-200">{{ bp.stats.q1 | number:'1.2-2' }}%</td>
+                <td class="px-3 py-2 text-right border-r border-slate-200 font-bold text-slate-900 bg-slate-50/80">
+                  {{ bp.stats.median | number:'1.2-2' }}%
+                </td>
+                <td class="px-3 py-2 text-right border-r border-slate-200">{{ bp.stats.q3 | number:'1.2-2' }}%</td>
+                <td class="px-3 py-2 text-right border-r border-slate-200">{{ bp.stats.max | number:'1.2-2' }}%</td>
+                <td class="px-3 py-2 text-right text-slate-600 font-sans font-medium">
+                  {{ bp.stats.range | number:'1.2-2' }} pp
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- SECTION G: PETA SPASIAL, SKETSA PULAU JAWA & BATAS WILAYAH -->
+    <!-- ============================================================ -->
+    <section class="rounded-lg border border-slate-200 bg-white p-5 sm:p-6">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3">
+        <div>
+          <h2 class="text-base font-bold text-slate-900">
+            Peta Geografis & Batas 35 Wilayah Jawa Tengah
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">
+            Sketsa Pulau Jawa dan peta batas wilayah 35 kabupaten/kota dengan pewarnaan prevalensi stunting.
+          </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <!-- MAP DISPLAY MODE TOGGLE -->
+          <div class="inline-flex rounded border border-slate-200 bg-slate-50 p-0.5 text-xs">
+            <button
+              type="button"
+              (click)="mapDisplayMode.set('choropleth')"
+              [class.bg-white]="mapDisplayMode() === 'choropleth'"
+              [class.font-bold]="mapDisplayMode() === 'choropleth'"
+              [class.shadow-xs]="mapDisplayMode() === 'choropleth'"
+              class="rounded px-2.5 py-1 text-slate-800 transition-colors"
+            >
+              Batas Poligon Wilayah
+            </button>
+            <button
+              type="button"
+              (click)="mapDisplayMode.set('centroids')"
+              [class.bg-white]="mapDisplayMode() === 'centroids'"
+              [class.font-bold]="mapDisplayMode() === 'centroids'"
+              [class.shadow-xs]="mapDisplayMode() === 'centroids'"
+              class="rounded px-2.5 py-1 text-slate-800 transition-colors"
+            >
+              Koordinat Centroid
+            </button>
+          </div>
+
+          <!-- PERIOD SELECTOR -->
+          <div class="flex items-center gap-2">
+            <label class="text-xs font-medium text-slate-700 whitespace-nowrap">
+              Triwulan:
+            </label>
+            <select
+              [value]="selectedSpatialPeriod()"
+              (change)="onSpatialPeriodChange($event)"
+              class="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-800 focus:border-slate-500 focus:outline-none"
+            >
+              @for (p of periods(); track p) {
+                <option [value]="p">{{ p }}</option>
+              }
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- 1. SKETSA PULAU JAWA OVERVIEW BANNER -->
+      <div class="mt-4 rounded border border-slate-200 bg-slate-50/80 p-3.5">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 mb-2">
+          <span class="text-xs font-semibold text-slate-800">
+            Sketsa Pulau Jawa — Posisi Geografis Jawa Tengah
+          </span>
+          <span class="text-[11px] text-slate-500">
+            Jawa Tengah berada di tengah pulau, diapit Jawa Barat di barat dan Jawa Timur di timur.
+          </span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <div class="min-w-[540px] flex justify-center">
+            <svg
+              [attr.viewBox]="javaMapViewBox"
+              class="w-full max-w-[580px] h-auto select-none overflow-visible"
+            >
+              <!-- Java Provinces Outlines -->
+              @for (prov of javaOverviewProvinces; track prov.name) {
+                <path
+                  [attr.d]="prov.pathD"
+                  [attr.fill]="prov.isJateng ? '#334155' : '#f1f5f9'"
+                  [attr.stroke]="prov.isJateng ? '#0f172a' : '#94a3b8'"
+                  [attr.stroke-width]="prov.isJateng ? '1.5' : '1'"
+                  class="transition-colors"
+                />
+              }
+
+              <!-- Labels for Java Island Provinces -->
+              <text x="65" y="105" text-anchor="middle" class="text-[9px] font-medium fill-slate-500 font-sans">
+                Banten & DKI
+              </text>
+              <text x="175" y="108" text-anchor="middle" class="text-[9px] font-medium fill-slate-500 font-sans">
+                Jawa Barat
+              </text>
+              <text x="300" y="112" text-anchor="middle" class="text-[10px] font-bold fill-slate-900 font-sans">
+                Jawa Tengah ★
+              </text>
+              <text x="315" y="132" text-anchor="middle" class="text-[8px] font-medium fill-slate-600 font-sans">
+                D.I. Yogyakarta
+              </text>
+              <text x="450" y="108" text-anchor="middle" class="text-[9px] font-medium fill-slate-500 font-sans">
+                Jawa Timur
+              </text>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. MAIN CENTRAL JAVA MAP WITH 35 DISTRICT BOUNDARIES -->
+      <div class="mt-4 overflow-x-auto">
+        <div class="min-w-[660px] flex justify-center">
+          <svg
+            [attr.viewBox]="mainMapViewBox"
+            class="w-full max-w-[740px] h-auto rounded border border-slate-200 bg-slate-50/50 p-1 select-none overflow-visible"
+          >
+            <!-- Background Frame & Compass markers -->
+            <rect x="5" y="5" width="770" height="440" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1" rx="4" />
+
+            <!-- Surrounding Seas Guide Labels -->
+            <text x="390" y="24" text-anchor="middle" class="text-[10px] font-semibold tracking-wider fill-slate-400 font-sans">
+              LAUT JAWA (UTARA)
+            </text>
+            <text x="390" y="434" text-anchor="middle" class="text-[10px] font-semibold tracking-wider fill-slate-400 font-sans">
+              SAMUDERA HINDIA (SELATAN)
+            </text>
+
+            <!-- Coordinate guides -->
+            <text x="18" y="22" class="text-[8px] fill-slate-400 font-mono">108.5° BT</text>
+            <text x="760" y="22" text-anchor="end" class="text-[8px] fill-slate-400 font-mono">111.7° BT</text>
+
+            <!-- Neighbor Provinces (Context Outlines) -->
+            @for (nbr of neighborProvinces; track nbr.name) {
+              <path
+                [attr.d]="nbr.pathD"
+                fill="#f1f5f9"
+                stroke="#cbd5e1"
+                stroke-width="1"
+                stroke-dasharray="4,3"
+              />
+            }
+
+            <!-- Neighbor labels -->
+            <text x="65" y="230" text-anchor="middle" class="text-[10px] font-bold fill-slate-400 font-sans rotate-[-90deg]">
+              JAWA BARAT
+            </text>
+            <text x="475" y="375" text-anchor="middle" class="text-[9px] font-bold fill-slate-500 font-sans">
+              D.I. YOGYAKARTA
+            </text>
+            <text x="725" y="260" text-anchor="middle" class="text-[10px] font-bold fill-slate-400 font-sans rotate-90">
+              JAWA TIMUR
+            </text>
+
+            <!-- 35 DISTRICT BOUNDARIES (POLYGONS) -->
+            @if (mapDisplayMode() === 'choropleth') {
+              @for (dist of spatialMapFeatures(); track dist.id) {
+                @let isHovered = hoveredDistrict()?.id === dist.id;
+                <g
+                  class="cursor-pointer group"
+                  (mouseenter)="hoveredDistrict.set(dist)"
+                  (mouseleave)="hoveredDistrict.set(null)"
+                >
+                  <!-- Boundary polygon -->
+                  <path
+                    [attr.d]="dist.pathD"
+                    [attr.fill]="getDistrictFill(dist.stunting)"
+                    [attr.stroke]="isHovered ? '#0f172a' : '#475569'"
+                    [attr.stroke-width]="isHovered ? '2.5' : '0.8'"
+                    class="transition-colors duration-100"
+                  />
+
+                  <!-- Centroid dot -->
+                  <circle
+                    [attr.cx]="dist.svgCenterX"
+                    [attr.cy]="dist.svgCenterY"
+                    r="3"
+                    fill="#0f172a"
+                    stroke="#ffffff"
+                    stroke-width="1"
+                    style="transform-box: fill-box; transform-origin: center;"
+                    class="transition-all group-hover:stroke-[2px]"
+                  />
+
+                  <!-- Label on hover or selected -->
+                  <text
+                    [attr.x]="dist.svgCenterX"
+                    [attr.y]="dist.svgCenterY - 6"
+                    text-anchor="middle"
+                    class="text-[8px] font-bold fill-slate-900 pointer-events-none transition-opacity"
+                    [class.opacity-100]="isHovered"
+                    [class.opacity-70]="!isHovered"
+                  >
+                    {{ dist.displayName }}
+                  </text>
+                </g>
+              }
+            } @else {
+              <!-- CENTROIDS ONLY MODE -->
+              @for (c of spatialCentroids(); track c.kabupaten_kota) {
+                @let cx = spatialX(c.lon);
+                @let cy = spatialY(c.lat);
+                @let val = c.stunting ?? 0;
+
+                <g class="cursor-pointer group">
+                  <circle
+                    [attr.cx]="cx"
+                    [attr.cy]="cy"
+                    r="6.5"
+                    [attr.fill]="getHeatmapBg(val)"
+                    stroke="#334155"
+                    stroke-width="1.5"
+                    style="transform-box: fill-box; transform-origin: center;"
+                    class="transition-all group-hover:stroke-[3px] group-hover:stroke-slate-950"
+                  />
+
+                  <text
+                    [attr.x]="cx"
+                    [attr.y]="cy - 9"
+                    text-anchor="middle"
+                    class="text-[9px] font-semibold fill-slate-800 transition-opacity opacity-80 group-hover:opacity-100 group-hover:fill-slate-950 font-sans"
+                  >
+                    {{ c.kabupaten_kota.replace('KABUPATEN ', '').replace('KOTA ', 'Kota ') }}
+                    ({{ val | number:'1.1-1' }}%)
+                  </text>
+                </g>
+              }
+            }
+          </svg>
+        </div>
+      </div>
+
+      <!-- 3. INTERACTIVE DISTRICT INSPECTOR CARD & COLOR SCALE -->
+      <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+        <!-- INSPECTOR CARD (2 COLS) -->
+        <div class="md:col-span-2 rounded border border-slate-200 bg-slate-50 p-3.5 text-xs">
+          @if (hoveredDistrict()) {
+            @let hDist = hoveredDistrict()!;
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2 mb-2">
+              <div>
+                <strong class="text-sm font-bold text-slate-900">{{ hDist.kabupatenKota }}</strong>
+                <span class="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-700 font-mono">
+                  ID: {{ hDist.id }}
+                </span>
+              </div>
+              <div class="text-slate-500 text-[11px]">
+                Centroid: {{ hDist.centroidLon | number:'1.3-3' }}° BT, {{ hDist.centroidLat | number:'1.3-3' }}° LS
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div>
+                <span class="text-slate-500 text-[11px] block">Prevalensi Stunting:</span>
+                <span class="text-base font-bold text-slate-900 font-mono">
+                  {{ hDist.stunting | number:'1.2-2' }}%
+                </span>
+              </div>
+              <div class="sm:col-span-2">
+                <span class="text-slate-500 text-[11px] block">Perbandingan thd. Median:</span>
+                <span class="font-medium text-slate-800">
+                  {{ getDifferenceFromMedian(hDist.stunting)?.text ?? '-' }}
+                </span>
+              </div>
+            </div>
+          } @else {
+            <div class="flex items-center gap-2 text-slate-500 py-2">
+              <span>💡</span>
+              <span>Arahkan kursor ke wilayah pada peta untuk memeriksa rincian angka stunting dan posisinya terhadap median regional.</span>
+            </div>
+          }
+        </div>
+
+        <!-- STUNTING COLOR SCALE LEGEND (1 COL) -->
+        <div class="rounded border border-slate-200 bg-slate-50 p-3.5 text-xs">
+          <strong class="font-semibold text-slate-800 block mb-2 text-[11px]">
+            Legenda Prevalensi Stunting:
+          </strong>
+          <div class="space-y-1 text-[11px]">
+            <div class="flex items-center gap-2">
+              <span class="w-4 h-3.5 rounded-xs border border-slate-300" style="background-color: hsl(215, 30%, 95%);"></span>
+              <span class="text-slate-600">&lt; 5.0% (Rendah)</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="w-4 h-3.5 rounded-xs border border-slate-300" style="background-color: hsl(215, 30%, 75%);"></span>
+              <span class="text-slate-600">5.0% – 10.0%</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="w-4 h-3.5 rounded-xs border border-slate-300" style="background-color: hsl(215, 30%, 55%);"></span>
+              <span class="text-slate-600">10.0% – 15.0%</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="w-4 h-3.5 rounded-xs border border-slate-300" style="background-color: hsl(215, 30%, 40%);"></span>
+              <span class="text-slate-600">&ge; 15.0% (Tinggi)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- SECTION H: CAPAIAN 9 INDIKATOR INTERVENSI -->
+    <!-- ============================================================ -->
+    <section class="rounded-lg border border-slate-200 bg-white p-5 sm:p-6">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4">
+        <div>
+          <h2 class="text-base font-bold text-slate-900">
+            Capaian 9 Indikator Intervensi Spesifik
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">
+            Pilih indikator untuk melihat dinamika capaian (%) selama {{ periods().length }} triwulan. Istilah yang digunakan adalah <strong>"capaian indikator"</strong>, bukan efektivitas program.
+          </p>
+        </div>
+
+        <!-- INDICATOR SELECTOR -->
+        <div class="flex items-center gap-2">
+          <label class="text-xs font-medium text-slate-700 whitespace-nowrap">
+            Pilih Indikator:
+          </label>
+          <select
+            [value]="selectedIndicatorKey()"
+            (change)="onIndicatorChange($event)"
+            class="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 focus:border-slate-500 focus:outline-none min-w-[220px]"
+          >
+            @for (ind of indicators(); track ind.code) {
+              <option [value]="ind.key">
+                {{ ind.code }} — {{ ind.name }}
+              </option>
+            }
+          </select>
+        </div>
+      </div>
+
+      <!-- INDICATOR LINE CHART SVG -->
+      @let indData = indicatorTrendData();
+      <div class="mt-6 overflow-x-auto">
+        <div class="flex justify-center" [style.minWidth.px]="chartWidth">
+          <svg
+            [attr.viewBox]="'0 0 ' + chartWidth + ' ' + chartHeight"
+            [style.maxWidth.px]="chartWidth"
+            class="w-full h-auto overflow-visible select-none"
+          >
+            <!-- GRID LINES (0 to 100%) -->
+            @for (gridVal of [0, 25, 50, 75, 100]; track gridVal) {
+              @let gy = indY(gridVal);
+              <line
+                [attr.x1]="padding.left"
+                [attr.y1]="gy"
+                [attr.x2]="chartWidth - padding.right"
+                [attr.y2]="gy"
+                stroke="#e2e8f0"
+                stroke-width="1"
+                stroke-dasharray="3,3"
+              />
+              <text
+                [attr.x]="padding.left - 8"
+                [attr.y]="gy + 4"
+                text-anchor="end"
+                class="text-[10px] fill-slate-400 font-mono"
+              >
+                {{ gridVal }}%
+              </text>
+            }
+
+            <!-- INDICATOR PATH -->
+            @let iLine = 'M ' + indX(0) + ' ' + indY(indData.points[0].value) + ' ' +
+              indData.points.slice(1).map((p, i) => 'L ' + indX(i + 1) + ' ' + indY(p.value)).join(' ');
+
+            <path
+              [attr.d]="iLine"
+              fill="none"
+              stroke="#0f172a"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+
+            <!-- POINT CIRCLES -->
+            @for (pt of indData.points; track pt.period; let idx = $index) {
+              @let px = indX(idx);
+              @let py = indY(pt.value);
+
+              <g class="cursor-pointer group">
+                <circle
+                  [attr.cx]="px"
+                  [attr.cy]="py"
+                  r="5"
+                  fill="#0f172a"
+                  stroke="#ffffff"
+                  stroke-width="2"
+                  class="transition-all duration-150 group-hover:stroke-slate-900 group-hover:stroke-[3.5px]"
+                  style="transform-box: fill-box; transform-origin: center;"
+                />
+
+                <text
+                  [attr.x]="px"
+                  [attr.y]="py - 10"
+                  text-anchor="middle"
+                  class="text-[11px] font-bold fill-slate-900 font-mono"
+                >
+                  {{ pt.value | number:'1.2-2' }}%
+                </text>
+
+                <text
+                  [attr.x]="px"
+                  [attr.y]="chartHeight - 12"
+                  text-anchor="middle"
+                  class="text-[11px] font-medium fill-slate-600"
+                >
+                  {{ pt.period }}
+                </text>
+              </g>
+            }
+          </svg>
+        </div>
+      </div>
+
+      <!-- INTERVAL DELTAS SUMMARY -->
+      <div class="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs border-t border-slate-100 pt-4">
+        @for (del of indData.intervalDeltas; track del.interval) {
+          <div class="rounded border border-slate-200 bg-slate-50 p-2.5">
+            <span class="text-slate-500 text-[11px] block">{{ del.interval }}</span>
+            <div class="mt-1 font-bold font-mono text-slate-800">
+              {{ del.delta > 0 ? '+' : '' }}{{ del.delta | number:'1.2-2' }}%
+            </div>
+          </div>
+        }
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- SECTION I: HUBUNGAN INTERVENSI DAN PREVALENSI STUNTING -->
+    <!-- ============================================================ -->
+    <section class="rounded-lg border border-slate-200 bg-white p-5 sm:p-6">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3">
+        <div>
+          <h2 class="text-base font-bold text-slate-900">
+            Hubungan Capaian Intervensi dan Prevalensi Stunting
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">
+            Setiap titik merefleksikan satu observasi kabupaten/kota-periode (total {{ store.dataset.observations.length }} observasi).
+          </p>
+        </div>
+
+        <!-- FILTER PERIODE SCATTER -->
+        <div class="flex items-center gap-2">
+          <label class="text-xs font-medium text-slate-700 whitespace-nowrap">
+            Filter Periode:
+          </label>
+          <select
+            [value]="selectedScatterPeriod()"
+            (change)="onScatterPeriodChange($event)"
+            class="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-800 focus:border-slate-500 focus:outline-none"
+          >
+            <option value="ALL">Semua Periode ({{ store.dataset.observations.length }} titik)</option>
+            @for (p of periods(); track p) {
+              <option [value]="p">{{ p }} ({{ summaryCards().wilayah_count }} titik)</option>
+            }
+          </select>
+        </div>
+      </div>
+
+      <!-- MANDATORY DISCLAIMER NOTE -->
+      <div class="mt-4 rounded border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 leading-relaxed">
+        <strong>Catatan Metodologis:</strong> Grafik ini menunjukkan pola hubungan asosiatif antarvariabel. <strong>Hubungan statistik tidak dengan sendirinya membuktikan bahwa perubahan intervensi menyebabkan perubahan stunting.</strong> Garis linier hanya mengilustrasikan arah kemiringan data pada subset yang ditampilkan.
+      </div>
+
+      <!-- SCATTER PLOT SVG -->
+      @let sc = scatterData();
+      <div class="mt-5 overflow-x-auto">
+        <div class="min-w-[560px] flex justify-center">
+          <svg
+            [attr.viewBox]="'0 0 ' + scatterWidth + ' ' + scatterHeight"
+            class="w-full max-w-[620px] h-auto overflow-visible select-none"
+          >
+            <!-- X and Y Axes -->
+            <line
+              [attr.x1]="scPadding.left"
+              [attr.y1]="scatterHeight - scPadding.bottom"
+              [attr.x2]="scatterWidth - scPadding.right"
+              [attr.y2]="scatterHeight - scPadding.bottom"
+              stroke="#cbd5e1"
+              stroke-width="1.5"
+            />
+            <line
+              [attr.x1]="scPadding.left"
+              [attr.y1]="scPadding.top"
+              [attr.x2]="scPadding.left"
+              [attr.y2]="scatterHeight - scPadding.bottom"
+              stroke="#cbd5e1"
+              stroke-width="1.5"
+            />
+
+            <!-- Y Axis Grid (Stunting 0 - 20%) -->
+            @for (yVal of [0, 5, 10, 15, 20]; track yVal) {
+              @let gy = scY(yVal);
+              <line
+                [attr.x1]="scPadding.left"
+                [attr.y1]="gy"
+                [attr.x2]="scatterWidth - scPadding.right"
+                [attr.y2]="gy"
+                stroke="#f1f5f9"
+                stroke-width="1"
+              />
+              <text
+                [attr.x]="scPadding.left - 8"
+                [attr.y]="gy + 4"
+                text-anchor="end"
+                class="text-[10px] fill-slate-400 font-mono"
+              >
+                {{ yVal }}%
+              </text>
+            }
+
+            <!-- X Axis Labels (0, 25, 50, 75, 100%) -->
+            @for (xVal of [0, 25, 50, 75, 100]; track xVal) {
+              @let gx = scX(xVal);
+              <line
+                [attr.x1]="gx"
+                [attr.y1]="scPadding.top"
+                [attr.x2]="gx"
+                [attr.y2]="scatterHeight - scPadding.bottom"
+                stroke="#f1f5f9"
+                stroke-width="1"
+              />
+              <text
+                [attr.x]="gx"
+                [attr.y]="scatterHeight - scPadding.bottom + 16"
+                text-anchor="middle"
+                class="text-[10px] fill-slate-400 font-mono"
+              >
+                {{ xVal }}%
+              </text>
+            }
+
+            <!-- Axis Labels -->
+            <text
+              [attr.x]="scatterWidth / 2"
+              [attr.y]="scatterHeight - 8"
+              text-anchor="middle"
+              class="text-[11px] font-semibold fill-slate-700"
+            >
+              Capaian {{ sc.indicator.name }} (%)
+            </text>
+            <text
+              x="12"
+              [attr.y]="scatterHeight / 2"
+              text-anchor="middle"
+              transform="rotate(-90, 12, 150)"
+              class="text-[11px] font-semibold fill-slate-700"
+            >
+              Prevalensi Stunting (%)
+            </text>
+
+            <!-- Regression Line -->
+            @if (sc.points.length > 2) {
+              @let x1 = sc.trendline.minX;
+              @let x2 = sc.trendline.maxX;
+              @let y1 = sc.trendline.slope * x1 + sc.trendline.intercept;
+              @let y2 = sc.trendline.slope * x2 + sc.trendline.intercept;
+              <line
+                [attr.x1]="scX(x1)"
+                [attr.y1]="scY(y1)"
+                [attr.x2]="scX(x2)"
+                [attr.y2]="scY(y2)"
+                stroke="#64748b"
+                stroke-width="1.5"
+                stroke-dasharray="4,4"
+              />
+            }
+
+            <!-- Scatter Points -->
+            @for (p of sc.points; track p.wilayah + p.period) {
+              <circle
+                [attr.cx]="scX(p.xValue)"
+                [attr.cy]="scY(p.yValue)"
+                r="3.5"
+                fill="#1e293b"
+                fill-opacity="0.65"
+                stroke="#ffffff"
+                stroke-width="1"
+                class="hover:fill-slate-950 hover:stroke-slate-950 hover:stroke-[2px] transition-all cursor-pointer"
+                style="transform-box: fill-box; transform-origin: center;"
+              >
+                <title>{{ p.wilayah }} ({{ p.period }}): {{ sc.indicator.short_name }} = {{ p.xValue }}%, Stunting = {{ p.yValue }}%</title>
+              </circle>
+            }
+          </svg>
+        </div>
+      </div>
+
+      <!-- STATISTICAL CORRELATION SUMMARY -->
+      <div class="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs border-t border-slate-100 pt-3">
+        <div>
+          Korelasi Pearson (r): <strong class="font-mono text-slate-900">{{ sc.rPearson }}</strong>
+          <span class="text-slate-500 ml-1">
+            ({{ Math.abs(sc.rPearson) < 0.2 ? 'Korelasi sangat lemah / mendekati nol' : Math.abs(sc.rPearson) < 0.4 ? 'Korelasi lemah' : 'Korelasi sedang' }})
+          </span>
+        </div>
+        <div class="text-slate-500">
+          Jumlah observasi aktif: <strong>{{ sc.points.length }}</strong> titik
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- SECTION J: ANALISIS STATISTIK LANJUTAN (COLLAPSIBLE) -->
+    <!-- ============================================================ -->
+    <section class="rounded-lg border border-slate-200 bg-white overflow-hidden">
+      <div class="p-5 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-base font-bold text-slate-900">
+            Analisis Ekonometrika & Statistik Lanjutan
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">
+            Model Two-Way Fixed Effects, First Difference, Moran's I, GWR, dan Reduksi Dimensi dari hasil olah data panel.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          (click)="toggleAdvancedStats()"
+          class="inline-flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+        >
+          <span>{{ showAdvancedStats() ? 'Tutup Analisis Statistik' : 'Lihat Analisis Statistik' }}</span>
+          <span>{{ showAdvancedStats() ? '▲' : '▼' }}</span>
+        </button>
+      </div>
+
+      @if (showAdvancedStats()) {
+        <div class="border-t border-slate-200 p-5 sm:p-6 space-y-6 bg-slate-50/50">
+          <!-- 1. TWO-WAY FIXED EFFECTS -->
+          <div class="rounded border border-slate-200 bg-white p-4">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 mb-1">
+              1. Two-Way Fixed Effects (Entity & Time Fixed Effects)
+            </h3>
+            <p class="text-xs text-slate-600 leading-relaxed mb-3">
+              Model ini digunakan untuk melihat hubungan perubahan indikator dengan perubahan prevalensi stunting sambil memperhitungkan perbedaan tetap antarwilayah dan periode. Standar error diestimasi menggunakan cluster-robust standard errors pada tingkat kabupaten/kota (N={{ store.dataset.observations.length }}).
+            </p>
+
+            <div class="overflow-x-auto border border-slate-200 rounded">
+              <table class="w-full text-xs text-left border-collapse">
+                <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                  <tr>
+                    <th class="px-3 py-2 border-r border-slate-200">Variabel Intervensi</th>
+                    <th class="px-3 py-2 text-right border-r border-slate-200">Koefisien (β)</th>
+                    <th class="px-3 py-2 text-right border-r border-slate-200">SE Cluster</th>
+                    <th class="px-3 py-2 text-right border-r border-slate-200">p-value</th>
+                    <th class="px-3 py-2 text-center">Status Signifikansi (α=0.05)</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 font-mono">
+                  @for (r of models().fe9; track r.variable) {
+                    <tr>
+                      <td class="px-3 py-2 font-sans font-medium text-slate-900 border-r border-slate-200">
+                        {{ r.label }} ({{ r.variable.split('_')[0] }})
+                      </td>
+                      <td class="px-3 py-2 text-right border-r border-slate-200">{{ r.coef | number:'1.4-4' }}</td>
+                      <td class="px-3 py-2 text-right border-r border-slate-200">{{ r.se | number:'1.4-4' }}</td>
+                      <td class="px-3 py-2 text-right border-r border-slate-200">{{ r.p_value | number:'1.4-4' }}</td>
+                      <td class="px-3 py-2 text-center font-sans">
+                        <span
+                          class="rounded px-1.5 py-0.5 text-[10px]"
+                          [class.bg-emerald-50]="r.p_value < 0.05"
+                          [class.text-emerald-800]="r.p_value < 0.05"
+                          [class.bg-slate-100]="r.p_value >= 0.05"
+                          [class.text-slate-600]="r.p_value >= 0.05"
+                        >
+                          {{ r.p_value < 0.05 ? 'Signifikan' : 'Tidak Signifikan' }}
+                        </span>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <div class="mt-2 text-[11px] text-slate-500">
+              * Kesimpulan Model: Tidak ada indikator yang signifikan secara statistik pada taraf 5% dalam model FE dua arah, mengindikasikan bahwa fluktuasi jangka pendek indikator tidak berhubungan kuat dengan perubahan prevalensi kuartalan.
+            </div>
+          </div>
+
+          <!-- 2. FIRST DIFFERENCE -->
+          <div class="rounded border border-slate-200 bg-white p-4">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 mb-1">
+              2. First Difference Model (Delta-Delta Kuartalan)
+            </h3>
+            <p class="text-xs text-slate-600 leading-relaxed mb-3">
+              Analisis ini melihat perubahan dari satu triwulan ke triwulan berikutnya (ΔY terhadap ΔX) dalam wilayah yang sama, menghasilkan 140 perubahan observasi.
+            </p>
+
+            <div class="overflow-x-auto border border-slate-200 rounded">
+              <table class="w-full text-xs text-left border-collapse">
+                <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                  <tr>
+                    <th class="px-3 py-2 border-r border-slate-200">Variabel Perubahan</th>
+                    <th class="px-3 py-2 text-right border-r border-slate-200">Koefisien (Δβ)</th>
+                    <th class="px-3 py-2 text-right border-r border-slate-200">SE Cluster</th>
+                    <th class="px-3 py-2 text-right border-r border-slate-200">p-value</th>
+                    <th class="px-3 py-2 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 font-mono">
+                  @for (r of models().fd; track r.variable) {
+                    <tr>
+                      <td class="px-3 py-2 font-sans font-medium text-slate-900 border-r border-slate-200">
+                        Δ {{ r.label }}
+                      </td>
+                      <td class="px-3 py-2 text-right border-r border-slate-200">{{ r.coef | number:'1.4-4' }}</td>
+                      <td class="px-3 py-2 text-right border-r border-slate-200">{{ r.se | number:'1.4-4' }}</td>
+                      <td class="px-3 py-2 text-right border-r border-slate-200">{{ r.p_value | number:'1.4-4' }}</td>
+                      <td class="px-3 py-2 text-center font-sans">
+                        <span
+                          class="rounded px-1.5 py-0.5 text-[10px]"
+                          [class.bg-emerald-50]="r.p_value < 0.05"
+                          [class.text-emerald-800]="r.p_value < 0.05"
+                          [class.bg-slate-100]="r.p_value >= 0.05"
+                          [class.text-slate-600]="r.p_value >= 0.05"
+                        >
+                          {{ r.p_value < 0.05 ? 'Signifikan' : 'Tidak Signifikan' }}
+                        </span>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 3. MORAN'S I & GWR -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <!-- MORAN'S I -->
+            <div class="rounded border border-slate-200 bg-white p-4">
+              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 mb-1">
+                3. Autokorelasi Spasial (Moran's I)
+              </h3>
+              <p class="text-xs text-slate-600 mb-3">
+                Menguji apakah wilayah yang berdekatan cenderung memiliki nilai prevalensi stunting yang serupa (Inverse Distance Matrix, 4.999 permutasi).
+              </p>
+
+              <div class="overflow-x-auto border border-slate-200 rounded">
+                <table class="w-full text-xs text-left border-collapse">
+                  <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                    <tr>
+                      <th class="px-3 py-2 border-r border-slate-200">Periode</th>
+                      <th class="px-3 py-2 border-r border-slate-200">Variabel</th>
+                      <th class="px-3 py-2 text-right border-r border-slate-200">Moran's I</th>
+                      <th class="px-3 py-2 text-right">p-value</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 font-mono">
+                    @for (r of models().moran; track r.triwulan + r.variable) {
+                      <tr>
+                        <td class="px-3 py-2 font-sans font-medium text-slate-900 border-r border-slate-200">{{ r.triwulan }}</td>
+                        <td class="px-3 py-2 font-sans text-slate-600 border-r border-slate-200">{{ r.variable }}</td>
+                        <td class="px-3 py-2 text-right border-r border-slate-200">{{ r.moran_i | number:'1.3-3' }}</td>
+                        <td class="px-3 py-2 text-right">
+                          <span [class.font-bold]="r.significant_5pct" [class.text-emerald-800]="r.significant_5pct">
+                            {{ r.p_value | number:'1.3-3' }}
+                          </span>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- GWR SUMMARY -->
+            <div class="rounded border border-slate-200 bg-white p-4">
+              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 mb-1">
+                4. Geographically Weighted Regression (GWR)
+              </h3>
+              <p class="text-xs text-slate-600 mb-3">
+                Eksplorasi heterogenitas spasial koefisien lokal menggunakan adaptif bandwidth LOOCV. Hasil ini bukan untuk ranking efektivitas wilayah.
+              </p>
+
+              <div class="overflow-x-auto border border-slate-200 rounded">
+                <table class="w-full text-xs text-left border-collapse">
+                  <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                    <tr>
+                      <th class="px-3 py-2 border-r border-slate-200">Triwulan</th>
+                      <th class="px-3 py-2 text-center border-r border-slate-200">Bandwidth</th>
+                      <th class="px-3 py-2 text-right border-r border-slate-200">RMSE CV</th>
+                      <th class="px-3 py-2 text-right">Median Koef</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 font-mono">
+                    @for (g of models().gwr; track g.triwulan) {
+                      <tr>
+                        <td class="px-3 py-2 font-sans font-medium text-slate-900 border-r border-slate-200">{{ g.triwulan }}</td>
+                        <td class="px-3 py-2 text-center border-r border-slate-200">{{ g.bandwidth }} tetangga</td>
+                        <td class="px-3 py-2 text-right border-r border-slate-200">{{ g.loocv_rmse | number:'1.3-3' }}</td>
+                        <td class="px-3 py-2 text-right">{{ g.coef_median | number:'1.3-3' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              <div class="mt-2 text-[11px] text-slate-500">
+                * Koefisien lokal GWR bervariasi antarwilayah namun tidak dikoreksi untuk multiple testing, sehingga murni berfungsi sebagai eksplorasi pola.
+              </div>
+            </div>
+          </div>
+        </div>
+      }
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- SECTION K: "APA YANG BISA DIAMBIL DARI DATA?" -->
+    <!-- ============================================================ -->
+    <section class="rounded-lg border border-slate-200 bg-white p-5 sm:p-6">
+      <h2 class="text-base font-bold text-slate-900 border-b border-slate-100 pb-3">
+        Apa yang Dapat dan Tidak Dapat Disimpulkan dari Data?
+      </h2>
+
+      <div class="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- YANG TERLIHAT -->
+        <div class="rounded border border-slate-200 bg-slate-50 p-4">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 mb-1.5 flex items-center gap-1.5">
+            <span>●</span>
+            <span>Yang Terlihat</span>
+          </h3>
+          <p class="text-xs text-slate-700 leading-relaxed">
+            Median prevalensi stunting antar kabupaten/kota di Jawa Tengah berkisar pada rentang {{ summaryCards().median_first | number:'1.2-2' }}% hingga {{ summaryCards().median_latest | number:'1.2-2' }}% di sepanjang {{ periods().length }} triwulan observasi ({{ firstPeriod() }} s.d. {{ latestPeriod() }}).
+          </p>
+        </div>
+
+        <!-- PERUBAHANNYA -->
+        <div class="rounded border border-slate-200 bg-slate-50 p-4">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 mb-1.5 flex items-center gap-1.5">
+            <span>●</span>
+            <span>Perubahannya</span>
+          </h3>
+          <p class="text-xs text-slate-700 leading-relaxed">
+            Perubahan median keseluruhan adalah {{ summaryCards().median_change < 0 ? 'penurunan' : (summaryCards().median_change > 0 ? 'peningkatan' : 'stabil') }} sebesar {{ Math.abs(summaryCards().median_change) | number:'1.2-2' }} poin persentase (dari {{ summaryCards().median_first | number:'1.2-2' }}% pada {{ firstPeriod() }} menjadi {{ summaryCards().median_latest | number:'1.2-2' }}% pada {{ latestPeriod() }}), dengan pergeseran kuartalan yang tergolong terukur.
+          </p>
+        </div>
+
+        <!-- POLA WILAYAH -->
+        <div class="rounded border border-slate-200 bg-slate-50 p-4">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 mb-1.5 flex items-center gap-1.5">
+            <span>●</span>
+            <span>Pola Wilayah</span>
+          </h3>
+          <p class="text-xs text-slate-700 leading-relaxed">
+            Terdapat perbedaan prevalensi baseline yang cukup lebar antar kabupaten/kota (rentang antara {{ heatmapMinMax().min | number:'1.2-2' }}% hingga {{ heatmapMinMax().max | number:'1.2-2' }}%). Variasi antardaerah jauh lebih dominan dibandingkan perubahan dari triwulan ke triwulan pada wilayah yang sama.
+          </p>
+        </div>
+
+        <!-- HUBUNGAN STATISTIK -->
+        <div class="rounded border border-slate-200 bg-slate-50 p-4">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 mb-1.5 flex items-center gap-1.5">
+            <span>●</span>
+            <span>Hubungan Statistik</span>
+          </h3>
+          <p class="text-xs text-slate-700 leading-relaxed">
+            Model panel ekonometrika (Two-Way Fixed Effects dan First Difference) tidak menemukan hubungan statistik yang konsisten signifikan antara perubahan indikator intervensi kuartalan dengan fluktuasi prevalensi stunting.
+          </p>
+        </div>
+      </div>
+
+      <!-- YANG PERLU DIPERHATIKAN (CAUTION) -->
+      <div class="mt-4 rounded border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-900 leading-relaxed">
+        <strong class="font-bold block mb-1">Yang Perlu Diperhatikan:</strong>
+        Hubungan statistik <strong>tidak sama dengan hubungan sebab-akibat</strong>. Penurunan prevalensi stunting merupakan proses intervensi gizi biologis dan sosial jangka menengah hingga panjang. Ketiadaan asosiasi linear langsung pada data kuartalan tidak berarti program intervensi tidak bermanfaat, melainkan mencerminkan bahwa dampak intervensi membutuhkan waktu akumulasi (lag effect) serta faktor determinan multisektoral di luar laporan rutin.
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- SECTION L / 18: TENTANG DATA & METODOLOGI -->
+    <!-- ============================================================ -->
+    <section class="rounded-lg border border-slate-200 bg-white p-5 sm:p-6 text-xs text-slate-700 space-y-3">
+      <h2 class="text-base font-bold text-slate-900 border-b border-slate-100 pb-3">
+        Tentang Data & Batasan Analisis
+      </h2>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <strong class="font-semibold text-slate-900 block mb-1">Sumber & Struktur Data</strong>
+          <ul class="list-disc list-inside space-y-1 text-slate-600">
+            <li>Sumber: Dinas Kesehatan Provinsi Jawa Tengah</li>
+            <li>Unit analisis: {{ summaryCards().wilayah_count }} kabupaten/kota</li>
+            <li>Periode: {{ periods().length }} triwulan ({{ periods().join(', ') }})</li>
+            <li>Total observasi: {{ store.dataset.observations.length }} baris observasi panel seimbang tanpa nilai kosong</li>
+          </ul>
+        </div>
+
+        <div>
+          <strong class="font-semibold text-slate-900 block mb-1">Batasan & Etika Penggunaan</strong>
+          <ul class="list-disc list-inside space-y-1 text-slate-600">
+            <li>Data bersifat observasional dari pencatatan layanan rutin fasilitas kesehatan.</li>
+            <li>Analisis ini bersifat deskriptif dan asosiatif, bukan uji efektivitas kausal eksperimental.</li>
+            <li>Dilarang menggunakan angka dashboard untuk membuat ranking keberhasilan atau kegagalan daerah.</li>
+            <li>Definisi indikator mengikuti dokumentasi standar teknis pelaporan dinas kesehatan.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>

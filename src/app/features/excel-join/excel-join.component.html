@@ -1,0 +1,1499 @@
+<div class="min-h-screen bg-slate-50 text-slate-800 pb-16">
+  <!-- UNIFIED PAGE HEADER -->
+  <ui-page-header
+    title="Excel Join Multi-Sheet"
+    subtitle="Gabungkan beberapa sheet Excel dengan sub-header bertingkat, target, capaian, dan jumlah."
+  >
+    <div actions class="flex flex-wrap items-center gap-2">
+      <!-- TOMBOL GERIGI (PENGATURAN) -->
+      <button
+        type="button"
+        uiButton
+        [variant]="showSettings() ? 'primary' : 'secondary'"
+        size="sm"
+        (click)="toggleSettings()"
+        [title]="showSettings() ? 'Tutup Panel Pengaturan' : 'Buka Pengaturan Join & Variabel'"
+      >
+        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+        <span>{{ showSettings() ? 'Tutup Pengaturan' : 'Pengaturan' }}</span>
+      </button>
+
+      <!-- HIDDEN FILE INPUT UNTUK LOAD CONFIG JSON -->
+      <input
+        type="file"
+        accept=".json"
+        #configFileInput
+        (change)="onConfigFileSelected($event)"
+        class="hidden"
+      />
+
+      <button
+        type="button"
+        uiButton
+        variant="secondary"
+        size="sm"
+        (click)="configFileInput.click()"
+        title="Unggah file konfigurasi .json"
+      >
+        <svg class="w-4 h-4 mr-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+        </svg>
+        Muat (.json)
+      </button>
+
+      <button
+        type="button"
+        uiButton
+        variant="secondary"
+        size="sm"
+        (click)="exportConfiguration()"
+        title="Simpan pengaturan sheet, variabel, target, dan format saat ini ke file .json"
+      >
+        <svg class="w-4 h-4 mr-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        </svg>
+        Simpan (.json)
+      </button>
+
+      @if (file()) {
+        <button
+          type="button"
+          uiButton
+          variant="secondary"
+          size="sm"
+          (click)="openSaveDefaultConfirm()"
+          title="Simpan file Excel aktif dan konfigurasi saat ini sebagai default ke Google Drive"
+        >
+          <svg class="w-4 h-4 mr-1 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          </svg>
+          Jadikan Default (Cloud)
+        </button>
+      }
+
+      @if (isCloudDefault() || !isDefaultData()) {
+        <button
+          type="button"
+          uiButton
+          variant="outline"
+          size="sm"
+          (click)="openResetDefaultConfirm()"
+          title="Kembalikan file dan konfigurasi ke bawaan awal sistem"
+        >
+          <svg class="w-4 h-4 mr-1 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Kembalikan ke Bawaan
+        </button>
+      }
+    </div>
+  </ui-page-header>
+
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-6">
+    <!-- NOTIFIKASI HASIL LOAD/SIMPAN KONFIGURASI -->
+    @if (configNotification()) {
+      <div class="mb-6">
+        <ui-alert
+          [type]="configNotification()!.type === 'warning' ? 'warning' : configNotification()!.type === 'success' ? 'success' : 'info'"
+          [dismissible]="true"
+          (dismissed)="closeConfigNotification()"
+        >
+          <div class="font-medium">{{ configNotification()!.message }}</div>
+          @if (configNotification()!.details && configNotification()!.details!.length > 0) {
+            <ul class="mt-2 list-disc pl-5 space-y-1 text-xs">
+              @for (detail of configNotification()!.details!; track detail) {
+                <li>{{ detail }}</li>
+              }
+            </ul>
+          }
+        </ui-alert>
+      </div>
+    }
+
+    <!-- ERROR -->
+    @if (errorMessage()) {
+      <div class="mb-6">
+        <ui-alert type="error" title="Terjadi kesalahan" [dismissible]="true" (dismissed)="errorMessage.set('')">
+          {{ errorMessage() }}
+        </ui-alert>
+      </div>
+    }
+
+    <!-- LOADING DATA DEFAULT -->
+    @if (isProcessing() && !file()) {
+      <div class="rounded-xl border border-slate-200 bg-white p-8 text-center my-6 shadow-2xs">
+        <div class="inline-block h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700"></div>
+        <p class="mt-2 text-xs font-medium text-slate-800">Memuat Data &amp; Konfigurasi Standar Intervensi TW3...</p>
+      </div>
+    }
+
+    <!-- ====================================================== -->
+    <!-- PANEL PENGATURAN (DISEMBUNYIKAN DI BALIK TOMBOL GERIGI) -->
+    <!-- ====================================================== -->
+    @if (showSettings() || (resultRows().length === 0 && !isProcessing())) {
+      <div class="mb-8 rounded-2xl border border-slate-300/80 bg-slate-100/60 p-4 sm:p-6 shadow-xs space-y-6">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+          <div class="flex items-center gap-2">
+            <svg class="w-5 h-5 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wider">
+              Panel Pengaturan Join &amp; Variabel
+            </h2>
+          </div>
+
+          <div class="flex items-center gap-2">
+            @if (resultRows().length > 0) {
+              <button
+                type="button"
+                uiButton
+                variant="ghost"
+                size="xs"
+                (click)="showSettings.set(false)"
+                title="Tutup panel pengaturan"
+              >
+                Tutup ✕
+              </button>
+            }
+          </div>
+        </div>
+
+        <!-- STEP 1 : UPLOAD -->
+        <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">
+      <div class="mb-4 flex items-center gap-2.5">
+        <div
+          class="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white"
+        >
+          1
+        </div>
+
+        <div>
+          <h2 class="font-semibold text-slate-900 text-sm">Upload Excel</h2>
+
+          <p class="text-xs text-slate-500">File diproses langsung di browser.</p>
+        </div>
+      </div>
+
+      @if (!file()) {
+        <!-- UPLOAD -->
+
+        <label
+          class="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-6 py-10 transition hover:border-slate-400 hover:bg-slate-100/50"
+        >
+          <p class="font-medium text-slate-800 text-sm">Klik untuk memilih file Excel</p>
+          <p class="mt-1 text-xs text-slate-500">Format .xlsx</p>
+          <input type="file" accept=".xlsx" class="hidden" (change)="onFileSelected($event)" />
+        </label>
+      } @else {
+        @if (isProcessing()) {
+          <!-- LOADING -->
+
+          <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div class="flex items-center gap-3">
+              <div
+                class="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700"
+              ></div>
+
+              <div>
+                <p class="font-medium text-slate-800 text-xs">Membaca file Excel...</p>
+                <p class="text-[11px] text-slate-500">Mendeteksi tingkatan header dan sub-header...</p>
+              </div>
+            </div>
+          </div>
+        } @else {
+          <!-- FILE BERHASIL -->
+
+          <div
+            class="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3.5"
+          >
+            <div>
+              <div class="flex items-center gap-2">
+                <p class="font-medium text-slate-800 text-xs">
+                  {{ file()?.name }}
+                </p>
+                @if (isCloudDefault()) {
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    Default Google Drive
+                  </span>
+                } @else if (isDefaultData()) {
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-200 text-slate-700 border border-slate-300">
+                    <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+                    Bawaan Sistem
+                  </span>
+                } @else {
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700 border border-blue-300">
+                    <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                    File Kustom
+                  </span>
+                }
+              </div>
+
+              <p class="text-[11px] text-slate-500 mt-0.5">
+                {{ sheets().length }} sheet ditemukan
+              </p>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                (click)="clearFile()"
+                class="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+              >
+                Ganti File
+              </button>
+            </div>
+          </div>
+        }
+      }
+    </section>
+
+    <!-- ====================================================== -->
+    <!-- STEP 2 : SELECT SHEET & CONFIGURE MULTI-LAYER HEADERS -->
+    <!-- ====================================================== -->
+
+    @if (file() && !isProcessing()) {
+      <section class="mb-6 rounded-lg border border-slate-200 bg-white p-5">
+        <div class="mb-4 flex items-center gap-2.5">
+          <div
+            class="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white"
+          >
+            2
+          </div>
+
+          <div>
+            <h2 class="font-semibold text-slate-900 text-sm">Pilih Sheet</h2>
+            <p class="text-xs text-slate-500">Pilih minimal 2 sheet yang ingin digabungkan.</p>
+          </div>
+        </div>
+
+        <!-- LIST SHEET CARDS -->
+        <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+          @for (sheet of sheets(); track sheet.name) {
+            <button
+              type="button"
+              (click)="toggleSheet(sheet)"
+              class="rounded border p-3 text-left transition"
+              [class.border-slate-800]="sheet.selected"
+              [class.bg-slate-100]="sheet.selected"
+              [class.border-slate-200]="!sheet.selected"
+              [class.bg-white]="!sheet.selected"
+            >
+              <div class="flex items-center gap-2.5">
+                <div
+                  class="flex h-7 w-7 shrink-0 items-center justify-center rounded text-xs"
+                  [class.bg-slate-800]="sheet.selected"
+                  [class.text-white]="sheet.selected"
+                  [class.bg-slate-100]="!sheet.selected"
+                  [class.text-slate-500]="!sheet.selected"
+                >
+                  {{ $index + 1 }}
+                </div>
+
+                <div class="min-w-0">
+                  <p class="truncate font-medium text-slate-900 text-xs">
+                    {{ sheet.name }}
+                  </p>
+
+                  <p class="text-[11px] text-slate-500">
+                    {{ sheet.headers.length }} kolom
+                  </p>
+                </div>
+              </div>
+            </button>
+          }
+        </div>
+
+        @if (selectedSheets().length > 0) {
+          <div class="mt-4 rounded bg-slate-50 border border-slate-200 px-3 py-2 text-xs text-slate-700">
+            <strong>{{ selectedSheets().length }}</strong> sheet dipilih. Sesuaikan rentang baris di bawah jika pengelompokan sub-header berada di beberapa baris.
+          </div>
+
+          <!-- PENGATURAN RENTANG BARIS HEADER MULTI-LAPIS -->
+          <div class="mt-5 space-y-3">
+            <h3 class="text-xs font-semibold text-slate-800">
+              Pengaturan Baris Header & Sub-header (Sheet Terpilih)
+            </h3>
+
+            @for (sheet of selectedSheets(); track sheet.name) {
+              <div class="rounded border border-slate-200 bg-slate-50 p-4">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                  <div class="flex items-center gap-2">
+                    <span class="font-semibold text-slate-900 text-xs">{{ sheet.name }}</span>
+                    <span class="rounded bg-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                      {{ sheet.headers.length }} kolom
+                    </span>
+                    <span class="rounded bg-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                      {{ sheet.headerEndRow - sheet.headerStartRow + 1 }} lapis header
+                    </span>
+                  </div>
+                </div>
+
+                <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <!-- Baris Header Awal -->
+                  <div>
+                    <label class="mb-1 block text-xs font-medium text-slate-700">
+                      Baris Header Awal
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      [value]="sheet.headerStartRow"
+                      (change)="onHeaderStartRowChange(sheet, $event)"
+                      class="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-slate-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <!-- Baris Header Akhir -->
+                  <div>
+                    <label class="mb-1 block text-xs font-medium text-slate-700">
+                      Baris Header Akhir
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      [value]="sheet.headerEndRow"
+                      (change)="onHeaderEndRowChange(sheet, $event)"
+                      class="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-slate-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <!-- Baris Mulai Data -->
+                  <div>
+                    <label class="mb-1 block text-xs font-medium text-slate-700">
+                      Baris Mulai Data
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      [value]="sheet.dataStartRow"
+                      (change)="onDataStartRowChange(sheet, $event)"
+                      class="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-slate-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <!-- Preview Nama Kolom -->
+                <div class="mt-3.5 border-t border-slate-200 pt-3">
+                  <div class="flex flex-wrap items-center gap-1.5">
+                    <span class="text-xs font-medium text-slate-600">Preview Kolom:</span>
+                    @for (col of sheet.headers.slice(0, 6); track col) {
+                      <span class="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-700">
+                        {{ col }}
+                      </span>
+                    }
+                    @if (sheet.headers.length > 6) {
+                      <span class="text-xs text-slate-400">
+                        +{{ sheet.headers.length - 6 }} kolom lainnya
+                      </span>
+                    }
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </section>
+
+      <!-- ==================================================== -->
+      <!-- STEP 3 : JOIN CONFIG -->
+      <!-- ==================================================== -->
+
+      @if (selectedSheets().length >= 2) {
+        <section class="mb-6 rounded-lg border border-slate-200 bg-white p-5">
+          <div class="mb-4 flex items-center gap-2.5">
+            <div
+              class="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white"
+            >
+              3
+            </div>
+
+            <div>
+              <h2 class="font-semibold text-slate-900 text-sm">Join Configuration</h2>
+
+              <p class="text-xs text-slate-500">Tentukan kolom kunci untuk masing-masing sheet yang akan di-join.</p>
+            </div>
+          </div>
+
+          <!-- OPSI PILIH BERSAMA (JIKA ADA KOLOM SAMA) -->
+          @if (commonJoinColumns().length > 0) {
+            <div class="mb-4 flex flex-col gap-2 rounded border border-slate-200 bg-slate-50/70 p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <span class="text-xs font-medium text-slate-700">Terapkan kolom sama sekaligus:</span>
+                <p class="text-[11px] text-slate-500">Opsi cepat jika semua sheet memiliki nama kolom kunci yang identik.</p>
+              </div>
+              <div class="w-full sm:w-64">
+                <select
+                  [ngModel]="joinBy()"
+                  (ngModelChange)="onJoinByChanged($event)"
+                  class="w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:border-slate-500 focus:outline-none"
+                >
+                  <option value="">-- Pilih kolom bersama --</option>
+                  @for (column of commonJoinColumns(); track column) {
+                    <option [value]="column">{{ column }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+          }
+
+          <!-- PILIHAN KOLOM KUNCI PER SHEET -->
+          <div class="mb-4">
+            <label class="mb-2 block text-xs font-semibold text-slate-700">
+              Kolom Kunci per Sheet (Join By)
+            </label>
+
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              @for (sheet of selectedSheets(); track sheet.name; let idx = $index) {
+                <div class="rounded border border-slate-200 bg-slate-50 p-3">
+                  <div class="mb-2 flex items-center justify-between gap-2">
+                    <span class="truncate text-xs font-semibold text-slate-800" [title]="sheet.name">
+                      {{ sheet.name }}
+                    </span>
+                    @if (idx === 0) {
+                      <span class="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700">
+                        Master Sheet
+                      </span>
+                    }
+                  </div>
+
+                  <label class="mb-1 block text-[11px] text-slate-500">
+                    Kolom Kunci:
+                  </label>
+
+                  <select
+                    [ngModel]="getSheetJoinColumn(sheet)"
+                    (ngModelChange)="updateSheetJoinColumn(sheet.name, $event)"
+                    class="w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:border-slate-500 focus:outline-none"
+                  >
+                    <option value="">-- Pilih kolom kunci --</option>
+                    @for (col of sheet.columns; track col.header) {
+                      <option [value]="col.header">
+                        [{{ col.colLetter }}] {{ col.header }}
+                      </option>
+                    }
+                  </select>
+
+                  @if (!getSheetJoinColumn(sheet)) {
+                    <p class="mt-1 text-[11px] text-amber-600">
+                      Pilih kolom kunci untuk sheet ini.
+                    </p>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+
+          <!-- FITUR STRIP KABUPATEN -->
+          <div class="rounded border border-slate-200 bg-slate-50 p-3.5 transition">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div class="space-y-1">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-semibold text-slate-800">
+                    Standarisasi Join: Strip Kata "Kabupaten"
+                  </span>
+                  @if (stripKabupaten()) {
+                    <span class="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold text-slate-800">
+                      Aktif
+                    </span>
+                  }
+                </div>
+                <p class="text-xs text-slate-600">
+                  Hapus awalan "Kabupaten" / "Kab." pada kolom kunci agar cocok antar-sheet. Kata "Kota" tetap dipertahankan.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                (click)="toggleStripKabupaten()"
+                class="shrink-0 flex items-center gap-1.5 rounded border px-3 py-1.5 text-xs font-medium transition-colors"
+                [class.border-slate-800]="stripKabupaten()"
+                [class.bg-slate-800]="stripKabupaten()"
+                [class.text-white]="stripKabupaten()"
+                [class.border-slate-300]="!stripKabupaten()"
+                [class.bg-white]="!stripKabupaten()"
+                [class.text-slate-700]="!stripKabupaten()"
+              >
+                <span>{{ stripKabupaten() ? 'Strip Kab: Aktif' : 'Aktifkan Strip Kab' }}</span>
+              </button>
+            </div>
+          </div>
+        </section>
+      }
+
+      <!-- ==================================================== -->
+      <!-- STEP 4 : VARIABLES & OUTPUT FORMAT -->
+      <!-- ==================================================== -->
+
+      @if (hasValidJoinColumns()) {
+        <section class="mb-6 rounded-lg border border-slate-200 bg-white p-5">
+          <div class="mb-4 flex items-center gap-2.5">
+            <div
+              class="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white"
+            >
+              4
+            </div>
+
+            <div>
+              <h2 class="font-semibold text-slate-900 text-sm">Pilih Variables & Format Output</h2>
+
+              <p class="text-xs text-slate-500">Pilih kolom yang ingin disertakan dan atur penamaan kolom output.</p>
+            </div>
+          </div>
+
+          <!-- OPSI FORMAT NAMA KOLOM OUTPUT -->
+          <div class="mb-4 rounded border border-slate-200 bg-slate-50 p-3.5">
+            <h3 class="text-xs font-semibold text-slate-800 mb-2">
+              Pengaturan Penamaan Kolom Hasil (Output Header)
+            </h3>
+
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
+              <div class="flex items-center gap-4">
+                <label class="inline-flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="outputFormat"
+                    value="full"
+                    [checked]="outputHeaderFormat() === 'full'"
+                    (change)="setOutputHeaderFormat('full')"
+                    class="rounded text-slate-900 focus:ring-0 accent-slate-900"
+                  />
+                  <span>Lengkap (Hierarki Bertingkat: <em class="text-slate-500">Header - Sub 1 - Sub 2</em>)</span>
+                </label>
+
+                <label class="inline-flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="outputFormat"
+                    value="leaf"
+                    [checked]="outputHeaderFormat() === 'leaf'"
+                    (change)="setOutputHeaderFormat('leaf')"
+                    class="rounded text-slate-900 focus:ring-0 accent-slate-900"
+                  />
+                  <span>Sub-Header Terakhir Saja (<em class="text-slate-500">Sub 2</em>)</span>
+                </label>
+              </div>
+
+              <div class="sm:border-l sm:border-slate-200 sm:pl-6">
+                <label class="inline-flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    [checked]="includeSheetPrefix()"
+                    (change)="toggleIncludeSheetPrefix()"
+                    class="rounded text-slate-900 focus:ring-0 accent-slate-900"
+                  />
+                  <span>Sertakan awalan nama sheet (<em class="text-slate-500">SheetName - Kolom</em>)</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- LIST VARIABLE CHECKBOXES PER SHEET -->
+          <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            @for (sheet of selectedSheets(); track sheet.name) {
+              <div class="overflow-hidden rounded border border-slate-200">
+                <!-- SHEET HEADER -->
+
+                <div class="border-b border-slate-200 bg-slate-50 px-3.5 py-2.5">
+                  <div class="flex items-center justify-between gap-2">
+                    <div>
+                      <p class="font-semibold text-slate-900 text-xs">
+                        {{ sheet.name }}
+                      </p>
+
+                      <p class="text-[11px] text-slate-500">
+                        {{ sheet.variables.length }} variable dipilih
+                      </p>
+                    </div>
+
+                    <div class="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        (click)="selectAllVariables(sheet)"
+                        class="text-[11px] text-slate-600 hover:text-slate-900 hover:underline cursor-pointer"
+                      >
+                        Pilih Semua
+                      </button>
+                      <span class="text-slate-300">|</span>
+                      <button
+                        type="button"
+                        (click)="clearVariables(sheet)"
+                        class="text-[11px] text-slate-600 hover:text-slate-900 hover:underline cursor-pointer"
+                      >
+                        Batal
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- SEARCH INPUT -->
+                  <div class="mt-2">
+                    <input
+                      type="text"
+                      [ngModel]="variableSearch()[sheet.name] || ''"
+                      (ngModelChange)="updateVariableSearch(sheet.name, $event)"
+                      placeholder="Cari nama kolom / huruf (misal: BE, MPASI, %)..."
+                      class="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-800 placeholder:text-slate-400 focus:border-slate-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <!-- VARIABLES -->
+
+                <div class="max-h-80 overflow-y-auto p-2.5">
+                  @for (variable of getFilteredVariables(sheet); track variable) {
+                    <button
+                      type="button"
+                      (click)="toggleVariable(sheet, variable)"
+                      [disabled]="isJoinColumn(sheet, variable)"
+                      class="mb-1.5 flex w-full items-start gap-2.5 rounded border px-2.5 py-2 text-left transition last:mb-0 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                      [class.border-slate-800]="isVariableSelected(sheet, variable)"
+                      [class.bg-slate-100]="isVariableSelected(sheet, variable)"
+                      [class.border-slate-200]="!isVariableSelected(sheet, variable)"
+                      [class.bg-white]="!isVariableSelected(sheet, variable)"
+                    >
+                      <!-- CHECKBOX -->
+
+                      <div
+                        class="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border"
+                        [class.border-slate-800]="isVariableSelected(sheet, variable)"
+                        [class.bg-slate-900]="isVariableSelected(sheet, variable)"
+                        [class.text-white]="isVariableSelected(sheet, variable)"
+                        [class.border-slate-300]="!isVariableSelected(sheet, variable)"
+                      >
+                        @if (isVariableSelected(sheet, variable)) {
+                          <span class="text-[10px] font-bold">✓</span>
+                        }
+                      </div>
+
+                      <!-- NAME & COL BADGE -->
+
+                      <div class="min-w-0 flex-1">
+                        <div class="flex items-start gap-1.5">
+                          @if (getColumnLetter(sheet, variable)) {
+                            <span class="shrink-0 rounded bg-slate-200/80 px-1 py-0.5 font-mono text-[10px] font-semibold text-slate-700 border border-slate-300/80">
+                              [{{ getColumnLetter(sheet, variable) }}]
+                            </span>
+                          }
+                          <p class="text-xs font-medium text-slate-800 break-words leading-snug" [title]="variable">
+                            {{ variable }}
+                          </p>
+                        </div>
+
+                        @if (isJoinColumn(sheet, variable)) {
+                          <p class="mt-0.5 text-[11px] font-medium text-slate-600">Kolom Kunci (Join By)</p>
+                        }
+                      </div>
+                    </button>
+                  }
+                  @if (getFilteredVariables(sheet).length === 0) {
+                    <p class="p-3 text-center text-xs text-slate-400">
+                      Tidak ada kolom yang cocok dengan pencarian.
+                    </p>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        </section>
+      }
+
+      <!-- ==================================================== -->
+      <!-- PREVIEW BUTTON -->
+      <!-- ==================================================== -->
+
+      @if (selectedSheets().length >= 2) {
+        <section class="mb-6 rounded-lg border border-slate-200 bg-white p-5">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 class="font-semibold text-slate-900 text-sm">Preview Result</h2>
+
+              <p class="mt-0.5 text-xs text-slate-500">Jalankan proses join data.</p>
+            </div>
+
+            <button
+              type="button"
+              (click)="preview()"
+              [disabled]="!canPreview() || isJoining()"
+              class="rounded bg-slate-900 px-4 py-2 text-xs font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 transition-colors cursor-pointer"
+            >
+              @if (isJoining()) {
+                Memproses...
+              } @else {
+                Preview Join
+              }
+            </button>
+          </div>
+
+          @if (!canPreview()) {
+            <div class="mt-3 rounded border border-amber-200 bg-amber-50 p-3">
+              <p class="text-xs text-amber-800">
+                {{ validationMessage() }}
+              </p>
+            </div>
+          }
+        </section>
+      }
+    }
+  </div>
+}
+
+      <!-- ==================================================== -->
+      <!-- STEP 5 : RESULT (DENGAN BORDER, NO, & CONDITIONAL FORMATTING) -->
+      <!-- ==================================================== -->
+
+      @if (resultRows().length > 0) {
+        <section class="rounded-lg border border-slate-200 bg-white overflow-hidden">
+          <div class="border-b border-slate-200 p-6">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <div class="flex items-center gap-2">
+                  <h2 class="font-semibold text-slate-900">Hasil Join</h2>
+                  @if (isDefaultData()) {
+                    <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
+                      <span class="h-1.5 w-1.5 rounded-full bg-emerald-600"></span>
+                      Default: Format Intervensi Spesifik TW3
+                    </span>
+                  }
+                </div>
+
+                <div class="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+                  <span>{{ resultRows().length }} baris · {{ resultColumns().length }} kolom</span>
+
+                  @if (resultRows().length < originalResultRows().length) {
+                    <span class="rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                      {{ originalResultRows().length - resultRows().length }} baris dihapus
+                    </span>
+
+                    <button
+                      type="button"
+                      (click)="restoreRows()"
+                      class="text-xs font-medium text-slate-700 hover:text-slate-900 underline transition cursor-pointer"
+                    >
+                      Pulihkan Semua Baris
+                    </button>
+                  }
+
+                  @if (enableTarget()) {
+                    <span class="text-slate-700 font-medium">· Fitur Target Aktif</span>
+                  }
+                </div>
+              </div>
+
+              <!-- CONTROLS & EXPORT BUTTON -->
+              <div class="flex flex-wrap items-center gap-2">
+                <!-- PENGATURAN FORMAT TOGGLE (SEMBUNYIKAN KELOMPOK FORMAT JOIN) -->
+                <button
+                  type="button"
+                  (click)="toggleFormatSettings()"
+                  class="flex items-center gap-1.5 rounded border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer"
+                  [class.border-slate-800]="showFormatSettings()"
+                  [class.bg-slate-100]="showFormatSettings()"
+                  [class.text-slate-900]="showFormatSettings()"
+                  [class.border-slate-300]="!showFormatSettings()"
+                  [class.bg-white]="!showFormatSettings()"
+                  [class.text-slate-700]="!showFormatSettings()"
+                  title="Atur format kolom, baris target, jumlah, capaian, dan normalisasi wilayah"
+                >
+                  <svg class="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                  </svg>
+                  <span>{{ showFormatSettings() ? 'Tutup Format' : 'Pengaturan Format' }}</span>
+                  @if (activeAnomalyColumnCount() > 0) {
+                    <span class="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-medium text-rose-700">
+                      {{ activeAnomalyColumnCount() }}
+                    </span>
+                  }
+                </button>
+
+                <!-- VISUALISASIKAN GRAFIK BUTTON -->
+                <button
+                  type="button"
+                  (click)="visualizeInChart()"
+                  class="flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                  title="Visualisasikan data hasil join ini ke dalam grafik batang horizontal"
+                >
+                  <svg class="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  <span>Visualisasikan Grafik</span>
+                </button>
+
+                <!-- DOWNLOAD EXCEL BUTTON -->
+                <button
+                  type="button"
+                  (click)="exportToExcel()"
+                  class="flex items-center gap-1.5 rounded bg-slate-900 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  <span>Download Excel (.xlsx)</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- ==================================================== -->
+            <!-- PANEL KELOMPOK PENGATURAN FORMAT JOIN (COLLAPSIBLE)  -->
+            <!-- ==================================================== -->
+            @if (showFormatSettings()) {
+              <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-4 shadow-2xs">
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                  <div class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                    </svg>
+                    <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                      Kelompok Pengaturan Format &amp; Kalkulasi
+                    </h3>
+                  </div>
+
+                  <button
+                    type="button"
+                    (click)="showFormatSettings.set(false)"
+                    class="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
+                  >
+                    Tutup ✕
+                  </button>
+                </div>
+
+                <!-- TOMBOL-TOMBOL FITUR FORMAT -->
+                <div class="flex flex-wrap items-center gap-2">
+                  <!-- PENGATURAN KOLOM TOGGLE -->
+                  <button
+                    type="button"
+                    (click)="toggleColumnSettings()"
+                    class="flex items-center gap-1.5 rounded border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer"
+                    [class.border-slate-800]="showColumnSettings()"
+                    [class.bg-slate-800]="showColumnSettings()"
+                    [class.text-white]="showColumnSettings()"
+                    [class.border-slate-300]="!showColumnSettings()"
+                    [class.bg-white]="!showColumnSettings()"
+                    [class.text-slate-700]="!showColumnSettings()"
+                    title="Atur tipe data kolom dan konfigurasi conditional formatting anomali"
+                  >
+                    <span>{{ showColumnSettings() ? 'Tutup Tipe Kolom' : 'Tipe Kolom & Batas Merah' }}</span>
+                    @if (activeAnomalyColumnCount() > 0) {
+                      <span class="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-medium text-rose-700">
+                        {{ activeAnomalyColumnCount() }}
+                      </span>
+                    }
+                  </button>
+
+                  <!-- FITUR JUMLAH TOGGLE -->
+                  <button
+                    type="button"
+                    (click)="toggleJumlahFeature()"
+                    class="flex items-center gap-1.5 rounded border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer"
+                    [class.border-slate-800]="enableJumlah()"
+                    [class.bg-slate-800]="enableJumlah()"
+                    [class.text-white]="enableJumlah()"
+                    [class.border-slate-300]="!enableJumlah()"
+                    [class.bg-white]="!enableJumlah()"
+                    [class.text-slate-700]="!enableJumlah()"
+                    title="Tampilkan baris Jumlah di bagian paling bawah tabel"
+                  >
+                    <span class="font-bold">∑</span>
+                    <span>{{ enableJumlah() ? 'Jumlah: Aktif' : 'Aktifkan Jumlah' }}</span>
+                    @if (enableJumlah() && activeSumColumnCount() > 0) {
+                      <span class="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-800">
+                        {{ activeSumColumnCount() }}
+                      </span>
+                    }
+                  </button>
+
+                  <!-- FITUR TARGET TOGGLE -->
+                  <button
+                    type="button"
+                    (click)="toggleTargetFeature()"
+                    class="flex items-center gap-1.5 rounded border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer"
+                    [class.border-slate-800]="enableTarget()"
+                    [class.bg-slate-800]="enableTarget()"
+                    [class.text-white]="enableTarget()"
+                    [class.border-slate-300]="!enableTarget()"
+                    [class.bg-white]="!enableTarget()"
+                    [class.text-slate-700]="!enableTarget()"
+                  >
+                    <span>{{ enableTarget() ? 'Target: Aktif' : 'Aktifkan Target' }}</span>
+                  </button>
+
+                  <!-- FITUR CAPAIAN TOGGLE (JIKA TARGET AKTIF) -->
+                  @if (enableTarget()) {
+                    <button
+                      type="button"
+                      (click)="toggleCapaianFeature()"
+                      class="flex items-center gap-1.5 rounded border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer"
+                      [class.border-slate-800]="enableCapaian()"
+                      [class.bg-slate-800]="enableCapaian()"
+                      [class.text-white]="enableCapaian()"
+                      [class.border-slate-300]="!enableCapaian()"
+                      [class.bg-white]="!enableCapaian()"
+                      [class.text-slate-700]="!enableCapaian()"
+                    >
+                      <span>{{ enableCapaian() ? 'Capaian: Aktif' : 'Tampilkan Capaian' }}</span>
+                    </button>
+                  }
+
+                  <!-- FITUR STRIP KABUPATEN TOGGLE -->
+                  <button
+                    type="button"
+                    (click)="toggleStripKabupaten()"
+                    class="flex items-center gap-1.5 rounded border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer"
+                    [class.border-slate-800]="stripKabupaten()"
+                    [class.bg-slate-800]="stripKabupaten()"
+                    [class.text-white]="stripKabupaten()"
+                    [class.border-slate-300]="!stripKabupaten()"
+                    [class.bg-white]="!stripKabupaten()"
+                    [class.text-slate-700]="!stripKabupaten()"
+                    title="Hilangkan kata 'Kabupaten' / 'Kab.' pada join key agar cocok antar sheet"
+                  >
+                    <span>{{ stripKabupaten() ? 'Strip Kab: Aktif' : 'Strip Kab: Nonaktif' }}</span>
+                  </button>
+                </div>
+
+                <!-- KETERANGAN & PILIHAN KOLOM JUMLAH JIKA FITUR JUMLAH AKTIF -->
+                @if (enableJumlah()) {
+                  <div class="flex flex-wrap items-center justify-between gap-3 rounded border border-slate-200 bg-white p-3 text-xs text-slate-800">
+                    <div class="flex items-center gap-2">
+                      <span class="font-bold text-slate-700">∑</span>
+                      <span>
+                        <strong>Baris Jumlah:</strong> Centang kolom yang ingin dijumlahkan pada baris bawah tabel atau di tabel kolom.
+                      </span>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        (click)="selectAllNumericColumnsForSum()"
+                        class="rounded bg-slate-800 px-2.5 py-1 text-xs font-medium text-white hover:bg-slate-700 transition-colors"
+                      >
+                        Pilih Kolom Angka
+                      </button>
+                      <button
+                        type="button"
+                        (click)="clearAllSumColumns()"
+                        class="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        Batal Pilih
+                      </button>
+                      <span class="rounded bg-slate-200 px-2 py-0.5 font-medium text-slate-700">
+                        {{ activeSumColumnCount() }} kolom dijumlahkan
+                      </span>
+                    </div>
+                  </div>
+                }
+
+                <!-- PANEL PENGATURAN TIPE DATA & ANOMALI KOLOM -->
+                @if (showColumnSettings()) {
+                  <div class="rounded-lg border border-slate-200 bg-white p-4">
+                    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                      <div>
+                        <h4 class="font-semibold text-slate-900 flex items-center gap-2 text-xs">
+                          <span>Pengaturan Tipe Data & Format Anomali Kolom</span>
+                          <span class="rounded bg-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                            {{ resultColumns().length }} Kolom
+                          </span>
+                        </h4>
+                        <p class="text-[11px] text-slate-500 mt-0.5">
+                          Ubah tipe data kolom (angka/persen/teks) untuk memperbaiki desimal koma dan tentukan batas anomali.
+                        </p>
+                      </div>
+
+                      <!-- PRESET BUTTONS -->
+                      <div class="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          (click)="applyPercentagePresetToTargetColumns()"
+                          class="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                          title="Jadikan semua kolom target sebagai tipe Persentase (0-100%)"
+                        >
+                          Set Target ke Persen (0-100%)
+                        </button>
+
+                        <button
+                          type="button"
+                          (click)="disableAllAnomalyFormatting()"
+                          class="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                          title="Matikan warna merah batas anomali pada semua kolom"
+                        >
+                          Matikan Semua Batas Merah
+                        </button>
+
+                        <button
+                          type="button"
+                          (click)="resetAllColumnConfigs()"
+                          class="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                          title="Kembalikan semua tipe kolom ke Auto"
+                        >
+                          Reset Tipe Kolom
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- DAFTAR PENGATURAN KOLOM -->
+                    <div class="mt-4 overflow-x-auto rounded border border-slate-200 bg-white">
+                      <table class="min-w-full divide-y divide-slate-200 text-xs">
+                        <thead class="bg-slate-50 font-medium text-slate-700">
+                          <tr>
+                            <th class="px-4 py-2 text-left">Nama Kolom</th>
+                            <th class="px-4 py-2 text-left">Konversi Tipe Data</th>
+                            <th class="px-4 py-2 text-left">Batas Anomali (Format Merah)</th>
+                            <th class="px-4 py-2 text-left">Sertakan dalam Jumlah (∑)</th>
+                            <th class="px-4 py-2 text-left">Nilai Sampel</th>
+                          </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                          @for (column of resultColumns(); track column; let idx = $index) {
+                            @let cfg = columnConfigs()[column];
+                            <tr class="hover:bg-slate-50 transition-colors">
+                              <!-- NAMA KOLOM -->
+                              <td class="px-4 py-2 max-w-sm">
+                                <span class="font-medium text-slate-900 break-words" [title]="column">{{ column }}</span>
+                                @if (idx === 0) {
+                                  <span class="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700">
+                                    Kolom Kunci
+                                  </span>
+                                }
+                              </td>
+
+                              <!-- PILIHAN TIPE DATA -->
+                              <td class="px-4 py-2">
+                                <select
+                                  [value]="cfg?.dataType || 'auto'"
+                                  (change)="setColumnDataType(column, $any($event.target).value)"
+                                  class="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 focus:outline-none"
+                                >
+                                  <option value="auto">Otomatis (Auto)</option>
+                                  <option value="number">Angka / Desimal (Number)</option>
+                                  <option value="percentage">Persentase (%)</option>
+                                  <option value="string">Teks (String)</option>
+                                </select>
+                              </td>
+
+                              <!-- BATAS ANOMALI MERAH -->
+                              <td class="px-4 py-2.5">
+                                @if (cfg?.dataType === 'string') {
+                                  <span class="text-slate-400 italic">Tidak tersedia untuk tipe teks</span>
+                                } @else {
+                                  <div class="flex flex-wrap items-center gap-2">
+                                    <label class="inline-flex items-center gap-1.5 font-medium text-slate-700 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        [checked]="cfg?.anomalyEnabled"
+                                        (change)="toggleColumnAnomaly(column)"
+                                        class="rounded border-slate-300 text-red-600 focus:ring-red-500"
+                                      />
+                                      <span>Aktifkan Batas Merah</span>
+                                    </label>
+
+                                    @if (cfg?.anomalyEnabled) {
+                                      <div class="flex items-center gap-1 bg-red-50 px-2 py-1 rounded-md border border-red-200 text-red-800">
+                                        <span>&lt;</span>
+                                        <input
+                                          type="number"
+                                          [value]="cfg?.minAnomaly ?? 0"
+                                          (input)="updateColumnMinAnomaly(column, $event)"
+                                          class="w-14 rounded border border-red-300 bg-white px-1.5 py-0.5 text-center text-xs font-semibold text-slate-900 focus:outline-none"
+                                        />
+                                        <span>atau &gt;</span>
+                                        <input
+                                          type="number"
+                                          [value]="cfg?.maxAnomaly ?? 100"
+                                          (input)="updateColumnMaxAnomaly(column, $event)"
+                                          class="w-14 rounded border border-red-300 bg-white px-1.5 py-0.5 text-center text-xs font-semibold text-slate-900 focus:outline-none"
+                                        />
+                                      </div>
+                                    }
+                                  </div>
+                                }
+                              </td>
+
+                              <!-- SERTAKAN DALAM JUMLAH (∑) -->
+                              <td class="px-4 py-2.5">
+                                @if (idx === 0 || cfg?.dataType === 'string') {
+                                  <span class="text-slate-400 italic">Tidak tersedia (Teks)</span>
+                                } @else {
+                                  <label class="inline-flex items-center gap-1.5 font-medium text-slate-700 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      [checked]="sumColumns()[column]"
+                                      (change)="toggleColumnSum(column)"
+                                      class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                    />
+                                    <span>∑ Jumlahkan</span>
+                                    @if (sumColumns()[column]) {
+                                      <span class="font-bold text-emerald-700 font-mono">
+                                        ({{ formatSumValue(getColumnSum(column)) }})
+                                      </span>
+                                    }
+                                  </label>
+                                }
+                              </td>
+
+                              <!-- CONTOH SAMPEL DATA -->
+                              <td class="px-4 py-2.5 font-mono text-slate-600">
+                                {{ getColumnSampleValue(column) }}
+                              </td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+
+          <!-- TABLE DENGAN BORDER, NO, & HIERARKI HEADER BERTINGKAT -->
+          <div class="overflow-x-auto p-6">
+            <table class="min-w-full border-collapse border border-slate-300 text-sm">
+              <!-- THEAD: HIERARKI HEADER MULTI-BARIS -->
+              <thead>
+                @for (headerRow of htmlHeaderGrid(); track $index) {
+                  <tr class="bg-slate-100/90">
+                    @for (cell of headerRow; track $index) {
+                      @if (!cell.covered) {
+                        <th
+                          [attr.rowspan]="cell.rowspan > 1 ? cell.rowspan : null"
+                          [attr.colspan]="cell.colspan > 1 ? cell.colspan : null"
+                          class="border border-slate-300 px-3 py-2 text-center font-bold text-slate-800 text-xs tracking-wide max-w-xs break-words whitespace-normal"
+                          [title]="cell.text"
+                        >
+                          <div class="break-words leading-tight">{{ cell.text }}</div>
+                          @if (cell.colKey && !cell.colKey.startsWith('__')) {
+                            <div class="mt-1 flex items-center justify-center gap-1 font-normal">
+                              @if (cell.colKey === resultColumns()[0]) {
+                                <span class="rounded bg-slate-200/80 px-1.5 py-0.5 text-[10px] text-slate-600 font-semibold">
+                                  Kunci
+                                </span>
+                              } @else {
+                                <select
+                                  [value]="columnConfigs()[cell.colKey]?.dataType || 'auto'"
+                                  (change)="setColumnDataType(cell.colKey, $any($event.target).value)"
+                                  class="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-700 shadow-xs focus:border-slate-500 focus:outline-none"
+                                  title="Ganti tipe data kolom"
+                                >
+                                  <option value="auto">Auto</option>
+                                  <option value="number">123 Angka</option>
+                                  <option value="percentage">% Persen</option>
+                                  <option value="string">Abc Teks</option>
+                                </select>
+                                @if (columnConfigs()[cell.colKey]?.anomalyEnabled) {
+                                  <span
+                                    class="inline-flex h-4 w-4 items-center justify-center rounded-full bg-red-100 text-[10px] font-bold text-red-600 border border-red-300"
+                                    [title]="'Format anomali merah aktif: < ' + (columnConfigs()[cell.colKey]?.minAnomaly ?? 0) + ' atau > ' + (columnConfigs()[cell.colKey]?.maxAnomaly ?? 100)"
+                                  >
+                                    !
+                                  </span>
+                                }
+                              }
+                            </div>
+                          }
+                        </th>
+                      }
+                    }
+                  </tr>
+                }
+              </thead>
+
+              <!-- TBODY: DATA DENGAN BORDER & CONDITIONAL FORMATTING -->
+              <tbody>
+                @for (row of resultRows(); track $index) {
+                  <tr class="hover:bg-slate-50/80 transition group">
+                    <!-- TOMBOL HAPUS BARIS -->
+                    <td class="w-12 border border-slate-300 px-2 py-2 text-center bg-white">
+                      <button
+                        type="button"
+                        (click)="deleteRow($index)"
+                        class="text-rose-600 hover:text-rose-800 p-1 rounded hover:bg-rose-50 transition-colors text-xs font-medium"
+                        title="Hapus baris ini dari hasil"
+                      >
+                        Hapus
+                      </button>
+                    </td>
+
+                    <!-- KOLOM NO (NOMOR URUT) -->
+                    <td class="w-14 border border-slate-300 px-3 py-2.5 text-center font-semibold text-slate-600 bg-slate-50/50">
+                      {{ $index + 1 }}
+                    </td>
+
+                    <!-- DATA COLUMNS DENGAN CONDITIONAL FORMATTING -->
+                    @for (column of resultColumns(); track column; let colIdx = $index) {
+                      @let formatClass = getCellFormatClass(row[column], column);
+                      @let isTextCol = colIdx === 0 || columnConfigs()[column]?.dataType === 'string';
+                      <td
+                        class="whitespace-nowrap border border-slate-300 px-4 py-2.5 transition"
+                        [class]="formatClass || 'text-slate-700 bg-white'"
+                        [class.text-center]="!isTextCol"
+                      >
+                        <div class="flex items-center gap-2" [class.justify-center]="!isTextCol">
+                          <span>{{ formatCellValue(row[column], column) }}</span>
+
+                          @if (enableTarget() && columnTargets()[column]?.enabled && columnTargets()[column]?.value !== null && columnConfigs()[column]?.dataType !== 'string') {
+                            @if (isTargetAchieved(row[column], columnTargets()[column]!)) {
+                              <span class="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-200 text-[10px] font-bold text-emerald-800" title="Target Tercapai">
+                                ✓
+                              </span>
+                            } @else {
+                              <span class="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-amber-200 text-[10px] font-bold text-amber-900" title="Target Belum Tercapai">
+                                ✕
+                              </span>
+                            }
+                          }
+                        </div>
+                      </td>
+                    }
+
+                    <!-- CAPAIAN COLUMN (DENGAN MIN/MAX CONDITIONAL FORMATTING) -->
+                    @if (enableTarget() && enableCapaian()) {
+                      @let capaianVal = getRowCapaian(row);
+                      @let capaianClass = getCapaianFormatClass(capaianVal);
+                      <td class="whitespace-nowrap border border-slate-300 px-4 py-2.5 text-center">
+                        <span
+                          class="inline-flex h-6 min-w-[28px] items-center justify-center rounded-full px-2.5 text-xs transition"
+                          [class]="capaianClass"
+                        >
+                          {{ capaianVal }}
+                        </span>
+                      </td>
+                    }
+                  </tr>
+                }
+              </tbody>
+
+              <!-- TFOOT: BARIS JUMLAH & BARIS TARGET DI BAGIAN PALING BAWAH TABEL -->
+              @if (enableJumlah() || enableTarget()) {
+                <tfoot>
+                  <!-- BARIS JUMLAH (TOTAL DARI BARIS DATA) -->
+                  @if (enableJumlah()) {
+                    <tr class="border-t-2 border-emerald-300 bg-emerald-50/80 font-medium">
+                      <!-- AKSI / ICON FOOTER -->
+                      <td class="border border-emerald-200 px-2 py-2 text-center text-xs text-emerald-700 font-bold">
+                        ∑
+                      </td>
+
+                      <!-- NO FOOTER -->
+                      <td class="border border-emerald-200 px-3 py-2 text-center text-xs text-emerald-700 font-bold">
+                        -
+                      </td>
+
+                      @for (column of resultColumns(); track column; let idx = $index) {
+                        @let isTextCol = idx === 0 || columnConfigs()[column]?.dataType === 'string';
+                        <td class="whitespace-nowrap border border-emerald-200 px-3 py-2" [class.text-center]="!isTextCol">
+                          @if (idx === 0) {
+                            <div class="flex items-center gap-1.5 font-bold text-emerald-900">
+                              <span>Jumlah</span>
+                            </div>
+                          } @else if (columnConfigs()[column]?.dataType === 'string') {
+                            <div class="text-xs text-slate-400 italic text-center">
+                              -
+                            </div>
+                          } @else {
+                            <div class="flex items-center justify-center gap-1.5 min-w-[110px]">
+                              <label class="inline-flex items-center gap-1.5 cursor-pointer text-xs font-semibold" [title]="sumColumns()[column] ? 'Klik untuk mematikan jumlah pada kolom ini' : 'Klik untuk menghitung total pada kolom ini'">
+                                <input
+                                  type="checkbox"
+                                  [checked]="sumColumns()[column]"
+                                  (change)="toggleColumnSum(column)"
+                                  class="rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
+                                />
+                                @if (sumColumns()[column]) {
+                                  <span class="font-bold text-emerald-950 font-mono text-sm">
+                                    {{ formatSumValue(getColumnSum(column)) }}
+                                  </span>
+                                } @else {
+                                  <span class="text-slate-400 font-normal italic">
+                                    (Tidak dijumlah)
+                                  </span>
+                                }
+                              </label>
+                            </div>
+                          }
+                        </td>
+                      }
+
+                      <!-- CAPAIAN FOOTER PADA BARIS JUMLAH -->
+                      @if (enableTarget() && enableCapaian()) {
+                        <td class="whitespace-nowrap border border-emerald-200 px-4 py-2 text-center text-xs font-semibold text-slate-400">
+                          -
+                        </td>
+                      }
+                    </tr>
+                  }
+
+                  <!-- BARIS TARGET -->
+                  @if (enableTarget()) {
+                    <tr class="border-t-2 border-slate-300 bg-slate-50 font-medium">
+                      <!-- AKSI / ICON FOOTER -->
+                      <td class="border border-slate-200 px-2 py-2 text-center text-xs text-slate-700 font-medium">
+                        -
+                      </td>
+
+                      <!-- NO FOOTER -->
+                      <td class="border border-slate-200 px-3 py-2 text-center text-xs text-slate-700 font-bold">
+                        -
+                      </td>
+
+                      @for (column of resultColumns(); track column; let idx = $index) {
+                        @let isTextCol = idx === 0 || columnConfigs()[column]?.dataType === 'string';
+                        <td class="whitespace-nowrap border border-slate-200 px-3 py-2" [class.text-center]="!isTextCol">
+                          @if (idx === 0) {
+                            <div class="flex items-center gap-1.5 font-bold text-slate-900">
+                              <span>Target</span>
+                            </div>
+                          } @else if (columnConfigs()[column]?.dataType === 'string') {
+                            <div class="text-xs text-slate-400 italic text-center">
+                              Teks (N/A)
+                            </div>
+                          } @else {
+                            <div class="flex items-center justify-center gap-1 min-w-[130px]">
+                              <!-- OPERATOR SELECT -->
+                              <select
+                                [value]="columnTargets()[column]?.operator || '>='"
+                                (change)="onTargetOperatorChange(column, $event)"
+                                class="rounded border border-slate-300 bg-white px-1.5 py-1 text-xs font-mono text-slate-700 focus:border-slate-500 focus:outline-none"
+                                title="Pilih operator target"
+                              >
+                                <option value=">=">&gt;=</option>
+                                <option value="<=">&lt;=</option>
+                                <option value=">">&gt;</option>
+                                <option value="<">&lt;</option>
+                                <option value="==">=</option>
+                              </select>
+
+                              <!-- TARGET NUMBER INPUT -->
+                              <input
+                                type="number"
+                                [placeholder]="columnConfigs()[column]?.dataType === 'percentage' ? 'Target %' : 'Target'"
+                                [value]="columnTargets()[column]?.value ?? ''"
+                                (input)="onTargetValueChange(column, $event)"
+                                class="w-24 rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 placeholder-slate-400 focus:border-slate-500 focus:outline-none text-center"
+                              />
+                            </div>
+                          }
+                        </td>
+                      }
+
+                      <!-- CAPAIAN FOOTER (TOTAL TARGET AKTIF) -->
+                      @if (enableCapaian()) {
+                        <td class="whitespace-nowrap border border-slate-200 bg-slate-100 px-4 py-2 text-center text-xs font-bold text-slate-900">
+                          {{ activeTargetCount() }} target
+                        </td>
+                      }
+                    </tr>
+                  }
+                </tfoot>
+              }
+            </table>
+          </div>
+        </section>
+      }
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL KONFIRMASI SIMPAN DEFAULT KE GOOGLE DRIVE (CLOUD)  -->
+  <!-- ======================================================== -->
+  @if (showSaveDefaultConfirm()) {
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+      <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
+        <div class="flex items-center gap-3 text-amber-600 mb-4">
+          <div class="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 shrink-0">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-900">Konfirmasi Simpan Default</h3>
+            <p class="text-xs text-slate-500">Penyimpanan Eksternal Google Drive</p>
+          </div>
+        </div>
+
+        <p class="text-xs text-slate-600 leading-relaxed mb-3">
+          File Excel aktif (<strong class="text-slate-900">{{ file()?.name }}</strong>) dan konfigurasi join saat ini akan disimpan ke Google Drive dan <strong class="text-amber-700">menimpa file default lama</strong>.
+        </p>
+
+        <div class="text-xs text-slate-500 mb-6 bg-amber-50 border border-amber-200/70 rounded-lg p-3">
+          ⚠️ Setiap kali aplikasi dibuka oleh staf atau pengguna lain, file Excel dan konfigurasi ini yang akan dimuat secara otomatis.
+        </div>
+
+        <div class="flex items-center justify-end gap-3">
+          <button
+            type="button"
+            uiButton
+            variant="secondary"
+            size="sm"
+            [disabled]="isSavingDefault()"
+            (click)="closeSaveDefaultConfirm()"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            uiButton
+            variant="primary"
+            size="sm"
+            [disabled]="isSavingDefault()"
+            (click)="confirmSaveDefaultToCloud()"
+          >
+            @if (isSavingDefault()) {
+              <span class="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin mr-1.5"></span>
+              Menyimpan...
+            } @else {
+              Ya, Timpa &amp; Simpan
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- ======================================================== -->
+  <!-- MODAL KONFIRMASI KEMBALIKAN KE BAWAAN SISTEM (FACTORY)   -->
+  <!-- ======================================================== -->
+  @if (showResetDefaultConfirm()) {
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+      <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
+        <div class="flex items-center gap-3 text-slate-700 mb-4">
+          <div class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 shrink-0">
+            <svg class="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-900">Kembalikan ke Bawaan Sistem</h3>
+            <p class="text-xs text-slate-500">Reset Data &amp; Konfigurasi</p>
+          </div>
+        </div>
+
+        <p class="text-xs text-slate-600 leading-relaxed mb-6">
+          File default kustom di Google Drive akan dibersihkan, dan aplikasi akan kembali menggunakan file template dan konfigurasi awal bawaan sistem. Apakah Anda yakin ingin melanjutkan?
+        </p>
+
+        <div class="flex items-center justify-end gap-3">
+          <button
+            type="button"
+            uiButton
+            variant="secondary"
+            size="sm"
+            (click)="closeResetDefaultConfirm()"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            uiButton
+            variant="primary"
+            size="sm"
+            (click)="confirmResetToFactoryDefault()"
+          >
+            Ya, Kembalikan ke Bawaan
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+</div>
+

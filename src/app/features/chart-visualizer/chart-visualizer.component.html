@@ -1,0 +1,1028 @@
+<div class="min-h-screen bg-slate-50 text-slate-800 pb-16">
+  <!-- UNIFIED PAGE HEADER -->
+  <ui-page-header
+    title="Visualisasi Grafik Indikator"
+    subtitle="Visualisasikan capaian indikator kesehatan dengan grafik batang kelompok horizontal interaktif."
+  >
+    <div actions class="flex flex-wrap items-center gap-2">
+      <!-- Status Data Source Badge -->
+      <ui-badge
+        [variant]="dataSource() === 'join' ? 'purple' : dataSource() === 'upload' ? 'emerald' : 'slate'"
+        [dot]="true"
+        size="md"
+      >
+        {{ dataSource() === 'join' ? 'Sumber: Hasil Join' : dataSource() === 'upload' ? 'Sumber: File Upload' : 'Belum Ada Data' }}
+      </ui-badge>
+
+      <!-- TOMBOL GERIGI (PENGATURAN) -->
+      <button
+        type="button"
+        uiButton
+        [variant]="showSettings() ? 'primary' : 'secondary'"
+        size="sm"
+        (click)="toggleSettings()"
+        [title]="showSettings() ? 'Tutup Panel Pengaturan' : 'Buka Pengaturan Data & Indikator'"
+      >
+        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+        <span>{{ showSettings() ? 'Tutup Pengaturan' : 'Pengaturan' }}</span>
+      </button>
+
+      <!-- HIDDEN FILE INPUT UNTUK LOAD CONFIG JSON -->
+      <input
+        type="file"
+        accept=".json"
+        #configFileInput
+        (change)="onConfigFileSelected($event)"
+        class="hidden"
+      />
+
+      @if (hasSavedConfig()) {
+        <button
+          type="button"
+          uiButton
+          variant="secondary"
+          size="sm"
+          (click)="loadSavedConfigurationFromStorage()"
+          title="Muat konfigurasi grafik terakhir yang tersimpan di browser"
+        >
+          <svg class="w-4 h-4 mr-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Konfigurasi Terakhir
+        </button>
+      }
+
+      <button
+        type="button"
+        uiButton
+        variant="secondary"
+        size="sm"
+        (click)="configFileInput.click()"
+        title="Unggah berkas konfigurasi grafik .json"
+      >
+        <svg class="w-4 h-4 mr-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+        </svg>
+        Muat (.json)
+      </button>
+
+      <button
+        type="button"
+        uiButton
+        variant="secondary"
+        size="sm"
+        (click)="exportConfiguration()"
+        title="Simpan pengaturan ke berkas .json"
+      >
+        <svg class="w-4 h-4 mr-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        </svg>
+        Simpan (.json)
+      </button>
+    </div>
+  </ui-page-header>
+
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-6">
+    <!-- NOTIFIKASI HASIL LOAD/SIMPAN KONFIGURASI PRESET -->
+    @if (configNotification()) {
+      <div class="mb-6">
+        <ui-alert
+          [type]="configNotification()!.type === 'warning' ? 'warning' : configNotification()!.type === 'success' ? 'success' : 'info'"
+          [dismissible]="true"
+          (dismissed)="closeConfigNotification()"
+        >
+          <div class="font-medium">{{ configNotification()!.message }}</div>
+          @if (configNotification()!.details && configNotification()!.details!.length > 0) {
+            <ul class="mt-2 list-disc pl-5 space-y-1 text-xs">
+              @for (detail of configNotification()!.details!; track detail) {
+                <li>{{ detail }}</li>
+              }
+            </ul>
+          }
+        </ui-alert>
+      </div>
+    }
+
+    <!-- NOTIFICATION BANNER -->
+    @if (notificationMessage()) {
+      <div class="mb-6">
+        <ui-alert [type]="notificationMessageType()" [dismissible]="true" (dismissed)="closeNotification()">
+          {{ notificationMessage() }}
+        </ui-alert>
+      </div>
+    }
+
+    <!-- ====================================================== -->
+    <!-- PANEL PENGATURAN (DISEMBUNYIKAN DI BALIK TOMBOL GERIGI) -->
+    <!-- ====================================================== -->
+    @if (showSettings() || (!canRenderChart() && !isProcessing())) {
+      <div class="mb-8 rounded-2xl border border-slate-300/80 bg-slate-100/60 p-4 sm:p-6 shadow-xs space-y-6">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+          <div class="flex items-center gap-2">
+            <svg class="w-5 h-5 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wider">
+              Panel Pengaturan Visualisasi &amp; Data
+            </h2>
+          </div>
+
+          <div class="flex items-center gap-2">
+            @if (canRenderChart()) {
+              <button
+                type="button"
+                uiButton
+                variant="ghost"
+                size="xs"
+                (click)="showSettings.set(false)"
+                title="Tutup panel pengaturan"
+              >
+                Tutup ✕
+              </button>
+            }
+          </div>
+        </div>
+
+        <!-- STEP 1 : UPLOAD EXCEL (FLOW PERSIS FITUR JOIN) -->
+        <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">
+          <div class="mb-4 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <div
+                class="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white"
+              >
+                1
+              </div>
+              <div>
+                <h2 class="font-semibold text-slate-900 text-sm">Upload Excel</h2>
+                <p class="text-xs text-slate-500">File diproses langsung di browser secara lokal.</p>
+              </div>
+            </div>
+          </div>
+
+          @if (!file() && dataSource() !== 'join') {
+            <label
+              class="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-10 transition hover:border-slate-400 hover:bg-slate-100/50"
+            >
+              <p class="font-medium text-slate-900">Klik untuk memilih file Excel</p>
+              <p class="mt-1 text-xs text-slate-500">Format .xlsx</p>
+              <input type="file" accept=".xlsx" class="hidden" (change)="onFileSelected($event)" />
+            </label>
+          } @else if (file()) {
+            @if (isProcessing()) {
+              <div class="rounded-lg border border-slate-300 bg-slate-100 p-4">
+                <div class="flex items-center gap-3">
+                  <div class="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700"></div>
+                  <div>
+                    <p class="font-medium text-slate-900 text-sm">Membaca file Excel...</p>
+                    <p class="text-xs text-slate-600">Mendeteksi tingkatan header dan sub-header...</p>
+                  </div>
+                </div>
+              </div>
+            } @else {
+              <div class="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                <div>
+                  <p class="font-medium text-slate-900 text-sm">{{ file()?.name }}</p>
+                  <p class="text-xs text-emerald-700">{{ sheetNames().length }} sheet ditemukan</p>
+                </div>
+                <button
+                  type="button"
+                  (click)="clearFile()"
+                  class="rounded-md border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                >
+                  Ganti File
+                </button>
+              </div>
+            }
+          } @else if (dataSource() === 'join') {
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-purple-200 bg-purple-50 p-4">
+              <div>
+                <p class="font-medium text-slate-900 text-sm">{{ chartTitle() }}</p>
+                <p class="text-xs text-purple-700">Data hasil penggabungan multi-sheet siap divisualisasikan</p>
+              </div>
+              <label class="cursor-pointer rounded-md border border-purple-300 bg-white px-3.5 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-50 transition text-center">
+                Unggah File Baru
+                <input type="file" accept=".xlsx" class="hidden" (change)="onFileSelected($event)" />
+              </label>
+            </div>
+          }
+        </section>
+
+        <!-- STEP 2 : PILIH SHEET & PENGATURAN BARIS HEADER (MULTI-TIER) -->
+        @if (file() && !isProcessing()) {
+          <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">
+            <div class="mb-4 flex items-center gap-2.5">
+              <div
+                class="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white"
+              >
+                2
+              </div>
+              <div>
+                <h2 class="font-semibold text-slate-900 text-sm">Pilih Sheet &amp; Pengaturan Baris Header</h2>
+                <p class="text-xs text-slate-500">Pilih sheet yang ingin divisualisasikan dan sesuaikan letak header jika tidak di baris pertama.</p>
+              </div>
+            </div>
+
+            <!-- LIST SHEET CARDS (FLOW PERSIS FITUR JOIN) -->
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              @for (name of sheetNames(); track name) {
+                @let isSelected = selectedSheet() === name;
+                <button
+                  type="button"
+                  (click)="selectSheet(name)"
+                  class="rounded-lg border p-3.5 text-left transition cursor-pointer"
+                  [class.border-slate-800]="isSelected"
+                  [class.bg-slate-100]="isSelected"
+                  [class.border-slate-200]="!isSelected"
+                  [class.bg-white]="!isSelected"
+                >
+                  <div class="flex items-center gap-2.5">
+                    <div
+                      class="flex h-6 w-6 shrink-0 items-center justify-center rounded text-xs font-semibold"
+                      [class.bg-slate-900]="isSelected"
+                      [class.text-white]="isSelected"
+                      [class.bg-slate-100]="!isSelected"
+                      [class.text-slate-600]="!isSelected"
+                    >
+                      @if (isSelected) {
+                        <span>✓</span>
+                      } @else {
+                        <span>-</span>
+                      }
+                    </div>
+                    <div class="min-w-0">
+                      <p class="truncate text-xs font-semibold text-slate-900">{{ name }}</p>
+                      @if (isSelected) {
+                        <p class="text-[11px] text-slate-600 font-medium">{{ sheetColumns().length }} kolom terdeteksi</p>
+                      }
+                    </div>
+                  </div>
+                </button>
+              }
+            </div>
+
+            @if (selectedSheet()) {
+              <!-- PENGATURAN RENTANG BARIS HEADER MULTI-LAPIS (PERSIS FITUR JOIN) -->
+              <div class="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                  <div class="flex items-center gap-2">
+                    <span class="font-bold text-slate-900">{{ selectedSheet() }}</span>
+                    <span class="rounded bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-700">
+                      {{ sheetColumns().length }} kolom
+                    </span>
+                    <span class="rounded bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-700">
+                      {{ headerEndRow() - headerStartRow() + 1 }} lapis header
+                    </span>
+                  </div>
+                </div>
+
+                <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <!-- Baris Header Awal -->
+                  <div>
+                    <label class="mb-1 block text-xs font-medium text-slate-700">
+                      Baris Header Awal
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      [value]="headerStartRow()"
+                      (change)="onHeaderStartRowChange($event)"
+                      class="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-slate-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <!-- Baris Header Akhir -->
+                  <div>
+                    <label class="mb-1 block text-xs font-medium text-slate-700">
+                      Baris Header Akhir
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      [value]="headerEndRow()"
+                      (change)="onHeaderEndRowChange($event)"
+                      class="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-slate-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <!-- Baris Mulai Data -->
+                  <div>
+                    <label class="mb-1 block text-xs font-medium text-slate-700">
+                      Baris Mulai Data
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      [value]="dataStartRow()"
+                      (change)="onDataStartRowChange($event)"
+                      class="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-slate-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <!-- Preview Nama Kolom -->
+                <div class="mt-4 border-t border-slate-200/80 pt-3">
+                  <div class="flex flex-wrap items-center gap-1.5">
+                    <span class="text-xs font-semibold text-slate-600">Preview Kolom Terdeteksi:</span>
+                    @for (col of sheetColumns().slice(0, 8); track col.header) {
+                      <span class="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-700 shadow-xs">
+                        {{ col.header }}
+                      </span>
+                    }
+                    @if (sheetColumns().length > 8) {
+                      <span class="text-xs text-slate-400">
+                        +{{ sheetColumns().length - 8 }} kolom lainnya
+                      </span>
+                    }
+                  </div>
+                </div>
+              </div>
+            }
+          </section>
+        }
+
+        <!-- STEP 3 : PILIH KOLOM BARIS & INDIKATOR -->
+        @if ((file() && selectedSheet()) || dataSource() === 'join') {
+          <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">
+            <div class="mb-4 flex items-center gap-2.5">
+              <div
+                class="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white"
+              >
+                {{ dataSource() === 'join' ? '2' : '3' }}
+              </div>
+              <div>
+                <h2 class="font-semibold text-slate-900 text-sm">Pilih Kolom Baris (Sumbu Y) &amp; Indikator</h2>
+                <p class="text-xs text-slate-500">Tentukan kolom label untuk sumbu vertikal dan centang indikator kesehatan yang ingin dibandingkan.</p>
+              </div>
+            </div>
+
+            <!-- PENGATURAN KOLOM BARIS & INDIKATOR -->
+            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-4">
+              <!-- PILIH KOLOM LABEL BARIS (SUMBU Y) -->
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <label class="sm:w-1/3 block text-xs font-medium text-slate-700">
+                  Kolom Label Baris (Sumbu Y)
+                </label>
+                <div class="sm:w-2/3">
+                  <select
+                    [value]="categoryColumn()"
+                    (change)="onCategoryColumnChange($any($event.target).value)"
+                    class="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-slate-500 focus:outline-none"
+                  >
+                    @for (col of allColumns(); track col) {
+                      <option [value]="col">{{ col }}</option>
+                    }
+                  </select>
+                </div>
+              </div>
+
+              <!-- PILIH SERI INDIKATOR (BATANG) -->
+              <div class="border-t border-slate-200/80 pt-3">
+                <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div class="flex items-center gap-2">
+                    <label class="text-xs font-bold uppercase tracking-wider text-slate-700">
+                      Pilih Kolom Indikator (Batang Grafik)
+                    </label>
+                    <span class="rounded bg-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-800">
+                      {{ selectedSeriesKeys().length }} dipilih
+                    </span>
+                  </div>
+
+                  <div class="flex items-center gap-2">
+                    <button
+                      type="button"
+                      (click)="selectNumericSeriesColumns()"
+                      class="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                      title="Deteksi otomatis kolom yang berisi angka"
+                    >
+                      Pilih Kolom Angka
+                    </button>
+                    <button
+                      type="button"
+                      (click)="selectAllSeriesColumns()"
+                      class="text-xs font-medium text-slate-700 hover:underline cursor-pointer"
+                    >
+                      Pilih Semua
+                    </button>
+                    <span class="text-slate-300">|</span>
+                    <button
+                      type="button"
+                      (click)="clearAllSeriesColumns()"
+                      class="text-xs font-medium text-slate-500 hover:underline cursor-pointer"
+                    >
+                      Batal Pilih
+                    </button>
+                  </div>
+                </div>
+
+                <!-- FILTER PENCARIAN KOLOM -->
+                <input
+                  type="text"
+                  [value]="columnSearchQuery()"
+                  (input)="columnSearchQuery.set($any($event.target).value)"
+                  placeholder="Cari nama kolom indikator..."
+                  class="mb-2 w-full rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-slate-500 focus:outline-none"
+                />
+
+                <!-- DAFTAR CHECKBOX KOLOM INDIKATOR -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-0.5">
+                  @for (col of candidateSeriesColumns(); track col.header) {
+                    @let isChecked = selectedSeriesKeys().includes(col.header);
+                    <label
+                      class="flex items-center gap-2 rounded border p-2 text-xs transition cursor-pointer"
+                      [class.border-slate-800]="isChecked"
+                      [class.bg-slate-100]="isChecked"
+                      [class.border-slate-200]="!isChecked"
+                      [class.bg-white]="!isChecked"
+                      [class.hover:bg-slate-50]="!isChecked"
+                    >
+                      <input
+                        type="checkbox"
+                        [checked]="isChecked"
+                        (change)="toggleSeriesColumn(col.header)"
+                        class="rounded text-slate-900 focus:ring-0 accent-slate-900"
+                      />
+                      <div class="min-w-0 flex-1">
+                        <p class="font-medium text-slate-800 truncate">{{ col.header }}</p>
+                        @if (col.leafHeader !== col.header) {
+                          <p class="text-[10px] text-slate-400 truncate">Sub: {{ col.leafHeader }}</p>
+                        }
+                      </div>
+                    </label>
+                  }
+                </div>
+
+                @if (candidateSeriesColumns().length === 0) {
+                  <div class="py-3 text-center text-xs text-slate-400 italic">
+                    Tidak ada kolom yang cocok dengan pencarian.
+                  </div>
+                }
+              </div>
+            </div>
+
+            @if (canRenderChart()) {
+              <div class="mt-4 pt-3 border-t border-slate-200 flex justify-end">
+                <button
+                  type="button"
+                  uiButton
+                  variant="primary"
+                  size="sm"
+                  (click)="showSettings.set(false)"
+                  title="Tutup panel pengaturan dan tampilkan grafik"
+                >
+                  Tutup Pengaturan &amp; Tampilkan Grafik
+                </button>
+              </div>
+            }
+          </section>
+        }
+      </div>
+    }
+
+    <!-- ====================================================== -->
+    <!-- HASIL VISUALISASI GRAFIK INTERAKTIF -->
+    <!-- ====================================================== -->
+    @if ((file() && selectedSheet()) || dataSource() === 'join') {
+      <section class="rounded-xl border border-slate-200 bg-white overflow-hidden p-6 shadow-xs">
+        <!-- HEADER KARTU TERPADU (DENGAN SATU BAGIAN TOMBOL AKSI LENGKAP) -->
+        <div class="mb-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-100 pb-4">
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 class="text-base font-bold text-slate-900">
+                {{ chartTitle() }}
+              </h2>
+              @if (selectedSheet()) {
+                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
+                  <span class="h-1.5 w-1.5 rounded-full bg-emerald-600"></span>
+                  Sheet: {{ selectedSheet() }}
+                </span>
+              }
+            </div>
+            <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+              <span>{{ visibleCategories().length }} baris aktif · {{ seriesList().length }} seri indikator</span>
+              @if (hasHiddenOrDeletedRows()) {
+                <span class="rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                  Terfilter ({{ availableCategories().length - visibleCategories().length }} disembunyikan/dihapus)
+                </span>
+                <button
+                  type="button"
+                  (click)="restoreAllRows()"
+                  class="text-xs font-medium text-slate-700 hover:text-slate-900 underline transition cursor-pointer"
+                >
+                  Pulihkan Semua Baris
+                </button>
+              }
+            </div>
+          </div>
+
+          <!-- CONTROLS & EXPORT TOOLBAR (SATU BAGIAN TERPADU) -->
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- TARGET BENCHMARK INPUT -->
+            <div class="flex items-center gap-2 rounded border border-slate-300 bg-slate-50 px-2.5 py-1 text-xs">
+              <span class="font-semibold text-slate-700">Garis Target:</span>
+              <input
+                type="number"
+                [value]="targetValue() ?? ''"
+                (input)="targetValue.set($any($event.target).value ? +$any($event.target).value : null)"
+                placeholder="Kosongkan"
+                class="w-16 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-center font-bold text-slate-900 focus:outline-none"
+              />
+            </div>
+
+            <!-- TOGGLE PANEL PENGATURAN PILIH & KELOLA BARIS -->
+            <button
+              type="button"
+              (click)="toggleSettingsPanel()"
+              class="inline-flex items-center gap-1.5 rounded border px-3 py-1.5 text-xs font-medium transition cursor-pointer"
+              [class.border-slate-800]="showSettingsPanel()"
+              [class.bg-slate-100]="showSettingsPanel()"
+              [class.text-slate-900]="showSettingsPanel()"
+              [class.border-slate-300]="!showSettingsPanel()"
+              [class.bg-white]="!showSettingsPanel()"
+              [class.text-slate-700]="!showSettingsPanel()"
+              title="Saring atau sembunyikan baris tertentu dari visualisasi"
+            >
+              <svg class="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              </svg>
+              <span>{{ showSettingsPanel() ? 'Tutup Kelola Baris' : 'Kelola Baris' }}</span>
+              @if (hasHiddenOrDeletedRows()) {
+                <span class="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-medium text-rose-700">
+                  Filter
+                </span>
+              }
+            </button>
+
+            <!-- UNDUH EXCEL / SVG / PNG DALAM SATU GRUP AKSI -->
+            @if (canRenderChart()) {
+              <button
+                type="button"
+                (click)="exportExcel()"
+                class="inline-flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                title="Unduh data bersih (.xlsx)"
+              >
+                <svg class="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span>Excel (.xlsx)</span>
+              </button>
+
+              <button
+                type="button"
+                (click)="exportSvg()"
+                class="inline-flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                title="Unduh format vektor SVG"
+              >
+                <svg class="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span>SVG</span>
+              </button>
+
+              <button
+                type="button"
+                (click)="exportPng()"
+                class="inline-flex items-center gap-1.5 rounded bg-slate-900 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-slate-800 transition cursor-pointer"
+                title="Unduh gambar PNG"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                <span>PNG</span>
+              </button>
+            }
+          </div>
+        </div>
+
+        <!-- 3.2 PANEL PENGATURAN PILIH & KELOLA BARIS JIKA DIBUKA -->
+        @if (showSettingsPanel()) {
+          <div class="mb-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-200/80 pb-3 mb-3">
+              <div>
+                <h3 class="text-xs font-semibold text-slate-800">
+                  Kelola Baris ({{ visibleCategories().length }}/{{ availableCategories().length }} baris aktif)
+                </h3>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  (click)="selectAllCategories()"
+                  class="text-[11px] font-medium text-slate-700 hover:underline cursor-pointer"
+                >
+                  Pilih Semua
+                </button>
+                <span class="text-slate-300">|</span>
+                <button
+                  type="button"
+                  (click)="clearAllCategories()"
+                  class="text-[11px] font-semibold text-slate-500 hover:underline cursor-pointer"
+                >
+                  Sembunyikan Semua
+                </button>
+
+                @if (hasHiddenOrDeletedRows()) {
+                  <span class="text-slate-300">|</span>
+                  <button
+                    type="button"
+                    (click)="restoreAllRows()"
+                    class="text-[11px] font-semibold text-emerald-700 hover:underline cursor-pointer flex items-center gap-1"
+                    title="Kembalikan semua baris yang dihapus atau disembunyikan ke kondisi awal"
+                  >
+                    <span>Pulihkan Semua Baris</span>
+                  </button>
+                }
+              </div>
+            </div>
+
+            <!-- PENCARIAN BARIS -->
+            <input
+              type="text"
+              [value]="categorySearchQuery()"
+              (input)="categorySearchQuery.set($any($event.target).value)"
+              placeholder="Cari baris..."
+              class="mb-2.5 w-full rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-slate-500 focus:outline-none"
+            />
+
+            <!-- DAFTAR ITEM BARIS DENGAN CHECKBOX & TOMBOL HAPUS -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-56 overflow-y-auto p-0.5">
+              @for (cat of filteredAvailableCategories(); track cat) {
+                @let checked = isCategorySelected(cat);
+                <div
+                  class="flex items-center justify-between gap-2 rounded border px-2.5 py-1.5 text-xs transition bg-white"
+                  [class.border-slate-800]="checked"
+                  [class.bg-slate-100]="checked"
+                  [class.border-slate-200]="!checked"
+                  [class.opacity-60]="!checked"
+                >
+                  <label class="flex items-center gap-2 min-w-0 flex-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      [checked]="checked"
+                      (change)="toggleCategory(cat)"
+                      class="rounded text-slate-900 focus:ring-0 accent-slate-900"
+                    />
+                    <span class="truncate text-slate-800" [class.font-semibold]="checked">{{ cat }}</span>
+                  </label>
+
+                  <button
+                    type="button"
+                    (click)="deleteRow(cat)"
+                    class="shrink-0 px-1.5 py-0.5 text-[11px] text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition cursor-pointer"
+                    title="Hapus baris '{{ cat }}' dari visualisasi"
+                  >
+                    Hapus
+                  </button>
+                </div>
+              }
+              @if (filteredAvailableCategories().length === 0) {
+                <div class="col-span-full py-4 text-center text-xs text-slate-400 italic">
+                  Tidak ada baris yang cocok dengan pencarian.
+                </div>
+              }
+            </div>
+          </div>
+        }
+
+        <!-- 3.3 HASIL GRAFIK VISUALISASI SVG -->
+        @if (canRenderChart()) {
+          <!-- LEGEND INDIKATOR BATANG -->
+          <div class="mb-4 flex flex-wrap items-center gap-2.5 border-t border-slate-100 pt-4 text-xs font-medium text-slate-700">
+            <span class="font-bold text-slate-900">Seri Indikator:</span>
+            @for (s of seriesList(); track s.key) {
+              <div
+                class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-slate-800 shadow-2xs"
+              >
+                <span
+                  class="h-3 w-3 rounded-full"
+                  [style.backgroundColor]="s.color"
+                ></span>
+                <span class="font-semibold">{{ s.label }}</span>
+              </div>
+            }
+
+            @if (targetValue() !== null) {
+              <div class="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-red-800 font-semibold shadow-2xs">
+                <span class="inline-block h-0.5 w-4 border-t-2 border-dashed border-red-600"></span>
+                <span>Target: {{ targetValue() }}</span>
+              </div>
+            }
+          </div>
+
+          <!-- KANVAS SVG GRAFIK -->
+          @if (selectedCategories().length === 0) {
+            <div class="py-12 text-center">
+              <h3 class="text-base font-bold text-slate-700">Tidak Ada Baris yang Dipilih</h3>
+              <p class="mt-1 text-xs text-slate-500">
+                Centang baris yang ingin Anda tampilkan pada panel Kelola Baris di atas.
+              </p>
+              <button
+                type="button"
+                (click)="selectAllCategories()"
+                class="mt-3 inline-flex items-center gap-2 rounded bg-slate-900 px-4 py-2 text-xs font-medium text-white hover:bg-slate-800 transition cursor-pointer"
+              >
+                Pilih Semua Baris
+              </button>
+            </div>
+          } @else {
+            <div class="overflow-x-auto rounded-xl border border-slate-100 p-2">
+              <div class="min-w-[850px]">
+                @let res = layout();
+                <svg
+                  id="chartSvg"
+                  [attr.viewBox]="'0 0 ' + res.viewBoxWidth + ' ' + res.viewBoxHeight"
+                  style="background-color: #ffffff; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;"
+                  class="w-full h-auto overflow-visible select-none"
+                >
+                  <!-- BACKGROUND FOR EXPORT -->
+                  <rect width="100%" height="100%" fill="#ffffff" />
+
+                  <!-- CHART TITLE & SUBTITLE IN SVG (UNTUK FILE EXPORT) -->
+                  <text
+                    [attr.x]="res.plotX"
+                    y="28"
+                    font-family="system-ui, sans-serif"
+                    font-size="16"
+                    font-weight="bold"
+                    fill="#0f172a"
+                  >
+                    {{ chartTitle() }}
+                  </text>
+                  <text
+                    [attr.x]="res.plotX"
+                    y="48"
+                    font-family="system-ui, sans-serif"
+                    font-size="11"
+                    fill="#64748b"
+                  >
+                    {{ chartSubtitle() }}
+                  </text>
+
+                  <!-- 1. GRID LINES & X-AXIS TICKS -->
+                  <g class="grid-lines">
+                    @for (tick of res.ticks; track tick.value) {
+                      <line
+                        [attr.x1]="tick.x"
+                        [attr.y1]="res.plotY"
+                        [attr.x2]="tick.x"
+                        [attr.y2]="res.plotY + res.plotHeight"
+                        stroke="#e2e8f0"
+                        stroke-width="1"
+                        stroke-dasharray="3 3"
+                      />
+                      <text
+                        [attr.x]="tick.x"
+                        [attr.y]="res.plotY - 12"
+                        text-anchor="middle"
+                        font-family="monospace, sans-serif"
+                        font-size="11"
+                        fill="#94a3b8"
+                      >
+                        {{ tick.label }}
+                      </text>
+                      <text
+                        [attr.x]="tick.x"
+                        [attr.y]="res.plotY + res.plotHeight + 20"
+                        text-anchor="middle"
+                        font-family="monospace, sans-serif"
+                        font-size="11"
+                        fill="#64748b"
+                      >
+                        {{ tick.label }}
+                      </text>
+                    }
+
+                    <line
+                      [attr.x1]="res.plotX"
+                      [attr.y1]="res.plotY + res.plotHeight"
+                      [attr.x2]="res.plotX + res.plotWidth"
+                      [attr.y2]="res.plotY + res.plotHeight"
+                      stroke="#cbd5e1"
+                      stroke-width="1.5"
+                    />
+                  </g>
+
+                  <!-- 2. CATEGORY GROUPS (Y-AXIS LABELS & BARS) -->
+                  @for (group of res.categoryGroups; track group.categoryName; let cIdx = $index) {
+                    @if (cIdx % 2 === 1) {
+                      <rect
+                        [attr.x]="res.plotX"
+                        [attr.y]="group.y"
+                        [attr.width]="res.plotWidth"
+                        [attr.height]="group.height"
+                        fill="#f8fafc"
+                        class="pointer-events-none"
+                      />
+                    }
+
+                    <line
+                      [attr.x1]="res.plotX - 10"
+                      [attr.y1]="group.y + group.height"
+                      [attr.x2]="res.plotX + res.plotWidth"
+                      [attr.y2]="group.y + group.height"
+                      stroke="#f1f5f9"
+                      stroke-width="1"
+                    />
+
+                    <!-- Y-Axis Category Label (Wilayah) -->
+                    <text
+                      [attr.x]="res.plotX - 16"
+                      [attr.y]="group.y + group.height / 2 + 4"
+                      text-anchor="end"
+                      font-family="system-ui, sans-serif"
+                      font-size="12"
+                      font-weight="bold"
+                      fill="#1e293b"
+                    >
+                      {{ group.categoryName }}
+                    </text>
+
+                    <!-- Bars in Group -->
+                    @for (bar of group.bars; track bar.seriesKey) {
+                      <g
+                        class="bar-group group cursor-pointer"
+                        (mouseenter)="onBarHover($event, bar, group.categoryName)"
+                        (mousemove)="onBarMouseMove($event)"
+                        (mouseleave)="onBarLeave()"
+                      >
+                        <title>{{ group.categoryName }} - {{ bar.seriesLabel }}: {{ bar.displayLabel }}</title>
+
+                        <!-- Bar Rectangle -->
+                        @if (!bar.isMissing && bar.numericVal !== null && bar.numericVal > 0) {
+                          <rect
+                            [attr.x]="bar.x"
+                            [attr.y]="bar.y"
+                            [attr.width]="bar.width"
+                            [attr.height]="bar.height"
+                            [attr.fill]="bar.color"
+                            rx="3"
+                            ry="3"
+                            class="transition-opacity hover:opacity-85"
+                          />
+                        } @else if (bar.isZero) {
+                          <!-- Zero Value Tick Marker -->
+                          <rect
+                            [attr.x]="bar.x"
+                            [attr.y]="bar.y"
+                            width="3"
+                            [attr.height]="bar.height"
+                            fill="#64748b"
+                            rx="1"
+                          />
+                        }
+
+                        <!-- Value Label at End of Bar -->
+                        <text
+                          [attr.x]="bar.x + bar.width + 6"
+                          [attr.y]="bar.y + bar.height / 2 + 4"
+                          font-family="monospace, sans-serif"
+                          font-size="10"
+                          [attr.font-weight]="bar.numericVal !== null && bar.numericVal > 0 ? 'bold' : 'normal'"
+                          [attr.fill]="bar.isMissing ? '#94a3b8' : bar.isZero ? '#64748b' : '#334155'"
+                          [attr.font-style]="bar.isMissing ? 'italic' : 'normal'"
+                        >
+                          {{ bar.displayLabel }}
+                        </text>
+                      </g>
+                    }
+                  }
+
+                  <!-- 3. TARGET REFERENCE LINE -->
+                  @if (res.targetLineX; as targetLineX) {
+                    @if (targetValue() !== null) {
+                      <g class="target-line-group pointer-events-none">
+                        <line
+                          [attr.x1]="targetLineX"
+                          [attr.y1]="res.plotY - 6"
+                          [attr.x2]="targetLineX"
+                          [attr.y2]="res.plotY + res.plotHeight + 6"
+                          stroke="#dc2626"
+                          stroke-width="2"
+                          stroke-dasharray="5 4"
+                        />
+
+                        <!-- Top Badge -->
+                        <rect
+                          [attr.x]="targetLineX - 26"
+                          [attr.y]="res.plotY - 26"
+                          width="52"
+                          height="18"
+                          rx="4"
+                          fill="#fef2f2"
+                          stroke="#fca5a5"
+                          stroke-width="1"
+                        />
+                        <text
+                          [attr.x]="targetLineX"
+                          [attr.y]="res.plotY - 13"
+                          text-anchor="middle"
+                          font-family="monospace, sans-serif"
+                          font-size="10"
+                          font-weight="bold"
+                          fill="#b91c1c"
+                        >
+                          {{ targetValue() }}
+                        </text>
+
+                        <!-- Bottom Badge -->
+                        <rect
+                          [attr.x]="targetLineX - 26"
+                          [attr.y]="res.plotY + res.plotHeight + 8"
+                          width="52"
+                          height="18"
+                          rx="4"
+                          fill="#fef2f2"
+                          stroke="#fca5a5"
+                          stroke-width="1"
+                        />
+                        <text
+                          [attr.x]="targetLineX"
+                          [attr.y]="res.plotY + res.plotHeight + 21"
+                          text-anchor="middle"
+                          font-family="monospace, sans-serif"
+                          font-size="10"
+                          font-weight="bold"
+                          fill="#b91c1c"
+                        >
+                          {{ targetValue() }}
+                        </text>
+                      </g>
+                    }
+                  }
+                </svg>
+              </div>
+            </div>
+
+            <!-- RINGKASAN DATA STATISTIK DI BAWAH GRAFIK -->
+            <div class="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 border-t border-slate-100 pt-3">
+              <span>
+                Menampilkan <strong>{{ visibleCategories().length }}</strong> baris dengan <strong>{{ seriesList().length }}</strong> seri indikator batang.
+              </span>
+            </div>
+          }
+        } @else {
+          <!-- PLACEHOLDER JIKA BELUM ADA INDIKATOR YANG DIPILIH -->
+          <div class="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+            <p class="font-semibold text-slate-700">Grafik Belum Ditampilkan</p>
+            <p class="text-xs text-slate-500 mt-1">
+              Pilih kolom label baris dan centang minimal satu kolom indikator di atas untuk memunculkan visualisasi grafik.
+            </p>
+          </div>
+        }
+      </section>
+
+      <!-- FLOATING HOVER TOOLTIP -->
+      @if (hoveredBar(); as h) {
+        <div
+          class="pointer-events-none fixed z-50 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs shadow-md"
+          [style.left.px]="tooltipPos().x"
+          [style.top.px]="tooltipPos().y"
+        >
+          <div class="border-b border-slate-100 pb-1 font-bold text-slate-900">
+            <span>{{ h.categoryName }}</span>
+          </div>
+
+          <div class="mt-2 flex items-center gap-2 font-semibold text-slate-700">
+            <span class="inline-block h-2.5 w-2.5 rounded-full flex-shrink-0" [style.backgroundColor]="h.color"></span>
+            <span>{{ h.seriesLabel }}:</span>
+            <span
+              class="font-mono text-sm font-bold"
+              [class.italic]="h.isMissing"
+              [class.text-slate-400]="h.isMissing"
+              [class.text-slate-900]="!h.isMissing"
+            >
+              {{ h.displayLabel }}
+            </span>
+          </div>
+
+          @if (h.status === 'achieved') {
+            <div class="mt-2 flex items-center gap-1.5 rounded bg-emerald-50 px-2 py-0.5 font-bold text-emerald-700 border border-emerald-200">
+              <span>Mencapai Target ({{ targetValue() }})</span>
+              @if (h.diff !== null && h.diff > 0) {
+                <span class="text-[10px] text-emerald-600">(+{{ h.diff }})</span>
+              }
+            </div>
+          } @else if (h.status === 'unachieved') {
+            <div class="mt-2 flex items-center gap-1.5 rounded bg-amber-50 px-2 py-0.5 font-bold text-amber-700 border border-amber-200">
+              <span>Belum Mencapai Target ({{ targetValue() }})</span>
+              @if (h.diff !== null) {
+                <span class="text-[10px] text-amber-600">({{ h.diff }})</span>
+              }
+            </div>
+          } @else if (h.isZero) {
+            <div class="mt-1.5 text-[11px] text-slate-500 italic">
+              Nilai capaian 0 (Valid tercatat)
+            </div>
+          } @else if (h.isMissing) {
+            <div class="mt-1.5 text-[11px] text-slate-400 italic">
+              Data tidak tersedia atau non-numerik
+            </div>
+          }
+        </div>
+      }
+    }
+  </div>
+</div>

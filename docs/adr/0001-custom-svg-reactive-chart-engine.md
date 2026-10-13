@@ -1,0 +1,3 @@
+# Custom SVG Reaktif untuk Engine Visualisasi Grafik
+
+Untuk kebutuhan visualisasi grafik batang bertingkat (*Grouped Horizontal Bar Chart*) indikator kesehatan, diputuskan untuk menggunakan rendering elemen `<svg>` murni berbasis Angular Signals daripada menambahkan dependensi pustaka grafik pihak ketiga (seperti Chart.js atau Apache ECharts). Pendekatan ini menjaga performa Zoneless tetap optimal dengan nol ukuran bundle tambahan (~0 KB overhead), rendering deterministik tajam di segala resolusi, dan kemudahan konversi langsung ke format file gambar (PNG/SVG) untuk bahan laporan Dinas Kesehatan.

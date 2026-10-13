@@ -1,0 +1,3 @@
+# Engine Evaluasi Kinerja Pemantauan Stunting Multi-Periode
+
+Modul pemantauan stunting dibangun sebagai modul mandiri (`/stunting-monitoring`) yang memproses baris indikator dengan pemetaan kolom fleksibel, menghitung capaian yang diharapkan (*Expected Achievement*) proporsional waktu atau target spesifik triwulan, serta mengevaluasi status kinerja empat tingkat (On Track, Perlu Perhatian, Perlu Percepatan, Belum Dapat Dinilai) berbasis gap capaian, tren tahun sebelumnya, dan polaritas indikator. Pendekatan ini dipilih agar pengguna dapat langsung mengimpor laporan ringkasan berkala Dinkes tanpa harus mengagregasi manual, dengan jaminan evaluasi kinerja yang obyektif dan reproduksibel lintas periode.

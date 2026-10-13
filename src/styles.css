@@ -1,3 +1,22 @@
 /* You can add global styles to this file, and also import other style files */
 
 @import 'tailwindcss';
+
+@keyframes alertCountdown {
+  0% {
+    width: 100%;
+  }
+  100% {
+    width: 0%;
+  }
+}
+
+.alert-countdown-bar {
+  display: block;
+  width: 100%;
+  height: 100%;
+  animation-name: alertCountdown;
+  animation-duration: var(--alert-duration, 10000ms);
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
