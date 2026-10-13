@@ -33,6 +33,7 @@ export interface CohortEvaluatedChild {
   statusLabel: string;
   inPeriod1: boolean;
   inPeriod2: boolean;
+  isAgeOutlier: boolean;
   puskesmas?: string;
   desa?: string;
   gender?: string;
@@ -54,6 +55,7 @@ export interface CohortSummary {
   netChange: number;
   duplicateNikPeriod1Count: number;
   duplicateNikPeriod2Count: number;
+  ageOutlierPeriod2Count: number;
 }
 
 export interface CohortComparisonResult {
@@ -263,6 +265,7 @@ export class StuntingCohortEngine {
     let recoveredCount = 0;
     let agedOutCount = 0;
     let newCaseCount = 0;
+    let ageOutlierPeriod2Count = 0;
 
     for (const nik of allNiks) {
       const inP1 = p1Map.has(nik);
@@ -289,6 +292,12 @@ export class StuntingCohortEngine {
       );
 
       const ageMonths = this.calculateAgeInMonths(tglLahir, config.evaluationDate);
+
+      // Detect outlier: child in period 2 whose age is >= 60 months
+      const isAgeOutlier = inP2 && ageMonths !== null && ageMonths >= 60;
+      if (isAgeOutlier) {
+        ageOutlierPeriod2Count++;
+      }
 
       let status: CohortTransitionStatus;
 
@@ -318,6 +327,7 @@ export class StuntingCohortEngine {
         statusLabel: this.STATUS_LABELS[status],
         inPeriod1: inP1,
         inPeriod2: inP2,
+        isAgeOutlier,
         puskesmas: puskesmas || undefined,
         desa: desa || undefined,
         gender: gender || undefined,
@@ -358,6 +368,7 @@ export class StuntingCohortEngine {
       netChange: totalP2 - totalP1,
       duplicateNikPeriod1Count: dupP1,
       duplicateNikPeriod2Count: dupP2,
+      ageOutlierPeriod2Count,
     };
 
     return {
@@ -409,12 +420,13 @@ export class StuntingCohortEngine {
         `${result.summary.agedOutPercent.toFixed(1)}%`,
       ],
       ['Net Change Beban Kasus', result.summary.netChange, '-'],
+      ['Outlier Usia di Periode Evaluasi (>= 60 Bulan)', result.summary.ageOutlierPeriod2Count, '-'],
     ];
 
     const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
 
     // Style summary headers
-    wsSummary['!cols'] = [{ wch: 36 }, { wch: 22 }, { wch: 18 }];
+    wsSummary['!cols'] = [{ wch: 42 }, { wch: 22 }, { wch: 18 }];
     if (wsSummary['A1']) {
       wsSummary['A1'].s = {
         font: { bold: true, sz: 14, color: { rgb: '065F46' } },
@@ -450,6 +462,7 @@ export class StuntingCohortEngine {
         'Status Transisi Kohort',
         `Tercatat di ${result.p1Label}`,
         `Tercatat di ${result.p2Label}`,
+        'Catatan Outlier',
       ];
 
       const rows: (string | number)[][] = [headers];
@@ -467,6 +480,7 @@ export class StuntingCohortEngine {
           c.statusLabel,
           c.inPeriod1 ? 'Ya' : 'Tidak',
           c.inPeriod2 ? 'Ya' : 'Tidak',
+          c.isAgeOutlier ? 'Outlier Usia (>=60 Bulan)' : '-',
         ]);
       });
 

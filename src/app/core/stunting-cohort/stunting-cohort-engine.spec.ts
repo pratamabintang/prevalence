@@ -90,6 +90,8 @@ describe('StuntingCohortEngine', () => {
       { NIK: '3301010003', 'Nama Balita': 'Anak C', 'Tanggal Lahir': '2018-01-01' },
       // Duplicate NIK row in P1
       { NIK: '3301010001', 'Nama Balita': 'Anak A Duplikat', 'Tanggal Lahir': '2023-01-01' },
+      // 5. Outlier child: >= 60 months and persists in P2
+      { NIK: '3301010005', 'Nama Balita': 'Anak E (Outlier)', 'Tanggal Lahir': '2018-01-01' },
     ];
 
     const period2Rows = [
@@ -97,9 +99,11 @@ describe('StuntingCohortEngine', () => {
       { NIK: '3301010001', 'Nama Balita': 'Anak A', 'Tanggal Lahir': '2023-01-01' },
       // 4. New Case
       { NIK: '3301010004', 'Nama Balita': 'Anak D', 'Tanggal Lahir': '2023-08-01' },
+      // 5. Outlier child persisting in P2
+      { NIK: '3301010005', 'Nama Balita': 'Anak E (Outlier)', 'Tanggal Lahir': '2018-01-01' },
     ];
 
-    it('should correctly classify 4 transition statuses and aggregate KPIs', () => {
+    it('should correctly classify 4 transition statuses and aggregate KPIs including age outliers', () => {
       const evalDate = '2024-01-01';
       const result = StuntingCohortEngine.evaluateCohort(period1Rows, period2Rows, {
         p1Mapping: { nikKey: 'NIK', nameKey: 'Nama Balita', dobKey: 'Tanggal Lahir' },
@@ -109,21 +113,23 @@ describe('StuntingCohortEngine', () => {
         p2Label: 'TW2',
       });
 
-      // Deduplicated unique children: P1 has 3 unique, P2 has 2 unique
-      expect(result.summary.totalPeriod1).toBe(3);
-      expect(result.summary.totalPeriod2).toBe(2);
+      // Deduplicated unique children: P1 has 4 unique, P2 has 3 unique
+      expect(result.summary.totalPeriod1).toBe(4);
+      expect(result.summary.totalPeriod2).toBe(3);
       expect(result.summary.duplicateNikPeriod1Count).toBe(1);
       expect(result.summary.duplicateNikPeriod2Count).toBe(0);
 
       // Status counts
-      expect(result.summary.persistentCount).toBe(1); // Anak A
-      expect(result.summary.recoveredCount).toBe(1);  // Anak B (age ~19 mos)
+      expect(result.summary.persistentCount).toBe(2); // Anak A and Anak E
+      expect(result.summary.recoveredCount).toBe(1);  // Anak B (age ~18 mos)
       expect(result.summary.agedOutCount).toBe(1);    // Anak C (age 72 mos)
       expect(result.summary.newCaseCount).toBe(1);    // Anak D
+      expect(result.summary.ageOutlierPeriod2Count).toBe(1); // Anak E in P2 with age 72 mos
 
       // Verify individual records
       const anakA = result.children.find((c) => c.nik === '3301010001');
       expect(anakA?.status).toBe(CohortTransitionStatus.PERSISTENT);
+      expect(anakA?.isAgeOutlier).toBe(false);
 
       const anakB = result.children.find((c) => c.nik === '3301010002');
       expect(anakB?.status).toBe(CohortTransitionStatus.RECOVERED);
@@ -134,6 +140,10 @@ describe('StuntingCohortEngine', () => {
       const anakD = result.children.find((c) => c.nik === '3301010004');
       expect(anakD?.status).toBe(CohortTransitionStatus.NEW_CASE);
       expect(anakD?.statusLabel).toBe('Kasus Baru Stunting');
+
+      const anakE = result.children.find((c) => c.nik === '3301010005');
+      expect(anakE?.status).toBe(CohortTransitionStatus.PERSISTENT);
+      expect(anakE?.isAgeOutlier).toBe(true);
     });
 
     it('should generate a 6-sheet Excel workbook with correct sheet names and data rows', () => {

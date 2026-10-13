@@ -106,4 +106,9 @@ _Avoid_: Stunting baru, insiden baru, new case mentah
 Kategori transisi pemantauan bagi anak yang tercatat pada Periode Awal tetapi pada Periode Evaluasi usianya telah mencapai atau melampaui batas balita (>=60 bulan), sehingga keluar dari kohort pemantauan bukan semata karena pemulihan status gizi.
 _Avoid_: Drop out usia, kadaluwarsa, lewat umur
 
+**Outlier Usia Stunting**:
+Anomali data pemantauan di mana anak yang telah mencapai atau melampaui batas usia balita (>=60 bulan) masih tercatat mengalami stunting pada Periode Evaluasi, mengindikasikan adanya kekeliruan input tanggal lahir atau keterlambatan pengeluaran anak yang telah memasuki usia prasekolah/sekolah dasar dari pelaporan sasaran balita.
+_Avoid_: Error data mentah, anak salah, balita kadaluarsa
+
+
 
