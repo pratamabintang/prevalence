@@ -72,6 +72,7 @@ export const DEFAULT_JOIN_CONFIG: JoinConfigurationPreset = {
   enableTarget: true,
   enableCapaian: true,
   enableJumlah: false,
+  enableAverage: false,
   columnTargets: {
     'Kabupaten/Kota': {
       enabled: false,

@@ -17,7 +17,7 @@ export interface JoinConfigurationPreset {
   version: '1.0';
   name?: string;
   savedAt: string;
-  outputHeaderFormat?: 'full' | 'leaf';
+  outputHeaderFormat?: 'full' | 'concat';
   includeSheetPrefix?: boolean;
   joinBy: string;
   stripKabupaten?: boolean;
@@ -25,9 +25,13 @@ export interface JoinConfigurationPreset {
   enableTarget?: boolean;
   enableCapaian?: boolean;
   enableJumlah?: boolean;
+  enableAverage?: boolean;
   columnTargets?: Record<string, ColumnTargetConfig>;
   columnConfigs?: Record<string, ColumnConfig>;
   sumColumns?: Record<string, boolean>;
+  avgColumns?: Record<string, boolean>;
+  customColumnNames?: Record<string, string>;
+  columnOrder?: string[];
 }
 
 export interface PresetReconcileSummary {

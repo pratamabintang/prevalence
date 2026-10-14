@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
-import { describe, expect, it, beforeEach } from 'vitest';
+import { provideRouter, Router } from '@angular/router';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { ExcelJoinComponent, SheetInfo } from './excel-join.component';
 import { PresetStore } from './preset-store';
 import { environment } from '../../../environments/environment';
@@ -429,6 +429,168 @@ describe('ExcelJoinComponent', () => {
       expect(component.isDefaultData()).toBe(true);
       expect(component.showSaveDefaultConfirm()).toBe(false);
       expect(component.configNotification()?.type).toBe('success');
+    });
+  });
+
+  describe('Fitur Rata-rata dan Transfer ke Pemantauan Stunting', () => {
+    it('harus mengontrol fitur rata-rata dan pemilihan kolom dengan benar', () => {
+      expect(component.enableAverage()).toBe(false);
+      component.toggleAverageFeature();
+      expect(component.enableAverage()).toBe(true);
+
+      component.resultColumns.set(['Kabupaten/Kota', 'Balita Stunting', 'Cakupan %']);
+      component.columnConfigs.set({
+        'Kabupaten/Kota': { dataType: 'string', anomalyEnabled: false, minAnomaly: 0, maxAnomaly: 100 },
+        'Balita Stunting': { dataType: 'number', anomalyEnabled: false, minAnomaly: 0, maxAnomaly: 100 },
+        'Cakupan %': { dataType: 'percentage', anomalyEnabled: false, minAnomaly: 0, maxAnomaly: 100 },
+      });
+      component.resultRows.set([
+        { 'Kabupaten/Kota': 'Semarang', 'Balita Stunting': 10, 'Cakupan %': 50 },
+        { 'Kabupaten/Kota': 'Surakarta', 'Balita Stunting': 30, 'Cakupan %': 70 },
+      ]);
+
+      // Toggle column avg
+      component.toggleColumnAvg('Balita Stunting');
+      expect(component.avgColumns()['Balita Stunting']).toBe(true);
+      expect(component.getColumnAverage('Balita Stunting')).toBe(20);
+      expect(component.formatAverageValue(20)).toBe('20');
+
+      // Select all numeric columns for avg
+      component.selectAllNumericColumnsForAvg();
+      expect(component.avgColumns()['Balita Stunting']).toBe(true);
+      expect(component.avgColumns()['Cakupan %']).toBe(true);
+      expect(component.activeAvgColumnCount()).toBe(2);
+
+      // Clear all
+      component.clearAllAvgColumns();
+      expect(component.activeAvgColumnCount()).toBe(0);
+    });
+
+    it('transferToStuntingMonitoring harus mengirim dataset ke StuntingDataBridge dan navigasi', () => {
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigate');
+
+      component.resultColumns.set(['Wilayah', 'Indikator A']);
+      component.resultRows.set([{ Wilayah: 'Kudus', 'Indikator A': 85 }]);
+      component.enableJumlah.set(true);
+      component.sumColumns.set({ 'Indikator A': true });
+
+      component.transferToStuntingMonitoring();
+
+      expect(navigateSpy).toHaveBeenCalledWith(['/stunting-monitoring']);
+    });
+
+    it('harus mendukung pemilihan kolom target tertentu saja (toggle, select percentage, clear)', () => {
+      component.enableTarget.set(true);
+      component.resultColumns.set(['Kabupaten/Kota', 'Jumlah Sasaran', 'Cakupan TTD %']);
+      component.columnConfigs.set({
+        'Kabupaten/Kota': { dataType: 'string', anomalyEnabled: false, minAnomaly: 0, maxAnomaly: 100 },
+        'Jumlah Sasaran': { dataType: 'number', anomalyEnabled: false, minAnomaly: 0, maxAnomaly: 100 },
+        'Cakupan TTD %': { dataType: 'percentage', anomalyEnabled: false, minAnomaly: 0, maxAnomaly: 100 },
+      });
+
+      // Awalnya tidak ada target aktif
+      expect(component.activeTargetCount()).toBe(0);
+
+      // Toggle target untuk kolom persentase
+      component.toggleColumnTarget('Cakupan TTD %');
+      expect(component.columnTargets()['Cakupan TTD %']?.enabled).toBe(true);
+      expect(component.columnTargets()['Cakupan TTD %']?.value).toBe(80);
+      expect(component.activeTargetCount()).toBe(1);
+
+      // Ubah nilai target
+      component.updateTargetConfig('Cakupan TTD %', { value: 75, operator: '>=' });
+      expect(component.columnTargets()['Cakupan TTD %']?.value).toBe(75);
+
+      // Toggle off target
+      component.toggleColumnTarget('Cakupan TTD %');
+      expect(component.columnTargets()['Cakupan TTD %']?.enabled).toBe(false);
+      expect(component.activeTargetCount()).toBe(0);
+
+      // Select all percentage columns
+      component.selectAllPercentageColumnsForTarget();
+      expect(component.columnTargets()['Cakupan TTD %']?.enabled).toBe(true);
+      expect(component.columnTargets()['Jumlah Sasaran']?.enabled).toBeFalsy();
+      expect(component.activeTargetCount()).toBe(1);
+
+      // Clear all target columns
+      component.clearAllTargetColumns();
+      expect(component.columnTargets()['Cakupan TTD %']?.enabled).toBe(false);
+      expect(component.activeTargetCount()).toBe(0);
+    });
+
+    it('harus mendukung format penamaan output concat dengan "-"', () => {
+      component.setOutputHeaderFormat('concat');
+      expect(component.outputHeaderFormat()).toBe('concat');
+
+      // Test htmlHeaderGrid in concat mode
+      component.resultColumnsMeta.set([
+        { key: 'Wilayah', layers: ['Wilayah'] },
+        { key: 'Indikator A', layers: ['Kesehatan', 'Gizi', 'Indikator A'] },
+      ]);
+      const grid = component.htmlHeaderGrid();
+      expect(grid.length).toBe(1); // 1 baris header saja (flat)
+    });
+
+    it('harus mendukung kustomisasi nama kolom (rename/alias)', () => {
+      component.resultColumns.set(['Kabupaten/Kota', 'Gizi - ASI - %']);
+      expect(component.getColumnDisplayName('Gizi - ASI - %')).toBe('Gizi - ASI - %');
+      expect(component.hasCustomColumnName('Gizi - ASI - %')).toBe(false);
+
+      // Set custom name
+      component.setColumnCustomName('Gizi - ASI - %', 'Cakupan ASI Eksklusif (%)');
+      expect(component.getColumnDisplayName('Gizi - ASI - %')).toBe('Cakupan ASI Eksklusif (%)');
+      expect(component.hasCustomColumnName('Gizi - ASI - %')).toBe(true);
+      expect(component.hasAnyCustomColumnNames()).toBe(true);
+
+      // Reset single custom name
+      component.resetColumnCustomName('Gizi - ASI - %');
+      expect(component.getColumnDisplayName('Gizi - ASI - %')).toBe('Gizi - ASI - %');
+      expect(component.hasCustomColumnName('Gizi - ASI - %')).toBe(false);
+
+      // Reset all custom names
+      component.setColumnCustomName('Gizi - ASI - %', 'Custom 1');
+      component.resetAllCustomColumnNames();
+      expect(component.hasAnyCustomColumnNames()).toBe(false);
+    });
+
+    it('harus mendukung pergeseran urutan kolom (move left, move right, reset order)', () => {
+      component.resultColumns.set(['Wilayah', 'Col 1', 'Col 2', 'Col 3']);
+      component.resultColumnsMeta.set([
+        { key: 'Wilayah', layers: ['Wilayah'] },
+        { key: 'Col 1', layers: ['Col 1'] },
+        { key: 'Col 2', layers: ['Col 2'] },
+        { key: 'Col 3', layers: ['Col 3'] },
+      ]);
+      component.defaultResultColumns.set(['Wilayah', 'Col 1', 'Col 2', 'Col 3']);
+      component.defaultResultColumnsMeta.set([
+        { key: 'Wilayah', layers: ['Wilayah'] },
+        { key: 'Col 1', layers: ['Col 1'] },
+        { key: 'Col 2', layers: ['Col 2'] },
+        { key: 'Col 3', layers: ['Col 3'] },
+      ]);
+
+      // Index 0 (Wilayah) tidak boleh digeser
+      expect(component.canMoveColumnLeft(0)).toBe(false);
+      expect(component.canMoveColumnLeft(1)).toBe(false); // Col 1 tidak bisa digeser ke posisi Wilayah (index 0)
+      expect(component.canMoveColumnLeft(2)).toBe(true);  // Col 2 bisa digeser ke kiri (menukar Col 1)
+
+      // Geser Col 2 ke kiri (posisi index 1)
+      component.moveColumnLeft(2);
+      expect(component.resultColumns()).toEqual(['Wilayah', 'Col 2', 'Col 1', 'Col 3']);
+      expect(component.resultColumnsMeta().map((m) => m.key)).toEqual(['Wilayah', 'Col 2', 'Col 1', 'Col 3']);
+
+      // Geser Col 2 ke kanan (kembali ke index 2)
+      component.moveColumnRight(1);
+      expect(component.resultColumns()).toEqual(['Wilayah', 'Col 1', 'Col 2', 'Col 3']);
+
+      // Geser Col 1 ke kanan
+      component.moveColumnRight(1);
+      expect(component.resultColumns()).toEqual(['Wilayah', 'Col 2', 'Col 1', 'Col 3']);
+
+      // Reset ke urutan awal
+      component.resetColumnOrder();
+      expect(component.resultColumns()).toEqual(['Wilayah', 'Col 1', 'Col 2', 'Col 3']);
     });
   });
 });

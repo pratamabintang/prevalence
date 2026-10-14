@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import * as XLSX from 'xlsx-js-style';
 import { ChartDataBridge } from '../../core/chart/chart-data-bridge';
+import { StuntingDataBridge } from '../../core/stunting/stunting-data-bridge';
 import { RegionNormalizer } from '../../core/domain/region-normalizer';
 import {
   CapaianSummary,
@@ -73,6 +74,7 @@ export interface ResultRow {
 export class ExcelJoinComponent implements OnInit {
   private router = inject(Router);
   private chartDataBridge = inject(ChartDataBridge);
+  private stuntingDataBridge = inject(StuntingDataBridge);
   gasStorageService = inject(GasStorageService);
 
   file = signal<File | null>(null);
@@ -206,16 +208,102 @@ export class ExcelJoinComponent implements OnInit {
       }
     }
 
+    const displayCols = cols.map((c) => this.getColumnDisplayName(c));
+    const displayCatCol = this.getColumnDisplayName(catCol);
+    const mappedRows = rows.map((r) => {
+      const out: Record<string, unknown> = {};
+      for (const c of cols) {
+        out[this.getColumnDisplayName(c)] = r[c];
+      }
+      return out;
+    });
+
     this.chartDataBridge.setData({
       title: this.file() ? `Grafik Hasil Join - ${this.file()!.name}` : 'Grafik Hasil Join Excel',
       source: 'join',
-      categoryColumn: catCol,
-      columns: cols,
-      rows: rows as Record<string, unknown>[],
+      categoryColumn: displayCatCol,
+      columns: displayCols,
+      rows: mappedRows,
       targetValue: target,
     });
 
     this.router.navigate(['/chart']);
+  }
+
+  transferToStuntingMonitoring(): void {
+    const rows = this.resultRows();
+    const cols = this.resultColumns();
+    if (rows.length === 0 || cols.length === 0) {
+      return;
+    }
+
+    const pKey = cols[0] || 'Wilayah';
+    const displayPKey = this.getColumnDisplayName(pKey);
+    const displayCols = cols.map((c) => this.getColumnDisplayName(c));
+
+    const mappedRows = rows.map((r) => {
+      const out: Record<string, unknown> = {};
+      for (const c of cols) {
+        out[this.getColumnDisplayName(c)] = r[c];
+      }
+      return out;
+    });
+
+    // Summary row (Jumlah) if enabled
+    let summaryRow: Record<string, unknown> | undefined = undefined;
+    if (this.enableJumlah()) {
+      const sumObj: Record<string, unknown> = { [displayPKey]: 'TOTAL' };
+      for (const col of cols) {
+        if (col !== pKey && this.sumColumns()[col]) {
+          const sum = this.getColumnSum(col);
+          if (sum !== null) {
+            sumObj[this.getColumnDisplayName(col)] = sum;
+          }
+        }
+      }
+      summaryRow = sumObj;
+    }
+
+    // Target row if enabled
+    let targetRow: Record<string, unknown> | undefined = undefined;
+    if (this.enableTarget()) {
+      const tgtObj: Record<string, unknown> = { [displayPKey]: 'TARGET' };
+      const targets = this.columnTargets();
+      for (const col of cols) {
+        if (col !== pKey && targets[col]?.enabled && targets[col]?.value !== null) {
+          tgtObj[this.getColumnDisplayName(col)] = `${targets[col].operator} ${targets[col].value}`;
+        }
+      }
+      targetRow = tgtObj;
+    }
+
+    // Average row if enabled
+    let averageRow: Record<string, unknown> | undefined = undefined;
+    if (this.enableAverage()) {
+      const avgObj: Record<string, unknown> = { [displayPKey]: 'RATA-RATA' };
+      for (const col of cols) {
+        if (col !== pKey && this.avgColumns()[col]) {
+          const avg = this.getColumnAverage(col);
+          if (avg !== null) {
+            avgObj[this.getColumnDisplayName(col)] = avg;
+          }
+        }
+      }
+      averageRow = avgObj;
+    }
+
+    this.stuntingDataBridge.setData({
+      title: this.file() ? `Hasil Join - ${this.file()!.name}` : 'Hasil Join Excel',
+      source: 'join',
+      keyColumn: displayPKey,
+      columns: displayCols,
+      rows: mappedRows,
+      summaryRow,
+      targetRow,
+      averageRow,
+    });
+
+    this.router.navigate(['/stunting-monitoring']);
   }
 
   // Fitur Simpan & Muat Konfigurasi Preset
@@ -241,10 +329,16 @@ export class ExcelJoinComponent implements OnInit {
   errorMessage = signal('');
 
   // Pengaturan format output:
-  // 'full': Menggabungkan semua layer header/sub asli (e.g. "Imunisasi Dasar - HB-0 - Target")
-  // 'leaf': Menggunakan tulisan sub-header asli paling bawah (e.g. "Target")
-  outputHeaderFormat = signal<'full' | 'leaf'>('full');
+  // 'full': Hierarki bertingkat multi-baris (e.g. Header / Sub 1 / Sub 2)
+  // 'concat': Gabungan teks hierarki dari atas ke bawah dengan '-' (e.g. "Header - Sub 1 - Sub 2")
+  outputHeaderFormat = signal<'full' | 'concat'>('full');
   includeSheetPrefix = signal(false);
+
+  // Kustomisasi nama kolom (alias) & urutan kolom hasil join
+  customColumnNames = signal<Record<string, string>>({});
+  defaultResultColumns = signal<string[]>([]);
+  defaultResultColumnsMeta = signal<ColumnHeaderMeta[]>([]);
+  hasAnyCustomColumnNames = computed(() => Object.keys(this.customColumnNames()).length > 0);
 
   // Pencarian variabel pada tiap sheet
   variableSearch = signal<Record<string, string>>({});
@@ -271,6 +365,21 @@ export class ExcelJoinComponent implements OnInit {
       return 0;
     }
     const cols = this.sumColumns();
+    const configs = this.columnConfigs();
+    return Object.entries(cols).filter(
+      ([col, active]) => active && configs[col]?.dataType !== 'string',
+    ).length;
+  });
+
+  // Fitur Rata-rata
+  enableAverage = signal(false);
+  avgColumns = signal<Record<string, boolean>>({});
+
+  activeAvgColumnCount = computed(() => {
+    if (!this.enableAverage()) {
+      return 0;
+    }
+    const cols = this.avgColumns();
     const configs = this.columnConfigs();
     return Object.entries(cols).filter(
       ([col, active]) => active && configs[col]?.dataType !== 'string',
@@ -314,10 +423,34 @@ export class ExcelJoinComponent implements OnInit {
       return [];
     }
 
+    const customNames = this.customColumnNames();
+    const isConcat = this.outputHeaderFormat() === 'concat';
+
+    const processedMeta: ColumnHeaderMeta[] = meta.map((m) => {
+      const custom = customNames[m.key]?.trim();
+      if (!custom) {
+        if (isConcat) {
+          return { ...m, layers: [m.layers.join(' - ')] };
+        }
+        return m;
+      }
+      if (isConcat) {
+        return { ...m, layers: [custom] };
+      } else {
+        const nextLayers = [...m.layers];
+        if (custom.includes(' - ')) {
+          return { ...m, layers: custom.split(' - ').map((s) => s.trim()) };
+        } else {
+          nextLayers[nextLayers.length - 1] = custom;
+          return { ...m, layers: nextLayers };
+        }
+      }
+    });
+
     const allCols: ColumnHeaderMeta[] = [
       { key: '__aksi__', layers: ['Hapus'] },
       { key: '__no__', layers: ['No'] },
-      ...meta,
+      ...processedMeta,
     ];
 
     if (this.enableTarget() && this.enableCapaian()) {
@@ -782,7 +915,7 @@ export class ExcelJoinComponent implements OnInit {
     this.clearResult();
   }
 
-  setOutputHeaderFormat(format: 'full' | 'leaf'): void {
+  setOutputHeaderFormat(format: 'full' | 'concat'): void {
     this.outputHeaderFormat.set(format);
     if (this.resultRows().length > 0) {
       this.preview();
@@ -797,17 +930,110 @@ export class ExcelJoinComponent implements OnInit {
   }
 
   private getOutputColumnName(sheet: SheetInfo, variableHeader: string): string {
-    const col = sheet.columns.find((c) => c.header === variableHeader);
-    const baseName =
-      this.outputHeaderFormat() === 'leaf' && col?.leafHeader
-        ? col.leafHeader
-        : variableHeader;
+    const baseName = variableHeader;
 
     if (this.includeSheetPrefix()) {
       return `${sheet.name} - ${baseName}`;
     }
 
     return baseName;
+  }
+
+  // ============================================================
+  // KUSTOMISASI NAMA KOLOM & URUTAN KOLOM
+  // ============================================================
+
+  getColumnDisplayName(col: string): string {
+    const custom = this.customColumnNames()[col]?.trim();
+    return custom || col;
+  }
+
+  getColumnCustomName(col: string): string {
+    return this.customColumnNames()[col] || '';
+  }
+
+  hasCustomColumnName(col: string): boolean {
+    return !!this.customColumnNames()[col]?.trim();
+  }
+
+  setColumnCustomName(col: string, name: string): void {
+    this.customColumnNames.update((names) => {
+      const trimmed = name.trim();
+      if (!trimmed || trimmed === col) {
+        const copy = { ...names };
+        delete copy[col];
+        return copy;
+      }
+      return { ...names, [col]: trimmed };
+    });
+  }
+
+  resetColumnCustomName(col: string): void {
+    this.customColumnNames.update((names) => {
+      const copy = { ...names };
+      delete copy[col];
+      return copy;
+    });
+  }
+
+  resetAllCustomColumnNames(): void {
+    this.customColumnNames.set({});
+  }
+
+  moveColumn(fromIndex: number, toIndex: number): void {
+    const cols = [...this.resultColumns()];
+    const meta = [...this.resultColumnsMeta()];
+    if (
+      fromIndex < 1 ||
+      fromIndex >= cols.length ||
+      toIndex < 1 ||
+      toIndex >= cols.length ||
+      fromIndex === toIndex
+    ) {
+      return;
+    }
+
+    const [movedCol] = cols.splice(fromIndex, 1);
+    cols.splice(toIndex, 0, movedCol);
+
+    const [movedMeta] = meta.splice(fromIndex, 1);
+    meta.splice(toIndex, 0, movedMeta);
+
+    this.resultColumns.set(cols);
+    this.resultColumnsMeta.set(meta);
+  }
+
+  moveColumnLeft(index: number): void {
+    if (this.canMoveColumnLeft(index)) {
+      this.moveColumn(index, index - 1);
+    }
+  }
+
+  moveColumnRight(index: number): void {
+    if (this.canMoveColumnRight(index)) {
+      this.moveColumn(index, index + 1);
+    }
+  }
+
+  canMoveColumnLeft(index: number): boolean {
+    return index > 1;
+  }
+
+  canMoveColumnRight(index: number): boolean {
+    return index >= 1 && index < this.resultColumns().length - 1;
+  }
+
+  resetColumnOrder(): void {
+    const def = this.defaultResultColumns();
+    if (def.length === 0) return;
+    const currentMetaMap = new Map(this.resultColumnsMeta().map((m) => [m.key, m]));
+    const nextMeta: ColumnHeaderMeta[] = [];
+    for (const c of def) {
+      const m = currentMetaMap.get(c);
+      if (m) nextMeta.push(m);
+    }
+    this.resultColumns.set([...def]);
+    this.resultColumnsMeta.set(nextMeta);
   }
 
   deleteRow(index: number): void {
@@ -863,6 +1089,61 @@ export class ExcelJoinComponent implements OnInit {
     this.updateTargetConfig(col, {
       value: val,
       enabled: val !== null && !isNaN(val),
+    });
+  }
+
+  toggleColumnTarget(col: string): void {
+    this.columnTargets.update((targets) => {
+      const prev = targets[col] || { enabled: false, operator: '>=', value: null };
+      const nextEnabled = !prev.enabled;
+      let nextValue = prev.value;
+      if (nextEnabled && (nextValue === null || isNaN(nextValue))) {
+        const cfg = this.columnConfigs()[col];
+        nextValue = cfg?.dataType === 'percentage' || col.includes('%') ? 80 : 0;
+      }
+      return {
+        ...targets,
+        [col]: {
+          ...prev,
+          enabled: nextEnabled,
+          value: nextValue,
+        },
+      };
+    });
+  }
+
+  selectAllPercentageColumnsForTarget(): void {
+    const configs = this.columnConfigs();
+    this.columnTargets.update((targets) => {
+      const updated = { ...targets };
+      this.resultColumns().forEach((col, idx) => {
+        if (idx === 0) return;
+        const cfg = configs[col];
+        const isPct = cfg?.dataType === 'percentage' || (cfg?.dataType === 'auto' && col.includes('%'));
+        if (isPct) {
+          const prev = targets[col] || { enabled: false, operator: '>=', value: null };
+          updated[col] = {
+            ...prev,
+            enabled: true,
+            operator: prev.operator || '>=',
+            value: prev.value !== null && !isNaN(prev.value) ? prev.value : 80,
+          };
+        }
+      });
+      return updated;
+    });
+  }
+
+  clearAllTargetColumns(): void {
+    this.columnTargets.update((targets) => {
+      const updated: Record<string, ColumnTargetConfig> = {};
+      for (const [col, t] of Object.entries(targets)) {
+        updated[col] = {
+          ...t,
+          enabled: false,
+        };
+      }
+      return updated;
     });
   }
 
@@ -1087,6 +1368,54 @@ export class ExcelJoinComponent implements OnInit {
     this.sumColumns.set(updated);
   }
 
+  toggleAverageFeature(): void {
+    this.enableAverage.set(!this.enableAverage());
+  }
+
+  toggleColumnAvg(col: string): void {
+    this.avgColumns.update((cols) => ({
+      ...cols,
+      [col]: !cols[col],
+    }));
+  }
+
+  getColumnAverage(col: string): number | null {
+    if (!this.avgColumns()[col]) {
+      return null;
+    }
+    return IndicatorEvaluator.calculateColumnAverage(this.resultRows(), col);
+  }
+
+  formatAverageValue(avg: number | null): string {
+    return IndicatorEvaluator.formatAverageValue(avg);
+  }
+
+  selectAllNumericColumnsForAvg(): void {
+    const updated: Record<string, boolean> = {};
+    const configs = this.columnConfigs();
+    this.resultColumns().forEach((col, idx) => {
+      if (idx === 0) return;
+      const cfg = configs[col];
+      if (cfg?.dataType !== 'string') {
+        updated[col] = true;
+      }
+    });
+    this.avgColumns.set(updated);
+  }
+
+  clearAllAvgColumns(): void {
+    this.avgColumns.set({});
+  }
+
+  private updateColumnAvgsAfterPreview(columns: string[]): void {
+    const current = this.avgColumns();
+    const updated: Record<string, boolean> = {};
+    for (const col of columns) {
+      updated[col] = current[col] || false;
+    }
+    this.avgColumns.set(updated);
+  }
+
   getColumnSampleValue(column: string): string {
     const rows = this.resultRows();
     for (const r of rows) {
@@ -1190,9 +1519,13 @@ export class ExcelJoinComponent implements OnInit {
       enableTarget: this.enableTarget(),
       enableCapaian: this.enableCapaian(),
       enableJumlah: this.enableJumlah(),
+      enableAverage: this.enableAverage(),
       columnTargets: { ...this.columnTargets() },
       columnConfigs: { ...this.columnConfigs() },
       sumColumns: { ...this.sumColumns() },
+      avgColumns: { ...this.avgColumns() },
+      customColumnNames: { ...this.customColumnNames() },
+      columnOrder: [...this.resultColumns()],
     };
   }
 
@@ -1475,6 +1808,9 @@ export class ExcelJoinComponent implements OnInit {
     if (preset.enableJumlah !== undefined) {
       this.enableJumlah.set(preset.enableJumlah);
     }
+    if (preset.enableAverage !== undefined) {
+      this.enableAverage.set(preset.enableAverage);
+    }
 
     if (this.canPreview()) {
       this.preview();
@@ -1565,6 +1901,60 @@ export class ExcelJoinComponent implements OnInit {
         this.sumColumns.update((curr) => ({ ...curr, ...newSums }));
       }
     }
+
+    if (preset.avgColumns) {
+      const newAvgs: Record<string, boolean> = {};
+      for (const col of cols) {
+        const matchedKey = findKey(preset.avgColumns, col);
+        if (matchedKey && preset.avgColumns[matchedKey] !== undefined) {
+          newAvgs[col] = preset.avgColumns[matchedKey];
+        }
+      }
+      if (Object.keys(newAvgs).length > 0) {
+        this.avgColumns.update((curr) => ({ ...curr, ...newAvgs }));
+      }
+    }
+
+    if (preset.customColumnNames) {
+      const newCustomNames: Record<string, string> = {};
+      for (const col of cols) {
+        const matchedKey = findKey(preset.customColumnNames, col);
+        if (matchedKey && preset.customColumnNames[matchedKey]) {
+          newCustomNames[col] = preset.customColumnNames[matchedKey];
+        }
+      }
+      if (Object.keys(newCustomNames).length > 0) {
+        this.customColumnNames.set(newCustomNames);
+      }
+    }
+
+    if (preset.columnOrder && preset.columnOrder.length > 0) {
+      const currentCols = [...this.resultColumns()];
+      const currentMetaMap = new Map(this.resultColumnsMeta().map((m) => [m.key, m]));
+      const orderedCols: string[] = [];
+      const orderedMeta: ColumnHeaderMeta[] = [];
+
+      for (const ord of preset.columnOrder) {
+        const matched = currentCols.find((c) => this.normalizeKey(c) === this.normalizeKey(ord));
+        if (matched && !orderedCols.includes(matched)) {
+          orderedCols.push(matched);
+          const m = currentMetaMap.get(matched);
+          if (m) orderedMeta.push(m);
+        }
+      }
+      for (const c of currentCols) {
+        if (!orderedCols.includes(c)) {
+          orderedCols.push(c);
+          const m = currentMetaMap.get(c);
+          if (m) orderedMeta.push(m);
+        }
+      }
+
+      if (orderedCols.length > 0) {
+        this.resultColumns.set(orderedCols);
+        this.resultColumnsMeta.set(orderedMeta);
+      }
+    }
   }
 
   // ============================================================
@@ -1615,8 +2005,8 @@ export class ExcelJoinComponent implements OnInit {
 
       outputMetaList.push({
         key: joinByOutputName,
-        layers: this.outputHeaderFormat() === 'leaf' && masterJoinCol?.leafHeader
-          ? [masterJoinCol.leafHeader]
+        layers: this.outputHeaderFormat() === 'concat'
+          ? [joinKeyLayers.join(' - ')]
           : joinKeyLayers,
       });
 
@@ -1632,14 +2022,18 @@ export class ExcelJoinComponent implements OnInit {
         outputColMap.set(`${masterSheet.name}:::${variable}`, finalName);
 
         const col = masterSheet.columns.find((c) => c.header === variable);
-        let layers = col && col.layers ? [...col.layers] : [finalName];
-        if (this.outputHeaderFormat() === 'leaf' && col?.leafHeader) {
-          layers = [col.leafHeader];
-        } else if (this.includeSheetPrefix()) {
-          layers = [masterSheet.name, ...layers];
-        }
-        if (count > 0) {
-          layers[layers.length - 1] = `${layers[layers.length - 1]} (${masterSheet.name})`;
+        let layers = col && col.layers && col.layers.length > 0 ? [...col.layers] : [variable];
+        if (this.outputHeaderFormat() === 'concat') {
+          const fullConcat = layers.join(' - ');
+          const finalConcat = this.includeSheetPrefix() ? `${masterSheet.name} - ${fullConcat}` : fullConcat;
+          layers = [count > 0 ? `${finalConcat} (${masterSheet.name})` : finalConcat];
+        } else {
+          if (this.includeSheetPrefix()) {
+            layers = [masterSheet.name, ...layers];
+          }
+          if (count > 0) {
+            layers[layers.length - 1] = `${layers[layers.length - 1]} (${masterSheet.name})`;
+          }
         }
 
         outputMetaList.push({
@@ -1662,14 +2056,18 @@ export class ExcelJoinComponent implements OnInit {
           outputColMap.set(`${sheet.name}:::${variable}`, finalName);
 
           const col = sheet.columns.find((c) => c.header === variable);
-          let layers = col && col.layers ? [...col.layers] : [finalName];
-          if (this.outputHeaderFormat() === 'leaf' && col?.leafHeader) {
-            layers = [col.leafHeader];
-          } else if (this.includeSheetPrefix()) {
-            layers = [sheet.name, ...layers];
-          }
-          if (count > 0) {
-            layers[layers.length - 1] = `${layers[layers.length - 1]} (${sheet.name})`;
+          let layers = col && col.layers && col.layers.length > 0 ? [...col.layers] : [variable];
+          if (this.outputHeaderFormat() === 'concat') {
+            const fullConcat = layers.join(' - ');
+            const finalConcat = this.includeSheetPrefix() ? `${sheet.name} - ${fullConcat}` : fullConcat;
+            layers = [count > 0 ? `${finalConcat} (${sheet.name})` : finalConcat];
+          } else {
+            if (this.includeSheetPrefix()) {
+              layers = [sheet.name, ...layers];
+            }
+            if (count > 0) {
+              layers[layers.length - 1] = `${layers[layers.length - 1]} (${sheet.name})`;
+            }
           }
 
           outputMetaList.push({
@@ -1756,9 +2154,12 @@ export class ExcelJoinComponent implements OnInit {
         const cols = Object.keys(rows[0]);
         this.resultColumns.set(cols);
         this.resultColumnsMeta.set(outputMetaList);
+        this.defaultResultColumns.set([...cols]);
+        this.defaultResultColumnsMeta.set([...outputMetaList]);
         this.updateColumnTargetsAfterPreview(cols);
         this.updateColumnConfigsAfterPreview(cols);
         this.updateColumnSumsAfterPreview(cols);
+        this.updateColumnAvgsAfterPreview(cols);
       }
     } catch (error) {
       console.error('JOIN ERROR:', error);
@@ -1779,9 +2180,33 @@ export class ExcelJoinComponent implements OnInit {
       return;
     }
 
+    const customNames = this.customColumnNames();
+    const isConcat = this.outputHeaderFormat() === 'concat';
+
+    const processedMeta: ColumnHeaderMeta[] = this.resultColumnsMeta().map((m) => {
+      const custom = customNames[m.key]?.trim();
+      if (!custom) {
+        if (isConcat) {
+          return { ...m, layers: [m.layers.join(' - ')] };
+        }
+        return m;
+      }
+      if (isConcat) {
+        return { ...m, layers: [custom] };
+      } else {
+        const nextLayers = [...m.layers];
+        if (custom.includes(' - ')) {
+          return { ...m, layers: custom.split(' - ').map((s) => s.trim()) };
+        } else {
+          nextLayers[nextLayers.length - 1] = custom;
+          return { ...m, layers: nextLayers };
+        }
+      }
+    });
+
     const excelCols: ColumnHeaderMeta[] = [
       { key: 'No', layers: ['No'] },
-      ...this.resultColumnsMeta(),
+      ...processedMeta,
     ];
 
     if (this.enableTarget() && this.enableCapaian()) {
@@ -1836,6 +2261,39 @@ export class ExcelJoinComponent implements OnInit {
         styler: (_colKey, _val, colIdx) => ({
           font: { bold: true, color: { rgb: '065F46' }, sz: 10 },
           fill: { fgColor: { rgb: 'ECFDF5' } },
+          alignment: {
+            horizontal: colIdx === 1 ? 'left' : 'center',
+            vertical: 'center',
+          },
+        }),
+      });
+    }
+
+    // Summary row: Rata-rata
+    if (this.enableAverage()) {
+      const avgValues: Record<string, unknown> = {};
+      for (let c = 0; c < excelCols.length; c++) {
+        const col = excelCols[c];
+        if (col.key === 'No') {
+          avgValues['No'] = '-';
+        } else if (c === 1) {
+          avgValues[col.key] = 'Rata-rata';
+        } else if (col.key === 'Capaian') {
+          avgValues['Capaian'] = '-';
+        } else {
+          if (this.avgColumns()[col.key]) {
+            const avg = this.getColumnAverage(col.key);
+            avgValues[col.key] = avg !== null ? avg : '-';
+          } else {
+            avgValues[col.key] = '-';
+          }
+        }
+      }
+      summaryRows.push({
+        values: avgValues,
+        styler: (_colKey, _val, colIdx) => ({
+          font: { bold: true, color: { rgb: '0369A1' }, sz: 10 },
+          fill: { fgColor: { rgb: 'F0F9FF' } },
           alignment: {
             horizontal: colIdx === 1 ? 'left' : 'center',
             vertical: 'center',
@@ -1994,6 +2452,8 @@ export class ExcelJoinComponent implements OnInit {
     this.originalResultRows.set([]);
     this.resultColumns.set([]);
     this.resultColumnsMeta.set([]);
+    this.defaultResultColumns.set([]);
+    this.defaultResultColumnsMeta.set([]);
   }
 
   private reset(): void {
@@ -2005,11 +2465,16 @@ export class ExcelJoinComponent implements OnInit {
     this.originalResultRows.set([]);
     this.resultColumns.set([]);
     this.resultColumnsMeta.set([]);
+    this.defaultResultColumns.set([]);
+    this.defaultResultColumnsMeta.set([]);
+    this.customColumnNames.set({});
     this.columnTargets.set({});
     this.columnConfigs.set({});
     this.showColumnSettings.set(false);
     this.enableJumlah.set(false);
     this.sumColumns.set({});
+    this.enableAverage.set(false);
+    this.avgColumns.set({});
     this.variableSearch.set({});
     this.errorMessage.set('');
     this.isJoining.set(false);
