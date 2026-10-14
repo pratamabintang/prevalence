@@ -15,6 +15,7 @@ export interface ChartConfigurationPreset {
   chartSubtitle?: string;
   hiddenRows?: string[];
   deletedRows?: string[];
+  viewMode?: 'by-region' | 'by-indicator';
 }
 
 /**

@@ -68,4 +68,28 @@ describe('ChartLayoutEngine', () => {
     expect(layout.targetLineX!).toBeGreaterThan(layout.plotX);
     expect(layout.targetLineX!).toBeLessThanOrEqual(layout.plotX + layout.plotWidth);
   });
+
+  it('computes layout properly for single-series per-indicator comparison mode', () => {
+    const singleSeriesSpec: ChartLayoutSpec = {
+      categoryColumn: 'wilayah',
+      categories: ['Kab. Magelang', 'Kota Magelang'],
+      series: [{ key: 'tw1', label: 'Triwulan 1', color: '#3b82f6' }],
+      rows: [
+        { wilayah: 'Kab. Magelang', tw1: '75,5' },
+        { wilayah: 'Kota Magelang', tw1: '90,0' },
+      ],
+      rowHeight: 38,
+      targetValue: 80,
+    };
+
+    const layout = ChartLayoutEngine.computeLayout(singleSeriesSpec);
+    expect(layout.categoryGroups.length).toBe(2);
+    expect(layout.categoryGroups[0].bars.length).toBe(1);
+    expect(layout.categoryGroups[0].bars[0].seriesKey).toBe('tw1');
+    expect(layout.categoryGroups[0].bars[0].numericVal).toBe(75.5);
+    expect(layout.categoryGroups[1].bars[0].numericVal).toBe(90);
+    expect(layout.targetLineX).toBeDefined();
+    expect(layout.categoryGroups[1].bars[0].width).toBeGreaterThan(layout.categoryGroups[0].bars[0].width);
+  });
 });
+

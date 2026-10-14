@@ -489,5 +489,118 @@ describe('ChartVisualizerComponent', () => {
       bridge.clearData();
     });
   });
+
+  describe('Per-Indicator (Per-Kolom) Comparison Mode', () => {
+    beforeEach(() => {
+      populateTestData();
+    });
+
+    it('should default to "by-region" viewMode and allow switching to "by-indicator"', () => {
+      expect(component.viewMode()).toBe('by-region');
+
+      component.setViewMode('by-indicator');
+      expect(component.viewMode()).toBe('by-indicator');
+
+      component.setViewMode('by-region');
+      expect(component.viewMode()).toBe('by-region');
+    });
+
+    it('should compute distinct comparison layouts and stats for each selected indicator series', () => {
+      component.setViewMode('by-indicator');
+      component.targetValue.set(80);
+
+      const layouts = component.indicatorLayouts();
+      expect(layouts.length).toBe(4); // 4 series: tw1, tw2, tw3, tw4
+
+      // Inspect tw1
+      const tw1 = layouts[0];
+      expect(tw1.series.key).toBe('tw1');
+      expect(tw1.series.label).toBe('Triwulan 1');
+      expect(tw1.layout.categoryGroups.length).toBe(5); // 5 regions
+      expect(tw1.stats.total).toBe(5);
+      expect(tw1.stats.validCount).toBe(5);
+      expect(tw1.stats.highest?.name).toBe('Kota Magelang');
+      expect(tw1.stats.highest?.value).toBe(81.0);
+      expect(tw1.stats.lowest?.name).toBe('Kab. Wonosobo');
+      expect(tw1.stats.lowest?.value).toBe(65.0);
+      expect(tw1.stats.achievedCount).toBe(1); // Kota Magelang (81.0) >= 80
+
+      // Inspect tw4 (has missing data '-')
+      const tw4 = layouts[3];
+      expect(tw4.series.key).toBe('tw4');
+      expect(tw4.stats.missingCount).toBe(1); // Kab. Wonosobo has '-'
+      expect(tw4.stats.validCount).toBe(4);
+      expect(tw4.stats.achievedCount).toBe(4); // 91.0, 95.2, 88.5, 89.4 all >= 80
+    });
+
+    it('should support sorting categories per indicator by value descending and ascending', () => {
+      component.setViewMode('by-indicator');
+
+      // 1. Default order matches visibleCategories
+      expect(component.indicatorSortMode()).toBe('default');
+      let layouts = component.indicatorLayouts();
+      expect(layouts[0].layout.categoryGroups.map((g) => g.categoryName)).toEqual([
+        'Kab. Magelang',
+        'Kota Magelang',
+        'Kab. Temanggung',
+        'Kab. Purworejo',
+        'Kab. Wonosobo',
+      ]);
+
+      // 2. Sort descending: highest first
+      component.setIndicatorSortMode('desc');
+      layouts = component.indicatorLayouts();
+      const descCategories = layouts[0].layout.categoryGroups.map((g) => g.categoryName);
+      expect(descCategories[0]).toBe('Kota Magelang'); // 81.0
+      expect(descCategories[descCategories.length - 1]).toBe('Kab. Wonosobo'); // 65.0
+
+      // 3. Sort ascending: lowest first
+      component.setIndicatorSortMode('asc');
+      layouts = component.indicatorLayouts();
+      const ascCategories = layouts[0].layout.categoryGroups.map((g) => g.categoryName);
+      expect(ascCategories[0]).toBe('Kab. Wonosobo'); // 65.0
+      expect(ascCategories[ascCategories.length - 1]).toBe('Kota Magelang'); // 81.0
+    });
+
+    it('should filter indicator layouts using selectedIndicatorFilter tab', () => {
+      component.setViewMode('by-indicator');
+      expect(component.selectedIndicatorFilter()).toBe('all');
+      expect(component.filteredIndicatorLayouts().length).toBe(4);
+
+      // Select tw2
+      component.setSelectedIndicatorFilter('tw2');
+      expect(component.filteredIndicatorLayouts().length).toBe(1);
+      expect(component.filteredIndicatorLayouts()[0].series.key).toBe('tw2');
+
+      // Reset to all
+      component.setSelectedIndicatorFilter('all');
+      expect(component.filteredIndicatorLayouts().length).toBe(4);
+    });
+
+    it('should save and load viewMode in configuration preset', () => {
+      component.selectedSheet.set('Rekap Data');
+      component.setViewMode('by-indicator');
+
+      component.exportConfiguration();
+      const saved = ChartPresetStore.loadLastPreset();
+      expect(saved?.viewMode).toBe('by-indicator');
+
+      // Change viewMode back to by-region, then load preset
+      component.setViewMode('by-region');
+      expect(component.viewMode()).toBe('by-region');
+
+      component.loadSavedConfigurationFromStorage();
+      expect(component.viewMode()).toBe('by-indicator');
+    });
+
+    it('should safely execute exportSvg and exportPng for per-indicator charts', () => {
+      component.setViewMode('by-indicator');
+      fixture.detectChanges();
+
+      expect(() => component.exportSvg('indicatorChartSvg-0', 'Triwulan 1')).not.toThrow();
+      expect(() => component.exportPng('indicatorChartSvg-0', 'Triwulan 1')).not.toThrow();
+    });
+  });
 });
+
 

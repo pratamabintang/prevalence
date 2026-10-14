@@ -23,6 +23,23 @@ import {
   UiPageHeaderComponent,
 } from '../../shared/ui';
 
+export interface IndicatorStats {
+  total: number;
+  validCount: number;
+  missingCount: number;
+  zeroCount: number;
+  achievedCount: number;
+  avgValue: number | null;
+  highest: { name: string; value: number } | null;
+  lowest: { name: string; value: number } | null;
+}
+
+export interface IndicatorChartGroup {
+  series: ChartSeriesConfig;
+  layout: ChartLayoutResult;
+  stats: IndicatorStats;
+}
+
 @Component({
   selector: 'app-chart-visualizer',
   standalone: true,
@@ -106,6 +123,27 @@ export class ChartVisualizerComponent {
   originalDataRows = signal<ChartDataRow[]>([]);
   hasData = computed(() => this.dataRows().length > 0);
   targetValue = signal<number | null>(null);
+
+  // Mode Tampilan: 'by-region' (Multi-Indikator per Daerah) vs 'by-indicator' (Per Kolom Indikator)
+  viewMode = signal<'by-region' | 'by-indicator'>('by-region');
+
+  // Pengurutan Wilayah pada Mode Per Indikator
+  indicatorSortMode = signal<'default' | 'desc' | 'asc'>('default');
+
+  // Filter Tab Indikator pada Mode Per Indikator ('all' atau key seri tertentu)
+  selectedIndicatorFilter = signal<string>('all');
+
+  setViewMode(mode: 'by-region' | 'by-indicator'): void {
+    this.viewMode.set(mode);
+  }
+
+  setIndicatorSortMode(mode: 'default' | 'desc' | 'asc'): void {
+    this.indicatorSortMode.set(mode);
+  }
+
+  setSelectedIndicatorFilter(key: string): void {
+    this.selectedIndicatorFilter.set(key);
+  }
 
   readonly colorPalette = [
     '#3b82f6', // blue
@@ -834,6 +872,7 @@ export class ChartVisualizerComponent {
       chartSubtitle: this.chartSubtitle(),
       hiddenRows,
       deletedRows,
+      viewMode: this.viewMode(),
     };
 
     ChartPresetStore.savePreset(preset, true);
@@ -898,6 +937,10 @@ export class ChartVisualizerComponent {
     this.hasSavedConfig.set(true);
     this.activePresetName.set(sourceName);
 
+    if (preset.viewMode) {
+      this.viewMode.set(preset.viewMode);
+    }
+
     if (!this.workbook || this.sheetNames().length === 0) {
       if (this.dataSource() === 'join') {
         const allCols = this.allColumns();
@@ -943,6 +986,9 @@ export class ChartVisualizerComponent {
         }
         if (preset.chartSubtitle) {
           this.chartSubtitle.set(preset.chartSubtitle);
+        }
+        if (preset.viewMode) {
+          this.viewMode.set(preset.viewMode);
         }
 
         if (preset.deletedRows && Array.isArray(preset.deletedRows) && preset.deletedRows.length > 0) {
@@ -1044,6 +1090,9 @@ export class ChartVisualizerComponent {
     if (preset.chartSubtitle) {
       this.chartSubtitle.set(preset.chartSubtitle);
     }
+    if (preset.viewMode) {
+      this.viewMode.set(preset.viewMode);
+    }
 
     if (preset.deletedRows && Array.isArray(preset.deletedRows) && preset.deletedRows.length > 0) {
       const toDel = new Set(preset.deletedRows);
@@ -1081,10 +1130,27 @@ export class ChartVisualizerComponent {
   // EKSPOR GAMBAR (SVG & PNG)
   // ============================================================
 
-  exportSvg(): void {
-    const svg = document.querySelector<SVGSVGElement>('#chartSvg');
+  exportSvg(svgId = 'chartSvg', customFileName?: string): void {
+    const svg =
+      (document.getElementById(svgId) as SVGSVGElement | null) ||
+      document.querySelector<SVGSVGElement>('#chartSvg') ||
+      document.querySelector<SVGSVGElement>('svg.chart-canvas');
     if (!svg) return;
 
+    this.downloadSvgElement(svg, customFileName || this.chartTitle());
+  }
+
+  exportPng(svgId = 'chartSvg', customFileName?: string): void {
+    const svg =
+      (document.getElementById(svgId) as SVGSVGElement | null) ||
+      document.querySelector<SVGSVGElement>('#chartSvg') ||
+      document.querySelector<SVGSVGElement>('svg.chart-canvas');
+    if (!svg) return;
+
+    this.downloadPngFromSvg(svg, customFileName || this.chartTitle());
+  }
+
+  private downloadSvgElement(svg: SVGSVGElement, title: string): void {
     const clone = svg.cloneNode(true) as SVGSVGElement;
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     clone.setAttribute(
@@ -1100,17 +1166,14 @@ export class ChartVisualizerComponent {
 
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${this.slugify(this.chartTitle()) || 'grafik-dinkes'}.svg`;
+    link.download = `${this.slugify(title) || 'grafik-dinkes'}.svg`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   }
 
-  exportPng(): void {
-    const svg = document.querySelector<SVGSVGElement>('#chartSvg');
-    if (!svg) return;
-
+  private downloadPngFromSvg(svg: SVGSVGElement, title: string): void {
     const clone = svg.cloneNode(true) as SVGSVGElement;
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     clone.setAttribute(
@@ -1123,13 +1186,14 @@ export class ChartVisualizerComponent {
     const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(svgBlob);
 
+    const viewBoxStr = svg.getAttribute('viewBox') || '';
+    const parts = viewBoxStr.split(' ').map(Number);
+    const width = parts.length === 4 && parts[2] > 0 ? parts[2] : 960;
+    const height = parts.length === 4 && parts[3] > 0 ? parts[3] : 600;
+    const scale = 2;
+
     const img = new Image();
     img.onload = () => {
-      const layout = this.layout();
-      const width = layout.viewBoxWidth;
-      const height = layout.viewBoxHeight;
-      const scale = 2;
-
       const canvas = document.createElement('canvas');
       canvas.width = width * scale;
       canvas.height = height * scale;
@@ -1149,7 +1213,7 @@ export class ChartVisualizerComponent {
         const pngUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = pngUrl;
-        link.download = `${this.slugify(this.chartTitle()) || 'grafik-dinkes'}.png`;
+        link.download = `${this.slugify(title) || 'grafik-dinkes'}.png`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -1261,5 +1325,112 @@ export class ChartVisualizerComponent {
       width: 960,
       margin: { top: 75, right: 95, bottom: 45, left: 200 },
     });
+  });
+
+  // ============================================================
+  // PER-INDICATOR (PER-KOLOM) COMPARISON LAYOUTS
+  // Menghasilkan kelompok grafik terpisah untuk setiap indikator yang dipilih
+  // ============================================================
+
+  indicatorLayouts = computed<IndicatorChartGroup[]>(() => {
+    const series = this.seriesList();
+    const catCol = this.categoryColumn();
+    const rawCats = this.visibleCategories();
+    const rows = this.dataRows();
+    const target = this.targetValue();
+    const sortMode = this.indicatorSortMode();
+
+    const rowMap = new Map<string, ChartDataRow>();
+    for (const r of rows) {
+      const key = String(r[catCol] ?? '').trim().toLowerCase();
+      if (key) {
+        rowMap.set(key, r);
+      }
+    }
+
+    return series.map((s) => {
+      let cats = [...rawCats];
+
+      if (sortMode === 'desc' || sortMode === 'asc') {
+        cats.sort((a, b) => {
+          const rowA = rowMap.get(a.trim().toLowerCase());
+          const rowB = rowMap.get(b.trim().toLowerCase());
+          const valA = rowA ? IndicatorEvaluator.parseSmartNumber(rowA[s.key]) : null;
+          const valB = rowB ? IndicatorEvaluator.parseSmartNumber(rowB[s.key]) : null;
+
+          if (valA === null && valB === null) return 0;
+          if (valA === null) return 1;
+          if (valB === null) return -1;
+
+          return sortMode === 'desc' ? valB - valA : valA - valB;
+        });
+      }
+
+      let validCount = 0;
+      let missingCount = 0;
+      let zeroCount = 0;
+      let achievedCount = 0;
+      let sum = 0;
+      let highest: { name: string; value: number } | null = null;
+      let lowest: { name: string; value: number } | null = null;
+
+      for (const cat of rawCats) {
+        const r = rowMap.get(cat.trim().toLowerCase());
+        const raw = r ? r[s.key] : null;
+        const num = IndicatorEvaluator.parseSmartNumber(raw);
+
+        if (num === null) {
+          missingCount++;
+        } else {
+          validCount++;
+          sum += num;
+          if (num === 0) zeroCount++;
+          if (target !== null && num >= target) achievedCount++;
+
+          if (highest === null || num > highest.value) {
+            highest = { name: cat, value: num };
+          }
+          if (lowest === null || num < lowest.value) {
+            lowest = { name: cat, value: num };
+          }
+        }
+      }
+
+      const avgValue = validCount > 0 ? Math.round((sum / validCount) * 10) / 10 : null;
+
+      const layout = ChartLayoutEngine.computeLayout({
+        categoryColumn: catCol,
+        categories: cats,
+        series: [s],
+        rows,
+        targetValue: target,
+        width: 960,
+        rowHeight: 38,
+        margin: { top: 60, right: 95, bottom: 40, left: 200 },
+      });
+
+      return {
+        series: s,
+        layout,
+        stats: {
+          total: rawCats.length,
+          validCount,
+          missingCount,
+          zeroCount,
+          achievedCount,
+          avgValue,
+          highest,
+          lowest,
+        },
+      };
+    });
+  });
+
+  filteredIndicatorLayouts = computed<IndicatorChartGroup[]>(() => {
+    const all = this.indicatorLayouts();
+    const filter = this.selectedIndicatorFilter();
+    if (filter === 'all') return all;
+    const filtered = all.filter((item) => item.series.key === filter);
+    return filtered.length > 0 ? filtered : all;
   });
 }

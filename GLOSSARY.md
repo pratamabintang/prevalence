@@ -39,6 +39,14 @@ _Avoid_: Hitungan lulus, capaian mentah
 Kondisi data yang tidak memuat angka (seperti tanda strip "-", kosong, atau teks tak terdefinisi) yang menandakan indikator belum dilaporkan. Berbeda secara mendasar dengan nilai "0" yang merupakan angka pengukuran valid.
 _Avoid_: Nilai nol, angka kosong
 
+**Mode Per Wilayah**:
+Mode tampilan visualisasi grafik batang horizontal di mana setiap baris vertikal (sumbu Y) mewakili satu Kategori Wilayah yang memuat batang untuk seluruh Seri Indikator terpilih secara berdampingan.
+_Avoid_: Group bar biasa, multi-bar chart
+
+**Mode Per Indikator (Per Kolom)**:
+Mode tampilan visualisasi komparatif di mana setiap kolom indikator disajikan dalam satu kelompok grafik terpisah, membandingkan seluruh Kategori Wilayah secara langsung pada satu indikator tersebut lengkap dengan ringkasan statistik (rata-rata, tertinggi, terendah) dan target.
+_Avoid_: Single-series chart, split chart, grafik per kolom mentah
+
 ### Pemantauan Stunting & Evaluasi Kinerja
 **Intervensi Stunting**:
 Program atau tindakan kesehatan spesifik (sebelum kelahiran/remaja-ibu hamil atau setelah kelahiran/balita) yang diukur capaian kinerjanya dalam percepatan penurunan stunting.
