@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import * as XLSX from 'xlsx-js-style';
@@ -27,6 +27,7 @@ import {
   SheetConfigPreset,
 } from './preset-store';
 import { DEFAULT_JOIN_CONFIG } from './default-join-config';
+import { ExcelJoinStore, ExcelJoinStoredState } from './excel-join-store';
 
 export type {
   ColumnConfig,
@@ -71,11 +72,12 @@ export interface ResultRow {
   ],
   templateUrl: './excel-join.component.html',
 })
-export class ExcelJoinComponent implements OnInit {
+export class ExcelJoinComponent implements OnInit, OnDestroy {
   private router = inject(Router);
   private chartDataBridge = inject(ChartDataBridge);
   private stuntingDataBridge = inject(StuntingDataBridge);
   gasStorageService = inject(GasStorageService);
+  excelJoinStore = inject(ExcelJoinStore);
 
   file = signal<File | null>(null);
   workbook: XLSX.WorkBook | null = null;
@@ -91,11 +93,144 @@ export class ExcelJoinComponent implements OnInit {
   showResetDefaultConfirm = signal<boolean>(false);
 
   async ngOnInit(): Promise<void> {
+    if (this.excelJoinStore.hasState()) {
+      const restored = await this.restoreStateFromStore();
+      if (restored) {
+        return;
+      }
+    }
     await this.loadDefaultDataAndConfig();
+  }
+
+  ngOnDestroy(): void {
+    this.saveCurrentStateToStore();
+  }
+
+  saveCurrentStateToStore(): void {
+    if (!this.file() && !this.workbook && this.sheets().length === 0 && this.resultRows().length === 0) {
+      return;
+    }
+
+    const fileObj = this.file();
+    const state: ExcelJoinStoredState = {
+      version: '1.0',
+      savedAt: new Date().toISOString(),
+      fileInfo: fileObj
+        ? {
+            name: fileObj.name,
+            size: fileObj.size,
+            type: fileObj.type,
+          }
+        : null,
+      isDefaultData: this.isDefaultData(),
+      isCloudDefault: this.isCloudDefault(),
+      showSettings: this.showSettings(),
+      activePresetName: this.activePresetName(),
+      sheets: this.sheets(),
+      joinBy: this.joinBy(),
+      stripKabupaten: this.stripKabupaten(),
+      outputHeaderFormat: this.outputHeaderFormat(),
+      includeSheetPrefix: this.includeSheetPrefix(),
+      enableTarget: this.enableTarget(),
+      enableCapaian: this.enableCapaian(),
+      enableJumlah: this.enableJumlah(),
+      enableAverage: this.enableAverage(),
+      columnTargets: { ...this.columnTargets() },
+      columnConfigs: { ...this.columnConfigs() },
+      sumColumns: { ...this.sumColumns() },
+      avgColumns: { ...this.avgColumns() },
+      customColumnNames: { ...this.customColumnNames() },
+      resultColumns: [...this.resultColumns()],
+      resultColumnsMeta: [...this.resultColumnsMeta()],
+      defaultResultColumns: [...this.defaultResultColumns()],
+      defaultResultColumnsMeta: [...this.defaultResultColumnsMeta()],
+      resultRows: [...this.resultRows()],
+      originalResultRows: [...this.originalResultRows()],
+    };
+
+    this.excelJoinStore.saveState(state, this.workbook, this.file());
+  }
+
+  async restoreStateFromStore(): Promise<boolean> {
+    const state = this.excelJoinStore.getState();
+    if (!state) {
+      return false;
+    }
+
+    try {
+      let wb = this.excelJoinStore.getWorkbook();
+      let file = this.excelJoinStore.getFile();
+
+      if (!wb) {
+        if (state.isCloudDefault && this.gasStorageService.isConfigured()) {
+          try {
+            const cloudRes = await this.gasStorageService.loadDefault();
+            if (cloudRes.success && cloudRes.excelBuffer) {
+              wb = ExcelEngine.readWorkbook(cloudRes.excelBuffer);
+              file = new File([cloudRes.excelBuffer], cloudRes.fileName || 'default-join-data.xlsx', {
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+              });
+            }
+          } catch {}
+        } else if (state.isDefaultData) {
+          try {
+            const res = await fetch('/data/default-join-data.xlsx');
+            if (res.ok) {
+              const buf = await res.arrayBuffer();
+              wb = ExcelEngine.readWorkbook(buf);
+              file = new File([buf], 'Format Analisas Intervensi Spesifik TW3 01102026.xlsx', {
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+              });
+            }
+          } catch {}
+        }
+      }
+
+      if (!file && state.fileInfo) {
+        file = new File([], state.fileInfo.name, { type: state.fileInfo.type || '' });
+      }
+
+      this.workbook = wb;
+      this.file.set(file);
+
+      this.sheets.set(state.sheets || []);
+      this.joinBy.set(state.joinBy || '');
+      this.stripKabupaten.set(state.stripKabupaten ?? true);
+      this.outputHeaderFormat.set(state.outputHeaderFormat || 'full');
+      this.includeSheetPrefix.set(state.includeSheetPrefix ?? true);
+
+      this.enableTarget.set(state.enableTarget ?? true);
+      this.enableCapaian.set(state.enableCapaian ?? true);
+      this.enableJumlah.set(state.enableJumlah ?? false);
+      this.enableAverage.set(state.enableAverage ?? false);
+      this.columnTargets.set(state.columnTargets || {});
+      this.columnConfigs.set(state.columnConfigs || {});
+      this.sumColumns.set(state.sumColumns || {});
+      this.avgColumns.set(state.avgColumns || {});
+      this.customColumnNames.set(state.customColumnNames || {});
+
+      this.resultColumns.set(state.resultColumns || []);
+      this.resultColumnsMeta.set(state.resultColumnsMeta || []);
+      this.defaultResultColumns.set(state.defaultResultColumns || []);
+      this.defaultResultColumnsMeta.set(state.defaultResultColumnsMeta || []);
+      this.resultRows.set(state.resultRows || []);
+      this.originalResultRows.set(state.originalResultRows || []);
+
+      this.showSettings.set(state.showSettings ?? false);
+      this.isDefaultData.set(state.isDefaultData ?? false);
+      this.isCloudDefault.set(state.isCloudDefault ?? false);
+      this.activePresetName.set(state.activePresetName || '');
+
+      return true;
+    } catch (e) {
+      console.warn('Gagal memulihkan state Excel Join dari storage:', e);
+      return false;
+    }
   }
 
   toggleSettings(): void {
     this.showSettings.update((v) => !v);
+    this.saveCurrentStateToStore();
   }
 
   async loadDefaultDataAndConfig(): Promise<void> {
@@ -187,6 +322,7 @@ export class ExcelJoinComponent implements OnInit {
   }
 
   async resetToDefaultData(): Promise<void> {
+    this.excelJoinStore.clearState();
     this.clearFile();
     await this.loadDefaultDataAndConfig();
   }
@@ -585,6 +721,7 @@ export class ExcelJoinComponent implements OnInit {
           } else {
             this.showSettings.set(true);
           }
+          this.saveCurrentStateToStore();
           return;
         } else {
           // Workbook baru memiliki struktur sheet yang sama sekali berbeda
@@ -595,11 +732,13 @@ export class ExcelJoinComponent implements OnInit {
             type: 'info',
             message: `File "${file.name}" berhasil dimuat. Sheet pada file baru berbeda dengan konfigurasi sebelumnya, silakan pilih sheet dan variabel.`,
           });
+          this.saveCurrentStateToStore();
           return;
         }
       }
 
       this.showSettings.set(true);
+      this.saveCurrentStateToStore();
     } catch (error) {
       console.error('EXCEL ERROR:', error);
       this.errorMessage.set(error instanceof Error ? error.message : 'Gagal membaca file Excel.');
@@ -1675,6 +1814,7 @@ export class ExcelJoinComponent implements OnInit {
     this.showResetDefaultConfirm.set(false);
     this.preservedPreset = null;
     this.preservedPresetName = null;
+    this.excelJoinStore.clearState();
     try {
       if (this.gasStorageService.isConfigured()) {
         await this.gasStorageService.resetDefault();
@@ -2208,6 +2348,7 @@ export class ExcelJoinComponent implements OnInit {
         this.updateColumnConfigsAfterPreview(cols);
         this.updateColumnSumsAfterPreview(cols);
         this.updateColumnAvgsAfterPreview(cols);
+        this.saveCurrentStateToStore();
       }
     } catch (error) {
       console.error('JOIN ERROR:', error);
@@ -2534,6 +2675,7 @@ export class ExcelJoinComponent implements OnInit {
       this.preservedPresetName =
         this.activePresetName() || (this.isCloudDefault() ? 'Default Google Drive' : 'Konfigurasi Sebelumnya');
     }
+    this.excelJoinStore.clearState();
     this.file.set(null);
     this.isDefaultData.set(false);
     this.isCloudDefault.set(false);

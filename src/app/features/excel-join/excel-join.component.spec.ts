@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { ExcelJoinComponent, SheetInfo } from './excel-join.component';
+import { ExcelJoinStore, ExcelJoinStoredState } from './excel-join-store';
 import { PresetStore } from './preset-store';
 import * as XLSX from 'xlsx-js-style';
 import { environment } from '../../../environments/environment';
@@ -11,6 +12,8 @@ describe('ExcelJoinComponent', () => {
   let fixture: ComponentFixture<ExcelJoinComponent>;
 
   beforeEach(async () => {
+    localStorage.clear();
+    sessionStorage.clear();
     await TestBed.configureTestingModule({
       imports: [ExcelJoinComponent],
       providers: [provideRouter([])],
@@ -792,6 +795,89 @@ describe('ExcelJoinComponent', () => {
       expect(component.sheets().map((s) => s.name)).toEqual(['UnrelatedSheet']);
       expect(component.selectedSheets()).toEqual([]);
       expect(component.showSettings()).toBe(true);
+    });
+  });
+
+  describe('state persistence across menu navigation (local storage & in-memory store)', () => {
+    it('should restore previous state from ExcelJoinStore on ngOnInit when returning from another menu', async () => {
+      const store = TestBed.inject(ExcelJoinStore);
+      const mockWb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet([['Kabupaten/Kota', 'Var A'], ['CILACAP', 88]]);
+      XLSX.utils.book_append_sheet(mockWb, ws, 'Sheet1');
+
+      const savedState: ExcelJoinStoredState = {
+        version: '1.0',
+        savedAt: new Date().toISOString(),
+        fileInfo: { name: 'MySavedData.xlsx' },
+        isDefaultData: false,
+        isCloudDefault: false,
+        showSettings: false,
+        activePresetName: 'Saved Preset',
+        sheets: [
+          {
+            name: 'Sheet1',
+            columns: [
+              { colIndex: 0, colLetter: 'A', header: 'Kabupaten/Kota', leafHeader: 'Kabupaten/Kota', layers: ['Kabupaten/Kota'] },
+              { colIndex: 1, colLetter: 'B', header: 'Var A', leafHeader: 'Var A', layers: ['Var A'] },
+            ],
+            headers: ['Kabupaten/Kota', 'Var A'],
+            selected: true,
+            variables: ['Var A'],
+            joinColumn: 'Kabupaten/Kota',
+            headerStartRow: 1,
+            headerEndRow: 1,
+            dataStartRow: 2,
+          },
+        ],
+        joinBy: 'Kabupaten/Kota',
+        stripKabupaten: true,
+        outputHeaderFormat: 'concat',
+        includeSheetPrefix: true,
+        enableTarget: false,
+        enableCapaian: false,
+        enableJumlah: true,
+        enableAverage: true,
+        columnTargets: {},
+        columnConfigs: {},
+        sumColumns: { 'Var A': true },
+        avgColumns: { 'Var A': true },
+        customColumnNames: { 'Var A': 'Nama Kustom A' },
+        resultColumns: ['Kabupaten/Kota', 'Var A'],
+        resultColumnsMeta: [{ key: 'Kabupaten/Kota', layers: ['Kabupaten/Kota'] }, { key: 'Var A', layers: ['Var A'] }],
+        defaultResultColumns: ['Kabupaten/Kota', 'Var A'],
+        defaultResultColumnsMeta: [{ key: 'Kabupaten/Kota', layers: ['Kabupaten/Kota'] }, { key: 'Var A', layers: ['Var A'] }],
+        resultRows: [{ 'Kabupaten/Kota': 'CILACAP', 'Var A': 88 }],
+        originalResultRows: [{ 'Kabupaten/Kota': 'CILACAP', 'Var A': 88 }],
+      };
+
+      store.saveState(savedState, mockWb);
+
+      // Create new component instance as if navigating back to /excel-join
+      const newFixture = TestBed.createComponent(ExcelJoinComponent);
+      const newComp = newFixture.componentInstance;
+      await newComp.ngOnInit();
+
+      expect(newComp.file()?.name).toBe('MySavedData.xlsx');
+      expect(newComp.selectedSheets().map((s) => s.name)).toEqual(['Sheet1']);
+      expect(newComp.customColumnNames()['Var A']).toBe('Nama Kustom A');
+      expect(newComp.resultRows().length).toBe(1);
+      expect(newComp.resultRows()[0]['Var A']).toBe(88);
+      expect(newComp.enableAverage()).toBe(true);
+      expect(newComp.avgColumns()['Var A']).toBe(true);
+    });
+
+    it('should save current state to ExcelJoinStore upon ngOnDestroy or editing', () => {
+      const store = TestBed.inject(ExcelJoinStore);
+      component.resultColumns.set(['Kabupaten/Kota', 'Var B']);
+      component.resultRows.set([{ 'Kabupaten/Kota': 'KUDUS', 'Var B': 90 }]);
+      component.customColumnNames.set({ 'Var B': 'Alias B' });
+
+      component.ngOnDestroy();
+
+      expect(store.hasState()).toBe(true);
+      const stored = store.getState();
+      expect(stored?.customColumnNames['Var B']).toBe('Alias B');
+      expect(stored?.resultRows.length).toBe(1);
     });
   });
 });
