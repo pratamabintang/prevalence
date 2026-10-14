@@ -1276,19 +1276,11 @@ export class ChartVisualizerComponent {
   // Data tabel bersih terfilter untuk membuat grafik bawaan Excel (Alt+F1 / Insert Chart)
   // ============================================================
 
-  exportExcel(): void {
+  buildExcelWorkbook(): XLSX.WorkBook {
     const catCol = this.categoryColumn();
     const series = this.seriesList();
     const cats = this.visibleCategories();
     const rows = this.dataRows();
-
-    if (cats.length === 0 || series.length === 0) {
-      this.notificationMessage.set('Tidak ada baris atau kolom indikator yang dipilih untuk diekspor.');
-      return;
-    }
-
-    // Baris Header: Kolom Label Baris + Kolom Seri Indikator
-    const headerRow = [catCol, ...series.map((s) => s.label)];
 
     // Pemetaan Data Berdasarkan Label Baris
     const rowMap = new Map<string, ChartDataRow>();
@@ -1299,6 +1291,71 @@ export class ChartVisualizerComponent {
       }
     }
 
+    const wb = XLSX.utils.book_new();
+
+    // MODE PER INDIKATOR: Sheet terpisah sebanyak indikator yang digunakan,
+    // masing-masing sheet hanya memiliki 2 kolom (Kolom Y dan Indikator)
+    if (this.viewMode() === 'by-indicator') {
+      const usedSheetNames = new Set<string>();
+
+      for (let sIdx = 0; sIdx < series.length; sIdx++) {
+        const s = series[sIdx];
+        const headerRow = [catCol, s.label];
+        const aoaData: (string | number | null)[][] = [headerRow];
+
+        for (const cat of cats) {
+          const rowObj = rowMap.get(cat);
+          const rawVal = rowObj ? rowObj[s.key] : null;
+          const num = IndicatorEvaluator.parseSmartNumber(rawVal);
+          aoaData.push([cat, num !== null ? num : '']);
+        }
+
+        const ws = XLSX.utils.aoa_to_sheet(aoaData);
+
+        // Styling Header dengan xlsx-js-style
+        const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:B1');
+        for (let c = range.s.c; c <= range.e.c; c++) {
+          const addr = XLSX.utils.encode_cell({ r: 0, c });
+          if (ws[addr]) {
+            ws[addr].s = {
+              fill: { fgColor: { rgb: '2563EB' } }, // Biru Dinkes
+              font: { name: 'Calibri', sz: 11, bold: true, color: { rgb: 'FFFFFF' } },
+              alignment: { horizontal: c === 0 ? 'left' : 'center', vertical: 'center' },
+            };
+          }
+        }
+
+        // Lebar kolom otomatis
+        const colWidths = headerRow.map((h, idx) => {
+          let maxLen = h.length;
+          for (const r of aoaData.slice(1)) {
+            const valStr = String(r[idx] ?? '');
+            if (valStr.length > maxLen) maxLen = valStr.length;
+          }
+          return { wch: Math.max(maxLen + 4, 14) };
+        });
+        ws['!cols'] = colWidths;
+
+        // Sanitasi nama sheet Excel (maks 31 karakter, hindari karakter ilegal Excel)
+        let baseName = s.label.replace(/[\\/?*[\]:]/g, '_').trim() || `Indikator ${sIdx + 1}`;
+        baseName = baseName.slice(0, 31);
+        let sheetName = baseName;
+        let counter = 2;
+        while (usedSheetNames.has(sheetName.toLowerCase())) {
+          const suffix = ` (${counter})`;
+          sheetName = `${baseName.slice(0, 31 - suffix.length)}${suffix}`;
+          counter++;
+        }
+        usedSheetNames.add(sheetName.toLowerCase());
+
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      }
+
+      return wb;
+    }
+
+    // MODE PER WILAYAH: 1 sheet tunggal menggabungkan seluruh seri indikator
+    const headerRow = [catCol, ...series.map((s) => s.label)];
     const aoaData: (string | number | null)[][] = [headerRow];
 
     for (const cat of cats) {
@@ -1340,9 +1397,31 @@ export class ChartVisualizerComponent {
     });
     ws['!cols'] = colWidths;
 
-    const wb = XLSX.utils.book_new();
     const sheetTitle = (this.selectedSheet() || 'Data Visualisasi').slice(0, 31);
     XLSX.utils.book_append_sheet(wb, ws, sheetTitle);
+
+    return wb;
+  }
+
+  exportExcel(): void {
+    const series = this.seriesList();
+    const cats = this.visibleCategories();
+
+    if (cats.length === 0 || series.length === 0) {
+      this.notificationMessage.set('Tidak ada baris atau kolom indikator yang dipilih untuk diekspor.');
+      return;
+    }
+
+    const wb = this.buildExcelWorkbook();
+
+    if (this.viewMode() === 'by-indicator') {
+      const fileName = `${this.slugify(this.chartTitle()) || 'data-grafik-indikator'}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      this.notificationMessage.set(
+        `Berkas "${fileName}" dengan ${series.length} sheet terpisah per indikator berhasil diunduh.`,
+      );
+      return;
+    }
 
     const fileName = `${this.slugify(this.chartTitle()) || 'data-grafik-dinkes'}.xlsx`;
     XLSX.writeFile(wb, fileName);

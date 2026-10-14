@@ -1,5 +1,7 @@
 import { provideRouter } from '@angular/router';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { vi } from 'vitest';
+import * as XLSX from 'xlsx-js-style';
 import { ChartVisualizerComponent } from './chart-visualizer.component';
 import { ChartDataBridge } from '../../core/chart/chart-data-bridge';
 import { ChartBarItem } from '../../core/chart/chart-layout-engine';
@@ -694,6 +696,97 @@ describe('ChartVisualizerComponent', () => {
 
       expect(() => component.exportSvg('indicatorChartSvg-0', 'Triwulan 1')).not.toThrow();
       expect(() => component.exportPng('indicatorChartSvg-0', 'Triwulan 1')).not.toThrow();
+    });
+  });
+
+  describe('Header Toolbar & Excel Multi-Sheet Export', () => {
+    it('should build multi-sheet workbook with 2 columns per sheet in by-indicator mode', () => {
+      populateTestData();
+      component.setViewMode('by-indicator');
+
+      const wb = component.buildExcelWorkbook();
+
+      expect(wb).not.toBeNull();
+      // Should have 4 sheets, one for each series in seriesList
+      expect(wb.SheetNames.length).toBe(4);
+      expect(wb.SheetNames).toEqual(['Triwulan 1', 'Triwulan 2', 'Triwulan 3', 'Triwulan 4']);
+
+      // Check first sheet ('Triwulan 1')
+      const ws1 = wb.Sheets['Triwulan 1'];
+      const data1: any[][] = XLSX.utils.sheet_to_json(ws1, { header: 1 });
+      // Header row must have exactly 2 columns: ['Wilayah', 'Triwulan 1']
+      expect(data1[0]).toEqual(['Wilayah', 'Triwulan 1']);
+      // Data rows: each row must have 2 columns
+      expect(data1.length).toBe(6); // 1 header + 5 rows
+      expect(data1[1]).toEqual(['Kab. Magelang', 72.4]);
+      expect(data1[2]).toEqual(['Kota Magelang', 81]);
+      expect(data1[3]).toEqual(['Kab. Temanggung', 68.5]);
+      expect(data1[4]).toEqual(['Kab. Purworejo', 70]);
+      expect(data1[5]).toEqual(['Kab. Wonosobo', 65]);
+
+      // Check fourth sheet ('Triwulan 4')
+      const ws4 = wb.Sheets['Triwulan 4'];
+      const data4: any[][] = XLSX.utils.sheet_to_json(ws4, { header: 1 });
+      expect(data4[0]).toEqual(['Wilayah', 'Triwulan 4']);
+      expect(data4[1]).toEqual(['Kab. Magelang', 91]);
+
+      // Calling exportExcel should run without throwing and set notification
+      expect(() => component.exportExcel()).not.toThrow();
+      expect(component.notificationMessage()).toContain('4 sheet terpisah');
+    });
+
+    it('should build single sheet workbook with all columns in by-region mode', () => {
+      populateTestData();
+      component.setViewMode('by-region');
+
+      const wb = component.buildExcelWorkbook();
+
+      expect(wb).not.toBeNull();
+      expect(wb.SheetNames.length).toBe(1);
+
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      expect(data[0]).toEqual(['Wilayah', 'Triwulan 1', 'Triwulan 2', 'Triwulan 3', 'Triwulan 4']);
+      expect(data[1]).toEqual(['Kab. Magelang', 72.4, 78.2, 84.5, 91]);
+
+      // Calling exportExcel should run without throwing and set notification
+      expect(() => component.exportExcel()).not.toThrow();
+      expect(component.notificationMessage()).toContain('berhasil diunduh');
+    });
+
+    it('should sanitize sheet names and handle duplicates when exporting by-indicator', () => {
+      populateTestData();
+      component.setViewMode('by-indicator');
+      component.seriesList.set([
+        { key: 's1', label: 'Indikator: A / B [Test]*', color: '#111' },
+        { key: 's2', label: 'Indikator: A / B [Test]*', color: '#222' },
+      ]);
+
+      const wb = component.buildExcelWorkbook();
+
+      expect(wb).not.toBeNull();
+      expect(wb.SheetNames.length).toBe(2);
+      expect(wb.SheetNames[0]).not.toMatch(/[\\/?*[\]:]/);
+      expect(wb.SheetNames[1]).toContain('(2)');
+    });
+
+    it('should render Garis Target input and export buttons at chart level in by-region mode', () => {
+      populateTestData();
+      component.dataSource.set('join');
+      component.setViewMode('by-region');
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      // In by-region mode:
+      // Verify that Garis Target is present inside the chart legend/action bar
+      const chartActions = compiled.querySelector('.border-t.border-slate-100');
+      expect(chartActions).toBeTruthy();
+      expect(chartActions?.textContent).toContain('Garis Target:');
+
+      // Main header toolbar has Excel (.xlsx) button
+      const excelBtn = compiled.querySelector('button[title*="Unduh data bersih"]');
+      expect(excelBtn).toBeTruthy();
+      expect(excelBtn?.textContent).toContain('Excel (.xlsx)');
     });
   });
 });
