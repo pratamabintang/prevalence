@@ -239,13 +239,16 @@
             </div>
 
             <div class="flex items-center gap-2">
-              <button
-                type="button"
-                (click)="clearFile()"
-                class="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+              <label
+                class="inline-flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-sm"
+                title="Pilih file Excel baru (.xlsx) dengan struktur yang sama atau diperbarui"
               >
-                Ganti File
-              </button>
+                <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                <span>Ganti File</span>
+                <input type="file" accept=".xlsx" class="hidden" (change)="onFileSelected($event)" />
+              </label>
             </div>
           </div>
         }

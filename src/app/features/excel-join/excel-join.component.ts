@@ -308,6 +308,8 @@ export class ExcelJoinComponent implements OnInit {
 
   // Fitur Simpan & Muat Konfigurasi Preset
   pendingPreset: JoinConfigurationPreset | null = null;
+  preservedPreset: JoinConfigurationPreset | null = null;
+  preservedPresetName: string | null = null;
   activePresetName = signal<string>('');
   configNotification = signal<{
     type: 'success' | 'warning' | 'info';
@@ -535,10 +537,24 @@ export class ExcelJoinComponent implements OnInit {
       return;
     }
 
+    // 1. Simpan konfigurasi aktif sebelum reset
+    // Prioritas: pendingPreset (unggah file json), konfigurasi aktif saat ini, atau preservedPreset (dari clearFile)
+    const presetToApply =
+      this.pendingPreset ||
+      (this.selectedSheets().length > 0
+        ? this.getCurrentPreset(this.activePresetName() || undefined)
+        : null) ||
+      this.preservedPreset;
+
+    const presetNameToApply =
+      this.activePresetName() ||
+      this.preservedPresetName ||
+      (this.isCloudDefault() ? 'Default Google Drive' : 'Konfigurasi Aktif');
+
     this.reset();
 
     this.isDefaultData.set(false);
-    this.showSettings.set(true);
+    this.isCloudDefault.set(false);
     this.file.set(file);
     this.isProcessing.set(true);
 
@@ -549,11 +565,41 @@ export class ExcelJoinComponent implements OnInit {
       this.workbook = workbook;
       this.loadSheets();
 
-      if (this.pendingPreset) {
-        const p = this.pendingPreset;
-        this.pendingPreset = null;
-        this.applyConfiguration(p, this.activePresetName() || 'Konfigurasi Terpilih');
+      if (presetToApply && presetToApply.sheets && presetToApply.sheets.length > 0) {
+        // Cek apakah ada sheet pada workbook baru yang cocok dengan preset
+        const matchedSheetMap = PresetStore.matchSheets(
+          this.sheets().map((s) => s.name),
+          presetToApply.sheets,
+        );
+
+        if (matchedSheetMap.size > 0) {
+          // Ada sheet yang cocok! Terapkan konfigurasi aktif ke file baru
+          this.pendingPreset = null;
+          this.preservedPreset = null;
+          this.preservedPresetName = null;
+          this.applyConfiguration(presetToApply, presetNameToApply);
+
+          // Jika data hasil join berhasil diekstrak, tutup panel pengaturan agar user langsung melihat preview tabel data baru
+          if (this.resultRows().length > 0) {
+            this.showSettings.set(false);
+          } else {
+            this.showSettings.set(true);
+          }
+          return;
+        } else {
+          // Workbook baru memiliki struktur sheet yang sama sekali berbeda
+          this.preservedPreset = null;
+          this.preservedPresetName = null;
+          this.showSettings.set(true);
+          this.configNotification.set({
+            type: 'info',
+            message: `File "${file.name}" berhasil dimuat. Sheet pada file baru berbeda dengan konfigurasi sebelumnya, silakan pilih sheet dan variabel.`,
+          });
+          return;
+        }
       }
+
+      this.showSettings.set(true);
     } catch (error) {
       console.error('EXCEL ERROR:', error);
       this.errorMessage.set(error instanceof Error ? error.message : 'Gagal membaca file Excel.');
@@ -1627,6 +1673,8 @@ export class ExcelJoinComponent implements OnInit {
 
   async confirmResetToFactoryDefault(): Promise<void> {
     this.showResetDefaultConfirm.set(false);
+    this.preservedPreset = null;
+    this.preservedPresetName = null;
     try {
       if (this.gasStorageService.isConfigured()) {
         await this.gasStorageService.resetDefault();
@@ -2481,6 +2529,11 @@ export class ExcelJoinComponent implements OnInit {
   }
 
   clearFile(): void {
+    if (this.selectedSheets().length > 0) {
+      this.preservedPreset = this.getCurrentPreset(this.activePresetName() || undefined);
+      this.preservedPresetName =
+        this.activePresetName() || (this.isCloudDefault() ? 'Default Google Drive' : 'Konfigurasi Sebelumnya');
+    }
     this.file.set(null);
     this.isDefaultData.set(false);
     this.isCloudDefault.set(false);

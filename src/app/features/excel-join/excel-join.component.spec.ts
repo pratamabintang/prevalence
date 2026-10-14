@@ -3,6 +3,7 @@ import { provideRouter, Router } from '@angular/router';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { ExcelJoinComponent, SheetInfo } from './excel-join.component';
 import { PresetStore } from './preset-store';
+import * as XLSX from 'xlsx-js-style';
 import { environment } from '../../../environments/environment';
 
 describe('ExcelJoinComponent', () => {
@@ -591,6 +592,206 @@ describe('ExcelJoinComponent', () => {
       // Reset ke urutan awal
       component.resetColumnOrder();
       expect(component.resultColumns()).toEqual(['Wilayah', 'Col 1', 'Col 2', 'Col 3']);
+    });
+  });
+
+  describe('preserving configuration when changing file', () => {
+    it('should retain active configuration and auto-join when user loads a newer file with matching sheets and columns', async () => {
+      // 1. Set up active configuration
+      const sheet1: SheetInfo = {
+        name: 'Sheet1',
+        columns: [
+          { colIndex: 0, colLetter: 'A', header: 'Kabupaten/Kota', leafHeader: 'Kabupaten/Kota', layers: ['Kabupaten/Kota'] },
+          { colIndex: 1, colLetter: 'B', header: 'Indikator A', leafHeader: 'Indikator A', layers: ['Indikator A'] },
+        ],
+        headers: ['Kabupaten/Kota', 'Indikator A'],
+        selected: true,
+        variables: ['Indikator A'],
+        joinColumn: 'Kabupaten/Kota',
+        headerStartRow: 1,
+        headerEndRow: 1,
+        dataStartRow: 2,
+      };
+
+      const sheet2: SheetInfo = {
+        name: 'Sheet2',
+        columns: [
+          { colIndex: 0, colLetter: 'A', header: 'Kabupaten/Kota', leafHeader: 'Kabupaten/Kota', layers: ['Kabupaten/Kota'] },
+          { colIndex: 1, colLetter: 'B', header: 'Indikator B', leafHeader: 'Indikator B', layers: ['Indikator B'] },
+        ],
+        headers: ['Kabupaten/Kota', 'Indikator B'],
+        selected: true,
+        variables: ['Indikator B'],
+        joinColumn: 'Kabupaten/Kota',
+        headerStartRow: 1,
+        headerEndRow: 1,
+        dataStartRow: 2,
+      };
+
+      component.sheets.set([sheet1, sheet2]);
+      component.joinBy.set('Kabupaten/Kota');
+      component.enableAverage.set(true);
+      component.avgColumns.set({ 'Indikator A': true });
+      component.customColumnNames.set({ 'Indikator A': 'Alias Indikator A' });
+
+      // 2. Create a new workbook with same structure but newer data
+      const wb = XLSX.utils.book_new();
+      const ws1 = XLSX.utils.aoa_to_sheet([
+        ['Kabupaten/Kota', 'Indikator A'],
+        ['3301 - KAB. CILACAP', 99],
+        ['3371 - KOTA MAGELANG', 88],
+      ]);
+      const ws2 = XLSX.utils.aoa_to_sheet([
+        ['Kabupaten/Kota', 'Indikator B'],
+        ['3301 - KAB. CILACAP', 77],
+        ['3371 - KOTA MAGELANG', 66],
+      ]);
+      XLSX.utils.book_append_sheet(wb, ws1, 'Sheet1');
+      XLSX.utils.book_append_sheet(wb, ws2, 'Sheet2');
+      const u8 = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as Uint8Array;
+      const newFile = new File([u8 as BlobPart], 'Data_Baru_TW4.xlsx', {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+
+      const mockEvent = {
+        target: {
+          files: [newFile],
+          value: '',
+        },
+      } as unknown as Event;
+
+      await component.onFileSelected(mockEvent);
+
+      // 3. Verify that configuration was preserved
+      expect(component.selectedSheets().map((s) => s.name)).toEqual(['Sheet1', 'Sheet2']);
+      expect(component.customColumnNames()['Indikator A']).toBe('Alias Indikator A');
+      expect(component.enableAverage()).toBe(true);
+      expect(component.avgColumns()['Indikator A']).toBe(true);
+      expect(component.resultRows().length).toBe(2);
+      expect(component.resultRows()[0]['Indikator A']).toBe(99);
+      expect(component.resultRows()[0]['Indikator B']).toBe(77);
+    });
+
+    it('should retain configuration even if clearFile was called before choosing the new file', async () => {
+      // 1. Set up active configuration
+      const sheet1: SheetInfo = {
+        name: 'Sheet1',
+        columns: [
+          { colIndex: 0, colLetter: 'A', header: 'Kabupaten/Kota', leafHeader: 'Kabupaten/Kota', layers: ['Kabupaten/Kota'] },
+          { colIndex: 1, colLetter: 'B', header: 'Indikator A', leafHeader: 'Indikator A', layers: ['Indikator A'] },
+        ],
+        headers: ['Kabupaten/Kota', 'Indikator A'],
+        selected: true,
+        variables: ['Indikator A'],
+        joinColumn: 'Kabupaten/Kota',
+        headerStartRow: 1,
+        headerEndRow: 1,
+        dataStartRow: 2,
+      };
+
+      const sheet2: SheetInfo = {
+        name: 'Sheet2',
+        columns: [
+          { colIndex: 0, colLetter: 'A', header: 'Kabupaten/Kota', leafHeader: 'Kabupaten/Kota', layers: ['Kabupaten/Kota'] },
+          { colIndex: 1, colLetter: 'B', header: 'Indikator B', leafHeader: 'Indikator B', layers: ['Indikator B'] },
+        ],
+        headers: ['Kabupaten/Kota', 'Indikator B'],
+        selected: true,
+        variables: ['Indikator B'],
+        joinColumn: 'Kabupaten/Kota',
+        headerStartRow: 1,
+        headerEndRow: 1,
+        dataStartRow: 2,
+      };
+
+      component.sheets.set([sheet1, sheet2]);
+      component.joinBy.set('Kabupaten/Kota');
+      component.enableJumlah.set(true);
+      component.sumColumns.set({ 'Indikator A': true });
+
+      // User triggers clearFile()
+      component.clearFile();
+      expect(component.file()).toBeNull();
+      expect(component.sheets()).toEqual([]);
+
+      // 2. User selects new file with matching sheets
+      const wb = XLSX.utils.book_new();
+      const ws1 = XLSX.utils.aoa_to_sheet([
+        ['Kabupaten/Kota', 'Indikator A'],
+        ['3301 - KAB. CILACAP', 55],
+      ]);
+      const ws2 = XLSX.utils.aoa_to_sheet([
+        ['Kabupaten/Kota', 'Indikator B'],
+        ['3301 - KAB. CILACAP', 44],
+      ]);
+      XLSX.utils.book_append_sheet(wb, ws1, 'Sheet1');
+      XLSX.utils.book_append_sheet(wb, ws2, 'Sheet2');
+      const u8 = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as Uint8Array;
+      const newFile = new File([u8 as BlobPart], 'Data_Baru.xlsx', {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+
+      const mockEvent = {
+        target: {
+          files: [newFile],
+          value: '',
+        },
+      } as unknown as Event;
+
+      await component.onFileSelected(mockEvent);
+
+      expect(component.selectedSheets().map((s) => s.name)).toEqual(['Sheet1', 'Sheet2']);
+      expect(component.enableJumlah()).toBe(true);
+      expect(component.sumColumns()['Indikator A']).toBe(true);
+      expect(component.resultRows().length).toBe(1);
+      expect(component.resultRows()[0]['Indikator A']).toBe(55);
+      expect(component.resultRows()[0]['Indikator B']).toBe(44);
+    });
+
+    it('should not force previous configuration if the new file has completely different sheets', async () => {
+      // 1. Set up active configuration for Sheet1
+      const sheet1: SheetInfo = {
+        name: 'Sheet1',
+        columns: [
+          { colIndex: 0, colLetter: 'A', header: 'Kabupaten/Kota', leafHeader: 'Kabupaten/Kota', layers: ['Kabupaten/Kota'] },
+          { colIndex: 1, colLetter: 'B', header: 'Indikator A', leafHeader: 'Indikator A', layers: ['Indikator A'] },
+        ],
+        headers: ['Kabupaten/Kota', 'Indikator A'],
+        selected: true,
+        variables: ['Indikator A'],
+        joinColumn: 'Kabupaten/Kota',
+        headerStartRow: 1,
+        headerEndRow: 1,
+        dataStartRow: 2,
+      };
+
+      component.sheets.set([sheet1]);
+
+      // 2. Load file with completely different sheet names: UnrelatedSheet
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet([
+        ['Nama Barang', 'Harga'],
+        ['Barang 1', 1000],
+      ]);
+      XLSX.utils.book_append_sheet(wb, ws, 'UnrelatedSheet');
+      const u8 = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as Uint8Array;
+      const newFile = new File([u8 as BlobPart], 'Stok_Barang.xlsx', {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+
+      const mockEvent = {
+        target: {
+          files: [newFile],
+          value: '',
+        },
+      } as unknown as Event;
+
+      await component.onFileSelected(mockEvent);
+
+      // New file sheets are loaded, but none are auto-selected since they don't match
+      expect(component.sheets().map((s) => s.name)).toEqual(['UnrelatedSheet']);
+      expect(component.selectedSheets()).toEqual([]);
+      expect(component.showSettings()).toBe(true);
     });
   });
 });
