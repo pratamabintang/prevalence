@@ -95,8 +95,11 @@ export interface StuntingQuarterInputConfig {
 export interface StuntingSubCategoryConfig {
   id: string;
   name?: string;
-  numeratorCol: string;
-  denominatorCol?: string;
+  numeratorCol: string; // Kolom Data (Realisasi/Capaian yang sudah ada)
+  denominatorCol?: string; // Opsional / tidak wajib (tidak ada input kolom sasaran)
+  dataCol?: string; // Alias untuk numeratorCol
+  actualValue?: number | null; // Nilai capaian langsung dari data yang sudah ada
+  countValue?: number | null; // Jumlah absolut sasaran/cakupan jika tersedia
   quarterColumns?: {
     1?: StuntingQuarterInputConfig;
     2?: StuntingQuarterInputConfig;
@@ -508,6 +511,43 @@ export class StuntingEvaluationEngine {
   }
 
   /**
+   * Membersihkan nilai target dari string campuran huruf / format dokumen
+   * (contoh: "tw3: 60", "≤23", "TW3: 56,25", "85%", "≤13", "8653 desa")
+   * dan mendeteksi polaritas jika memuat simbol ≤ atau <.
+   */
+  static cleanTargetValue(rawTarget: unknown): { value: number | null; polarity: IndicatorPolarity } {
+    if (rawTarget === null || rawTarget === undefined) {
+      return { value: null, polarity: 'positive' };
+    }
+
+    if (typeof rawTarget === 'number') {
+      return { value: isNaN(rawTarget) ? null : rawTarget, polarity: 'positive' };
+    }
+
+    const str = String(rawTarget).trim();
+    if (str === '' || str === '-') {
+      return { value: null, polarity: 'positive' };
+    }
+
+    // Deteksi polaritas negatif dari simbol
+    const isNegative = str.includes('≤') || str.includes('<=') || str.includes('<');
+
+    // Bersihkan awalan/akhiran teks
+    let cleaned = str
+      .replace(/(tw\s*[1-4]\s*:?)/gi, '')
+      .replace(/[≤<>=]/g, '')
+      .replace(/desa/gi, '')
+      .replace(/%/g, '')
+      .trim();
+
+    const num = IndicatorEvaluator.parseSmartNumber(cleaned);
+    return {
+      value: num,
+      polarity: isNegative ? 'negative' : 'positive',
+    };
+  }
+
+  /**
    * Mengevaluasi dataset indikator teragregasi (Numerator / Denominator)
    * berdasarkan konfigurasi kategori dan sub-kategori dari baris hasil join multi-sheet.
    */
@@ -570,17 +610,33 @@ export class StuntingEvaluationEngine {
           const qWeight = options.quarterWeight && k === q ? options.quarterWeight : this.DEFAULT_WEIGHTS[k];
           const exp = this.calculateExpectedAchievement(targetCurrent, k, null, qWeight);
 
-          if (numCol) {
-            const sumNum = this.sumColumnValues(joinedRows, numCol);
-            const sumDen = denCol ? this.sumColumnValues(joinedRows, denCol) : null;
-            let act: number | null = null;
-            if (sumNum !== null) {
-              if (calcMode === 'absolute' || sumDen === null || sumDen === 0) {
-                act = sumNum;
-              } else {
-                act = Math.round((sumNum / sumDen) * 10000) / 100;
+          let act: number | null = null;
+          let sumNum: number | null = null;
+          let sumDen: number | null = null;
+
+          if (sub.actualValue !== undefined && sub.actualValue !== null && k === q) {
+            act = sub.actualValue;
+            sumNum = sub.countValue ?? null;
+          } else if (numCol) {
+            if (joinedRows.length === 1) {
+              // Mode Pemantauan Tanpa Agregasi: Langsung dari data yang sudah ada (tanpa pembagian/penjumlahan)
+              const directVal = joinedRows[0][numCol];
+              act = IndicatorEvaluator.parseSmartNumber(directVal);
+              sumNum = sub.countValue ?? (typeof directVal === 'number' && directVal > 100 ? directVal : null);
+            } else {
+              sumNum = this.sumColumnValues(joinedRows, numCol);
+              sumDen = denCol ? this.sumColumnValues(joinedRows, denCol) : null;
+              if (sumNum !== null) {
+                if (calcMode === 'absolute' || sumDen === null || sumDen === 0) {
+                  act = sumNum;
+                } else {
+                  act = Math.round((sumNum / sumDen) * 10000) / 100;
+                }
               }
             }
+          }
+
+          if (numCol || act !== null) {
             const gap = this.calculateGap(act, exp, polarity);
             quarters[k] = {
               quarter: k,

@@ -190,6 +190,40 @@ export class IndicatorEvaluator {
   }
 
   /**
+   * Menghitung nilai rata-rata (average) dari suatu kolom numerik.
+   */
+  static calculateColumnAverage(
+    rows: Record<string, unknown>[],
+    colKey: string,
+  ): number | null {
+    let sum = 0;
+    let count = 0;
+
+    for (const row of rows) {
+      const num = this.parseSmartNumber(row[colKey]);
+      if (num !== null) {
+        sum += num;
+        count++;
+      }
+    }
+
+    return count > 0 ? sum / count : null;
+  }
+
+  /**
+   * Memformat angka hasil rata-rata ke format lokal Indonesia (2 desimal jika bukan integer).
+   */
+  static formatAverageValue(avg: number | null): string {
+    if (avg === null) {
+      return '-';
+    }
+    if (Number.isInteger(avg)) {
+      return avg.toLocaleString('id-ID');
+    }
+    return Number(avg.toFixed(2)).toLocaleString('id-ID');
+  }
+
+  /**
    * Memformat nilai sel sesuai tipe data kolom (angka / persen / string).
    */
   static formatCellValue(val: unknown, config?: ColumnConfig): string {

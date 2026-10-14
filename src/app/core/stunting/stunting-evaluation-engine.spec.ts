@@ -408,4 +408,132 @@ describe('StuntingEvaluationEngine', () => {
     expect(row.quarters[4].sumNumerator).toBeNull();
     expect(row.quarters[4].actualAchievement).toBeNull();
   });
+
+  describe('cleanTargetValue', () => {
+    it('should parse mixed target string prefixes and clean decimal commas', () => {
+      expect(StuntingEvaluationEngine.cleanTargetValue('tw3: 60')).toEqual({
+        value: 60,
+        polarity: 'positive',
+      });
+
+      expect(StuntingEvaluationEngine.cleanTargetValue('TW3: 56,25')).toEqual({
+        value: 56.25,
+        polarity: 'positive',
+      });
+
+      expect(StuntingEvaluationEngine.cleanTargetValue('85%')).toEqual({
+        value: 85,
+        polarity: 'positive',
+      });
+
+      expect(StuntingEvaluationEngine.cleanTargetValue(85)).toEqual({
+        value: 85,
+        polarity: 'positive',
+      });
+    });
+
+    it('should detect negative polarity from <= or < symbols', () => {
+      expect(StuntingEvaluationEngine.cleanTargetValue('≤23')).toEqual({
+        value: 23,
+        polarity: 'negative',
+      });
+
+      expect(StuntingEvaluationEngine.cleanTargetValue('≤13%')).toEqual({
+        value: 13,
+        polarity: 'negative',
+      });
+
+      expect(StuntingEvaluationEngine.cleanTargetValue('<= 25')).toEqual({
+        value: 25,
+        polarity: 'negative',
+      });
+    });
+
+    it('should return null value for dash or empty target values', () => {
+      expect(StuntingEvaluationEngine.cleanTargetValue('-')).toEqual({
+        value: null,
+        polarity: 'positive',
+      });
+
+      expect(StuntingEvaluationEngine.cleanTargetValue('')).toEqual({
+        value: null,
+        polarity: 'positive',
+      });
+
+      expect(StuntingEvaluationEngine.cleanTargetValue(null)).toEqual({
+        value: null,
+        polarity: 'positive',
+      });
+    });
+  });
+
+  it('should evaluate pre-calculated indicators directly without denominator or SUM division', () => {
+    // Mode tanpa input kolom sasaran (langsung dari row summary / JAWA TENGAH)
+    const summaryRow = {
+      'Kabupaten/Kota': 'JAWA TENGAH',
+      'Rematri  Konsumsi TTD': 1483925,
+      '% Konsumsi TTD': 93.64,
+      'Rematri anemia ': 88202,
+      '% Rematri anemia ': 15.21,
+    };
+
+    const categories = [
+      {
+        id: 'cat-1',
+        name: 'Intervensi untuk remaja putri dan ibu hamil (sebelum kelahiran)',
+        subCategories: [
+          {
+            id: 'sub-1',
+            name: '% Konsumsi TTD',
+            numeratorCol: '% Konsumsi TTD',
+            dataCol: '% Konsumsi TTD',
+            actualValue: 93.64,
+            countValue: 1483925,
+            calculationMode: 'percentage' as const,
+            targetCurrentYear: 67,
+            actualPrevYear: 80,
+            targetPrevYear: 65,
+            polarity: 'positive' as const,
+          },
+          {
+            id: 'sub-2',
+            name: '% Rematri anemia',
+            numeratorCol: '% Rematri anemia ',
+            dataCol: '% Rematri anemia ',
+            actualValue: 15.21,
+            countValue: 88202,
+            calculationMode: 'percentage' as const,
+            targetCurrentYear: 23,
+            actualPrevYear: 18,
+            targetPrevYear: 24,
+            polarity: 'negative' as const,
+          },
+        ],
+      },
+    ];
+
+    const result = StuntingEvaluationEngine.evaluateAggregatedDataset(categories, [summaryRow], {
+      activeQuarter: 3,
+    });
+
+    expect(result.rows.length).toBe(2);
+
+    // Indikator 1: Positif, Realisasi = 93.64%, Target TW3 = 75% * 67 = 50.25%, Gap = +43.39% -> on_track
+    const row1 = result.rows[0];
+    expect(row1.activeActual).toBe(93.64);
+    expect(row1.activeExpected).toBe(50.25);
+    expect(row1.activeGap).toBe(43.39);
+    expect(row1.status).toBe('on_track');
+    expect(row1.quarters[3].sumNumerator).toBe(1483925);
+    expect(row1.quarters[3].sumDenominator).toBeNull(); // Tidak ada denominator
+
+    // Indikator 2: Negatif (Kasus Anemia), Realisasi = 15.21%, Target = 23%, Expected TW3 = 75% * 23 = 17.25%
+    // Gap = 17.25 - 15.21 = +2.04% -> on_track (karena lebih rendah dari target kasus)
+    const row2 = result.rows[1];
+    expect(row2.activeActual).toBe(15.21);
+    expect(row2.activeGap).toBe(2.04);
+    expect(row2.status).toBe('on_track');
+    expect(row2.quarters[3].sumNumerator).toBe(88202);
+    expect(row2.quarters[3].sumDenominator).toBeNull();
+  });
 });
