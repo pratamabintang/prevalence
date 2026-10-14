@@ -194,66 +194,6 @@
     <!-- ============================================================ -->
     @if (activeStep() === 1) {
       <div class="space-y-6">
-        <!-- Format Specification & Guidelines Card -->
-        <div class="bg-white rounded-lg border border-slate-200 overflow-hidden">
-          <div
-            (click)="toggleFormatGuide()"
-            class="px-5 py-3.5 bg-slate-50 flex items-center justify-between cursor-pointer hover:bg-slate-100/80 transition-colors border-b border-slate-200"
-          >
-            <div class="flex items-center gap-2.5">
-              <span class="w-2 h-2 rounded-full bg-slate-400"></span>
-              <h2 class="text-xs font-semibold text-slate-800 uppercase tracking-wider">
-                Panduan Format Berkas Excel (.xlsx) yang Diharapkan
-              </h2>
-            </div>
-            <div class="flex items-center gap-2">
-              <span class="text-xs text-slate-500 font-medium hidden sm:inline">
-                {{ showFormatGuide() ? 'Sembunyikan' : 'Buka Panduan' }}
-              </span>
-              <svg
-                class="w-4 h-4 text-slate-500 transition-transform duration-200"
-                [class.rotate-180]="showFormatGuide()"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-              </svg>
-            </div>
-          </div>
-
-          @if (showFormatGuide()) {
-            <div class="p-5 text-xs text-slate-600 bg-white space-y-4">
-              <div>
-                <h3 class="font-semibold text-slate-900 text-xs">1. Struktur Multi-Sheet dalam Satu File</h3>
-                <p class="text-slate-600 leading-relaxed mt-1">
-                  Seluruh lembar kerja program intervensi (contoh: anak, gizi, BUMIL, remaja) dapat berada dalam 1 berkas workbook .xlsx yang sama.
-                </p>
-              </div>
-
-              <div>
-                <h3 class="font-semibold text-slate-900 text-xs">2. Kolom Kunci Identitas Wilayah (Join Key)</h3>
-                <p class="text-slate-600 leading-relaxed mt-1">
-                  Setiap sheet harus memiliki satu kolom identitas wilayah (contoh: Puskesmas, Kecamatan, atau Kabupaten/Kota). Normalisasi otomatis akan membersihkan kode wilayah (misal: 3301 - KAB. CILACAP) agar join akurat.
-                </p>
-              </div>
-
-              <div>
-                <h3 class="font-semibold text-slate-900 text-xs">3. Header Bertingkat & Penentuan Baris</h3>
-                <p class="text-slate-600 leading-relaxed mt-1">
-                  Mendukung template dengan cell merge vertikal/horizontal. Anda dapat mengatur Baris Header Awal, Header Akhir, dan Mulai Data secara fleksibel untuk setiap sheet agar nama kolom terbaca utuh.
-                </p>
-              </div>
-
-              <div>
-                <h3 class="font-semibold text-slate-900 text-xs">4. Filter Otomatis Baris Akumulasi (Exclude)</h3>
-                <p class="text-slate-600 leading-relaxed mt-1">
-                  Baris ringkasan seperti TOTAL, JUMLAH, serta baris kosong/catatan otomatis dinonaktifkan dari penjumlahan (agregasi SUM) untuk menghindari penghitungan ganda (double count).
-                </p>
-              </div>
-            </div>
-          }
-        </div>
 
         <!-- File Upload Area -->
         <div class="bg-white rounded-lg p-5 border border-slate-200">
@@ -262,7 +202,7 @@
               <h2 class="text-sm font-semibold text-slate-900">Unggah Berkas Excel (.xlsx)</h2>
               <p class="text-xs text-slate-500">Pilih berkas laporan berkala intervensi stunting berformat .xlsx.</p>
             </div>
-            @if (file()) {
+            @if (file() || joinedRows().length > 0) {
               <button
                 type="button"
                 uiButton
@@ -273,7 +213,7 @@
                 <svg class="w-3.5 h-3.5 mr-1 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
-                Ganti Berkas
+                {{ file() ? 'Ganti Berkas' : 'Reset / Muat Berkas Baru' }}
               </button>
             }
           </div>
@@ -288,6 +228,8 @@
               <div class="text-xs font-semibold text-slate-800">
                 @if (file()) {
                   <span class="text-slate-900 font-medium">{{ file()!.name }}</span>
+                } @else if (joinedRows().length > 0) {
+                  <span class="text-indigo-900 font-semibold">{{ primarySheet() }} (Ditransfer dari Modul Join)</span>
                 } @else {
                   Klik untuk memilih atau seret berkas Excel (.xlsx) ke sini
                 }
@@ -295,6 +237,8 @@
               <div class="text-[11px] text-slate-500 mt-1">
                 @if (file()) {
                   <span class="text-emerald-700 font-medium">Berkas berhasil dimuat</span>
+                } @else if (joinedRows().length > 0) {
+                  <span class="text-indigo-700 font-medium">{{ validJoinedRows().length }} baris wilayah aktif siap dipetakan</span>
                 } @else {
                   Format yang didukung: .xlsx (Excel Workbook)
                 }
@@ -580,6 +524,72 @@
           </div>
         }
 
+          <!-- Selection Card: Mode Sumber Data & Baris Perhitungan -->
+          @if (joinedRows().length > 0) {
+            <div class="bg-white rounded-lg p-5 border border-slate-200 space-y-4">
+              <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                <div>
+                  <h3 class="text-sm font-semibold text-slate-900">Mode Sumber Data Capaian & Target Indikator</h3>
+                  <p class="text-xs text-slate-500">
+                    Pilih baris ringkasan provinsi/rekap yang memuat nilai capaian siap saji atau agregasikan seluruh baris wilayah.
+                  </p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <label class="text-xs font-medium text-slate-600">Mode Evaluasi:</label>
+                  <select
+                    [ngModel]="calculationDataSource()"
+                    (ngModelChange)="onDataSourceModeChange($event)"
+                    class="text-xs rounded border border-slate-300 bg-white py-1 px-2.5 font-medium focus:border-slate-500 focus:outline-none"
+                  >
+                    <option value="summary_row">Gunakan Baris Perhitungan Langsung (Provinsi / Rekapitulasi)</option>
+                    <option value="all_rows">Agregasikan Seluruh Baris Wilayah Aktif (SUM)</option>
+                  </select>
+                </div>
+              </div>
+
+              @if (calculationDataSource() === 'summary_row') {
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-3.5 rounded-lg border border-slate-200">
+                  <div>
+                    <label class="block text-xs font-medium text-slate-700 mb-1">
+                      Baris Data Capaian (Provinsi / Total):
+                    </label>
+                    <select
+                      [ngModel]="summaryRowId()"
+                      (ngModelChange)="onSummaryRowChange($event)"
+                      class="w-full text-xs rounded border border-slate-300 bg-white py-1.5 px-3 font-semibold text-slate-900 focus:border-slate-500 focus:outline-none"
+                    >
+                      @for (r of availableSummaryRows(); track r.id) {
+                        <option [value]="r.id">{{ r.label }}</option>
+                      }
+                    </select>
+                    <p class="mt-1 text-[11px] text-slate-500">
+                      Nilai persentase (%) dan jumlah capaian dibaca langsung dari baris ini tanpa operasi pembagian atau agregasi.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label class="block text-xs font-medium text-slate-700 mb-1">
+                      Baris Target Indikator (Opsional):
+                    </label>
+                    <select
+                      [ngModel]="targetRowId()"
+                      (ngModelChange)="onTargetRowChange($event)"
+                      class="w-full text-xs rounded border border-slate-300 bg-white py-1.5 px-3 font-medium text-slate-800 focus:border-slate-500 focus:outline-none"
+                    >
+                      <option value="none">-- Tidak Menggunakan Baris Target (Input Manual) --</option>
+                      @for (r of availableTargetRows(); track r.id) {
+                        <option [value]="r.id">{{ r.label }}</option>
+                      }
+                    </select>
+                    <p class="mt-1 text-[11px] text-slate-500">
+                      Nilai target pada baris ini otomatis dibersihkan dari simbol (contoh: 'tw3: 60' &rarr; 60, '&le;23' &rarr; 23 kasus).
+                    </p>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+
           <!-- Preview & Row Exclusion Table -->
           @if (joinedRows().length > 0) {
             <div class="bg-white rounded-lg p-5 border border-slate-200 space-y-4">
@@ -595,6 +605,27 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    uiButton
+                    [variant]="previewExpanded() ? 'primary' : 'secondary'"
+                    size="xs"
+                    (click)="togglePreviewExpanded()"
+                    title="Perbesar / kembalikan tinggi tabel pratinjau data"
+                  >
+                    @if (previewExpanded()) {
+                      <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                      </svg>
+                      <span>Tinggi Normal (560px)</span>
+                    } @else {
+                      <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m4 0v-4m0 4l-5-5" />
+                      </svg>
+                      <span>Perbesar Tampilan (80vh)</span>
+                    }
+                  </button>
+
                   <button
                     type="button"
                     uiButton
@@ -628,7 +659,7 @@
 
               <!-- Quick action bar -->
               <div class="flex flex-wrap items-center justify-between gap-2 py-2 px-3 bg-slate-50 border border-slate-200 rounded text-xs text-slate-600">
-                <div class="flex items-center gap-1.5">
+                <div class="flex items-center gap-1.5 flex-wrap">
                   <span class="font-medium text-slate-700 mr-1">Aksi Baris:</span>
                   <button
                     type="button"
@@ -649,6 +680,27 @@
                   >
                     Nonaktifkan Semua
                   </button>
+                  <span class="text-slate-300">|</span>
+                  <button
+                    type="button"
+                    uiButton
+                    [variant]="previewWrapText() ? 'secondary' : 'ghost'"
+                    size="xs"
+                    (click)="togglePreviewWrapText()"
+                    [title]="previewWrapText() ? 'Tampilkan teks dalam 1 baris ringkas' : 'Bungkus teks kolom panjang menjadi multi-baris'"
+                  >
+                    @if (previewWrapText()) {
+                      <svg class="w-3.5 h-3.5 mr-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                      </svg>
+                      <span>Mode: Bungkus Teks (Klik untuk 1 Baris)</span>
+                    } @else {
+                      <svg class="w-3.5 h-3.5 mr-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a5 5 0 0 1 0 10H8m0 0l3-3m-3 3l3 3M3 4h18" />
+                      </svg>
+                      <span>Mode: 1 Baris Ringkas (Klik untuk Wrap)</span>
+                    }
+                  </button>
                 </div>
                 <div class="text-[11px] text-slate-500">
                   Baris ringkasan (Total/Jumlah) otomatis dinonaktifkan untuk menghindari penghitungan ganda.
@@ -656,15 +708,30 @@
               </div>
 
               <!-- Preview Table -->
-              <div class="overflow-x-auto border border-slate-200 rounded max-h-96 overflow-y-auto">
-                <table class="w-full text-xs text-left">
-                  <thead class="bg-slate-100 text-slate-700 font-medium sticky top-0 z-10 border-b border-slate-200">
+              <div
+                class="overflow-x-auto border border-slate-200 rounded overflow-y-auto transition-all duration-150"
+                [style.maxHeight]="previewExpanded() ? '80vh' : '560px'"
+              >
+                <table class="min-w-full text-xs text-left border-collapse">
+                  <thead class="bg-slate-100 text-slate-700 font-semibold sticky top-0 z-10 border-b border-slate-200 shadow-xs">
                     <tr>
-                      <th class="px-3 py-2 w-16 text-center">Aktif</th>
-                      <th class="px-3 py-2 font-medium">{{ primaryKeyCol() || 'Wilayah' }}</th>
+                      <th class="px-3 py-2.5 text-center whitespace-nowrap bg-slate-100" style="width: 50px">Aktif</th>
+                      <th class="px-3.5 py-2.5 font-semibold text-slate-800 whitespace-nowrap bg-slate-100" style="min-width: 200px">
+                        {{ primaryKeyCol() || 'Wilayah' }}
+                      </th>
                       @for (col of joinedColumns(); track col) {
                         @if (col !== primaryKeyCol()) {
-                          <th class="px-3 py-2 font-medium text-slate-600 max-w-xs break-words whitespace-normal" [title]="col">{{ col }}</th>
+                          <th
+                            class="px-3.5 py-2.5 font-semibold text-slate-700 bg-slate-100 border-l border-slate-200/60"
+                            [class.whitespace-nowrap]="!previewWrapText()"
+                            [class.whitespace-normal]="previewWrapText()"
+                            [class.break-words]="previewWrapText()"
+                            [class.max-w-xs]="previewWrapText()"
+                            [style.minWidth]="!previewWrapText() ? '140px' : null"
+                            [title]="col"
+                          >
+                            {{ col }}
+                          </th>
                         }
                       }
                     </tr>
@@ -676,7 +743,7 @@
                         [class.bg-rose-50/50]="item.isExcluded"
                         [class.text-slate-400]="item.isExcluded"
                       >
-                        <td class="px-3 py-1.5 text-center">
+                        <td class="px-3 py-2 text-center whitespace-nowrap">
                           <label class="inline-flex items-center cursor-pointer">
                             <input
                               type="checkbox"
@@ -687,17 +754,38 @@
                             />
                           </label>
                         </td>
-                        <td class="px-3 py-1.5 font-medium" [class.line-through]="item.isExcluded">
-                          {{ item.key }}
-                          @if (item.excludeReason) {
-                            <span class="ml-1.5 px-1.5 py-0.5 rounded text-[10px] bg-rose-100 text-rose-700 font-normal">
-                              {{ item.excludeReason }}
-                            </span>
-                          }
+                        <td
+                          class="px-3.5 py-2 font-medium"
+                          [class.line-through]="item.isExcluded"
+                          [class.whitespace-nowrap]="!previewWrapText()"
+                        >
+                          <div class="inline-flex items-center gap-1.5 flex-wrap">
+                            <span>{{ item.key }}</span>
+                            @if (item.id === summaryRowId()) {
+                              <span class="px-1.5 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-800 font-semibold border border-emerald-200 whitespace-nowrap">
+                                Sumber Data Terpilih
+                              </span>
+                            }
+                            @if (item.id === targetRowId()) {
+                              <span class="px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800 font-semibold border border-amber-200 whitespace-nowrap">
+                                Target Acuan
+                              </span>
+                            }
+                            @if (item.excludeReason) {
+                              <span class="px-1.5 py-0.5 rounded text-[10px] bg-rose-100 text-rose-700 font-normal whitespace-nowrap">
+                                {{ item.excludeReason }}
+                              </span>
+                            }
+                          </div>
                         </td>
                         @for (col of joinedColumns(); track col) {
                           @if (col !== primaryKeyCol()) {
-                            <td class="px-3 py-1.5 font-mono text-slate-600">
+                            <td
+                              class="px-3.5 py-2 font-mono text-slate-600 border-l border-slate-100"
+                              [class.whitespace-nowrap]="!previewWrapText()"
+                              [class.break-words]="previewWrapText()"
+                              [title]="item.data[col] ?? '-'"
+                            >
                               {{ item.data[col] ?? '-' }}
                             </td>
                           }
@@ -759,6 +847,20 @@
             <button
               type="button"
               uiButton
+              variant="primary"
+              size="sm"
+              (click)="autoPopulateIndicatorsFromData()"
+              title="Deteksi dan muat indikator otomatis dari baris perhitungan dan target"
+            >
+              <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+              </svg>
+              <span>Muat Indikator dari Data</span>
+            </button>
+
+            <button
+              type="button"
+              uiButton
               variant="secondary"
               size="sm"
               (click)="loadStandardCategories()"
@@ -787,13 +889,19 @@
         </div>
 
         <!-- Formula Guide Info -->
-        <div class="bg-slate-50 rounded-lg p-3.5 border border-slate-200 text-xs text-slate-600">
-          <span class="font-semibold text-slate-800">Petunjuk Pemetaan:</span>
-          <span class="ml-1">
-            <strong>Kolom Sasaran (Denominator)</strong> = jumlah total populasi target (misal: Sasaran Balita).
-            <strong>Kolom Realisasi TW (Numerator)</strong> = capaian layanan pada triwulan terkait (misal: Balita Gizi Kurang MT).
-            Capaian (%) dihitung otomatis: <code class="px-1 py-0.5 rounded bg-slate-200 text-slate-800 font-mono">(∑ Realisasi / ∑ Sasaran) &times; 100%</code>.
-          </span>
+        <div class="bg-blue-50/70 rounded-lg p-3.5 border border-blue-200 text-xs text-blue-900">
+          <div class="flex items-start gap-2">
+            <svg class="w-4 h-4 text-blue-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <span class="font-semibold text-blue-950">Petunjuk Pemantauan Stunting:</span>
+              <p class="mt-0.5 text-blue-800">
+                Data capaian (%) dan jumlah dibaca langsung dari baris data yang sudah dihitung tanpa memerlukan input kolom sasaran (denominator) dan tanpa operasi pembagian agregasi.
+                Silakan kelompokkan indikator ke dalam kategori intervensi yang sesuai, serta isikan capaian dan target tahun sebelumnya.
+              </p>
+            </div>
+          </div>
         </div>
 
         <!-- Categories List -->
@@ -859,29 +967,59 @@
                 }
 
                 @for (sub of cat.subCategories; track sub.id) {
-                  <div class="bg-slate-50 border border-slate-200 rounded p-3 space-y-2.5">
-                    <!-- Row 1: Target Sasaran (Denominator), Nama Indikator, & Metrik -->
-                    <div class="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-end">
-                      <!-- Denominator / Kolom 1 (Sasaran) -->
-                      <div class="md:col-span-4">
-                        <label class="block text-[11px] font-medium text-slate-600 mb-1">
-                          Kolom Sasaran (Denominator):
+                  @let liveStats = getSubCategoryLiveStats(sub);
+                  <div class="bg-slate-50 border border-slate-200 rounded p-3.5 space-y-3">
+                    <!-- Top Info: Live Stats Badge -->
+                    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-2">
+                      <div class="flex items-center gap-2">
+                        <span class="text-xs font-semibold text-slate-800">{{ sub.name || 'Indikator Baru' }}</span>
+                        @if (sub.polarity === 'negative') {
+                          <span class="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700">
+                            Prevalensi / Kasus (Negatif)
+                          </span>
+                        } @else {
+                          <span class="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">
+                            Cakupan Layanan (Positif)
+                          </span>
+                        }
+                      </div>
+
+                      <div class="flex items-center gap-2 font-mono text-xs">
+                        @if (liveStats.actualPercentage !== null) {
+                          <span class="rounded bg-white border border-slate-200 px-2 py-0.5 font-bold text-slate-900 shadow-xs">
+                            Capaian Saat Ini: {{ liveStats.actualPercentage }}%
+                          </span>
+                        }
+                        @if (liveStats.sumNum !== null) {
+                          <span class="rounded bg-white border border-slate-200 px-2 py-0.5 text-slate-600 shadow-xs">
+                            Jumlah: {{ liveStats.sumNum | number }}
+                          </span>
+                        }
+                      </div>
+                    </div>
+
+                    <!-- Row 1: Kolom Data Capaian, Nama Indikator, & Pemindahan Kategori -->
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                      <!-- Kolom Data Capaian (Persentase / Nilai yang sudah dihitung) -->
+                      <div class="md:col-span-5">
+                        <label class="block text-[11px] font-medium text-slate-700 mb-1">
+                          Kolom Data Capaian (% / Realisasi):
                         </label>
                         <select
-                          [ngModel]="sub.denominatorCol"
-                          (ngModelChange)="updateSubCategory(cat.id, sub.id, { denominatorCol: $event })"
-                          class="w-full text-xs rounded border border-slate-300 bg-white py-1 px-2 font-medium"
+                          [ngModel]="sub.numeratorCol"
+                          (ngModelChange)="onDataColChange(cat.id, sub.id, $event)"
+                          class="w-full text-xs rounded border border-slate-300 bg-white py-1.5 px-2.5 font-medium text-slate-900 focus:border-slate-500 focus:outline-none"
                         >
-                          <option value="">-- Tanpa Pembagi (Absolut) --</option>
+                          <option value="">-- Pilih Kolom Data --</option>
                           @for (col of joinedColumns(); track col) {
                             <option [value]="col">{{ col }}</option>
                           }
                         </select>
                       </div>
 
-                      <!-- Nama Sub-Kategori / Indikator -->
-                      <div class="md:col-span-5">
-                        <label class="block text-[11px] font-medium text-slate-600 mb-1">
+                      <!-- Nama Indikator -->
+                      <div class="md:col-span-4">
+                        <label class="block text-[11px] font-medium text-slate-700 mb-1">
                           Nama Indikator:
                         </label>
                         <input
@@ -889,137 +1027,96 @@
                           [ngModel]="sub.name"
                           (ngModelChange)="updateSubCategory(cat.id, sub.id, { name: $event })"
                           placeholder="Nama Indikator"
-                          class="w-full text-xs rounded border border-slate-300 bg-white py-1 px-2 font-medium"
+                          class="w-full text-xs rounded border border-slate-300 bg-white py-1.5 px-2.5 font-medium text-slate-900 focus:border-slate-500 focus:outline-none"
                         />
                       </div>
 
-                      <!-- Calculation Mode -->
+                      <!-- Pindahkan Kategori -->
                       <div class="md:col-span-3">
-                        <label class="block text-[11px] font-medium text-slate-600 mb-1">
-                          Metrik:
+                        <label class="block text-[11px] font-medium text-slate-700 mb-1">
+                          Kategori Intervensi:
                         </label>
                         <select
-                          [ngModel]="sub.calculationMode"
-                          (ngModelChange)="updateSubCategory(cat.id, sub.id, { calculationMode: $event })"
-                          class="w-full text-xs rounded border border-slate-300 bg-white py-1 px-2 font-medium"
+                          [ngModel]="cat.id"
+                          (ngModelChange)="moveSubCategoryToCategory(cat.id, sub.id, $event)"
+                          class="w-full text-xs rounded border border-slate-300 bg-white py-1.5 px-2 font-medium text-slate-700 focus:border-slate-500 focus:outline-none"
                         >
-                          <option value="percentage">Persentase (%)</option>
-                          <option value="absolute">Jumlah Absolut</option>
+                          @for (c of categories(); track c.id) {
+                            <option [value]="c.id">{{ c.name }}</option>
+                          }
                         </select>
                       </div>
                     </div>
 
-                    <!-- Row 2: Pemilihan Kolom Realisasi Triwulan (TW 1 s/d TW 4) -->
-                    <div class="pt-2 border-t border-slate-200">
-                      <div class="mb-1.5 flex items-center justify-between">
-                        <span class="text-[11px] font-medium text-slate-700">
-                          Kolom Realisasi Triwulan (TW 1 – TW 4):
-                        </span>
-                      </div>
-                      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-                        @for (q of [1, 2, 3, 4]; track q) {
-                          @let qStats = getSubCategoryQuarterLiveStats(sub, q);
-                          <div
-                            class="rounded p-2 border transition-colors bg-white border-slate-200"
-                          >
-                            <div class="flex items-center justify-between mb-1">
-                              <span class="text-[11px] font-medium text-slate-700">Triwulan {{ q }}</span>
-                              @if (isQuarterConfigured(sub, q)) {
-                                <span class="rounded bg-slate-100 px-1 py-0.2 text-[10px] font-medium text-slate-700">
-                                  Aktif
-                                </span>
-                              } @else {
-                                <span class="text-[10px] text-slate-400">Kosong</span>
-                              }
-                            </div>
-
-                            <select
-                              [ngModel]="getQuarterNumeratorCol(sub, q)"
-                              (ngModelChange)="onQuarterNumeratorColChange(cat.id, sub.id, q, $event)"
-                              class="w-full text-xs rounded border border-slate-300 bg-white py-1 px-1.5 font-medium"
-                            >
-                              <option value="">-- Belum Ada Data --</option>
-                              @for (col of joinedColumns(); track col) {
-                                <option [value]="col">{{ col }}</option>
-                              }
-                            </select>
-
-                            @if (qStats.sumNum !== null) {
-                              <div class="mt-1 flex items-center justify-between text-[11px] font-mono text-slate-600 bg-slate-50 p-1 rounded border border-slate-200">
-                                <span>∑: {{ qStats.sumNum | number }}</span>
-                                <span>{{ qStats.actualPercentage !== null ? qStats.actualPercentage + (sub.calculationMode === 'absolute' ? '' : '%') : '-' }}</span>
-                              </div>
-                            }
-                          </div>
-                        }
-                      </div>
-                    </div>
-
-                    <!-- Row 3: Targets, Previous Year & Polarity -->
-                    <div class="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-end pt-2 border-t border-slate-200">
+                    <!-- Row 2: Target Tahun Ini, Capaian Tahun Lalu, Target Tahun Lalu, Polaritas, & Hapus -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3 items-end pt-2 border-t border-slate-200">
                       <!-- Target Tahun Berjalan -->
                       <div class="md:col-span-3">
-                        <label class="block text-[11px] font-medium text-slate-600 mb-1">
-                          Target Tahun Ini:
+                        <label class="block text-[11px] font-medium text-slate-700 mb-1">
+                          Target Tahun Ini (%):
                         </label>
                         <input
                           type="number"
                           [ngModel]="sub.targetCurrentYear"
                           (ngModelChange)="updateSubCategory(cat.id, sub.id, { targetCurrentYear: $event })"
-                          placeholder="Misal 85"
-                          class="w-full text-xs rounded border border-slate-300 bg-white py-1 px-2 font-mono font-medium"
+                          placeholder="Misal 80"
+                          class="w-full text-xs rounded border border-slate-300 bg-white py-1.5 px-2.5 font-mono font-medium text-slate-900 focus:border-slate-500 focus:outline-none"
                         />
                       </div>
 
-                      <!-- Previous Year Setup -->
+                      <!-- Capaian Tahun Lalu -->
                       <div class="md:col-span-3">
-                        <label class="block text-[11px] font-medium text-slate-600 mb-1">
-                          Capaian Tahun Lalu:
+                        <label class="block text-[11px] font-medium text-slate-700 mb-1">
+                          Capaian Tahun Lalu (%):
                         </label>
                         <input
                           type="number"
                           [ngModel]="sub.actualPrevYear"
                           (ngModelChange)="updateSubCategory(cat.id, sub.id, { actualPrevYear: $event })"
-                          placeholder="Misal 75"
-                          class="w-full text-xs rounded border border-slate-300 bg-white py-1 px-2 font-mono"
+                          placeholder="Realisasi tahun lalu"
+                          class="w-full text-xs rounded border border-slate-300 bg-white py-1.5 px-2.5 font-mono text-slate-900 focus:border-slate-500 focus:outline-none"
                         />
                       </div>
 
-                      <div class="md:col-span-3">
-                        <label class="block text-[11px] font-medium text-slate-600 mb-1">
-                          Target Tahun Lalu:
+                      <!-- Target Tahun Lalu -->
+                      <div class="md:col-span-2">
+                        <label class="block text-[11px] font-medium text-slate-700 mb-1">
+                          Target Tahun Lalu (%):
                         </label>
                         <input
                           type="number"
                           [ngModel]="sub.targetPrevYear"
                           (ngModelChange)="updateSubCategory(cat.id, sub.id, { targetPrevYear: $event })"
-                          placeholder="Misal 80"
-                          class="w-full text-xs rounded border border-slate-300 bg-white py-1 px-2 font-mono"
+                          placeholder="Target tahun lalu"
+                          class="w-full text-xs rounded border border-slate-300 bg-white py-1.5 px-2.5 font-mono text-slate-900 focus:border-slate-500 focus:outline-none"
                         />
                       </div>
 
-                      <!-- Polarity Toggle & Delete Button -->
-                      <div class="md:col-span-3 flex items-center justify-between gap-2">
-                        <div>
-                          <label class="block text-[11px] font-medium text-slate-600 mb-1">Polaritas:</label>
-                          <button
-                            type="button"
-                            uiButton
-                            variant="secondary"
-                            size="xs"
-                            (click)="toggleSubPolarity(cat.id, sub.id)"
-                          >
-                            <span>{{ sub.polarity === 'negative' ? 'Kasus / Prevalensi' : 'Cakupan (Positif)' }}</span>
-                          </button>
-                        </div>
+                      <!-- Polaritas Button -->
+                      <div class="md:col-span-3">
+                        <label class="block text-[11px] font-medium text-slate-700 mb-1">Polaritas Indikator:</label>
+                        <button
+                          type="button"
+                          uiButton
+                          variant="secondary"
+                          size="xs"
+                          (click)="toggleSubPolarity(cat.id, sub.id)"
+                          class="w-full justify-center"
+                          [title]="sub.polarity === 'negative' ? 'Target semakin rendah semakin baik (masalah gizi/penyakit)' : 'Target semakin tinggi semakin baik (cakupan layanan)'"
+                        >
+                          <span>{{ sub.polarity === 'negative' ? 'Prevalensi (Negatif)' : 'Cakupan (Positif)' }}</span>
+                        </button>
+                      </div>
 
+                      <!-- Hapus Button -->
+                      <div class="md:col-span-1 flex justify-end">
                         <button
                           type="button"
                           uiButton
                           variant="danger"
                           size="xs"
                           (click)="removeSubCategory(cat.id, sub.id)"
-                          title="Hapus Sub-Kategori"
+                          title="Hapus Indikator"
                         >
                           Hapus
                         </button>

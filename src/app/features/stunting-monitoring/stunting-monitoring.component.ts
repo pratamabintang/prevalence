@@ -1,8 +1,9 @@
 import { DecimalPipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ChartDataBridge } from '../../core/chart/chart-data-bridge';
+import { StuntingDataBridge } from '../../core/stunting/stunting-data-bridge';
 import { RegionNormalizer } from '../../core/domain/region-normalizer';
 import { IndicatorEvaluator } from '../../core/evaluation/indicator-evaluator';
 import {
@@ -58,9 +59,14 @@ export interface JoinedRowPreviewItem {
   ],
   templateUrl: './stunting-monitoring.component.html',
 })
-export class StuntingMonitoringComponent {
+export class StuntingMonitoringComponent implements OnInit {
   private router = inject(Router);
   private chartDataBridge = inject(ChartDataBridge);
+  private stuntingDataBridge = inject(StuntingDataBridge);
+
+  ngOnInit(): void {
+    this.loadTransferredData();
+  }
 
   // Stepper State: 1 = Unggah & Join, 2 = Kategori & Indikator, 3 = Dashboard Monitoring
   activeStep = signal<1 | 2 | 3>(1);
@@ -72,7 +78,6 @@ export class StuntingMonitoringComponent {
   workbook: any = null;
   isProcessing = signal(false);
   isJoining = signal(false);
-  showFormatGuide = signal<boolean>(true);
   showSettings = signal<boolean>(false);
 
   availableSheets = signal<string[]>([]);
@@ -92,9 +97,39 @@ export class StuntingMonitoringComponent {
   // Raw & Joined Dataset
   joinedRows = signal<Record<string, unknown>[]>([]);
   joinedColumns = signal<string[]>([]);
+  previewExpanded = signal<boolean>(false);
+  previewWrapText = signal<boolean>(false);
 
-  // Valid rows for evaluation (excluding unchecked, blank, summary rows)
+  // Summary & Target Rows for Pre-Calculated Direct Evaluation
+  calculationDataSource = signal<'summary_row' | 'all_rows'>('all_rows');
+  summaryRowId = signal<string>('');
+  targetRowId = signal<string>('');
+  summaryRowData = signal<Record<string, unknown> | null>(null);
+  targetRowData = signal<Record<string, unknown> | null>(null);
+
+  availableSummaryRows = computed(() => {
+    const pKey = this.primaryKeyCol();
+    return this.joinedRows().map((r, idx) => ({
+      id: String(r['__id'] ?? `row-${idx}`),
+      label: String(r[pKey] ?? '').trim() || `[Baris ${idx + 1}]`,
+      data: r,
+    }));
+  });
+
+  availableTargetRows = computed(() => {
+    const pKey = this.primaryKeyCol();
+    return this.joinedRows().map((r, idx) => ({
+      id: String(r['__id'] ?? `row-${idx}`),
+      label: String(r[pKey] ?? '').trim() || `[Baris ${idx + 1}]`,
+      data: r,
+    }));
+  });
+
+  // Valid rows for evaluation: if in summary_row mode and summaryRowData is present, use single pre-calculated row
   validJoinedRows = computed(() => {
+    if (this.calculationDataSource() === 'summary_row' && this.summaryRowData()) {
+      return [this.summaryRowData()!];
+    }
     const rows = this.joinedRows();
     const exIds = this.excludedRowIds();
     return rows.filter((r) => !exIds.has(String(r['__id'])));
@@ -236,12 +271,106 @@ export class StuntingMonitoringComponent {
     }
   }
 
-  toggleFormatGuide(): void {
-    this.showFormatGuide.update((v) => !v);
-  }
-
   toggleSettings(): void {
     this.showSettings.update((v) => !v);
+  }
+
+  togglePreviewExpanded(): void {
+    this.previewExpanded.update((v) => !v);
+  }
+
+  togglePreviewWrapText(): void {
+    this.previewWrapText.update((v) => !v);
+  }
+
+  private loadTransferredData(): void {
+    const transferred = this.stuntingDataBridge.data();
+    if (!transferred || transferred.rows.length === 0) {
+      return;
+    }
+
+    const pKey = transferred.keyColumn || transferred.columns[0] || 'Wilayah';
+    this.primaryKeyCol.set(pKey);
+    const title = transferred.title || 'Hasil Join Excel';
+    this.primarySheet.set(title);
+    this.availableSheets.set([title]);
+    this.joinedColumns.set(transferred.columns);
+
+    const rowsWithId: Record<string, unknown>[] = transferred.rows.map((r, idx) => {
+      const rowCopy: Record<string, unknown> = {
+        ...r,
+        __id: String(r['__id'] ?? `row-${idx}`),
+      };
+      if (this.stripKabupaten() && rowCopy[pKey] && typeof rowCopy[pKey] === 'string') {
+        rowCopy[pKey] = RegionNormalizer.cleanKabupatenPrefix(rowCopy[pKey]);
+      }
+      return rowCopy;
+    });
+
+    if (transferred.summaryRow) {
+      const sumId = `row-summary-${rowsWithId.length}`;
+      rowsWithId.push({ ...transferred.summaryRow, __id: sumId });
+    }
+    if (transferred.targetRow) {
+      const tgtId = `row-target-${rowsWithId.length}`;
+      rowsWithId.push({ ...transferred.targetRow, __id: tgtId });
+    }
+    if (transferred.averageRow) {
+      const avgId = `row-avg-${rowsWithId.length}`;
+      rowsWithId.push({ ...transferred.averageRow, __id: avgId });
+    }
+
+    this.joinedRows.set(rowsWithId);
+    this.applyKeywordAndPatternExclusions(rowsWithId);
+
+    // Deteksi baris ringkasan (JAWA TENGAH / PROVINSI / TOTAL / JUMLAH) dan baris target (TARGET)
+    let detectedSummaryRow: Record<string, unknown> | null = null;
+    let detectedTargetRow: Record<string, unknown> | null = null;
+
+    for (const r of rowsWithId) {
+      const keyStr = String(r[pKey] ?? '').trim().toUpperCase();
+      if (keyStr.includes('TARGET')) {
+        detectedTargetRow = r;
+      } else if (
+        keyStr.includes('JAWA TENGAH') ||
+        keyStr.includes('PROVINSI') ||
+        keyStr.startsWith('PROV') ||
+        keyStr.includes('TOTAL') ||
+        keyStr.includes('JUMLAH')
+      ) {
+        if (!detectedSummaryRow) detectedSummaryRow = r;
+      }
+    }
+
+    if (detectedSummaryRow) {
+      const sId = String(detectedSummaryRow['__id']);
+      this.summaryRowId.set(sId);
+      this.summaryRowData.set(detectedSummaryRow);
+      this.calculationDataSource.set('summary_row');
+      this.excludedRowIds.update((s) => new Set(s).add(sId));
+    }
+
+    if (detectedTargetRow) {
+      const tId = String(detectedTargetRow['__id']);
+      this.targetRowId.set(tId);
+      this.targetRowData.set(detectedTargetRow);
+      this.excludedRowIds.update((s) => new Set(s).add(tId));
+    }
+
+    if (transferred.averageRow) {
+      const avgRow = rowsWithId.find((r) => String(r[pKey] ?? '').toUpperCase().includes('RATA'));
+      if (avgRow) {
+        this.excludedRowIds.update((s) => new Set(s).add(String(avgRow['__id'])));
+      }
+    }
+
+    this.autoPopulateIndicatorsFromData();
+
+    this.notificationMessage.set(
+      `Data hasil join berhasil dimuat (${transferred.rows.length} baris wilayah, ${transferred.columns.length} kolom)! Anda dapat langsung memeriksa baris aktif atau melanjutkan ke Langkah 2.`,
+    );
+
+    this.stuntingDataBridge.clearData();
   }
 
   private refreshAvailableSheets(): void {
@@ -293,8 +422,25 @@ export class StuntingMonitoringComponent {
     const autoKey = this.autoDetectKeyColumn(cols);
     this.primaryKeyCol.set(autoKey);
 
+    // Deteksi triwulan aktif dari nama berkas atau nama lembar kerja (contoh: TW3)
+    const contextName = `${sheetName} ${this.file()?.name || ''}`.toLowerCase();
+    if (contextName.includes('tw3') || contextName.includes('tw 3') || contextName.includes('triwulan 3')) {
+      this.manualActiveQuarter.set(3);
+    } else if (contextName.includes('tw2') || contextName.includes('tw 2') || contextName.includes('triwulan 2')) {
+      this.manualActiveQuarter.set(2);
+    } else if (contextName.includes('tw4') || contextName.includes('tw 4') || contextName.includes('triwulan 4')) {
+      this.manualActiveQuarter.set(4);
+    } else if (contextName.includes('tw1') || contextName.includes('tw 1') || contextName.includes('triwulan 1')) {
+      this.manualActiveQuarter.set(1);
+    }
+
     this.refreshAvailableSheets();
     this.performJoin();
+
+    // Auto-populate indikator jika berada pada mode ringkasan dan indikator masih kosong
+    if (this.calculationDataSource() === 'summary_row' && this.categories().every((c) => c.subCategories.length === 0)) {
+      this.autoPopulateIndicatorsFromData();
+    }
   }
 
   onPrimaryHeaderStartRowChange(event: Event): void {
@@ -706,9 +852,228 @@ export class StuntingMonitoringComponent {
       this.joinedRows.set(merged);
       this.joinedColumns.set(Array.from(allColsMap.values()));
       this.applyKeywordAndPatternExclusions(merged);
+
+      // Deteksi baris ringkasan (JAWA TENGAH / PROVINSI / TOTAL) dan baris target (TARGET)
+      let detectedSummaryRow: Record<string, unknown> | null = null;
+      let detectedTargetRow: Record<string, unknown> | null = null;
+
+      for (const r of merged) {
+        const keyStr = String(r[pKey] ?? '').trim().toUpperCase();
+        if (keyStr.includes('TARGET')) {
+          detectedTargetRow = r;
+        } else if (
+          keyStr.includes('JAWA TENGAH') ||
+          keyStr.includes('PROVINSI') ||
+          keyStr.startsWith('PROV')
+        ) {
+          detectedSummaryRow = r;
+        }
+      }
+
+      if (!detectedSummaryRow) {
+        for (const r of merged) {
+          const keyStr = String(r[pKey] ?? '').trim().toUpperCase();
+          if (keyStr.includes('TOTAL') || keyStr.includes('JUMLAH')) {
+            detectedSummaryRow = r;
+            break;
+          }
+        }
+      }
+
+      if (detectedSummaryRow) {
+        this.summaryRowId.set(String(detectedSummaryRow['__id']));
+        this.summaryRowData.set(detectedSummaryRow);
+        const keyStr = String(detectedSummaryRow[pKey] ?? '').trim().toUpperCase();
+        if (keyStr.includes('JAWA TENGAH') || keyStr.includes('PROVINSI')) {
+          this.calculationDataSource.set('summary_row');
+        }
+      }
+
+      if (detectedTargetRow) {
+        this.targetRowId.set(String(detectedTargetRow['__id']));
+        this.targetRowData.set(detectedTargetRow);
+      }
     } finally {
       this.isJoining.set(false);
     }
+  }
+
+  onSummaryRowChange(id: string): void {
+    this.summaryRowId.set(id);
+    if (!id || id === 'none') {
+      this.summaryRowData.set(null);
+      this.calculationDataSource.set('all_rows');
+    } else {
+      const row = this.joinedRows().find((r) => r['__id'] === id);
+      this.summaryRowData.set(row ?? null);
+      this.calculationDataSource.set('summary_row');
+    }
+  }
+
+  onTargetRowChange(id: string): void {
+    this.targetRowId.set(id);
+    if (!id || id === 'none') {
+      this.targetRowData.set(null);
+    } else {
+      const row = this.joinedRows().find((r) => r['__id'] === id);
+      this.targetRowData.set(row ?? null);
+    }
+  }
+
+  onDataSourceModeChange(mode: 'summary_row' | 'all_rows'): void {
+    this.calculationDataSource.set(mode);
+  }
+
+  autoPopulateIndicatorsFromData(): void {
+    const cols = this.joinedColumns();
+    const summaryRow = this.summaryRowData();
+    const targetRow = this.targetRowData();
+
+    const cat1Subs: StuntingSubCategoryConfig[] = [];
+    const cat2Subs: StuntingSubCategoryConfig[] = [];
+    const cat3Subs: StuntingSubCategoryConfig[] = [];
+
+    for (let i = 0; i < cols.length; i++) {
+      const col = cols[i];
+      const lowerCol = col.toLowerCase();
+
+      // Hanya ambil kolom yang merepresentasikan indikator capaian (%) atau cakupan
+      if (!col.includes('%') && !lowerCol.includes('persen') && !lowerCol.includes('cakupan')) {
+        continue;
+      }
+
+      // Cari kolom jumlah absolut (biasanya berada tepat sebelum kolom %)
+      const prevCol = i > 0 ? cols[i - 1] : undefined;
+      const rawDirectVal = summaryRow ? summaryRow[col] : null;
+      const directVal = IndicatorEvaluator.parseSmartNumber(rawDirectVal);
+
+      // Lewati kolom jika kosong atau tanpa data
+      if (rawDirectVal === undefined && directVal === null) {
+        continue;
+      }
+
+      const rawCountVal = prevCol && summaryRow ? summaryRow[prevCol] : null;
+      const countVal =
+        typeof rawCountVal === 'number'
+          ? rawCountVal
+          : IndicatorEvaluator.parseSmartNumber(rawCountVal);
+
+      // Cari target di kolom ini atau kolom sebelumnya
+      let rawTarget = targetRow ? targetRow[col] : null;
+      if (rawTarget === undefined || rawTarget === null || rawTarget === '') {
+        rawTarget = prevCol && targetRow ? targetRow[prevCol] : null;
+      }
+
+      const cleanedTarget = StuntingEvaluationEngine.cleanTargetValue(rawTarget);
+
+      // Tentukan polaritas
+      let polarity: IndicatorPolarity = cleanedTarget.polarity;
+      if (
+        lowerCol.includes('anemia') ||
+        lowerCol.includes('kek') ||
+        lowerCol.includes('gibur') ||
+        lowerCol.includes('kurang')
+      ) {
+        polarity = 'negative';
+      }
+
+      const subId = `sub-auto-${i}-${Date.now()}`;
+      const subConfig: StuntingSubCategoryConfig = {
+        id: subId,
+        name: col.trim(),
+        numeratorCol: col,
+        dataCol: col,
+        actualValue: directVal,
+        countValue: countVal,
+        calculationMode: 'percentage',
+        targetCurrentYear: cleanedTarget.value !== null ? cleanedTarget.value : null,
+        prevYearMode: 'manual',
+        actualPrevYear: null,
+        targetPrevYear: null,
+        polarity,
+      };
+
+      const countColLower = prevCol ? prevCol.toLowerCase() : '';
+      const isCat1 =
+        lowerCol.includes('rematri') ||
+        lowerCol.includes('remaja') ||
+        lowerCol.includes('bumil') ||
+        lowerCol.includes('hamil') ||
+        lowerCol.includes('anc') ||
+        lowerCol.includes('ttd') ||
+        countColLower.includes('rematri') ||
+        countColLower.includes('bumil') ||
+        countColLower.includes('hamil');
+
+      const isCat2 =
+        lowerCol.includes('balita') ||
+        lowerCol.includes('baduta') ||
+        lowerCol.includes('bayi') ||
+        lowerCol.includes('d/s') ||
+        lowerCol.includes('tumbang') ||
+        lowerCol.includes('asi') ||
+        lowerCol.includes('mpasi') ||
+        lowerCol.includes('gizi') ||
+        lowerCol.includes('bb') ||
+        lowerCol.includes('gibur') ||
+        lowerCol.includes('idl') ||
+        countColLower.includes('balita') ||
+        countColLower.includes('baduta');
+
+      if (isCat1) {
+        cat1Subs.push(subConfig);
+      } else if (isCat2) {
+        cat2Subs.push(subConfig);
+      } else {
+        cat3Subs.push(subConfig);
+      }
+    }
+
+    this.categories.set([
+      {
+        id: 'cat-1',
+        name: 'Intervensi untuk remaja putri dan ibu hamil (sebelum kelahiran)',
+        subCategories: cat1Subs,
+      },
+      {
+        id: 'cat-2',
+        name: 'Intervensi untuk balita (setelah kelahiran)',
+        subCategories: cat2Subs,
+      },
+      {
+        id: 'cat-3',
+        name: 'Intervensi lainnya',
+        subCategories: cat3Subs,
+      },
+    ]);
+
+    const totalLoaded = cat1Subs.length + cat2Subs.length + cat3Subs.length;
+    this.notificationMessage.set(
+      `Berhasil memuat ${totalLoaded} indikator langsung dari baris data dan target. Silakan atur kategori dan isikan capaian serta target tahun sebelumnya.`,
+    );
+  }
+
+  moveSubCategoryToCategory(sourceCatId: string, subId: string, targetCatId: string): void {
+    if (sourceCatId === targetCatId) return;
+    let movingSub: StuntingSubCategoryConfig | undefined;
+    this.categories.update((cats) =>
+      cats.map((c) => {
+        if (c.id === sourceCatId) {
+          movingSub = c.subCategories.find((s) => s.id === subId);
+          return { ...c, subCategories: c.subCategories.filter((s) => s.id !== subId) };
+        }
+        return c;
+      }),
+    );
+    if (movingSub) {
+      this.categories.update((cats) =>
+        cats.map((c) => (c.id === targetCatId ? { ...c, subCategories: [...c.subCategories, movingSub!] } : c)),
+      );
+    }
+  }
+
+  onDataColChange(catId: string, subId: string, colName: string): void {
+    this.onNumeratorColChange(catId, subId, colName);
   }
 
   // ============================================================
@@ -757,19 +1122,26 @@ export class StuntingMonitoringComponent {
     const subId = `sub-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
     const numCol = cols.length > 1 ? cols[1] : cols[0] || '';
-    const denCol = cols[0] || '';
+    const summaryRow = this.summaryRowData();
+    const targetRow = this.targetRowData();
+
+    let rawTarget = targetRow ? targetRow[numCol] : null;
+    const cleanedTarget = StuntingEvaluationEngine.cleanTargetValue(rawTarget);
+    const directVal = summaryRow ? IndicatorEvaluator.parseSmartNumber(summaryRow[numCol]) : null;
 
     const newSub: StuntingSubCategoryConfig = {
       id: subId,
       name: numCol || 'Indikator Baru',
       numeratorCol: numCol,
-      denominatorCol: denCol,
+      dataCol: numCol,
+      actualValue: directVal,
+      countValue: null,
       calculationMode: 'percentage',
-      targetCurrentYear: 80,
+      targetCurrentYear: cleanedTarget.value !== null ? cleanedTarget.value : null,
       prevYearMode: 'manual',
-      actualPrevYear: 75,
-      targetPrevYear: 75,
-      polarity: 'positive',
+      actualPrevYear: null,
+      targetPrevYear: null,
+      polarity: cleanedTarget.polarity,
     };
 
     this.categories.update((cats) =>
@@ -786,6 +1158,30 @@ export class StuntingMonitoringComponent {
   }
 
   onNumeratorColChange(catId: string, subId: string, colName: string): void {
+    const targetRow = this.targetRowData();
+    const summaryRow = this.summaryRowData();
+
+    let rawTarget = targetRow ? targetRow[colName] : null;
+    if (rawTarget === undefined || rawTarget === null || rawTarget === '') {
+      const colIdx = this.joinedColumns().indexOf(colName);
+      if (colIdx > 0) {
+        const prevCol = this.joinedColumns()[colIdx - 1];
+        rawTarget = targetRow ? targetRow[prevCol] : null;
+      }
+    }
+    const cleanedTarget = StuntingEvaluationEngine.cleanTargetValue(rawTarget);
+
+    let directVal: number | null = null;
+    let countVal: number | null = null;
+    if (this.calculationDataSource() === 'summary_row' && summaryRow) {
+      directVal = IndicatorEvaluator.parseSmartNumber(summaryRow[colName]);
+      const colIdx = this.joinedColumns().indexOf(colName);
+      if (colIdx > 0) {
+        const prevCol = this.joinedColumns()[colIdx - 1];
+        countVal = IndicatorEvaluator.parseSmartNumber(summaryRow[prevCol]);
+      }
+    }
+
     this.categories.update((cats) =>
       cats.map((c) => {
         if (c.id !== catId) return c;
@@ -793,12 +1189,16 @@ export class StuntingMonitoringComponent {
           ...c,
           subCategories: c.subCategories.map((s) => {
             if (s.id !== subId) return s;
-            // Kolom 2 menjadi nama sub-kategori
             const shouldAutoRename = !s.name || s.name === s.numeratorCol;
             return {
               ...s,
               numeratorCol: colName,
+              dataCol: colName,
+              actualValue: directVal !== null ? directVal : (this.calculationDataSource() === 'summary_row' ? s.actualValue : undefined),
+              countValue: countVal !== null ? countVal : s.countValue,
               name: shouldAutoRename ? colName : s.name,
+              targetCurrentYear: cleanedTarget.value !== null ? cleanedTarget.value : s.targetCurrentYear,
+              polarity: cleanedTarget.polarity !== 'positive' ? cleanedTarget.polarity : s.polarity,
             };
           }),
         };
@@ -844,6 +1244,7 @@ export class StuntingMonitoringComponent {
               ...s,
               quarterColumns: nextQuarterColumns,
               numeratorCol: nextNumeratorCol,
+              dataCol: nextNumeratorCol,
               name: shouldAutoRename && colName ? colName : s.name,
             };
           }),
@@ -893,8 +1294,34 @@ export class StuntingMonitoringComponent {
     const numCol = this.getQuarterNumeratorCol(sub, quarter);
     if (!numCol) return { sumNum: null, sumDen: null, actualPercentage: null };
 
-    const denCol = sub.quarterColumns?.[quarter]?.denominatorCol || sub.denominatorCol;
     const rows = this.validJoinedRows();
+    if (rows.length === 0) {
+      return { sumNum: null, sumDen: null, actualPercentage: null };
+    }
+
+    const denCol = sub.quarterColumns?.[quarter]?.denominatorCol || sub.denominatorCol;
+
+    if (!denCol) {
+      if (sub.actualValue !== undefined && sub.actualValue !== null && quarter === this.activeQuarter()) {
+        return {
+          sumNum: sub.countValue ?? null,
+          sumDen: null,
+          actualPercentage: sub.actualValue,
+        };
+      }
+
+      if (rows.length === 1) {
+        const row = rows[0];
+        const directVal = IndicatorEvaluator.parseSmartNumber(row[numCol]);
+        const countVal = sub.countValue ?? (typeof directVal === 'number' && directVal > 100 ? directVal : null);
+        return {
+          sumNum: countVal,
+          sumDen: null,
+          actualPercentage: directVal,
+        };
+      }
+    }
+
     const sumNum = StuntingEvaluationEngine.sumColumnValues(rows, numCol);
     const sumDen = denCol ? StuntingEvaluationEngine.sumColumnValues(rows, denCol) : null;
 
@@ -916,15 +1343,39 @@ export class StuntingMonitoringComponent {
   } {
     // If active quarter is configured, use its stats; otherwise fallback to primary numeratorCol
     const qStats = this.getSubCategoryQuarterLiveStats(sub, this.activeQuarter());
-    if (qStats.sumNum !== null) {
+    if (qStats.actualPercentage !== null || qStats.sumNum !== null) {
       return qStats;
     }
 
     const rows = this.validJoinedRows();
+    if (rows.length === 0) {
+      return { sumNum: null, sumDen: null, actualPercentage: null };
+    }
+
+    const denCol = sub.denominatorCol;
+    if (!denCol) {
+      if (sub.actualValue !== undefined && sub.actualValue !== null) {
+        return {
+          sumNum: sub.countValue ?? null,
+          sumDen: null,
+          actualPercentage: sub.actualValue,
+        };
+      }
+
+      if (rows.length === 1) {
+        const row = rows[0];
+        const directVal = IndicatorEvaluator.parseSmartNumber(row[sub.numeratorCol]);
+        const countVal = sub.countValue ?? (typeof directVal === 'number' && directVal > 100 ? directVal : null);
+        return {
+          sumNum: countVal,
+          sumDen: null,
+          actualPercentage: directVal,
+        };
+      }
+    }
+
     const sumNum = StuntingEvaluationEngine.sumColumnValues(rows, sub.numeratorCol);
-    const sumDen = sub.denominatorCol
-      ? StuntingEvaluationEngine.sumColumnValues(rows, sub.denominatorCol)
-      : null;
+    const sumDen = denCol ? StuntingEvaluationEngine.sumColumnValues(rows, denCol) : null;
 
     let actualPercentage: number | null = null;
     if (sumNum !== null) {
@@ -1393,6 +1844,12 @@ export class StuntingMonitoringComponent {
     this.manualExcludedKeys.set(new Set());
     this.manualActiveQuarter.set(null);
     this.showSettings.set(false);
+    this.summaryRowId.set('');
+    this.targetRowId.set('');
+    this.summaryRowData.set(null);
+    this.targetRowData.set(null);
+    this.calculationDataSource.set('all_rows');
+    this.stuntingDataBridge.clearData();
     this.notificationMessage.set(null);
     this.activeStep.set(1);
   }

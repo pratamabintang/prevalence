@@ -3,6 +3,7 @@ import { provideRouter } from '@angular/router';
 import { describe, expect, it, beforeEach } from 'vitest';
 import { StuntingMonitoringComponent } from './stunting-monitoring.component';
 import { ChartDataBridge } from '../../core/chart/chart-data-bridge';
+import { StuntingDataBridge } from '../../core/stunting/stunting-data-bridge';
 import {
   StuntingPipelinePreset,
   StuntingPresetStore,
@@ -12,6 +13,7 @@ describe('StuntingMonitoringComponent', () => {
   let component: StuntingMonitoringComponent;
   let fixture: ComponentFixture<StuntingMonitoringComponent>;
   let chartDataBridge: ChartDataBridge;
+  let stuntingDataBridge: StuntingDataBridge;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
@@ -26,6 +28,7 @@ describe('StuntingMonitoringComponent', () => {
     fixture = TestBed.createComponent(StuntingMonitoringComponent);
     component = fixture.componentInstance;
     chartDataBridge = TestBed.inject(ChartDataBridge);
+    stuntingDataBridge = TestBed.inject(StuntingDataBridge);
     fixture.detectChanges();
   });
 
@@ -293,14 +296,6 @@ describe('StuntingMonitoringComponent', () => {
     filtered = component.filteredGroupedRows();
     expect(filtered.length).toBe(1);
     expect(filtered[0].rows[0].name).toBe('Remaja TTD');
-  });
-
-  it('should toggle format guide visibility', () => {
-    expect(component.showFormatGuide()).toBe(true);
-    component.toggleFormatGuide();
-    expect(component.showFormatGuide()).toBe(false);
-    component.toggleFormatGuide();
-    expect(component.showFormatGuide()).toBe(true);
   });
 
   it('should export joined data in Step 1 via exportJoinedData', () => {
@@ -670,6 +665,165 @@ describe('StuntingMonitoringComponent', () => {
 
       component.clearFile();
       expect(component.showSettings()).toBe(false);
+    });
+
+    it('should auto-detect JAWA TENGAH as summary row and TARGET as target row, and auto-populate indicators without denominator', () => {
+      const wsRekap: any = {
+        '!ref': 'A1:H4',
+        A1: { v: 'No' },
+        B1: { v: 'Kabupaten/Kota' },
+        C1: { v: 'Rematri Konsumsi TTD' },
+        D1: { v: '% Konsumsi TTD' },
+        E1: { v: 'Rematri anemia ' },
+        F1: { v: '% Rematri anemia ' },
+        G1: { v: 'Balita dipantau pertumbuhan (D/S)' },
+        H1: { v: '% D/S' },
+
+        A2: { v: 1 },
+        B2: { v: 'CILACAP' },
+        C2: { v: 77877 },
+        D2: { v: 98.78 },
+        E2: { v: 4658 },
+        F2: { v: 16.37 },
+        G2: { v: 100000 },
+        H2: { v: 95.5 },
+
+        // Row 3: JAWA TENGAH summary row
+        A3: { v: null },
+        B3: { v: 'JAWA TENGAH' },
+        C3: { v: 1483925 },
+        D3: { v: 93.64 },
+        E3: { v: 88202 },
+        F3: { v: 15.21 },
+        G3: { v: 1462055 },
+        H3: { v: 96.13 },
+
+        // Row 4: TARGET row
+        A4: { v: null },
+        B4: { v: 'TARGET' },
+        C4: { v: 67 },
+        D4: { v: null },
+        E4: { v: '≤23' },
+        F4: { v: null },
+        G4: { v: 90 },
+        H4: { v: null },
+      };
+
+      const mockWb: any = {
+        SheetNames: ['rekap indikator 01102026'],
+        Sheets: {
+          'rekap indikator 01102026': wsRekap,
+        },
+      };
+
+      component.workbook = mockWb;
+      component.file.set(new File([], 'Format Analisas Intervensi Spesifik TW3 01102026.xlsx'));
+      component.selectPrimarySheet('rekap indikator 01102026');
+
+      // Verifikasi auto-deteksi mode ringkasan dan baris
+      expect(component.calculationDataSource()).toBe('summary_row');
+      expect(component.summaryRowData()).toBeDefined();
+      expect(component.summaryRowData()!['Kabupaten/Kota']).toBe('JAWA TENGAH');
+      expect(component.targetRowData()).toBeDefined();
+      expect(component.targetRowData()!['Kabupaten/Kota']).toBe('TARGET');
+
+      // validJoinedRows hanya memuat 1 baris (JAWA TENGAH)
+      expect(component.validJoinedRows().length).toBe(1);
+
+      // Verifikasi indikator ter-populate otomatis ke dalam kategori
+      const cat1 = component.categories().find((c) => c.id === 'cat-1')!;
+      const cat2 = component.categories().find((c) => c.id === 'cat-2')!;
+
+      // Cat 1 (Rematri & Bumil) harus memuat Konsumsi TTD dan Rematri Anemia
+      expect(cat1.subCategories.length).toBe(2);
+      const subTTD = cat1.subCategories.find((s) => s.numeratorCol === '% Konsumsi TTD')!;
+      expect(subTTD).toBeDefined();
+      expect(subTTD.targetCurrentYear).toBe(67);
+      expect(subTTD.actualValue).toBe(93.64);
+      expect(subTTD.countValue).toBe(1483925);
+      expect(subTTD.polarity).toBe('positive');
+      expect(subTTD.denominatorCol).toBeUndefined(); // Tidak ada kolom sasaran
+
+      const subAnemia = cat1.subCategories.find((s) => s.numeratorCol.includes('anemia'))!;
+      expect(subAnemia).toBeDefined();
+      expect(subAnemia.targetCurrentYear).toBe(23); // '≤23' dibersihkan ke 23
+      expect(subAnemia.actualValue).toBe(15.21);
+      expect(subAnemia.countValue).toBe(88202);
+      expect(subAnemia.polarity).toBe('negative'); // Terdeteksi polaritas negatif
+
+      // Cat 2 (Balita) harus memuat D/S
+      expect(cat2.subCategories.length).toBe(1);
+      const subDS = cat2.subCategories[0];
+      expect(subDS.numeratorCol).toBe('% D/S');
+      expect(subDS.targetCurrentYear).toBe(90);
+      expect(subDS.actualValue).toBe(96.13);
+
+      // User dapat memindahkan indikator ke kategori lain
+      component.moveSubCategoryToCategory('cat-1', subTTD.id, 'cat-2');
+      expect(component.categories().find((c) => c.id === 'cat-1')!.subCategories.length).toBe(1);
+      expect(component.categories().find((c) => c.id === 'cat-2')!.subCategories.length).toBe(2);
+
+      // User dapat memasukkan capaian dan target tahun sebelumnya
+      component.updateSubCategory('cat-2', subTTD.id, {
+        actualPrevYear: 88,
+        targetPrevYear: 65,
+      });
+      const updatedSubTTD = component.categories().find((c) => c.id === 'cat-2')!.subCategories.find((s) => s.id === subTTD.id)!;
+      expect(updatedSubTTD.actualPrevYear).toBe(88);
+      expect(updatedSubTTD.targetPrevYear).toBe(65);
+
+      // Evaluasi Step 3 dapat berjalan langsung tanpa denominator
+      component.goToStep(3);
+      expect(component.activeStep()).toBe(3);
+      const res = component.evaluationResult();
+      expect(res).not.toBeNull();
+      expect(res?.rows.length).toBe(3);
+    });
+
+    it('should toggle preview table expanded and wrap text modes', () => {
+      expect(component.previewExpanded()).toBe(false);
+      component.togglePreviewExpanded();
+      expect(component.previewExpanded()).toBe(true);
+      component.togglePreviewExpanded();
+      expect(component.previewExpanded()).toBe(false);
+
+      expect(component.previewWrapText()).toBe(false);
+      component.togglePreviewWrapText();
+      expect(component.previewWrapText()).toBe(true);
+      component.togglePreviewWrapText();
+      expect(component.previewWrapText()).toBe(false);
+    });
+
+    it('should load transferred data from StuntingDataBridge upon init', () => {
+      stuntingDataBridge.setData({
+        title: 'Hasil Join Excel Terkini',
+        source: 'join',
+        keyColumn: 'Kabupaten/Kota',
+        columns: ['Kabupaten/Kota', 'Persentase Remaja TTD %', 'Jumlah Remaja'],
+        rows: [
+          { 'Kabupaten/Kota': 'KABUPATEN CILACAP', 'Persentase Remaja TTD %': 80, 'Jumlah Remaja': 1200 },
+          { 'Kabupaten/Kota': 'KABUPATEN BANYUMAS', 'Persentase Remaja TTD %': 85, 'Jumlah Remaja': 1400 },
+        ],
+        summaryRow: { 'Kabupaten/Kota': 'PROVINSI JAWA TENGAH', 'Persentase Remaja TTD %': 82.5, 'Jumlah Remaja': 2600 },
+        targetRow: { 'Kabupaten/Kota': 'TARGET', 'Persentase Remaja TTD %': '>= 75', 'Jumlah Remaja': 2500 },
+      });
+
+      component.ngOnInit();
+
+      expect(component.joinedRows().length).toBe(4);
+      expect(component.calculationDataSource()).toBe('summary_row');
+      expect(component.validJoinedRows().length).toBe(1); // Mode 'summary_row' mengevaluasi baris rekap
+      component.onDataSourceModeChange('all_rows');
+      expect(component.validJoinedRows().length).toBe(2); // Mode 'all_rows' mengevaluasi baris wilayah aktif
+      expect(component.summaryRowData()).not.toBeNull();
+      expect(component.targetRowData()).not.toBeNull();
+      expect(component.notificationMessage()).toContain('Data hasil join berhasil dimuat');
+
+      // Test clearFile resets all
+      component.clearFile();
+      expect(component.joinedRows().length).toBe(0);
+      expect(component.summaryRowData()).toBeNull();
+      expect(component.targetRowData()).toBeNull();
     });
   });
 });
