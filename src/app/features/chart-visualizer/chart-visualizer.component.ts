@@ -32,6 +32,7 @@ export interface IndicatorStats {
   avgValue: number | null;
   highest: { name: string; value: number } | null;
   lowest: { name: string; value: number } | null;
+  targetValue: number | null;
 }
 
 export interface IndicatorChartGroup {
@@ -145,6 +146,34 @@ export class ChartVisualizerComponent {
     this.selectedIndicatorFilter.set(key);
   }
 
+  // Nilai Target Khusus Per-Indikator
+  indicatorTargets = signal<Record<string, number | null>>({});
+
+  getIndicatorTarget(seriesKey: string): number | null {
+    const specific = this.indicatorTargets()[seriesKey];
+    if (specific !== undefined) {
+      return specific;
+    }
+    return this.targetValue();
+  }
+
+  setIndicatorTarget(seriesKey: string, val: number | null): void {
+    this.indicatorTargets.update((curr) => ({
+      ...curr,
+      [seriesKey]: val,
+    }));
+  }
+
+  onIndicatorTargetChange(seriesKey: string, rawVal: string): void {
+    const trimmed = (rawVal ?? '').trim();
+    if (trimmed === '') {
+      this.setIndicatorTarget(seriesKey, null);
+    } else {
+      const num = Number(trimmed);
+      this.setIndicatorTarget(seriesKey, isNaN(num) ? null : num);
+    }
+  }
+
   readonly colorPalette = [
     '#3b82f6', // blue
     '#10b981', // emerald
@@ -167,6 +196,7 @@ export class ChartVisualizerComponent {
     isMissing: boolean;
     status: 'achieved' | 'unachieved' | 'none';
     diff: number | null;
+    targetValue: number | null;
   } | null>(null);
 
   tooltipPos = signal<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -300,6 +330,7 @@ export class ChartVisualizerComponent {
     this.availableCategories.set([]);
     this.selectedCategories.set([]);
     this.seriesList.set([]);
+    this.indicatorTargets.set({});
     this.dataSource.set('empty');
     this.showSettings.set(true);
   }
@@ -783,10 +814,18 @@ export class ChartVisualizerComponent {
   // TOOLTIP INTERAKTIF
   // ============================================================
 
-  onBarHover(event: MouseEvent, bar: ChartBarItem, categoryName: string): void {
+  onBarHover(
+    event: MouseEvent,
+    bar: ChartBarItem,
+    categoryName: string,
+    targetOverride?: number | null,
+  ): void {
     let status: 'achieved' | 'unachieved' | 'none' = 'none';
     let diff: number | null = null;
-    const target = this.targetValue();
+    const target =
+      targetOverride !== undefined
+        ? targetOverride
+        : this.getIndicatorTarget(bar.seriesKey);
 
     if (target !== null && bar.numericVal !== null) {
       diff = Math.round((bar.numericVal - target) * 10) / 10;
@@ -803,6 +842,7 @@ export class ChartVisualizerComponent {
       isMissing: bar.isMissing,
       status,
       diff,
+      targetValue: target,
     });
     this.updateTooltipPosition(event);
   }
@@ -873,6 +913,7 @@ export class ChartVisualizerComponent {
       hiddenRows,
       deletedRows,
       viewMode: this.viewMode(),
+      indicatorTargets: { ...this.indicatorTargets() },
     };
 
     ChartPresetStore.savePreset(preset, true);
@@ -939,6 +980,10 @@ export class ChartVisualizerComponent {
 
     if (preset.viewMode) {
       this.viewMode.set(preset.viewMode);
+    }
+
+    if (preset.indicatorTargets) {
+      this.indicatorTargets.set({ ...preset.indicatorTargets });
     }
 
     if (!this.workbook || this.sheetNames().length === 0) {
@@ -1337,7 +1382,6 @@ export class ChartVisualizerComponent {
     const catCol = this.categoryColumn();
     const rawCats = this.visibleCategories();
     const rows = this.dataRows();
-    const target = this.targetValue();
     const sortMode = this.indicatorSortMode();
 
     const rowMap = new Map<string, ChartDataRow>();
@@ -1350,6 +1394,7 @@ export class ChartVisualizerComponent {
 
     return series.map((s) => {
       let cats = [...rawCats];
+      const target = this.getIndicatorTarget(s.key);
 
       if (sortMode === 'desc' || sortMode === 'asc') {
         cats.sort((a, b) => {
@@ -1421,6 +1466,7 @@ export class ChartVisualizerComponent {
           avgValue,
           highest,
           lowest,
+          targetValue: target,
         },
       };
     });

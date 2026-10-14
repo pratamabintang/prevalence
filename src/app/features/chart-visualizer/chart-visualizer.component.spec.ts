@@ -593,6 +593,101 @@ describe('ChartVisualizerComponent', () => {
       expect(component.viewMode()).toBe('by-indicator');
     });
 
+    it('should allow setting targets separately for each indicator and compute layouts accordingly', () => {
+      component.setViewMode('by-indicator');
+      component.targetValue.set(80); // global target
+
+      // Initially fallback to global target
+      expect(component.getIndicatorTarget('tw1')).toBe(80);
+      expect(component.getIndicatorTarget('tw2')).toBe(80);
+
+      // Set custom target for tw1 = 70 and tw2 = 85
+      component.setIndicatorTarget('tw1', 70);
+      component.setIndicatorTarget('tw2', 85);
+
+      expect(component.getIndicatorTarget('tw1')).toBe(70);
+      expect(component.getIndicatorTarget('tw2')).toBe(85);
+      expect(component.getIndicatorTarget('tw3')).toBe(80); // still uses fallback
+
+      const layouts = component.indicatorLayouts();
+      const tw1 = layouts.find((l) => l.series.key === 'tw1')!;
+      const tw2 = layouts.find((l) => l.series.key === 'tw2')!;
+      const tw3 = layouts.find((l) => l.series.key === 'tw3')!;
+
+      // tw1 layout has targetLine at 70
+      expect(tw1.stats.targetValue).toBe(70);
+      // tw1 values: 72.4, 81.0, 68.5, 70.0, 65.0 -> >= 70: 72.4, 81.0, 70.0 (3 regions)
+      expect(tw1.stats.achievedCount).toBe(3);
+
+      // tw2 layout has targetLine at 85
+      expect(tw2.stats.targetValue).toBe(85);
+      // tw2 values: 78.2, 85.4, 74.0, 76.5, 71.2 -> >= 85: 85.4 (1 region)
+      expect(tw2.stats.achievedCount).toBe(1);
+
+      // tw3 layout has fallback target 80
+      expect(tw3.stats.targetValue).toBe(80);
+    });
+
+    it('should handle onIndicatorTargetChange properly for empty string, 0, and numeric inputs', () => {
+      component.onIndicatorTargetChange('tw1', '75');
+      expect(component.getIndicatorTarget('tw1')).toBe(75);
+
+      component.onIndicatorTargetChange('tw1', '0');
+      expect(component.getIndicatorTarget('tw1')).toBe(0);
+
+      component.onIndicatorTargetChange('tw1', '  ');
+      expect(component.getIndicatorTarget('tw1')).toBeNull();
+
+      component.onIndicatorTargetChange('tw1', 'abc');
+      expect(component.getIndicatorTarget('tw1')).toBeNull();
+    });
+
+    it('should persist and restore separate indicatorTargets in configuration presets', () => {
+      component.selectedSheet.set('Rekap Data');
+      component.setViewMode('by-indicator');
+      component.setIndicatorTarget('tw1', 72);
+      component.setIndicatorTarget('tw2', 88);
+
+      component.exportConfiguration();
+      const saved = ChartPresetStore.loadLastPreset();
+      expect(saved?.indicatorTargets).toEqual({ tw1: 72, tw2: 88 });
+
+      // Clear targets, then reload from preset
+      component.indicatorTargets.set({});
+      expect(component.getIndicatorTarget('tw1')).toBeNull();
+
+      component.loadSavedConfigurationFromStorage();
+      expect(component.getIndicatorTarget('tw1')).toBe(72);
+      expect(component.getIndicatorTarget('tw2')).toBe(88);
+    });
+
+    it('should display the specific indicator target in hover tooltip when targetOverride is passed', () => {
+      component.setIndicatorTarget('tw1', 70);
+
+      const dummyBar: ChartBarItem = {
+        seriesKey: 'tw1',
+        seriesLabel: 'Triwulan 1',
+        color: '#60a5fa',
+        rawVal: '72,4',
+        numericVal: 72.4,
+        displayLabel: '72,4',
+        isZero: false,
+        isMissing: false,
+        x: 200,
+        y: 100,
+        width: 150,
+        height: 18,
+      };
+
+      const mouseEvent = new MouseEvent('mouseenter', { clientX: 300, clientY: 250 });
+      component.onBarHover(mouseEvent, dummyBar, 'Kab. Magelang', 70);
+
+      const hovered = component.hoveredBar();
+      expect(hovered?.targetValue).toBe(70);
+      expect(hovered?.status).toBe('achieved');
+      expect(hovered?.diff).toBe(2.4);
+    });
+
     it('should safely execute exportSvg and exportPng for per-indicator charts', () => {
       component.setViewMode('by-indicator');
       fixture.detectChanges();

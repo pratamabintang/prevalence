@@ -1124,7 +1124,7 @@
                         @if (item.stats.lowest) {
                           <span>Terendah: <strong class="text-slate-700">{{ item.stats.lowest.name }} ({{ item.stats.lowest.value }})</strong></span>
                         }
-                        @if (targetValue() !== null) {
+                        @if (item.stats.targetValue !== null) {
                           <span
                             class="rounded px-1.5 py-0.2 font-semibold"
                             [class.bg-emerald-50]="item.stats.achievedCount > 0"
@@ -1132,14 +1132,29 @@
                             [class.bg-slate-100]="item.stats.achievedCount === 0"
                             [class.text-slate-600]="item.stats.achievedCount === 0"
                           >
-                            {{ item.stats.achievedCount }}/{{ item.stats.total }} Wilayah Capai Target
+                            {{ item.stats.achievedCount }}/{{ item.stats.total }} Wilayah Capai Target ({{ item.stats.targetValue }})
                           </span>
                         }
                       </div>
                     </div>
 
-                    <!-- EXPORT BUTTONS PER INDIKATOR -->
-                    <div class="flex items-center gap-1.5 shrink-0">
+                    <!-- EXPORT BUTTONS & PER-INDICATOR TARGET INPUT -->
+                    <div class="flex flex-wrap items-center gap-2 shrink-0">
+                      <!-- INPUT TARGET TERPISAH PER INDIKATOR -->
+                      <div
+                        class="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs"
+                        [title]="'Atur nilai target garis acuan khusus untuk indikator ' + item.series.label"
+                      >
+                        <span class="font-semibold text-slate-700">Target:</span>
+                        <input
+                          type="number"
+                          [value]="getIndicatorTarget(item.series.key) ?? ''"
+                          (input)="onIndicatorTargetChange(item.series.key, $any($event.target).value)"
+                          placeholder="Kosong"
+                          class="w-16 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-center font-bold text-slate-900 focus:border-slate-500 focus:outline-none"
+                        />
+                      </div>
+
                       <button
                         type="button"
                         (click)="exportSvg('indicatorChartSvg-' + idx, item.series.label)"
@@ -1282,7 +1297,7 @@
                           @for (bar of group.bars; track bar.seriesKey) {
                             <g
                               class="bar-group group cursor-pointer"
-                              (mouseenter)="onBarHover($event, bar, group.categoryName)"
+                              (mouseenter)="onBarHover($event, bar, group.categoryName, item.stats.targetValue)"
                               (mousemove)="onBarMouseMove($event)"
                               (mouseleave)="onBarLeave()"
                             >
@@ -1327,7 +1342,7 @@
 
                         <!-- 3. TARGET REFERENCE LINE -->
                         @if (res.targetLineX; as targetLineX) {
-                          @if (targetValue() !== null) {
+                          @if (item.stats.targetValue !== null) {
                             <g class="target-line-group pointer-events-none">
                               <line
                                 [attr.x1]="targetLineX"
@@ -1359,7 +1374,7 @@
                                 font-weight="bold"
                                 fill="#b91c1c"
                               >
-                                {{ targetValue() }}
+                                {{ item.stats.targetValue }}
                               </text>
 
                               <!-- Bottom Badge -->
@@ -1382,7 +1397,7 @@
                                 font-weight="bold"
                                 fill="#b91c1c"
                               >
-                                {{ targetValue() }}
+                                {{ item.stats.targetValue }}
                               </text>
                             </g>
                           }
@@ -1438,14 +1453,14 @@
 
           @if (h.status === 'achieved') {
             <div class="mt-2 flex items-center gap-1.5 rounded bg-emerald-50 px-2 py-0.5 font-bold text-emerald-700 border border-emerald-200">
-              <span>Mencapai Target ({{ targetValue() }})</span>
+              <span>Mencapai Target ({{ h.targetValue ?? targetValue() }})</span>
               @if (h.diff !== null && h.diff > 0) {
                 <span class="text-[10px] text-emerald-600">(+{{ h.diff }})</span>
               }
             </div>
           } @else if (h.status === 'unachieved') {
             <div class="mt-2 flex items-center gap-1.5 rounded bg-amber-50 px-2 py-0.5 font-bold text-amber-700 border border-amber-200">
-              <span>Belum Mencapai Target ({{ targetValue() }})</span>
+              <span>Belum Mencapai Target ({{ h.targetValue ?? targetValue() }})</span>
               @if (h.diff !== null) {
                 <span class="text-[10px] text-amber-600">({{ h.diff }})</span>
               }
