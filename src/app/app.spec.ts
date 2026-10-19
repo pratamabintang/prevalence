@@ -16,9 +16,12 @@ describe('App', () => {
     expect(app).toBeTruthy();
   });
 
-  it('should have dinkes title', () => {
+  it('should render navbar and main router outlet', () => {
     const fixture = TestBed.createComponent(App);
-    const app = fixture.componentInstance;
-    expect(app['title']()).toBe('dinkes');
+    fixture.detectChanges();
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('app-navbar')).toBeTruthy();
+    expect(compiled.querySelector('router-outlet')).toBeTruthy();
   });
 });
+

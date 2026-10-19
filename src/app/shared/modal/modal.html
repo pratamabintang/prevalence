@@ -1,9 +1,0 @@
-<dialog
-  #dialog
-  class="fixed inset-0 z-50 m-0 p-0 w-screen h-screen bg-transparent backdrop:bg-black/40"
-  (cancel)="onCancel($event)"
->
-  <div class="h-full w-full grid place-items-center p-4" (click)="onBackdropClick($event)">
-    <ng-content></ng-content>
-  </div>
-</dialog>
