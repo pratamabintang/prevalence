@@ -47,6 +47,19 @@ _Avoid_: Group bar biasa, multi-bar chart
 Mode tampilan visualisasi komparatif di mana setiap kolom indikator disajikan dalam satu kelompok grafik terpisah, membandingkan seluruh Kategori Wilayah secara langsung pada satu indikator tersebut lengkap dengan ringkasan statistik (rata-rata, tertinggi, terendah) dan target.
 _Avoid_: Single-series chart, split chart, grafik per kolom mentah
 
+### Pertukaran Data Lintas Modul (Health Data Exchange)
+**Pertukaran Data Lintas Modul (Health Data Exchange)**:
+Mekanisme pengiriman data terpadu berbasis Angular Signals dan `sessionStorage` yang menghubungkan hasil operasi penggabungan lembar kerja (`ExcelJoin`) ke modul visualisasi grafik (`ChartVisualizer`) atau evaluasi stunting (`StuntingMonitoring`), memastikan ketersediaan data tetap utuh saat navigasi antar-halaman maupun penyegaran (*refresh*) peramban.
+_Avoid_: State global tidak terstruktur, event bus lepas, router state mentah
+
+**Target Acuan Resilien**:
+Nilai target operasional indikator kesehatan yang dipadankan secara otomatis antara konfigurasi join dan grafik komparatif melalui normalisasi string dan pengecekan alias. Jika target spesifik tidak ditemukan atau dinonaktifkan, sistem mengadopsi nilai standar aman 50 untuk menjaga keandalan visualisasi garis batas.
+_Avoid_: Hardcoded target, batas statis acak, fallback kaku
+
+**Seleksi Seri Persentase Otomatis**:
+Logika seleksi bawaan pada visualisasi komparatif yang secara otomatis memilih kolom-kolom rasio/persentase untuk ditampilkan saat pertama kali dialihkan dari modul penggabungan Excel, dengan tetap mengizinkan pengguna memilih kolom metrik kuantitas riil lainnya tanpa batasan.
+_Avoid_: Filter kunci mutlak, batasan kolom angka
+
 ### Pemantauan Stunting & Evaluasi Kinerja
 **Intervensi Stunting**:
 Program atau tindakan kesehatan spesifik (sebelum kelahiran/remaja-ibu hamil atau setelah kelahiran/balita) yang diukur capaian kinerjanya dalam percepatan penurunan stunting.
