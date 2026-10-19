@@ -1,10 +1,10 @@
-import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, computed, HostListener, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import * as XLSX from 'xlsx-js-style';
-import { ChartDataBridge } from '../../core/chart/chart-data-bridge';
-import { StuntingDataBridge } from '../../core/stunting/stunting-data-bridge';
+import { HealthDataExchange } from '../../core/domain/health-data-exchange';
 import { RegionNormalizer } from '../../core/domain/region-normalizer';
+import { ExcelJoinEngine } from '../../core/excel/excel-join-engine';
 import {
   CapaianSummary,
   ColumnConfig,
@@ -19,7 +19,6 @@ import {
   ColumnInfo,
   ExcelEngine,
   HeaderGridCell,
-  SummaryRowSpec,
 } from '../../shared/excel';
 import {
   JoinConfigurationPreset,
@@ -74,8 +73,7 @@ export interface ResultRow {
 })
 export class ExcelJoinComponent implements OnInit, OnDestroy {
   private router = inject(Router);
-  private chartDataBridge = inject(ChartDataBridge);
-  private stuntingDataBridge = inject(StuntingDataBridge);
+  private healthDataExchange = inject(HealthDataExchange);
   gasStorageService = inject(GasStorageService);
   excelJoinStore = inject(ExcelJoinStore);
 
@@ -233,8 +231,8 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     this.saveCurrentStateToStore();
   }
 
-  async loadDefaultDataAndConfig(): Promise<void> {
-    if (this.file() || this.resultRows().length > 0) {
+  async loadDefaultDataAndConfig(force = false): Promise<void> {
+    if (!force && (this.file() || this.resultRows().length > 0)) {
       return;
     }
 
@@ -283,10 +281,20 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
               type: 'warning',
               message: `Penyimpanan Cloud: ${cloudRes.error}. Menggunakan template bawaan sistem.`,
             });
+          } else if (cloudRes.message) {
+            this.configNotification.set({
+              type: 'info',
+              message: `Penyimpanan Cloud: ${cloudRes.message}. Menggunakan template bawaan sistem.`,
+            });
           }
         } catch (gasErr) {
           console.warn('Gagal memuat dari Google Apps Script:', gasErr);
         }
+      } else if (force) {
+        this.configNotification.set({
+          type: 'warning',
+          message: 'URL Google Apps Script belum dikonfigurasi. Menggunakan template bawaan sistem.',
+        });
       }
 
       // 2. Fallback ke file aset bawaan sistem (/data/default-join-data.xlsx)
@@ -324,119 +332,90 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   async resetToDefaultData(): Promise<void> {
     this.excelJoinStore.clearState();
     this.clearFile();
-    await this.loadDefaultDataAndConfig();
+    this.preservedPreset = null;
+    this.preservedPresetName = null;
+    await this.loadDefaultDataAndConfig(true);
+  }
+
+  async reloadFromDrive(): Promise<void> {
+    this.preservedPreset = null;
+    this.preservedPresetName = null;
+    this.excelJoinStore.clearState();
+    this.clearFile();
+    this.preservedPreset = null;
+    this.preservedPresetName = null;
+    await this.loadDefaultDataAndConfig(true);
   }
 
   visualizeInChart(): void {
-    const rows = this.resultRows();
-    const cols = this.resultColumns();
-    if (rows.length === 0 || cols.length === 0) {
+    if (this.resultRows().length === 0 || this.resultColumns().length === 0) {
       return;
     }
 
-    const catCol = cols[0] || 'Wilayah';
-    let target: number | null = null;
-    const targets = this.columnTargets();
-    for (const c of cols) {
-      if (targets[c]?.enabled && targets[c]?.value !== null) {
-        target = targets[c].value;
-        break;
+    const isTargetEnabled = this.enableTarget();
+    const targets = isTargetEnabled ? this.columnTargets() : {};
+    let firstTarget: number | null = null;
+    if (isTargetEnabled) {
+      for (const col of this.resultColumns()) {
+        const t = targets[col];
+        if (t && t.enabled !== false && t.value !== null && t.value !== undefined) {
+          firstTarget = t.value;
+          break;
+        }
       }
     }
 
-    const displayCols = cols.map((c) => this.getColumnDisplayName(c));
-    const displayCatCol = this.getColumnDisplayName(catCol);
-    const mappedRows = rows.map((r) => {
-      const out: Record<string, unknown> = {};
-      for (const c of cols) {
-        out[this.getColumnDisplayName(c)] = r[c];
-      }
-      return out;
-    });
+    const resolvedTarget = firstTarget !== null ? firstTarget : (isTargetEnabled ? undefined : 50);
 
-    this.chartDataBridge.setData({
+    this.healthDataExchange.publishJoinedToChart({
       title: this.file() ? `Grafik Hasil Join - ${this.file()!.name}` : 'Grafik Hasil Join Excel',
-      source: 'join',
-      categoryColumn: displayCatCol,
-      columns: displayCols,
-      rows: mappedRows,
-      targetValue: target,
+      rows: this.resultRows(),
+      columns: this.resultColumns(),
+      categoryColumn: this.resultColumns()[0],
+      customColumnNames: this.customColumnNames(),
+      columnTargets: isTargetEnabled ? this.columnTargets() : undefined,
+      columnConfigs: this.columnConfigs(),
+      targetValue: resolvedTarget,
     });
 
     this.router.navigate(['/chart']);
   }
 
   transferToStuntingMonitoring(): void {
-    const rows = this.resultRows();
-    const cols = this.resultColumns();
-    if (rows.length === 0 || cols.length === 0) {
+    if (this.resultRows().length === 0 || this.resultColumns().length === 0) {
       return;
     }
 
-    const pKey = cols[0] || 'Wilayah';
-    const displayPKey = this.getColumnDisplayName(pKey);
-    const displayCols = cols.map((c) => this.getColumnDisplayName(c));
-
-    const mappedRows = rows.map((r) => {
-      const out: Record<string, unknown> = {};
-      for (const c of cols) {
-        out[this.getColumnDisplayName(c)] = r[c];
-      }
-      return out;
-    });
-
-    // Summary row (Jumlah) if enabled
-    let summaryRow: Record<string, unknown> | undefined = undefined;
+    const sums: Record<string, number | null> = {};
     if (this.enableJumlah()) {
-      const sumObj: Record<string, unknown> = { [displayPKey]: 'TOTAL' };
-      for (const col of cols) {
-        if (col !== pKey && this.sumColumns()[col]) {
-          const sum = this.getColumnSum(col);
-          if (sum !== null) {
-            sumObj[this.getColumnDisplayName(col)] = sum;
-          }
+      for (const col of this.resultColumns()) {
+        if (this.sumColumns()[col]) {
+          sums[col] = this.getColumnSum(col);
         }
       }
-      summaryRow = sumObj;
     }
 
-    // Target row if enabled
-    let targetRow: Record<string, unknown> | undefined = undefined;
-    if (this.enableTarget()) {
-      const tgtObj: Record<string, unknown> = { [displayPKey]: 'TARGET' };
-      const targets = this.columnTargets();
-      for (const col of cols) {
-        if (col !== pKey && targets[col]?.enabled && targets[col]?.value !== null) {
-          tgtObj[this.getColumnDisplayName(col)] = `${targets[col].operator} ${targets[col].value}`;
-        }
-      }
-      targetRow = tgtObj;
-    }
-
-    // Average row if enabled
-    let averageRow: Record<string, unknown> | undefined = undefined;
+    const avgs: Record<string, number | null> = {};
     if (this.enableAverage()) {
-      const avgObj: Record<string, unknown> = { [displayPKey]: 'RATA-RATA' };
-      for (const col of cols) {
-        if (col !== pKey && this.avgColumns()[col]) {
-          const avg = this.getColumnAverage(col);
-          if (avg !== null) {
-            avgObj[this.getColumnDisplayName(col)] = avg;
-          }
+      for (const col of this.resultColumns()) {
+        if (this.avgColumns()[col]) {
+          avgs[col] = this.getColumnAverage(col);
         }
       }
-      averageRow = avgObj;
     }
 
-    this.stuntingDataBridge.setData({
+    this.healthDataExchange.publishJoinedToStunting({
       title: this.file() ? `Hasil Join - ${this.file()!.name}` : 'Hasil Join Excel',
-      source: 'join',
-      keyColumn: displayPKey,
-      columns: displayCols,
-      rows: mappedRows,
-      summaryRow,
-      targetRow,
-      averageRow,
+      rows: this.resultRows(),
+      columns: this.resultColumns(),
+      customColumnNames: this.customColumnNames(),
+      columnTargets: this.enableTarget() ? this.columnTargets() : undefined,
+      enableJumlah: this.enableJumlah(),
+      sumColumns: this.sumColumns(),
+      columnSums: sums,
+      enableAverage: this.enableAverage(),
+      avgColumns: this.avgColumns(),
+      columnAverages: avgs,
     });
 
     this.router.navigate(['/stunting-monitoring']);
@@ -492,37 +471,14 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   columnTargets = signal<Record<string, ColumnTargetConfig>>({});
   columnConfigs = signal<Record<string, ColumnConfig>>({});
   showColumnSettings = signal(false);
-  showFormatSettings = signal(false);
 
   // Fitur Jumlah
   enableJumlah = signal(false);
   sumColumns = signal<Record<string, boolean>>({});
 
-  activeSumColumnCount = computed(() => {
-    if (!this.enableJumlah()) {
-      return 0;
-    }
-    const cols = this.sumColumns();
-    const configs = this.columnConfigs();
-    return Object.entries(cols).filter(
-      ([col, active]) => active && configs[col]?.dataType !== 'string',
-    ).length;
-  });
-
   // Fitur Rata-rata
   enableAverage = signal(false);
   avgColumns = signal<Record<string, boolean>>({});
-
-  activeAvgColumnCount = computed(() => {
-    if (!this.enableAverage()) {
-      return 0;
-    }
-    const cols = this.avgColumns();
-    const configs = this.columnConfigs();
-    return Object.entries(cols).filter(
-      ([col, active]) => active && configs[col]?.dataType !== 'string',
-    ).length;
-  });
 
   activeTargetCount = computed(() => {
     if (!this.enableTarget()) {
@@ -533,11 +489,6 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     return Object.entries(targets).filter(
       ([col, t]) => configs[col]?.dataType !== 'string' && t.enabled && t.value !== null,
     ).length;
-  });
-
-  activeAnomalyColumnCount = computed(() => {
-    const configs = this.columnConfigs();
-    return Object.values(configs).filter((c) => c.anomalyEnabled).length;
   });
 
   capaianStats = computed<CapaianSummary>(() => {
@@ -629,7 +580,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     return (
       selected.length >= 2 &&
       selected.every((sheet) => !!this.getSheetJoinColumn(sheet)) &&
-      selected.every((sheet) => sheet.variables.length > 0)
+      selected.some((sheet) => sheet.variables.length > 0)
     );
   });
 
@@ -645,10 +596,9 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       return `Pilih kolom kunci join untuk sheet "${missingKeySheet.name}".`;
     }
 
-    const invalidSheet = selected.find((sheet) => sheet.variables.length === 0);
-
-    if (invalidSheet) {
-      return `Pilih minimal 1 variabel dari sheet "${invalidSheet.name}".`;
+    const hasAnyVariables = selected.some((sheet) => sheet.variables.length > 0);
+    if (!hasAnyVariables) {
+      return 'Pilih minimal 1 variabel untuk ditampilkan.';
     }
 
     return '';
@@ -952,7 +902,11 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     } else {
       this.joinBy.set('');
     }
-    this.clearResult();
+    if (this.canPreview()) {
+      this.preview();
+    } else {
+      this.clearResult();
+    }
   }
 
   getSheetJoinColumn(sheet: SheetInfo): string {
@@ -979,7 +933,11 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     if (selected.length > 0) {
       this.joinBy.set(this.getSheetJoinColumn(selected[0]));
     }
-    this.clearResult();
+    if (this.canPreview()) {
+      this.preview();
+    } else {
+      this.clearResult();
+    }
   }
 
   applyCommonJoinColumn(colHeader: string): void {
@@ -999,7 +957,11 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
         return s;
       }),
     );
-    this.clearResult();
+    if (this.canPreview()) {
+      this.preview();
+    } else {
+      this.clearResult();
+    }
   }
 
   onJoinByChanged(newJoinBy?: string): void {
@@ -1032,7 +994,11 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       }),
     );
 
-    this.clearResult();
+    if (this.canPreview()) {
+      this.preview();
+    } else {
+      this.clearResult();
+    }
   }
 
   isVariableSelected(sheet: SheetInfo, variable: string): boolean {
@@ -1090,14 +1056,22 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
         return { ...s, variables: newVars };
       }),
     );
-    this.clearResult();
+    if (this.canPreview()) {
+      this.preview();
+    } else {
+      this.clearResult();
+    }
   }
 
   clearVariables(sheet: SheetInfo): void {
     this.sheets.update((sheets) =>
       sheets.map((s) => (s.name === sheet.name ? { ...s, variables: [] } : s)),
     );
-    this.clearResult();
+    if (this.canPreview()) {
+      this.preview();
+    } else {
+      this.clearResult();
+    }
   }
 
   setOutputHeaderFormat(format: 'full' | 'concat'): void {
@@ -1112,16 +1086,6 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     if (this.resultRows().length > 0) {
       this.preview();
     }
-  }
-
-  private getOutputColumnName(sheet: SheetInfo, variableHeader: string): string {
-    const baseName = variableHeader;
-
-    if (this.includeSheetPrefix()) {
-      return `${sheet.name} - ${baseName}`;
-    }
-
-    return baseName;
   }
 
   // ============================================================
@@ -1151,6 +1115,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       }
       return { ...names, [col]: trimmed };
     });
+    this.saveCurrentStateToStore();
   }
 
   resetColumnCustomName(col: string): void {
@@ -1159,10 +1124,49 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       delete copy[col];
       return copy;
     });
+    this.saveCurrentStateToStore();
   }
 
   resetAllCustomColumnNames(): void {
     this.customColumnNames.set({});
+    this.saveCurrentStateToStore();
+  }
+
+  // ============================================================
+  // PENGUBAHAN NAMA KOLOM INLINE (DOUBLE CLICK RENAME)
+  // ============================================================
+
+  editingColumnKey = signal<string | null>(null);
+  editingColumnValue = signal<string>('');
+
+  startEditingColumn(colKey: string | null | undefined, event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+    }
+    if (!colKey || colKey.startsWith('__')) {
+      return;
+    }
+    this.editingColumnKey.set(colKey);
+    this.editingColumnValue.set(this.getColumnDisplayName(colKey));
+    setTimeout(() => {
+      const input = document.querySelector<HTMLInputElement>('.inline-column-rename-input');
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }, 50);
+  }
+
+  saveInlineColumnRename(colKey: string | null | undefined, newName: string): void {
+    if (!colKey || this.editingColumnKey() !== colKey) {
+      return;
+    }
+    this.editingColumnKey.set(null);
+    this.setColumnCustomName(colKey, newName);
+  }
+
+  cancelInlineColumnRename(): void {
+    this.editingColumnKey.set(null);
   }
 
   moveColumn(fromIndex: number, toIndex: number): void {
@@ -1206,6 +1210,94 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
 
   canMoveColumnRight(index: number): boolean {
     return index >= 1 && index < this.resultColumns().length - 1;
+  }
+
+  // ============================================================
+  // PENGENDALI GESER KOLOM BERSAMA (SHARED SHIFT CONTROL)
+  // ============================================================
+
+  selectedColumnForMove = signal<string | null>(null);
+
+  selectedColumnIndex = computed(() => {
+    const col = this.selectedColumnForMove();
+    if (!col) return -1;
+    return this.resultColumns().indexOf(col);
+  });
+
+  canMoveSelectedColumnLeft = computed(() => {
+    const idx = this.selectedColumnIndex();
+    return this.canMoveColumnLeft(idx);
+  });
+
+  canMoveSelectedColumnRight = computed(() => {
+    const idx = this.selectedColumnIndex();
+    return this.canMoveColumnRight(idx);
+  });
+
+  selectColumnForMove(colKey: string | null | undefined): void {
+    if (!colKey || colKey.startsWith('__')) {
+      this.selectedColumnForMove.set(null);
+      return;
+    }
+    const cols = this.resultColumns();
+    // Kolom kunci (index 0) tidak dapat digeser
+    if (colKey === cols[0]) {
+      this.selectedColumnForMove.set(null);
+      return;
+    }
+    // Jika kolom yang sama diklik lagi, batalkan pilihan (toggle); jika beda, pilih kolom tersebut
+    if (this.selectedColumnForMove() === colKey) {
+      this.selectedColumnForMove.set(null);
+    } else {
+      this.selectedColumnForMove.set(colKey);
+    }
+  }
+
+  clearSelectedColumnForMove(): void {
+    this.selectedColumnForMove.set(null);
+  }
+
+  moveSelectedColumnLeft(): void {
+    const idx = this.selectedColumnIndex();
+    if (this.canMoveColumnLeft(idx)) {
+      this.moveColumnLeft(idx);
+    }
+  }
+
+  moveSelectedColumnRight(): void {
+    const idx = this.selectedColumnIndex();
+    if (this.canMoveColumnRight(idx)) {
+      this.moveColumnRight(idx);
+    }
+  }
+
+  @HostListener('window:keydown', ['$event'])
+  handleKeyboardMove(event: KeyboardEvent): void {
+    if (!this.selectedColumnForMove()) {
+      return;
+    }
+
+    const target = event.target as HTMLElement | null;
+    if (target) {
+      const tag = target.tagName.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable) {
+        return;
+      }
+    }
+
+    if (event.key === 'ArrowLeft') {
+      if (this.canMoveSelectedColumnLeft()) {
+        event.preventDefault();
+        this.moveSelectedColumnLeft();
+      }
+    } else if (event.key === 'ArrowRight') {
+      if (this.canMoveSelectedColumnRight()) {
+        event.preventDefault();
+        this.moveSelectedColumnRight();
+      }
+    } else if (event.key === 'Escape') {
+      this.clearSelectedColumnForMove();
+    }
   }
 
   resetColumnOrder(): void {
@@ -1297,49 +1389,6 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     });
   }
 
-  selectAllPercentageColumnsForTarget(): void {
-    const configs = this.columnConfigs();
-    this.columnTargets.update((targets) => {
-      const updated = { ...targets };
-      this.resultColumns().forEach((col, idx) => {
-        if (idx === 0) return;
-        const cfg = configs[col];
-        const isPct = cfg?.dataType === 'percentage' || (cfg?.dataType === 'auto' && col.includes('%'));
-        if (isPct) {
-          const prev = targets[col] || { enabled: false, operator: '>=', value: null };
-          updated[col] = {
-            ...prev,
-            enabled: true,
-            operator: prev.operator || '>=',
-            value: prev.value !== null && !isNaN(prev.value) ? prev.value : 80,
-          };
-        }
-      });
-      return updated;
-    });
-  }
-
-  clearAllTargetColumns(): void {
-    this.columnTargets.update((targets) => {
-      const updated: Record<string, ColumnTargetConfig> = {};
-      for (const [col, t] of Object.entries(targets)) {
-        updated[col] = {
-          ...t,
-          enabled: false,
-        };
-      }
-      return updated;
-    });
-  }
-
-  parseSmartNumber(value: unknown): number | null {
-    return IndicatorEvaluator.parseSmartNumber(value);
-  }
-
-  isTargetAchieved(rowValue: unknown, target: ColumnTargetConfig): boolean {
-    return IndicatorEvaluator.isTargetAchieved(rowValue, target);
-  }
-
   getRowCapaian(row: ResultRow): number {
     if (!this.enableTarget()) {
       return 0;
@@ -1350,10 +1399,6 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       this.columnTargets(),
       this.columnConfigs(),
     );
-  }
-
-  toggleFormatSettings(): void {
-    this.showFormatSettings.set(!this.showFormatSettings());
   }
 
   toggleColumnSettings(): void {
@@ -1467,17 +1512,6 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     });
   }
 
-  applyPercentagePresetToTargetColumns(): void {
-    const targets = this.columnTargets();
-    for (const col of this.resultColumns()) {
-      if (col === this.resultColumns()[0]) continue;
-      const t = targets[col];
-      if (t && t.enabled) {
-        this.setColumnDataType(col, 'percentage');
-      }
-    }
-  }
-
   disableAllAnomalyFormatting(): void {
     this.columnConfigs.update((configs) => {
       const updated: Record<string, ColumnConfig> = {};
@@ -1527,23 +1561,6 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     return IndicatorEvaluator.formatSumValue(sum);
   }
 
-  selectAllNumericColumnsForSum(): void {
-    const updated: Record<string, boolean> = {};
-    const configs = this.columnConfigs();
-    this.resultColumns().forEach((col, idx) => {
-      if (idx === 0) return;
-      const cfg = configs[col];
-      if (cfg?.dataType !== 'string' && cfg?.dataType !== 'percentage') {
-        updated[col] = true;
-      }
-    });
-    this.sumColumns.set(updated);
-  }
-
-  clearAllSumColumns(): void {
-    this.sumColumns.set({});
-  }
-
   private updateColumnSumsAfterPreview(columns: string[]): void {
     const current = this.sumColumns();
     const updated: Record<string, boolean> = {};
@@ -1573,23 +1590,6 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
 
   formatAverageValue(avg: number | null): string {
     return IndicatorEvaluator.formatAverageValue(avg);
-  }
-
-  selectAllNumericColumnsForAvg(): void {
-    const updated: Record<string, boolean> = {};
-    const configs = this.columnConfigs();
-    this.resultColumns().forEach((col, idx) => {
-      if (idx === 0) return;
-      const cfg = configs[col];
-      if (cfg?.dataType !== 'string') {
-        updated[col] = true;
-      }
-    });
-    this.avgColumns.set(updated);
-  }
-
-  clearAllAvgColumns(): void {
-    this.avgColumns.set({});
   }
 
   private updateColumnAvgsAfterPreview(columns: string[]): void {
@@ -1768,12 +1768,20 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     try {
       this.isSavingDefault.set(true);
 
-      let buffer: ArrayBuffer;
-      if (this.file()) {
+      let buffer: ArrayBuffer | null = null;
+      if (this.file() && this.file()!.size > 0) {
         buffer = await this.file()!.arrayBuffer();
-      } else {
-        const u8 = XLSX.write(this.workbook!, { bookType: 'xlsx', type: 'array' }) as Uint8Array;
-        buffer = u8.buffer as ArrayBuffer;
+      } else if (this.workbook) {
+        const raw = XLSX.write(this.workbook, { bookType: 'xlsx', type: 'array' });
+        const u8 = new Uint8Array(raw);
+        buffer = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
+      }
+
+      if (!buffer || buffer.byteLength === 0) {
+        this.errorMessage.set('Tidak ada data Excel yang valid untuk disimpan ke Google Drive.');
+        this.isSavingDefault.set(false);
+        this.showSaveDefaultConfirm.set(false);
+        return;
       }
 
       const preset = this.getCurrentPreset('Default Google Drive');
@@ -2003,6 +2011,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     if (this.canPreview()) {
       this.preview();
       this.reconcileOutputConfigs(preset);
+      this.saveCurrentStateToStore();
     }
 
     const details: string[] = [];
@@ -2154,200 +2163,34 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       return;
     }
 
+    const previousCols = [...this.resultColumns()];
     this.errorMessage.set('');
     this.clearResult();
     this.isJoining.set(true);
 
     try {
-      const selectedSheets = this.selectedSheets();
-      const currentJoinBy = this.joinBy();
-
-      const masterSheet = selectedSheets[0];
-      const masterWorksheet = this.workbook.Sheets[masterSheet.name];
-      const masterRows = ExcelEngine.readSheetRows(
-        masterWorksheet,
-        masterSheet.columns,
-        masterSheet.dataStartRow,
-      );
-
-      const masterJoinHeader =
-        this.findHeader(masterSheet.headers, this.getSheetJoinColumn(masterSheet)) ||
-        this.getSheetJoinColumn(masterSheet);
-
-      if (!masterJoinHeader) {
-        throw new Error(`Kolom join tidak ditentukan untuk sheet "${masterSheet.name}".`);
-      }
-
-      const outputColMap = new Map<string, string>();
-      const outputMetaList: ColumnHeaderMeta[] = [];
-      const usedOutputNames = new Map<string, number>();
-
-      const joinByOutputName = masterJoinHeader;
-      usedOutputNames.set(this.normalizeKey(joinByOutputName), 1);
-
-      const masterJoinCol = masterSheet.columns.find((c) => c.header === masterJoinHeader);
-      const joinKeyLayers =
-        masterJoinCol && masterJoinCol.layers && masterJoinCol.layers.length > 0
-          ? masterJoinCol.layers
-          : [joinByOutputName];
-
-      outputMetaList.push({
-        key: joinByOutputName,
-        layers: this.outputHeaderFormat() === 'concat'
-          ? [joinKeyLayers.join(' - ')]
-          : joinKeyLayers,
+      const result = ExcelJoinEngine.executeJoin({
+        workbook: this.workbook,
+        selectedSheets: this.selectedSheets(),
+        joinBy: this.joinBy(),
+        stripKabupaten: this.stripKabupaten(),
+        outputHeaderFormat: this.outputHeaderFormat(),
+        includeSheetPrefix: this.includeSheetPrefix(),
+        previousColumnOrder: previousCols,
       });
 
-      for (const variable of masterSheet.variables) {
-        const rawName = this.getOutputColumnName(masterSheet, variable);
-        let finalName = rawName;
-        const norm = this.normalizeKey(rawName);
-        const count = usedOutputNames.get(norm) || 0;
-        if (count > 0) {
-          finalName = `${rawName} (${masterSheet.name})`;
-        }
-        usedOutputNames.set(norm, count + 1);
-        outputColMap.set(`${masterSheet.name}:::${variable}`, finalName);
+      this.resultRows.set(result.rows);
+      this.originalResultRows.set(result.rows);
 
-        const col = masterSheet.columns.find((c) => c.header === variable);
-        let layers = col && col.layers && col.layers.length > 0 ? [...col.layers] : [variable];
-        if (this.outputHeaderFormat() === 'concat') {
-          const fullConcat = layers.join(' - ');
-          const finalConcat = this.includeSheetPrefix() ? `${masterSheet.name} - ${fullConcat}` : fullConcat;
-          layers = [count > 0 ? `${finalConcat} (${masterSheet.name})` : finalConcat];
-        } else {
-          if (this.includeSheetPrefix()) {
-            layers = [masterSheet.name, ...layers];
-          }
-          if (count > 0) {
-            layers[layers.length - 1] = `${layers[layers.length - 1]} (${masterSheet.name})`;
-          }
-        }
-
-        outputMetaList.push({
-          key: finalName,
-          layers,
-        });
-      }
-
-      for (let index = 1; index < selectedSheets.length; index++) {
-        const sheet = selectedSheets[index];
-        for (const variable of sheet.variables) {
-          const rawName = this.getOutputColumnName(sheet, variable);
-          let finalName = rawName;
-          const norm = this.normalizeKey(rawName);
-          const count = usedOutputNames.get(norm) || 0;
-          if (count > 0) {
-            finalName = `${rawName} (${sheet.name})`;
-          }
-          usedOutputNames.set(norm, count + 1);
-          outputColMap.set(`${sheet.name}:::${variable}`, finalName);
-
-          const col = sheet.columns.find((c) => c.header === variable);
-          let layers = col && col.layers && col.layers.length > 0 ? [...col.layers] : [variable];
-          if (this.outputHeaderFormat() === 'concat') {
-            const fullConcat = layers.join(' - ');
-            const finalConcat = this.includeSheetPrefix() ? `${sheet.name} - ${fullConcat}` : fullConcat;
-            layers = [count > 0 ? `${finalConcat} (${sheet.name})` : finalConcat];
-          } else {
-            if (this.includeSheetPrefix()) {
-              layers = [sheet.name, ...layers];
-            }
-            if (count > 0) {
-              layers[layers.length - 1] = `${layers[layers.length - 1]} (${sheet.name})`;
-            }
-          }
-
-          outputMetaList.push({
-            key: finalName,
-            layers,
-          });
-        }
-      }
-
-      const joinedMap = new Map<string, ResultRow>();
-
-      // Master sheet
-      for (const row of masterRows) {
-        const joinValue = row[masterJoinHeader];
-
-        if (this.isEmptyValue(joinValue)) {
-          continue;
-        }
-
-        const key = RegionNormalizer.normalizeJoinKey(joinValue, this.stripKabupaten());
-        const displayJoinValue = this.stripKabupaten()
-          ? RegionNormalizer.cleanKabupatenPrefix(joinValue)
-          : RegionNormalizer.cleanCodePrefix(joinValue);
-
-        const result: ResultRow = {
-          [joinByOutputName]: displayJoinValue,
-        };
-
-        for (const variable of masterSheet.variables) {
-          const actualHeader = this.findHeader(masterSheet.headers, variable);
-          if (!actualHeader) {
-            continue;
-          }
-          const outCol = outputColMap.get(`${masterSheet.name}:::${variable}`) || variable;
-          result[outCol] = row[actualHeader];
-        }
-
-        joinedMap.set(key, result);
-      }
-
-      // Subsequent sheets (Left Join)
-      for (let index = 1; index < selectedSheets.length; index++) {
-        const sheet = selectedSheets[index];
-        const worksheet = this.workbook.Sheets[sheet.name];
-        const rows = ExcelEngine.readSheetRows(worksheet, sheet.columns, sheet.dataStartRow);
-        const joinHeader =
-          this.findHeader(sheet.headers, this.getSheetJoinColumn(sheet)) ||
-          this.getSheetJoinColumn(sheet);
-
-        if (!joinHeader) {
-          continue;
-        }
-
-        for (const row of rows) {
-          const joinValue = row[joinHeader];
-
-          if (this.isEmptyValue(joinValue)) {
-            continue;
-          }
-
-          const key = RegionNormalizer.normalizeJoinKey(joinValue, this.stripKabupaten());
-          const existing = joinedMap.get(key);
-
-          if (!existing) {
-            continue;
-          }
-
-          for (const variable of sheet.variables) {
-            const actualHeader = this.findHeader(sheet.headers, variable);
-            if (!actualHeader) {
-              continue;
-            }
-            const outCol = outputColMap.get(`${sheet.name}:::${variable}`) || variable;
-            existing[outCol] = row[actualHeader];
-          }
-        }
-      }
-
-      const rows = Array.from(joinedMap.values());
-      this.resultRows.set(rows);
-      this.originalResultRows.set(rows);
-
-      if (rows.length > 0) {
-        const cols = Object.keys(rows[0]);
-        this.resultColumns.set(cols);
-        this.resultColumnsMeta.set(outputMetaList);
-        this.defaultResultColumns.set([...cols]);
-        this.defaultResultColumnsMeta.set([...outputMetaList]);
-        this.updateColumnTargetsAfterPreview(cols);
-        this.updateColumnConfigsAfterPreview(cols);
-        this.updateColumnSumsAfterPreview(cols);
-        this.updateColumnAvgsAfterPreview(cols);
+      if (result.rows.length > 0) {
+        this.defaultResultColumns.set(result.defaultColumns);
+        this.defaultResultColumnsMeta.set(result.defaultColumnsMeta);
+        this.resultColumns.set(result.columns);
+        this.resultColumnsMeta.set(result.columnsMeta);
+        this.updateColumnTargetsAfterPreview(result.columns);
+        this.updateColumnConfigsAfterPreview(result.columns);
+        this.updateColumnSumsAfterPreview(result.columns);
+        this.updateColumnAvgsAfterPreview(result.columns);
         this.saveCurrentStateToStore();
       }
     } catch (error) {
@@ -2369,254 +2212,20 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const customNames = this.customColumnNames();
-    const isConcat = this.outputHeaderFormat() === 'concat';
-
-    const processedMeta: ColumnHeaderMeta[] = this.resultColumnsMeta().map((m) => {
-      const custom = customNames[m.key]?.trim();
-      if (!custom) {
-        if (isConcat) {
-          return { ...m, layers: [m.layers.join(' - ')] };
-        }
-        return m;
-      }
-      if (isConcat) {
-        return { ...m, layers: [custom] };
-      } else {
-        const nextLayers = [...m.layers];
-        if (custom.includes(' - ')) {
-          return { ...m, layers: custom.split(' - ').map((s) => s.trim()) };
-        } else {
-          nextLayers[nextLayers.length - 1] = custom;
-          return { ...m, layers: nextLayers };
-        }
-      }
-    });
-
-    const excelCols: ColumnHeaderMeta[] = [
-      { key: 'No', layers: ['No'] },
-      ...processedMeta,
-    ];
-
-    if (this.enableTarget() && this.enableCapaian()) {
-      excelCols.push({ key: 'Capaian', layers: ['Capaian'] });
-    }
-
-    const dataRows = this.resultRows().map((row, i) => {
-      const rowValues: Record<string, unknown> = {};
-      for (const col of excelCols) {
-        if (col.key === 'No') {
-          rowValues['No'] = i + 1;
-        } else if (col.key === 'Capaian') {
-          rowValues['Capaian'] = this.getRowCapaian(row);
-        } else {
-          const cfg = this.columnConfigs()[col.key];
-          const rawVal = row[col.key];
-          if (cfg?.dataType === 'string') {
-            rowValues[col.key] = rawVal !== null && rawVal !== undefined ? String(rawVal) : '';
-          } else {
-            const num = IndicatorEvaluator.parseSmartNumber(rawVal);
-            rowValues[col.key] = num !== null ? num : (rawVal ?? '');
-          }
-        }
-      }
-      return rowValues;
-    });
-
-    const summaryRows: SummaryRowSpec[] = [];
-
-    // 1. Summary row: Jumlah
-    if (this.enableJumlah()) {
-      const jumlahValues: Record<string, unknown> = {};
-      for (let c = 0; c < excelCols.length; c++) {
-        const col = excelCols[c];
-        if (col.key === 'No') {
-          jumlahValues['No'] = '-';
-        } else if (c === 1) {
-          jumlahValues[col.key] = 'Jumlah';
-        } else if (col.key === 'Capaian') {
-          jumlahValues['Capaian'] = '-';
-        } else {
-          if (this.sumColumns()[col.key]) {
-            const sum = this.getColumnSum(col.key);
-            jumlahValues[col.key] = sum !== null ? sum : '-';
-          } else {
-            jumlahValues[col.key] = '-';
-          }
-        }
-      }
-      summaryRows.push({
-        values: jumlahValues,
-        styler: (_colKey, _val, colIdx) => ({
-          font: { bold: true, color: { rgb: '065F46' }, sz: 10 },
-          fill: { fgColor: { rgb: 'ECFDF5' } },
-          alignment: {
-            horizontal: colIdx === 1 ? 'left' : 'center',
-            vertical: 'center',
-          },
-        }),
-      });
-    }
-
-    // Summary row: Rata-rata
-    if (this.enableAverage()) {
-      const avgValues: Record<string, unknown> = {};
-      for (let c = 0; c < excelCols.length; c++) {
-        const col = excelCols[c];
-        if (col.key === 'No') {
-          avgValues['No'] = '-';
-        } else if (c === 1) {
-          avgValues[col.key] = 'Rata-rata';
-        } else if (col.key === 'Capaian') {
-          avgValues['Capaian'] = '-';
-        } else {
-          if (this.avgColumns()[col.key]) {
-            const avg = this.getColumnAverage(col.key);
-            avgValues[col.key] = avg !== null ? avg : '-';
-          } else {
-            avgValues[col.key] = '-';
-          }
-        }
-      }
-      summaryRows.push({
-        values: avgValues,
-        styler: (_colKey, _val, colIdx) => ({
-          font: { bold: true, color: { rgb: '0369A1' }, sz: 10 },
-          fill: { fgColor: { rgb: 'F0F9FF' } },
-          alignment: {
-            horizontal: colIdx === 1 ? 'left' : 'center',
-            vertical: 'center',
-          },
-        }),
-      });
-    }
-
-    // 2. Summary row: Target
-    if (this.enableTarget()) {
-      const targetValues: Record<string, unknown> = {};
-      const targets = this.columnTargets();
-
-      for (let c = 0; c < excelCols.length; c++) {
-        const col = excelCols[c];
-        if (col.key === 'No') {
-          targetValues['No'] = '-';
-        } else if (c === 1) {
-          targetValues[col.key] = 'Target';
-        } else if (col.key === 'Capaian') {
-          targetValues['Capaian'] = this.activeTargetCount();
-        } else {
-          const cfg = this.columnConfigs()[col.key];
-          if (cfg?.dataType === 'string') {
-            targetValues[col.key] = '-';
-          } else {
-            const t = targets[col.key];
-            if (t && t.enabled && t.value !== null) {
-              targetValues[col.key] = `${t.operator} ${t.value}`;
-            } else {
-              targetValues[col.key] = '-';
-            }
-          }
-        }
-      }
-
-      summaryRows.push({
-        values: targetValues,
-        styler: (_colKey, _val, colIdx) => ({
-          font: { bold: true, color: { rgb: '3730A3' }, sz: 10 },
-          fill: { fgColor: { rgb: 'EEF2FF' } },
-          alignment: {
-            horizontal: colIdx === 1 ? 'left' : 'center',
-            vertical: 'center',
-          },
-        }),
-      });
-    }
-
-    const stats = this.capaianStats();
-
-    ExcelEngine.exportStyledTable({
-      fileName: `Hasil_Join_Excel_${new Date().toISOString().slice(0, 10)}.xlsx`,
-      sheetName: 'Hasil Join',
-      columns: excelCols,
-      dataRows,
-      summaryRows,
-      cellStyler: (_row, colKey, val, colIndex) => {
-        if (colKey === 'No') {
-          return {
-            font: { color: { rgb: '475569' }, sz: 10, bold: true },
-            alignment: { horizontal: 'center', vertical: 'center' },
-          };
-        }
-
-        if (colKey === 'Capaian') {
-          const valNum = typeof val === 'number' ? val : parseFloat(String(val));
-          let fillRgb = '';
-          let fontRgb = '334155';
-
-          if (!isNaN(valNum) && stats.min !== null && stats.max !== null && stats.min !== stats.max) {
-            if (valNum === stats.max) {
-              fillRgb = 'DBEAFE';
-              fontRgb = '1E40AF';
-            } else if (valNum === stats.min) {
-              fillRgb = 'FEE2E2';
-              fontRgb = '991B1B';
-            }
-          }
-
-          return {
-            font: { color: { rgb: fontRgb }, sz: 10, bold: true },
-            fill: fillRgb ? { fgColor: { rgb: fillRgb } } : undefined,
-            alignment: { horizontal: 'center', vertical: 'center' },
-          };
-        }
-
-        const cfg = this.columnConfigs()[colKey];
-        const isStringCol = cfg?.dataType === 'string';
-        const num = IndicatorEvaluator.parseSmartNumber(val);
-        let fillRgb = '';
-        let fontRgb = '334155';
-
-        if (!isStringCol && num !== null) {
-          if (cfg?.anomalyEnabled) {
-            const min = cfg.minAnomaly ?? 0;
-            const max = cfg.maxAnomaly ?? 100;
-            if (num < min || num > max) {
-              fillRgb = 'FEE2E2';
-              fontRgb = '991B1B';
-            }
-          }
-
-          if (!fillRgb && this.enableTarget()) {
-            const target = this.columnTargets()[colKey];
-            if (target && target.enabled && target.value !== null) {
-              if (IndicatorEvaluator.isTargetAchieved(val, target)) {
-                fillRgb = 'D1FAE5';
-                fontRgb = '065F46';
-              } else {
-                fillRgb = 'FEF3C7';
-                fontRgb = '92400E';
-              }
-            }
-          }
-        }
-
-        let numFmt: string | undefined = undefined;
-        if (cfg?.dataType === 'percentage' && typeof val === 'number') {
-          numFmt = '0.0"%"';
-        }
-
-        const isTextCol = colIndex === 1 || isStringCol;
-
-        return {
-          font: { color: { rgb: fontRgb }, sz: 10, bold: fillRgb !== '' },
-          fill: fillRgb ? { fgColor: { rgb: fillRgb } } : undefined,
-          alignment: {
-            vertical: 'center',
-            horizontal: isTextCol ? 'left' : 'center',
-          },
-          numFmt,
-        };
-      },
+    ExcelJoinEngine.exportJoinedWorkbook({
+      resultRows: this.resultRows(),
+      resultColumns: this.resultColumns(),
+      resultColumnsMeta: this.resultColumnsMeta(),
+      customColumnNames: this.customColumnNames(),
+      outputHeaderFormat: this.outputHeaderFormat(),
+      columnConfigs: this.columnConfigs(),
+      enableJumlah: this.enableJumlah(),
+      sumColumns: this.sumColumns(),
+      enableAverage: this.enableAverage(),
+      avgColumns: this.avgColumns(),
+      enableTarget: this.enableTarget(),
+      columnTargets: this.columnTargets(),
+      enableCapaian: this.enableCapaian(),
     });
   }
 
@@ -2643,6 +2252,8 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     this.resultColumnsMeta.set([]);
     this.defaultResultColumns.set([]);
     this.defaultResultColumnsMeta.set([]);
+    this.selectedColumnForMove.set(null);
+    this.editingColumnKey.set(null);
   }
 
   private reset(): void {
@@ -2656,6 +2267,8 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     this.resultColumnsMeta.set([]);
     this.defaultResultColumns.set([]);
     this.defaultResultColumnsMeta.set([]);
+    this.selectedColumnForMove.set(null);
+    this.editingColumnKey.set(null);
     this.customColumnNames.set({});
     this.columnTargets.set({});
     this.columnConfigs.set({});

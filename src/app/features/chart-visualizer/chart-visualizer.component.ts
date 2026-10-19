@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import * as XLSX from 'xlsx-js-style';
-import { ChartDataBridge } from '../../core/chart/chart-data-bridge';
+import { HealthDataExchange } from '../../core/domain/health-data-exchange';
 import {
   ChartBarItem,
   ChartDataRow,
@@ -54,7 +54,7 @@ export interface IndicatorChartGroup {
   templateUrl: './chart-visualizer.component.html',
 })
 export class ChartVisualizerComponent {
-  private chartDataBridge = inject(ChartDataBridge);
+  private healthDataExchange = inject(HealthDataExchange);
 
   // Status & Panel
   dataSource = signal<'join' | 'upload' | 'empty'>('empty');
@@ -68,6 +68,7 @@ export class ChartVisualizerComponent {
   });
 
   showSettingsPanel = signal(false);
+  showIndicatorPanel = signal(false);
   showSettings = signal(false);
 
   toggleSettings(): void {
@@ -122,7 +123,6 @@ export class ChartVisualizerComponent {
   seriesList = signal<ChartSeriesConfig[]>([]);
   dataRows = signal<ChartDataRow[]>([]);
   originalDataRows = signal<ChartDataRow[]>([]);
-  hasData = computed(() => this.dataRows().length > 0);
   targetValue = signal<number | null>(null);
 
   // Mode Tampilan: 'by-region' (Multi-Indikator per Daerah) vs 'by-indicator' (Per Kolom Indikator)
@@ -175,14 +175,14 @@ export class ChartVisualizerComponent {
   }
 
   readonly colorPalette = [
-    '#3b82f6', // blue
-    '#10b981', // emerald
-    '#f59e0b', // amber
-    '#8b5cf6', // purple
-    '#ec4899', // pink
-    '#06b6d4', // cyan
-    '#f97316', // orange
-    '#14b8a6', // teal
+    '#525AFF', // Electric Indigo (Primary)
+    '#4AB5B5', // Aqua Teal (Secondary)
+    '#6D8BC0', // Slate Periwinkle (Muted)
+    '#8FD9FB', // Sky Cyan (Accent)
+    '#F59E0B', // Amber
+    '#EC4899', // Pink Coral
+    '#10B981', // Emerald
+    '#6366F1', // Indigo Accent
   ];
 
   // Tooltip Interaktif
@@ -210,7 +210,7 @@ export class ChartVisualizerComponent {
   // ============================================================
 
   private loadTransferredData(): void {
-    const transferred = this.chartDataBridge.data();
+    const transferred = this.healthDataExchange.chartData();
     if (!transferred || transferred.rows.length === 0) {
       return;
     }
@@ -245,6 +245,22 @@ export class ChartVisualizerComponent {
     this.availableCategories.set(cats);
     this.selectedCategories.set(cats);
 
+    if (transferred.indicatorTargets) {
+      this.indicatorTargets.set({ ...transferred.indicatorTargets });
+    }
+
+    if (transferred.targetValue !== undefined) {
+      this.targetValue.set(transferred.targetValue ?? 50);
+    } else {
+      this.targetValue.set(50);
+    }
+
+    if (transferred.defaultViewMode) {
+      this.viewMode.set(transferred.defaultViewMode);
+    } else if (transferred.source === 'join' && transferred.categoryColumn !== 'Indikator') {
+      this.viewMode.set('by-indicator');
+    }
+
     const candidateSeries = transferred.columns.filter(
       (c) =>
         c !== transferred.categoryColumn &&
@@ -253,7 +269,39 @@ export class ChartVisualizerComponent {
         c !== 'Capaian',
     );
 
-    const initialSeries = candidateSeries.slice(0, 6).map((col, idx) => ({
+    // Filter hanya kolom yang memiliki nilai angka (numerik) valid
+    const nonNumericSet = new Set(transferred.nonNumericColumns || []);
+    const numericCandidates = candidateSeries.filter(
+      (col) =>
+        !nonNumericSet.has(col) &&
+        transferred.rows.some((r) => IndicatorEvaluator.parseSmartNumber(r[col]) !== null),
+    );
+
+    // Identifikasi seluruh kolom persentase yang berupa angka
+    const explicitPctSet =
+      transferred.percentageColumns && transferred.percentageColumns.length > 0
+        ? new Set(transferred.percentageColumns)
+        : null;
+    const targetKeys = new Set(
+      Object.keys(transferred.indicatorTargets || {}).filter(
+        (k) =>
+          transferred.indicatorTargets?.[k] !== null &&
+          transferred.indicatorTargets?.[k] !== undefined,
+      ),
+    );
+
+    const percentageCandidates = numericCandidates.filter((col) => {
+      if (explicitPctSet) {
+        return explicitPctSet.has(col);
+      }
+      return HealthDataExchange.isPercentageColumnName(col);
+    });
+
+    // Pilih seluruh kolom persentase berangka secara otomatis (fallback ke seluruh kolom angka bila tidak ada kolom persentase)
+    const selectedCols =
+      percentageCandidates.length > 0 ? percentageCandidates : numericCandidates;
+
+    const initialSeries = selectedCols.map((col, idx) => ({
       key: col,
       label: col,
       color: this.colorPalette[idx % this.colorPalette.length],
@@ -261,10 +309,6 @@ export class ChartVisualizerComponent {
 
     this.seriesList.set(initialSeries);
     this.selectedSeriesKeys.set(initialSeries.map((s) => s.key));
-
-    if (transferred.targetValue !== undefined) {
-      this.targetValue.set(transferred.targetValue);
-    }
 
     this.notificationMessage.set(
       `Data hasil Join berhasil dimuat! (${cats.length} baris, ${initialSeries.length} seri)`,
@@ -331,6 +375,7 @@ export class ChartVisualizerComponent {
     this.selectedCategories.set([]);
     this.seriesList.set([]);
     this.indicatorTargets.set({});
+    this.targetValue.set(null);
     this.dataSource.set('empty');
     this.showSettings.set(true);
   }
@@ -396,11 +441,20 @@ export class ChartVisualizerComponent {
     );
 
     if (selectedSeries.length === 0) {
-      const sampleRows = ExcelEngine.readSheetRows(worksheet, cols, dataStart).slice(0, 10);
+      const allRows = ExcelEngine.readSheetRows(worksheet, cols, dataStart);
+      const targetRow = allRows.find((r) =>
+        String(r[cat] ?? '').trim().toLowerCase().startsWith('target'),
+      );
+      const sampleRows = allRows.slice(0, 10);
       const numericCols: string[] = [];
 
       for (const col of cols) {
-        if (col.header === cat || col.header.startsWith('__') || col.header === 'No') {
+        if (
+          col.header === cat ||
+          col.header.startsWith('__') ||
+          col.header === 'No' ||
+          col.header === 'Capaian'
+        ) {
           continue;
         }
         const hasNumber = sampleRows.some(
@@ -410,7 +464,18 @@ export class ChartVisualizerComponent {
           numericCols.push(col.header);
         }
       }
-      selectedSeries = numericCols.slice(0, 4);
+
+      if (targetRow) {
+        const targetCols = numericCols.filter((c) => {
+          const raw = targetRow[c];
+          if (raw === undefined || raw === null || raw === '-') return false;
+          const cleanStr = String(raw).replace(/^[<>=!\s]+/, '').trim();
+          return IndicatorEvaluator.parseSmartNumber(cleanStr) !== null;
+        });
+        selectedSeries = (targetCols.length > 0 ? targetCols : numericCols).slice(0, 4);
+      } else {
+        selectedSeries = numericCols.slice(0, 4);
+      }
     }
     this.selectedSeriesKeys.set(selectedSeries);
 
@@ -433,6 +498,39 @@ export class ChartVisualizerComponent {
     }
 
     const rows = ExcelEngine.readSheetRows(worksheet, cols, dataStart);
+
+    // Otomatis deteksi baris TARGET bila ada pada lembar data Excel
+    const targetRow = rows.find((r) => {
+      const val = String(r[catCol] ?? '').trim().toLowerCase();
+      return val.startsWith('target');
+    });
+
+    if (targetRow) {
+      const detectedTargets: Record<string, number | null> = { ...this.indicatorTargets() };
+      for (const col of cols) {
+        if (
+          col.header === catCol ||
+          col.header.startsWith('__') ||
+          col.header === 'No' ||
+          col.header === 'Capaian'
+        ) {
+          continue;
+        }
+        const raw = targetRow[col.header];
+        if (raw !== undefined && raw !== null && raw !== '-') {
+          const cleanStr = String(raw).replace(/^[<>=!\s]+/, '').trim();
+          const num = IndicatorEvaluator.parseSmartNumber(cleanStr);
+          if (num !== null) {
+            detectedTargets[col.header] = num;
+          }
+        }
+      }
+      this.indicatorTargets.set(detectedTargets);
+      if (this.targetValue() === null || this.targetValue() === undefined) {
+        this.targetValue.set(50);
+      }
+    }
+
     const cleanedRows = rows.filter((r) => {
       const val = String(r[catCol] ?? '').trim();
       if (!val) return false;
@@ -441,7 +539,8 @@ export class ChartVisualizerComponent {
         !lower.startsWith('total') &&
         !lower.startsWith('jumlah') &&
         !lower.startsWith('rata-rata') &&
-        !lower.startsWith('sub total')
+        !lower.startsWith('sub total') &&
+        !lower.startsWith('target')
       );
     });
 
@@ -706,6 +805,16 @@ export class ChartVisualizerComponent {
     );
   });
 
+  hasLoadedData = computed<boolean>(() => {
+    return (
+      (this.dataSource() === 'join' && this.dataRows().length > 0) ||
+      (this.dataSource() === 'upload' &&
+        !!this.selectedSheet() &&
+        !!this.categoryColumn() &&
+        this.dataRows().length > 0)
+    );
+  });
+
   filteredAvailableCategories = computed<string[]>(() => {
     const q = this.categorySearchQuery().toLowerCase().trim();
     const all = this.availableCategories();
@@ -731,54 +840,12 @@ export class ChartVisualizerComponent {
     this.selectedCategories.set([]);
   }
 
-  isSeriesActive(colKey: string): boolean {
-    return this.seriesList().some((s) => s.key === colKey);
-  }
-
-  toggleSeries(colKey: string): void {
-    const current = this.seriesList();
-    const exists = current.find((s) => s.key === colKey);
-
-    if (exists) {
-      if (current.length <= 1) {
-        return; // Minimal 1 seri
-      }
-      const updated = current.filter((s) => s.key !== colKey);
-      this.seriesList.set(updated);
-      this.selectedSeriesKeys.set(updated.map((s) => s.key));
-    } else {
-      const idx = current.length;
-      const nextColor = this.colorPalette[idx % this.colorPalette.length];
-      const updated = [...current, { key: colKey, label: colKey, color: nextColor }];
-      this.seriesList.set(updated);
-      this.selectedSeriesKeys.set(updated.map((s) => s.key));
-    }
-  }
-
-  selectAllSeries(): void {
-    this.selectAllSeriesColumns();
-  }
-
-  clearAllSeries(): void {
-    this.clearAllSeriesColumns();
-  }
-
-  getSeriesColor(key: string): string {
-    const active = this.seriesList().find((s) => s.key === key);
-    if (active) return active.color;
-    const idx = this.candidateSeriesColumns().findIndex((c) => c.header === key);
-    return this.colorPalette[(idx >= 0 ? idx : 0) % this.colorPalette.length];
-  }
-
   // Baris aktif yang ditampilkan (mengikuti urutan asli dari tabel data)
   visibleCategories = computed<string[]>(() => {
     const selected = this.selectedCategories();
     const available = this.availableCategories();
     return available.filter((cat) => selected.includes(cat));
   });
-
-  // Alias untuk kompatibilitas
-  sortedCategories = computed<string[]>(() => this.visibleCategories());
 
   // Hapus baris tertentu dari visualisasi
   deleteRow(cat: string): void {
@@ -1168,7 +1235,52 @@ export class ChartVisualizerComponent {
   }
 
   toggleSettingsPanel(): void {
-    this.showSettingsPanel.set(!this.showSettingsPanel());
+    const next = !this.showSettingsPanel();
+    this.showSettingsPanel.set(next);
+    if (next) {
+      this.showIndicatorPanel.set(false);
+    }
+  }
+
+  toggleIndicatorPanel(): void {
+    const next = !this.showIndicatorPanel();
+    this.showIndicatorPanel.set(next);
+    if (next) {
+      this.showSettingsPanel.set(false);
+    }
+  }
+
+  isPercentageColumn(colHeader: string): boolean {
+    const transferred = this.healthDataExchange.chartData();
+    if (transferred?.percentageColumns && transferred.percentageColumns.includes(colHeader)) {
+      return true;
+    }
+    return HealthDataExchange.isPercentageColumnName(colHeader);
+  }
+
+  selectPercentageSeriesColumns(): void {
+    const cols = this.candidateSeriesColumns();
+    const pctCols = cols
+      .filter((c) => this.isPercentageColumn(c.header))
+      .map((c) => c.header);
+
+    const targetCols = pctCols.length > 0 ? pctCols : cols.map((c) => c.header);
+    this.selectedSeriesKeys.set(targetCols);
+
+    if (this.workbook && this.selectedSheet()) {
+      const ws = this.workbook.Sheets[this.selectedSheet()];
+      if (ws) {
+        this.rebuildChartData(
+          ws,
+          this.sheetColumns(),
+          this.categoryColumn(),
+          targetCols,
+          this.dataStartRow(),
+        );
+      }
+    } else {
+      this.syncSeriesList(targetCols);
+    }
   }
 
   // ============================================================
@@ -1310,6 +1422,11 @@ export class ChartVisualizerComponent {
           aoaData.push([cat, num !== null ? num : '']);
         }
 
+        // Sertakan baris Target di bagian bawah indikator
+        const targetVal = this.getIndicatorTarget(s.key);
+        const targetDisplay = targetVal !== null ? `>= ${targetVal}` : '-';
+        aoaData.push(['Target', targetDisplay]);
+
         const ws = XLSX.utils.aoa_to_sheet(aoaData);
 
         // Styling Header dengan xlsx-js-style
@@ -1321,6 +1438,23 @@ export class ChartVisualizerComponent {
               fill: { fgColor: { rgb: '2563EB' } }, // Biru Dinkes
               font: { name: 'Calibri', sz: 11, bold: true, color: { rgb: 'FFFFFF' } },
               alignment: { horizontal: c === 0 ? 'left' : 'center', vertical: 'center' },
+            };
+          }
+        }
+
+        // Styling Baris Target di bagian paling bawah indikator
+        const targetRowIdx = aoaData.length - 1;
+        for (let c = 0; c < 2; c++) {
+          const addr = XLSX.utils.encode_cell({ r: targetRowIdx, c });
+          if (ws[addr]) {
+            ws[addr].s = {
+              fill: { fgColor: { rgb: 'EEF2FF' } }, // Soft Indigo / Lavender
+              font: { name: 'Calibri', sz: 10, bold: true, color: { rgb: '3730A3' } },
+              alignment: { horizontal: c === 0 ? 'left' : 'center', vertical: 'center' },
+              border: {
+                top: { style: 'thin', color: { rgb: 'C7D2FE' } },
+                bottom: { style: 'thin', color: { rgb: 'C7D2FE' } },
+              },
             };
           }
         }
@@ -1371,6 +1505,18 @@ export class ChartVisualizerComponent {
       aoaData.push(rowValues);
     }
 
+    // Sertakan baris Target di bagian bawah seluruh kolom indikator
+    const targetValues: (string | number | null)[] = ['Target'];
+    for (const s of series) {
+      const tgt = this.getIndicatorTarget(s.key);
+      if (tgt !== null) {
+        targetValues.push(`>= ${tgt}`);
+      } else {
+        targetValues.push('-');
+      }
+    }
+    aoaData.push(targetValues);
+
     const ws = XLSX.utils.aoa_to_sheet(aoaData);
 
     // Styling Header dengan xlsx-js-style
@@ -1382,6 +1528,23 @@ export class ChartVisualizerComponent {
           fill: { fgColor: { rgb: '2563EB' } }, // Biru Dinkes
           font: { name: 'Calibri', sz: 11, bold: true, color: { rgb: 'FFFFFF' } },
           alignment: { horizontal: c === 0 ? 'left' : 'center', vertical: 'center' },
+        };
+      }
+    }
+
+    // Styling Baris Target di bagian paling bawah
+    const targetRowIdx = aoaData.length - 1;
+    for (let c = 0; c < headerRow.length; c++) {
+      const addr = XLSX.utils.encode_cell({ r: targetRowIdx, c });
+      if (ws[addr]) {
+        ws[addr].s = {
+          fill: { fgColor: { rgb: 'EEF2FF' } }, // Soft Indigo / Lavender
+          font: { name: 'Calibri', sz: 10, bold: true, color: { rgb: '3730A3' } },
+          alignment: { horizontal: c === 0 ? 'left' : 'center', vertical: 'center' },
+          border: {
+            top: { style: 'thin', color: { rgb: 'C7D2FE' } },
+            bottom: { style: 'thin', color: { rgb: 'C7D2FE' } },
+          },
         };
       }
     }
@@ -1447,7 +1610,7 @@ export class ChartVisualizerComponent {
       rows: this.dataRows(),
       targetValue: this.targetValue(),
       width: 960,
-      margin: { top: 75, right: 95, bottom: 45, left: 200 },
+      margin: { top: 75, right: 95, bottom: 58, left: 200 },
     });
   });
 
@@ -1530,7 +1693,7 @@ export class ChartVisualizerComponent {
         targetValue: target,
         width: 960,
         rowHeight: 38,
-        margin: { top: 60, right: 95, bottom: 40, left: 200 },
+        margin: { top: 60, right: 95, bottom: 58, left: 200 },
       });
 
       return {

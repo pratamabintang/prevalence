@@ -6,6 +6,8 @@ import { ExcelJoinStore, ExcelJoinStoredState } from './excel-join-store';
 import { PresetStore } from './preset-store';
 import * as XLSX from 'xlsx-js-style';
 import { environment } from '../../../environments/environment';
+import { GasStorageService } from '../../core/storage/gas-storage.service';
+import { HealthDataExchange } from '../../core/domain/health-data-exchange';
 
 describe('ExcelJoinComponent', () => {
   let component: ExcelJoinComponent;
@@ -319,12 +321,12 @@ describe('ExcelJoinComponent', () => {
       expect(component.showSettings()).toBe(initial);
     });
 
-    it('should toggle showFormatSettings correctly via toggleFormatSettings()', () => {
-      expect(component.showFormatSettings()).toBe(false);
-      component.toggleFormatSettings();
-      expect(component.showFormatSettings()).toBe(true);
-      component.toggleFormatSettings();
-      expect(component.showFormatSettings()).toBe(false);
+    it('should toggle showColumnSettings correctly via toggleColumnSettings()', () => {
+      expect(component.showColumnSettings()).toBe(false);
+      component.toggleColumnSettings();
+      expect(component.showColumnSettings()).toBe(true);
+      component.toggleColumnSettings();
+      expect(component.showColumnSettings()).toBe(false);
     });
 
     it('should have valid DEFAULT_JOIN_CONFIG with all 5 sheets and 50% target configs', async () => {
@@ -354,7 +356,7 @@ describe('ExcelJoinComponent', () => {
       expect(DEFAULT_JOIN_CONFIG.columnTargets).toBeDefined();
       const targets = Object.values(DEFAULT_JOIN_CONFIG.columnTargets!);
       expect(targets.length).toBeGreaterThan(0);
-      expect(targets.some((t) => t.value === 50)).toBe(true);
+      expect(targets.some((t) => typeof t.value === 'number' && t.value > 0)).toBe(true);
     });
 
     it('should reset isDefaultData and show settings when clearFile is called', () => {
@@ -458,16 +460,6 @@ describe('ExcelJoinComponent', () => {
       expect(component.avgColumns()['Balita Stunting']).toBe(true);
       expect(component.getColumnAverage('Balita Stunting')).toBe(20);
       expect(component.formatAverageValue(20)).toBe('20');
-
-      // Select all numeric columns for avg
-      component.selectAllNumericColumnsForAvg();
-      expect(component.avgColumns()['Balita Stunting']).toBe(true);
-      expect(component.avgColumns()['Cakupan %']).toBe(true);
-      expect(component.activeAvgColumnCount()).toBe(2);
-
-      // Clear all
-      component.clearAllAvgColumns();
-      expect(component.activeAvgColumnCount()).toBe(0);
     });
 
     it('transferToStuntingMonitoring harus mengirim dataset ke StuntingDataBridge dan navigasi', () => {
@@ -484,7 +476,7 @@ describe('ExcelJoinComponent', () => {
       expect(navigateSpy).toHaveBeenCalledWith(['/stunting-monitoring']);
     });
 
-    it('harus mendukung pemilihan kolom target tertentu saja (toggle, select percentage, clear)', () => {
+    it('harus mendukung pemilihan kolom target tertentu saja (toggle dan update)', () => {
       component.enableTarget.set(true);
       component.resultColumns.set(['Kabupaten/Kota', 'Jumlah Sasaran', 'Cakupan TTD %']);
       component.columnConfigs.set({
@@ -508,17 +500,6 @@ describe('ExcelJoinComponent', () => {
 
       // Toggle off target
       component.toggleColumnTarget('Cakupan TTD %');
-      expect(component.columnTargets()['Cakupan TTD %']?.enabled).toBe(false);
-      expect(component.activeTargetCount()).toBe(0);
-
-      // Select all percentage columns
-      component.selectAllPercentageColumnsForTarget();
-      expect(component.columnTargets()['Cakupan TTD %']?.enabled).toBe(true);
-      expect(component.columnTargets()['Jumlah Sasaran']?.enabled).toBeFalsy();
-      expect(component.activeTargetCount()).toBe(1);
-
-      // Clear all target columns
-      component.clearAllTargetColumns();
       expect(component.columnTargets()['Cakupan TTD %']?.enabled).toBe(false);
       expect(component.activeTargetCount()).toBe(0);
     });
@@ -878,6 +859,616 @@ describe('ExcelJoinComponent', () => {
       const stored = store.getState();
       expect(stored?.customColumnNames['Var B']).toBe('Alias B');
       expect(stored?.resultRows.length).toBe(1);
+    });
+  });
+
+  describe('Google Drive reload and save default', () => {
+    it('should reload data and config from Google Drive via reloadFromDrive()', async () => {
+      const gasService = TestBed.inject(GasStorageService);
+      const store = TestBed.inject(ExcelJoinStore);
+      const clearStateSpy = vi.spyOn(store, 'clearState');
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet([['Kabupaten/Kota', 'Var A'], ['CILACAP', 99]]);
+      XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+      const u8 = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as Uint8Array;
+      const buf = new Uint8Array(u8).buffer;
+
+      vi.spyOn(gasService, 'isConfigured').mockReturnValue(true);
+      vi.spyOn(gasService, 'loadDefault').mockResolvedValue({
+        success: true,
+        hasData: true,
+        fileName: 'drive-data.xlsx',
+        excelBuffer: buf,
+        config: {
+          version: '1.0',
+          name: 'Preset Dari Drive',
+          outputHeaderFormat: 'concat',
+          sheets: [
+            {
+              sheetName: 'Sheet1',
+              variables: ['Var A'],
+              joinColumn: 'Kabupaten/Kota',
+            },
+          ],
+        },
+      });
+
+      await component.reloadFromDrive();
+
+      expect(clearStateSpy).toHaveBeenCalled();
+      expect(component.file()?.name).toBe('drive-data.xlsx');
+      expect(component.isCloudDefault()).toBe(true);
+      expect(component.configNotification()?.type).toBe('success');
+      expect(component.configNotification()?.message).toContain('Google Drive');
+    });
+
+    it('should serialize workbook to non-empty buffer when file is 0 bytes on confirmSaveDefaultToCloud()', async () => {
+      const gasService = TestBed.inject(GasStorageService);
+      vi.spyOn(gasService, 'isConfigured').mockReturnValue(true);
+
+      let savedBuffer: ArrayBuffer | null = null;
+      vi.spyOn(gasService, 'saveDefault').mockImplementation(async (buf) => {
+        savedBuffer = buf;
+        return { success: true, message: 'Berhasil' };
+      });
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet([['Kabupaten/Kota', 'Var A'], ['BANYUMAS', 85]]);
+      XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+
+      // Emulate restored file with 0 size
+      component.file.set(new File([], 'restored-zero-byte.xlsx'));
+      component.workbook = wb;
+
+      await component.confirmSaveDefaultToCloud();
+
+      expect(savedBuffer).not.toBeNull();
+      expect((savedBuffer as unknown as ArrayBuffer).byteLength).toBeGreaterThan(0);
+      expect(component.configNotification()?.type).toBe('success');
+    });
+
+    it('should allow canPreview() when at least one selected sheet has variables, even if another has 0', () => {
+      const sheet1: SheetInfo = {
+        name: 'Sheet1',
+        columns: [
+          { colIndex: 0, colLetter: 'A', header: 'Kabupaten/Kota', leafHeader: 'Kabupaten/Kota', layers: ['Kabupaten/Kota'] },
+          { colIndex: 1, colLetter: 'B', header: 'Var A', leafHeader: 'Var A', layers: ['Var A'] },
+        ],
+        headers: ['Kabupaten/Kota', 'Var A'],
+        selected: true,
+        variables: ['Var A'],
+        joinColumn: 'Kabupaten/Kota',
+        headerStartRow: 1,
+        headerEndRow: 1,
+        dataStartRow: 2,
+      };
+
+      const sheet2: SheetInfo = {
+        name: 'Sheet2',
+        columns: [
+          { colIndex: 0, colLetter: 'A', header: 'Kabupaten/Kota', leafHeader: 'Kabupaten/Kota', layers: ['Kabupaten/Kota'] },
+          { colIndex: 1, colLetter: 'B', header: 'Var B', leafHeader: 'Var B', layers: ['Var B'] },
+        ],
+        headers: ['Kabupaten/Kota', 'Var B'],
+        selected: true,
+        variables: [], // 0 variables selected
+        joinColumn: 'Kabupaten/Kota',
+        headerStartRow: 1,
+        headerEndRow: 1,
+        dataStartRow: 2,
+      };
+
+      component.sheets.set([sheet1, sheet2]);
+      expect(component.canPreview()).toBe(true);
+      expect(component.validationMessage()).toBe('');
+
+      // If both sheets have 0 variables, canPreview should be false
+      sheet1.variables = [];
+      component.sheets.set([{ ...sheet1 }, { ...sheet2 }]);
+      expect(component.canPreview()).toBe(false);
+      expect(component.validationMessage()).toBe('Pilih minimal 1 variabel untuk ditampilkan.');
+    });
+
+    it('should automatically trigger preview() when toggleVariable is called without wiping table results', () => {
+      const sheet1: SheetInfo = {
+        name: 'Sheet1',
+        columns: [
+          { colIndex: 0, colLetter: 'A', header: 'Kabupaten/Kota', leafHeader: 'Kabupaten/Kota', layers: ['Kabupaten/Kota'] },
+          { colIndex: 1, colLetter: 'B', header: 'Var A', leafHeader: 'Var A', layers: ['Var A'] },
+          { colIndex: 2, colLetter: 'C', header: 'Var Added', leafHeader: 'Var Added', layers: ['Var Added'] },
+        ],
+        headers: ['Kabupaten/Kota', 'Var A', 'Var Added'],
+        selected: true,
+        variables: ['Var A'],
+        joinColumn: 'Kabupaten/Kota',
+        headerStartRow: 1,
+        headerEndRow: 1,
+        dataStartRow: 2,
+      };
+
+      const sheet2: SheetInfo = {
+        name: 'Sheet2',
+        columns: [
+          { colIndex: 0, colLetter: 'A', header: 'Kabupaten/Kota', leafHeader: 'Kabupaten/Kota', layers: ['Kabupaten/Kota'] },
+          { colIndex: 1, colLetter: 'B', header: 'Var B', leafHeader: 'Var B', layers: ['Var B'] },
+        ],
+        headers: ['Kabupaten/Kota', 'Var B'],
+        selected: true,
+        variables: ['Var B'],
+        joinColumn: 'Kabupaten/Kota',
+        headerStartRow: 1,
+        headerEndRow: 1,
+        dataStartRow: 2,
+      };
+
+      component.workbook = {
+        SheetNames: ['Sheet1', 'Sheet2'],
+        Sheets: {
+          Sheet1: {
+            '!ref': 'A1:C3',
+            A1: { v: 'Kabupaten/Kota' },
+            B1: { v: 'Var A' },
+            C1: { v: 'Var Added' },
+            A2: { v: '3301 - KAB. CILACAP' },
+            B2: { v: 10 },
+            C2: { v: 99 },
+            A3: { v: '3302 - KAB. BANYUMAS' },
+            B3: { v: 20 },
+            C3: { v: 88 },
+          },
+          Sheet2: {
+            '!ref': 'A1:B3',
+            A1: { v: 'Kabupaten/Kota' },
+            B1: { v: 'Var B' },
+            A2: { v: 'CILACAP' },
+            B2: { v: 100 },
+            A3: { v: 'BANYUMAS' },
+            B3: { v: 200 },
+          },
+        },
+      } as any;
+
+      component.sheets.set([sheet1, sheet2]);
+      component.preview();
+
+      expect(component.resultRows()).toHaveLength(2);
+      expect(component.resultColumns()).toContain('Var A');
+      expect(component.resultColumns()).not.toContain('Var Added');
+
+      // User adds a column to display
+      component.toggleVariable(sheet1, 'Var Added');
+
+      // Result rows must NOT be wiped out; preview must automatically include Var Added
+      expect(component.resultRows()).toHaveLength(2);
+      expect(component.resultColumns()).toContain('Var Added');
+      expect(component.resultRows()[0]['Var Added']).toBe(99);
+      expect(component.resultRows()[1]['Var Added']).toBe(88);
+    });
+
+    it('should include all columns in resultColumns even when row 0 has no matching record in left-joined sheet', () => {
+      const sheet1: SheetInfo = {
+        name: 'MasterSheet',
+        columns: [
+          { colIndex: 0, colLetter: 'A', header: 'Kabupaten/Kota', leafHeader: 'Kabupaten/Kota', layers: ['Kabupaten/Kota'] },
+          { colIndex: 1, colLetter: 'B', header: 'Master Var', leafHeader: 'Master Var', layers: ['Master Var'] },
+        ],
+        headers: ['Kabupaten/Kota', 'Master Var'],
+        selected: true,
+        variables: ['Master Var'],
+        joinColumn: 'Kabupaten/Kota',
+        headerStartRow: 1,
+        headerEndRow: 1,
+        dataStartRow: 2,
+      };
+
+      const sheet2: SheetInfo = {
+        name: 'LeftSheet',
+        columns: [
+          { colIndex: 0, colLetter: 'A', header: 'Kabupaten/Kota', leafHeader: 'Kabupaten/Kota', layers: ['Kabupaten/Kota'] },
+          { colIndex: 1, colLetter: 'B', header: 'Left Var', leafHeader: 'Left Var', layers: ['Left Var'] },
+        ],
+        headers: ['Kabupaten/Kota', 'Left Var'],
+        selected: true,
+        variables: ['Left Var'],
+        joinColumn: 'Kabupaten/Kota',
+        headerStartRow: 1,
+        headerEndRow: 1,
+        dataStartRow: 2,
+      };
+
+      // In this workbook, Row 0 in master is CILACAP. Sheet2 does NOT have Cilacap at all!
+      component.workbook = {
+        SheetNames: ['MasterSheet', 'LeftSheet'],
+        Sheets: {
+          MasterSheet: {
+            '!ref': 'A1:B3',
+            A1: { v: 'Kabupaten/Kota' },
+            B1: { v: 'Master Var' },
+            A2: { v: 'CILACAP' },
+            B2: { v: 10 },
+            A3: { v: 'BANYUMAS' },
+            B3: { v: 20 },
+          },
+          LeftSheet: {
+            '!ref': 'A1:B2',
+            A1: { v: 'Kabupaten/Kota' },
+            B1: { v: 'Left Var' },
+            A2: { v: 'BANYUMAS' },
+            B2: { v: 555 },
+          },
+        },
+      } as any;
+
+      component.includeSheetPrefix.set(false);
+      component.sheets.set([sheet1, sheet2]);
+      component.preview();
+
+      // resultColumns must contain Left Var even though row 0 (Cilacap) had no entry in Sheet2!
+      expect(component.resultColumns()).toEqual(['Kabupaten/Kota', 'Master Var', 'Left Var']);
+      expect(component.resultRows()[0]['Kabupaten/Kota']).toBe('CILACAP');
+      expect(component.resultRows()[0]['Master Var']).toBe(10);
+      expect(component.resultRows()[0]['Left Var']).toBeNull();
+
+      expect(component.resultRows()[1]['Kabupaten/Kota']).toBe('BANYUMAS');
+      expect(component.resultRows()[1]['Master Var']).toBe(20);
+      expect(component.resultRows()[1]['Left Var']).toBe(555);
+    });
+
+    it('should preserve customized column ordering when adding a new variable', () => {
+      const sheet1: SheetInfo = {
+        name: 'Sheet1',
+        columns: [
+          { colIndex: 0, colLetter: 'A', header: 'Kabupaten/Kota', leafHeader: 'Kabupaten/Kota', layers: ['Kabupaten/Kota'] },
+          { colIndex: 1, colLetter: 'B', header: 'Col1', leafHeader: 'Col1', layers: ['Col1'] },
+          { colIndex: 2, colLetter: 'C', header: 'Col2', leafHeader: 'Col2', layers: ['Col2'] },
+          { colIndex: 3, colLetter: 'D', header: 'ColNew', leafHeader: 'ColNew', layers: ['ColNew'] },
+        ],
+        headers: ['Kabupaten/Kota', 'Col1', 'Col2', 'ColNew'],
+        selected: true,
+        variables: ['Col1', 'Col2'],
+        joinColumn: 'Kabupaten/Kota',
+        headerStartRow: 1,
+        headerEndRow: 1,
+        dataStartRow: 2,
+      };
+
+      const sheet2: SheetInfo = {
+        name: 'Sheet2',
+        columns: [
+          { colIndex: 0, colLetter: 'A', header: 'Kabupaten/Kota', leafHeader: 'Kabupaten/Kota', layers: ['Kabupaten/Kota'] },
+          { colIndex: 1, colLetter: 'B', header: 'Col3', leafHeader: 'Col3', layers: ['Col3'] },
+        ],
+        headers: ['Kabupaten/Kota', 'Col3'],
+        selected: true,
+        variables: ['Col3'],
+        joinColumn: 'Kabupaten/Kota',
+        headerStartRow: 1,
+        headerEndRow: 1,
+        dataStartRow: 2,
+      };
+
+      component.workbook = {
+        SheetNames: ['Sheet1', 'Sheet2'],
+        Sheets: {
+          Sheet1: {
+            '!ref': 'A1:D2',
+            A1: { v: 'Kabupaten/Kota' },
+            B1: { v: 'Col1' },
+            C1: { v: 'Col2' },
+            D1: { v: 'ColNew' },
+            A2: { v: 'CILACAP' },
+            B2: { v: 1 },
+            C2: { v: 2 },
+            D2: { v: 999 },
+          },
+          Sheet2: {
+            '!ref': 'A1:B2',
+            A1: { v: 'Kabupaten/Kota' },
+            B1: { v: 'Col3' },
+            A2: { v: 'CILACAP' },
+            B2: { v: 3 },
+          },
+        },
+      } as any;
+
+      component.includeSheetPrefix.set(false);
+      component.sheets.set([sheet1, sheet2]);
+      component.preview();
+
+      // Initial natural order: ['Kabupaten/Kota', 'Col1', 'Col2', 'Col3']
+      expect(component.resultColumns()).toEqual(['Kabupaten/Kota', 'Col1', 'Col2', 'Col3']);
+
+      // Move Col2 left (swap Col1 and Col2)
+      component.moveColumnLeft(2);
+      expect(component.resultColumns()).toEqual(['Kabupaten/Kota', 'Col2', 'Col1', 'Col3']);
+
+      // Now toggle/add ColNew
+      component.toggleVariable(sheet1, 'ColNew');
+
+      // Swapped order of Col2 and Col1 must be preserved, and ColNew must be appended at the end
+      expect(component.resultColumns()).toEqual(['Kabupaten/Kota', 'Col2', 'Col1', 'Col3', 'ColNew']);
+    });
+
+    it('should select column for move, toggle off on re-click, and reject selecting locked key column', () => {
+      component.resultColumns.set(['Kabupaten/Kota', 'Col A', 'Col B', 'Col C']);
+
+      // Attempting to select key column (index 0) must do nothing
+      component.selectColumnForMove('Kabupaten/Kota');
+      expect(component.selectedColumnForMove()).toBeNull();
+      expect(component.selectedColumnIndex()).toBe(-1);
+
+      // Select Col B
+      component.selectColumnForMove('Col B');
+      expect(component.selectedColumnForMove()).toBe('Col B');
+      expect(component.selectedColumnIndex()).toBe(2);
+
+      // Clicking Col B again should deselect it
+      component.selectColumnForMove('Col B');
+      expect(component.selectedColumnForMove()).toBeNull();
+      expect(component.selectedColumnIndex()).toBe(-1);
+
+      // Select Col A (index 1) - can move right, but cannot move left (index 0 is locked)
+      component.selectColumnForMove('Col A');
+      expect(component.canMoveSelectedColumnLeft()).toBe(false);
+      expect(component.canMoveSelectedColumnRight()).toBe(true);
+
+      // Select Col C (index 3, last) - can move left, but cannot move right
+      component.selectColumnForMove('Col C');
+      expect(component.canMoveSelectedColumnLeft()).toBe(true);
+      expect(component.canMoveSelectedColumnRight()).toBe(false);
+    });
+
+    it('should move selected column left and right via shared buttons and update its position', () => {
+      component.resultColumns.set(['Kabupaten/Kota', 'Col A', 'Col B', 'Col C']);
+      component.resultColumnsMeta.set([
+        { key: 'Kabupaten/Kota', layers: ['Kabupaten/Kota'] },
+        { key: 'Col A', layers: ['Col A'] },
+        { key: 'Col B', layers: ['Col B'] },
+        { key: 'Col C', layers: ['Col C'] },
+      ]);
+
+      component.selectColumnForMove('Col B');
+      expect(component.selectedColumnIndex()).toBe(2);
+
+      // Move left
+      component.moveSelectedColumnLeft();
+      expect(component.resultColumns()).toEqual(['Kabupaten/Kota', 'Col B', 'Col A', 'Col C']);
+      expect(component.selectedColumnIndex()).toBe(1);
+
+      // At index 1, cannot move left anymore
+      expect(component.canMoveSelectedColumnLeft()).toBe(false);
+
+      // Move right twice
+      component.moveSelectedColumnRight();
+      expect(component.resultColumns()).toEqual(['Kabupaten/Kota', 'Col A', 'Col B', 'Col C']);
+      expect(component.selectedColumnIndex()).toBe(2);
+
+      component.moveSelectedColumnRight();
+      expect(component.resultColumns()).toEqual(['Kabupaten/Kota', 'Col A', 'Col C', 'Col B']);
+      expect(component.selectedColumnIndex()).toBe(3);
+      expect(component.canMoveSelectedColumnRight()).toBe(false);
+    });
+
+    it('should support keyboard navigation (ArrowLeft, ArrowRight, Escape) for shifting active column', () => {
+      component.resultColumns.set(['Kabupaten/Kota', 'Col A', 'Col B', 'Col C']);
+      component.resultColumnsMeta.set([
+        { key: 'Kabupaten/Kota', layers: ['Kabupaten/Kota'] },
+        { key: 'Col A', layers: ['Col A'] },
+        { key: 'Col B', layers: ['Col B'] },
+        { key: 'Col C', layers: ['Col C'] },
+      ]);
+
+      component.selectColumnForMove('Col B');
+
+      // ArrowLeft keydown
+      const leftEvent = new KeyboardEvent('keydown', { key: 'ArrowLeft' });
+      component.handleKeyboardMove(leftEvent);
+      expect(component.resultColumns()).toEqual(['Kabupaten/Kota', 'Col B', 'Col A', 'Col C']);
+
+      // ArrowRight keydown
+      const rightEvent = new KeyboardEvent('keydown', { key: 'ArrowRight' });
+      component.handleKeyboardMove(rightEvent);
+      expect(component.resultColumns()).toEqual(['Kabupaten/Kota', 'Col A', 'Col B', 'Col C']);
+
+      // Escape keydown clears selection
+      const escEvent = new KeyboardEvent('keydown', { key: 'Escape' });
+      component.handleKeyboardMove(escEvent);
+      expect(component.selectedColumnForMove()).toBeNull();
+    });
+  });
+
+  describe('Inline Column Renaming (Double-Click)', () => {
+    beforeEach(() => {
+      component.resultColumns.set(['Kabupaten/Kota', 'Col A', 'Col B']);
+      component.resultColumnsMeta.set([
+        { key: 'Kabupaten/Kota', layers: ['Kabupaten/Kota'] },
+        { key: 'Col A', layers: ['Col A'] },
+        { key: 'Col B', layers: ['Col B'] },
+      ]);
+    });
+
+    it('should start editing a column and prefill with current display name', () => {
+      expect(component.editingColumnKey()).toBeNull();
+
+      component.startEditingColumn('Col A');
+      expect(component.editingColumnKey()).toBe('Col A');
+      expect(component.editingColumnValue()).toBe('Col A');
+
+      // If an alias already exists, it should prefill with the alias
+      component.setColumnCustomName('Col B', 'Balita Stunting');
+      component.startEditingColumn('Col B');
+      expect(component.editingColumnKey()).toBe('Col B');
+      expect(component.editingColumnValue()).toBe('Balita Stunting');
+    });
+
+    it('should ignore invalid keys such as null or internal action columns', () => {
+      component.startEditingColumn(null);
+      expect(component.editingColumnKey()).toBeNull();
+
+      component.startEditingColumn('__aksi__');
+      expect(component.editingColumnKey()).toBeNull();
+
+      component.startEditingColumn('__no__');
+      expect(component.editingColumnKey()).toBeNull();
+
+      component.startEditingColumn('__capaian__');
+      expect(component.editingColumnKey()).toBeNull();
+    });
+
+    it('should save inline column rename and update customColumnNames and grid', () => {
+      component.startEditingColumn('Col A');
+      component.saveInlineColumnRename('Col A', 'Jumlah Balita Diukur');
+
+      expect(component.editingColumnKey()).toBeNull();
+      expect(component.customColumnNames()['Col A']).toBe('Jumlah Balita Diukur');
+      expect(component.getColumnDisplayName('Col A')).toBe('Jumlah Balita Diukur');
+
+      // Verify htmlHeaderGrid reflects the updated name
+      const grid = component.htmlHeaderGrid();
+      const colACell = grid[0].find((c) => c.colKey === 'Col A');
+      expect(colACell?.text).toBe('Jumlah Balita Diukur');
+    });
+
+    it('should cancel inline rename without altering existing column name', () => {
+      component.startEditingColumn('Col A');
+      component.cancelInlineColumnRename();
+
+      expect(component.editingColumnKey()).toBeNull();
+      expect(component.customColumnNames()['Col A']).toBeUndefined();
+      expect(component.getColumnDisplayName('Col A')).toBe('Col A');
+    });
+
+    it('should revert to original name if user enters empty string or the exact original name', () => {
+      // First set a custom alias
+      component.setColumnCustomName('Col A', 'Alias Lama');
+      expect(component.customColumnNames()['Col A']).toBe('Alias Lama');
+
+      // User clears input and saves
+      component.startEditingColumn('Col A');
+      component.saveInlineColumnRename('Col A', '   ');
+      expect(component.customColumnNames()['Col A']).toBeUndefined();
+      expect(component.getColumnDisplayName('Col A')).toBe('Col A');
+
+      // User sets it to the original column key
+      component.setColumnCustomName('Col A', 'Alias Baru');
+      component.startEditingColumn('Col A');
+      component.saveInlineColumnRename('Col A', 'Col A');
+      expect(component.customColumnNames()['Col A']).toBeUndefined();
+      expect(component.getColumnDisplayName('Col A')).toBe('Col A');
+    });
+
+    it('should guard saveInlineColumnRename against mismatched colKey', () => {
+      component.startEditingColumn('Col A');
+      // Attempting to save for Col B while editing Col A should be ignored
+      component.saveInlineColumnRename('Col B', 'Nama Salah');
+      expect(component.customColumnNames()['Col B']).toBeUndefined();
+      expect(component.editingColumnKey()).toBe('Col A');
+    });
+
+    it('should stop propagation when event is provided to startEditingColumn', () => {
+      const mockEvent = {
+        stopPropagation: vi.fn(),
+      } as unknown as Event;
+
+      component.startEditingColumn('Col A', mockEvent);
+      expect(mockEvent.stopPropagation).toHaveBeenCalled();
+      expect(component.editingColumnKey()).toBe('Col A');
+    });
+  });
+
+  describe('table row delete and capaian formatting', () => {
+    it('should render cross icon in delete button and delete row upon click', () => {
+      component.resultRows.set([
+        { Wilayah: 'Semarang', Jumlah: 100 },
+        { Wilayah: 'Solo', Jumlah: 80 },
+      ]);
+      component.originalResultRows.set([
+        { Wilayah: 'Semarang', Jumlah: 100 },
+        { Wilayah: 'Solo', Jumlah: 80 },
+      ]);
+      component.resultColumns.set(['Wilayah', 'Jumlah']);
+      fixture.detectChanges();
+
+      const deleteButtons = fixture.nativeElement.querySelectorAll('tbody tr td:first-child button');
+      expect(deleteButtons.length).toBe(2);
+      expect(deleteButtons[0].textContent.trim()).toBe('');
+      const svg = deleteButtons[0].querySelector('svg');
+      expect(svg).toBeTruthy();
+
+      deleteButtons[0].click();
+      fixture.detectChanges();
+
+      expect(component.resultRows().length).toBe(1);
+      expect(component.resultRows()[0]['Wilayah']).toBe('Solo');
+    });
+
+    it('should format capaian cell directly without circular badge', () => {
+      component.resultRows.set([
+        { Wilayah: 'Semarang', Indikator: 10 },
+        { Wilayah: 'Solo', Indikator: 5 },
+      ]);
+      component.resultColumns.set(['Wilayah', 'Indikator']);
+      component.columnConfigs.set({
+        Wilayah: { dataType: 'string', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+        Indikator: { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+      });
+      component.columnTargets.set({
+        Indikator: { enabled: true, operator: '>=', value: 8 },
+      });
+      component.enableTarget.set(true);
+      component.enableCapaian.set(true);
+      fixture.detectChanges();
+
+      const capaianCells = fixture.nativeElement.querySelectorAll('tbody tr td:last-child');
+      expect(capaianCells.length).toBe(2);
+
+      // Verify no circular badge (span.rounded-full) inside the cell
+      expect(capaianCells[0].querySelector('span.rounded-full')).toBeNull();
+      expect(capaianCells[1].querySelector('span.rounded-full')).toBeNull();
+
+      // Highest should have blue highlight on td
+      expect(capaianCells[0].classList.contains('bg-blue-100')).toBe(true);
+      // Lowest should have red highlight on td
+      expect(capaianCells[1].classList.contains('bg-red-100')).toBe(true);
+    });
+
+    it('visualizeInChart should pass first available target when enabled, or 50 when disabled/unavailable', () => {
+      const exchange = TestBed.inject(HealthDataExchange);
+      const publishSpy = vi.spyOn(exchange, 'publishJoinedToChart');
+      const router = TestBed.inject(Router);
+      const navSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      component.resultRows.set([
+        { Wilayah: 'Cilacap', 'Cakupan ASI %': 78 },
+      ]);
+      component.resultColumns.set(['Wilayah', 'Cakupan ASI %']);
+      component.columnTargets.set({
+        'Cakupan ASI %': { enabled: true, operator: '>=', value: 76 },
+      });
+      component.enableTarget.set(true);
+
+      component.visualizeInChart();
+
+      expect(publishSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          targetValue: 76,
+          columnTargets: expect.objectContaining({
+            'Cakupan ASI %': { enabled: true, operator: '>=', value: 76 },
+          }),
+        }),
+      );
+      expect(navSpy).toHaveBeenCalledWith(['/chart']);
+
+      // Case 2: Targets disabled -> fallback to 50
+      component.enableTarget.set(false);
+      component.visualizeInChart();
+      expect(publishSpy).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          targetValue: 50,
+          columnTargets: undefined,
+        }),
+      );
     });
   });
 });

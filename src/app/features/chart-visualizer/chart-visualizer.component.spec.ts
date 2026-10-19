@@ -3,8 +3,9 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { vi } from 'vitest';
 import * as XLSX from 'xlsx-js-style';
 import { ChartVisualizerComponent } from './chart-visualizer.component';
-import { ChartDataBridge } from '../../core/chart/chart-data-bridge';
+import { HealthDataExchange } from '../../core/domain/health-data-exchange';
 import { ChartBarItem } from '../../core/chart/chart-layout-engine';
+import { ColumnInfo } from '../../shared/excel';
 import {
   ChartConfigurationPreset,
   ChartPresetStore,
@@ -62,7 +63,6 @@ describe('ChartVisualizerComponent', () => {
 
   it('should initialize with empty state without sample data', () => {
     expect(component).toBeTruthy();
-    expect(component.hasData()).toBe(false);
     expect(component.dataRows().length).toBe(0);
     expect(component.seriesList().length).toBe(0);
     expect(component.availableCategories().length).toBe(0);
@@ -94,25 +94,6 @@ describe('ChartVisualizerComponent', () => {
 
     component.selectAllCategories();
     expect(component.selectedCategories().length).toBe(component.availableCategories().length);
-  });
-
-  it('should toggle series and prevent removing all series', () => {
-    populateTestData();
-
-    expect(component.isSeriesActive('tw4')).toBe(true);
-
-    component.toggleSeries('tw4');
-    expect(component.isSeriesActive('tw4')).toBe(false);
-
-    // Turn off tw2 and tw3 as well
-    component.toggleSeries('tw2');
-    component.toggleSeries('tw3');
-    expect(component.seriesList().length).toBe(1);
-
-    // Trying to remove the last one (tw1) should be prevented
-    component.toggleSeries('tw1');
-    expect(component.seriesList().length).toBe(1);
-    expect(component.seriesList()[0].key).toBe('tw1');
   });
 
   it('should support hiding and deleting rows, and restoring original rows', () => {
@@ -432,8 +413,8 @@ describe('ChartVisualizerComponent', () => {
 
   describe('Data from Join Module (Bridge)', () => {
     it('should properly load join data, populate candidate series columns, and support selection controls', () => {
-      const bridge = TestBed.inject(ChartDataBridge);
-      bridge.setData({
+      const exchange = TestBed.inject(HealthDataExchange);
+      exchange.setChartData({
         source: 'join',
         title: 'Hasil Join Imunisasi',
         categoryColumn: 'Wilayah',
@@ -488,7 +469,47 @@ describe('ChartVisualizerComponent', () => {
       joinComponent.selectNumericSeriesColumns();
       expect(joinComponent.selectedSeriesKeys().length).toBe(3);
 
-      bridge.clearData();
+      exchange.clearChartData();
+    });
+
+    it('should display empty series fallback view when all series are cleared and restore them on click', () => {
+      const exchange = TestBed.inject(HealthDataExchange);
+      exchange.publishJoinedToChart({
+        title: 'Empty Series Fallback Test',
+        rows: [
+          { Wilayah: 'Puskesmas A', 'Indikator A %': 80, 'Jumlah Sasaran': 100 },
+          { Wilayah: 'Puskesmas B', 'Indikator A %': 90, 'Jumlah Sasaran': 120 },
+        ],
+        columns: ['Wilayah', 'Indikator A %', 'Jumlah Sasaran'],
+        categoryColumn: 'Wilayah',
+      });
+
+      const joinFixture = TestBed.createComponent(ChartVisualizerComponent);
+      const joinComponent = joinFixture.componentInstance;
+      joinFixture.detectChanges();
+
+      expect(joinComponent.hasLoadedData()).toBe(true);
+      expect(joinComponent.seriesList().length).toBeGreaterThan(0);
+
+      // Clear all series
+      joinComponent.clearAllSeriesColumns();
+      joinFixture.detectChanges();
+
+      expect(joinComponent.selectedSeriesKeys().length).toBe(0);
+      expect(joinComponent.canRenderChart()).toBe(false);
+
+      const compiled = joinFixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('Tidak Ada Indikator yang Dipilih');
+
+      // Click "Pilih Persentase (Default)"
+      joinComponent.selectPercentageSeriesColumns();
+      joinFixture.detectChanges();
+
+      expect(joinComponent.selectedSeriesKeys()).toContain('Indikator A %');
+      expect(joinComponent.canRenderChart()).toBe(true);
+      expect(compiled.textContent).not.toContain('Tidak Ada Indikator yang Dipilih');
+
+      exchange.clearChartData();
     });
   });
 
@@ -717,18 +738,20 @@ describe('ChartVisualizerComponent', () => {
       // Header row must have exactly 2 columns: ['Wilayah', 'Triwulan 1']
       expect(data1[0]).toEqual(['Wilayah', 'Triwulan 1']);
       // Data rows: each row must have 2 columns
-      expect(data1.length).toBe(6); // 1 header + 5 rows
+      expect(data1.length).toBe(7); // 1 header + 5 rows + 1 target row
       expect(data1[1]).toEqual(['Kab. Magelang', 72.4]);
       expect(data1[2]).toEqual(['Kota Magelang', 81]);
       expect(data1[3]).toEqual(['Kab. Temanggung', 68.5]);
       expect(data1[4]).toEqual(['Kab. Purworejo', 70]);
       expect(data1[5]).toEqual(['Kab. Wonosobo', 65]);
+      expect(data1[6]).toEqual(['Target', '-']);
 
       // Check fourth sheet ('Triwulan 4')
       const ws4 = wb.Sheets['Triwulan 4'];
       const data4: any[][] = XLSX.utils.sheet_to_json(ws4, { header: 1 });
       expect(data4[0]).toEqual(['Wilayah', 'Triwulan 4']);
       expect(data4[1]).toEqual(['Kab. Magelang', 91]);
+      expect(data4[6]).toEqual(['Target', '-']);
 
       // Calling exportExcel should run without throwing and set notification
       expect(() => component.exportExcel()).not.toThrow();
@@ -746,8 +769,10 @@ describe('ChartVisualizerComponent', () => {
 
       const ws = wb.Sheets[wb.SheetNames[0]];
       const data: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      expect(data.length).toBe(7); // 1 header + 5 rows + 1 target row
       expect(data[0]).toEqual(['Wilayah', 'Triwulan 1', 'Triwulan 2', 'Triwulan 3', 'Triwulan 4']);
       expect(data[1]).toEqual(['Kab. Magelang', 72.4, 78.2, 84.5, 91]);
+      expect(data[6]).toEqual(['Target', '-', '-', '-', '-']);
 
       // Calling exportExcel should run without throwing and set notification
       expect(() => component.exportExcel()).not.toThrow();
@@ -787,6 +812,198 @@ describe('ChartVisualizerComponent', () => {
       const excelBtn = compiled.querySelector('button[title*="Unduh data bersih"]');
       expect(excelBtn).toBeTruthy();
       expect(excelBtn?.textContent).toContain('Excel (.xlsx)');
+    });
+
+    it('should correctly configure standard target 50 for per-wilayah and specific targets for per-indikator from HealthDataExchange', () => {
+      const exchange = TestBed.inject(HealthDataExchange);
+      exchange.setChartData({
+        title: 'Grafik Hasil Join Dinkes',
+        source: 'join',
+        categoryColumn: 'Kabupaten/Kota',
+        columns: ['Kabupaten/Kota', 'Konsumsi TTD %', 'Skrining Anemia %', 'Jumlah Kasus'],
+        rows: [
+          { 'Kabupaten/Kota': 'Cilacap', 'Konsumsi TTD %': 65, 'Skrining Anemia %': 80, 'Jumlah Kasus': 120 },
+          { 'Kabupaten/Kota': 'Banyumas', 'Konsumsi TTD %': 70, 'Skrining Anemia %': 75, 'Jumlah Kasus': 95 },
+        ],
+        targetValue: 50,
+        indicatorTargets: {
+          'Konsumsi TTD %': 67,
+          'Skrining Anemia %': 77,
+        },
+      });
+
+      // Instantiate a new component or call loadTransferredData
+      (component as any).loadTransferredData();
+
+      // Per-Wilayah benchmark defaults to standard 50
+      expect(component.targetValue()).toBe(50);
+      expect(component.layout().targetLineX).toBeGreaterThan(0);
+
+      // Indicator targets configured correctly
+      expect(component.indicatorTargets()['Konsumsi TTD %']).toBe(67);
+      expect(component.indicatorTargets()['Skrining Anemia %']).toBe(77);
+      expect(component.getIndicatorTarget('Konsumsi TTD %')).toBe(67);
+      expect(component.getIndicatorTarget('Skrining Anemia %')).toBe(77);
+
+      // Automatically switches to Per-Indikator mode ('by-indicator')
+      expect(component.viewMode()).toBe('by-indicator');
+
+      // Only numeric percentage columns ('Konsumsi TTD %', 'Skrining Anemia %') are auto-selected;
+      // non-percentage column ('Jumlah Kasus') is not auto-selected but remains available for manual selection
+      expect(component.selectedSeriesKeys()).toEqual(['Konsumsi TTD %', 'Skrining Anemia %']);
+      expect(component.seriesList().map((s) => s.key)).toEqual(['Konsumsi TTD %', 'Skrining Anemia %']);
+      expect(component.candidateSeriesColumns().map((c) => c.header)).toContain('Jumlah Kasus');
+
+      // Per-Indikator mode layouts use indicator specific targets
+      const layouts = component.indicatorLayouts();
+      expect(layouts.length).toBe(2);
+      const ttd = layouts.find((l) => l.series.key === 'Konsumsi TTD %');
+      expect(ttd).toBeDefined();
+      expect(ttd!.stats.targetValue).toBe(67);
+
+      const anemia = layouts.find((l) => l.series.key === 'Skrining Anemia %');
+      expect(anemia).toBeDefined();
+      expect(anemia!.stats.targetValue).toBe(77);
+
+      // User can still manually select non-percentage column ('Jumlah Kasus') later
+      component.toggleSeriesColumn('Jumlah Kasus');
+      expect(component.selectedSeriesKeys()).toContain('Jumlah Kasus');
+      expect(component.indicatorLayouts().length).toBe(3);
+
+      exchange.clearChartData();
+    });
+
+    it('should auto-select all numeric percentage columns (even > 6 columns) and exclude non-numeric columns when transferred from Excel Join', () => {
+      const exchange = TestBed.inject(HealthDataExchange);
+      const pctCols = Array.from({ length: 10 }, (_, i) => `Indikator Persentase ${i + 1} - %`);
+      const allCols = ['Kabupaten/Kota', ...pctCols, 'Jumlah Sasaran', 'Keterangan Teks', 'Persentase Kosong %'];
+
+      const row1: Record<string, unknown> = {
+        'Kabupaten/Kota': 'Cilacap',
+        'Jumlah Sasaran': 1500,
+        'Keterangan Teks': 'Lengkap',
+        'Persentase Kosong %': '-',
+      };
+      for (const c of pctCols) {
+        row1[c] = 80;
+      }
+
+      exchange.publishJoinedToChart({
+        title: 'Grafik 10 Indikator Persentase',
+        columns: allCols,
+        rows: [row1],
+        categoryColumn: 'Kabupaten/Kota',
+      });
+
+      (component as any).loadTransferredData();
+
+      expect(component.viewMode()).toBe('by-indicator');
+      // All 10 numeric percentage columns must be selected (not capped at 6, and excluding 'Persentase Kosong %', 'Jumlah Sasaran', 'Keterangan Teks')
+      expect(component.selectedSeriesKeys().length).toBe(10);
+      expect(component.selectedSeriesKeys()).toEqual(pctCols);
+      expect(component.indicatorLayouts().length).toBe(10);
+
+      exchange.clearChartData();
+    });
+
+    it('should detect Target row in Excel sheet, populate indicatorTargets, and filter Target row from data rows', () => {
+      // Build a worksheet with district rows, summary rows, and a Target row
+      const wsData = [
+        ['Kabupaten/Kota', '% Konsumsi TTD', '% Skrining Anemia'],
+        ['Cilacap', 65, 80],
+        ['Banyumas', 70, 75],
+        ['Jumlah', 135, 155],
+        ['Rata-rata', 67.5, 77.5],
+        ['Target', '>= 67', '>= 77'],
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      const cols: ColumnInfo[] = [
+        { colIndex: 0, colLetter: 'A', header: 'Kabupaten/Kota', leafHeader: 'Kabupaten/Kota', layers: ['Kabupaten/Kota'] },
+        { colIndex: 1, colLetter: 'B', header: '% Konsumsi TTD', leafHeader: '% Konsumsi TTD', layers: ['% Konsumsi TTD'] },
+        { colIndex: 2, colLetter: 'C', header: '% Skrining Anemia', leafHeader: '% Skrining Anemia', layers: ['% Skrining Anemia'] },
+      ];
+
+      component.rebuildChartData(ws, cols, 'Kabupaten/Kota', ['% Konsumsi TTD', '% Skrining Anemia'], 2);
+
+      // Target row excluded from data rows
+      expect(component.dataRows().length).toBe(2);
+      expect(component.availableCategories()).toEqual(['Cilacap', 'Banyumas']);
+
+      // Indicator targets extracted from Target row
+      expect(component.indicatorTargets()['% Konsumsi TTD']).toBe(67);
+      expect(component.indicatorTargets()['% Skrining Anemia']).toBe(77);
+
+      // targetValue set to standard 50
+      expect(component.targetValue()).toBe(50);
+    });
+
+    it('should toggle indicator panel and close settings panel, and vice versa', () => {
+      expect(component.showIndicatorPanel()).toBe(false);
+      expect(component.showSettingsPanel()).toBe(false);
+
+      component.toggleIndicatorPanel();
+      expect(component.showIndicatorPanel()).toBe(true);
+      expect(component.showSettingsPanel()).toBe(false);
+
+      component.toggleSettingsPanel();
+      expect(component.showIndicatorPanel()).toBe(false);
+      expect(component.showSettingsPanel()).toBe(true);
+
+      component.toggleIndicatorPanel();
+      expect(component.showIndicatorPanel()).toBe(true);
+      expect(component.showSettingsPanel()).toBe(false);
+    });
+
+    it('should allow user to select non-percentage numeric columns and return to percentage defaults', () => {
+      const exchange = TestBed.inject(HealthDataExchange);
+      const cols = ['Kabupaten/Kota', 'Sasaran Riil Balita', '% Cakupan Imunisasi', '% Pemberian ASI'];
+      const rows = [
+        {
+          'Kabupaten/Kota': 'Cilacap',
+          'Sasaran Riil Balita': 5000,
+          '% Cakupan Imunisasi': 85,
+          '% Pemberian ASI': 70,
+        },
+        {
+          'Kabupaten/Kota': 'Banyumas',
+          'Sasaran Riil Balita': 6500,
+          '% Cakupan Imunisasi': 90,
+          '% Pemberian ASI': 75,
+        },
+      ];
+
+      exchange.publishJoinedToChart({
+        title: 'Data Balita & Imunisasi',
+        columns: cols,
+        rows,
+        categoryColumn: 'Kabupaten/Kota',
+        columnTargets: {
+          '% Cakupan Imunisasi': { enabled: true, value: 80 },
+          '% Pemberian ASI': { enabled: true, value: 76 },
+        },
+      });
+
+      (component as any).loadTransferredData();
+
+      // Default: only percentage columns are initially selected
+      expect(component.selectedSeriesKeys()).toEqual(['% Cakupan Imunisasi', '% Pemberian ASI']);
+      expect(component.indicatorTargets()['% Cakupan Imunisasi']).toBe(80);
+      expect(component.indicatorTargets()['% Pemberian ASI']).toBe(76);
+
+      // Target for column without configured target in Excel Join falls back to default 50
+      expect(component.getIndicatorTarget('Sasaran Riil Balita')).toBe(50);
+
+      // User selects all numeric columns (including non-percentage Sasaran Riil Balita)
+      component.selectNumericSeriesColumns();
+      expect(component.selectedSeriesKeys()).toContain('Sasaran Riil Balita');
+      expect(component.selectedSeriesKeys()).toContain('% Cakupan Imunisasi');
+      expect(component.selectedSeriesKeys()).toContain('% Pemberian ASI');
+
+      // User can switch back to percentage default anytime
+      component.selectPercentageSeriesColumns();
+      expect(component.selectedSeriesKeys()).toEqual(['% Cakupan Imunisasi', '% Pemberian ASI']);
+
+      exchange.clearChartData();
     });
   });
 });
