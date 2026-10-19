@@ -1,6 +1,67 @@
-/* You can add global styles to this file, and also import other style files */
-
 @import 'tailwindcss';
+
+@theme {
+  --color-brand-primary: #525aff;
+  --color-brand-primary-hover: #4348e6;
+  --color-brand-primary-light: #eef0ff;
+  --color-brand-teal: #4ab5b5;
+  --color-brand-teal-hover: #3da1a1;
+  --color-brand-teal-light: #e8f7f7;
+  --color-brand-sky: #8fd9fb;
+  --color-brand-sky-light: #f0fafe;
+  --color-brand-slate: #6d8bc0;
+  --color-brand-slate-light: #f2f5fa;
+  --color-brand-dark: #0f172a;
+}
+
+:root {
+  --color-primary: #525aff;
+  --color-teal: #4ab5b5;
+  --color-sky: #8fd9fb;
+  --color-slate-blue: #6d8bc0;
+}
+
+body {
+  background-color: #f8fafd;
+  color: #1e293b;
+}
+
+::selection {
+  background-color: #8fd9fb;
+  color: #0f172a;
+}
+
+/* Custom modern scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6d8bc0;
+}
+
+/* Brand gradient utilities */
+.bg-gradient-brand {
+  background: linear-gradient(135deg, #525aff 0%, #6d8bc0 50%, #4ab5b5 100%);
+}
+
+.bg-gradient-brand-subtle {
+  background: linear-gradient(135deg, #eef0ff 0%, #f0fafe 50%, #e8f7f7 100%);
+}
+
+.bg-gradient-sky-teal {
+  background: linear-gradient(135deg, #8fd9fb 0%, #4ab5b5 100%);
+}
 
 @keyframes alertCountdown {
   0% {

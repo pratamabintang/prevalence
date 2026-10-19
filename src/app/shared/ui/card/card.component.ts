@@ -7,7 +7,7 @@ export type CardPadding = 'none' | 'sm' | 'md' | 'lg';
   standalone: true,
   template: `
     @if (title()) {
-      <div class="border-b border-slate-100 px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
+      <div class="border-b border-[#6D8BC0]/15 bg-gradient-to-r from-white via-[#F8FAFD] to-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 class="text-sm font-semibold text-slate-900">{{ title() }}</h3>
           @if (subtitle()) {
@@ -34,7 +34,7 @@ export class UiCardComponent {
   bordered = input<boolean>(true);
 
   hostClasses = computed(() => {
-    const border = this.bordered() ? 'border border-slate-200' : '';
+    const border = this.bordered() ? 'border border-[#6D8BC0]/20 hover:border-[#6D8BC0]/35 transition-colors' : '';
     return `block bg-white rounded-xl ${border} shadow-2xs overflow-hidden`;
   });
 

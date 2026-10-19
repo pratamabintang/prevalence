@@ -29,7 +29,7 @@ export class UiButtonComponent {
 
   hostClasses = computed(() => {
     const base =
-      'inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer select-none';
+      'inline-flex items-center justify-center font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-[#525AFF] focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer select-none';
 
     // Size variants
     let sizeClass = '';
@@ -52,22 +52,22 @@ export class UiButtonComponent {
     let variantClass = '';
     switch (this.variant()) {
       case 'primary':
-        variantClass = 'bg-slate-900 text-white hover:bg-slate-800 border border-slate-900 shadow-xs';
+        variantClass = 'bg-[#525AFF] text-white hover:bg-[#4348E6] border border-[#525AFF] shadow-xs shadow-[#525AFF]/25';
         break;
       case 'secondary':
-        variantClass = 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-300 shadow-xs';
+        variantClass = 'bg-white text-slate-700 hover:bg-[#F2F5FA] hover:text-[#525AFF] border border-slate-300 hover:border-[#6D8BC0]/50 shadow-xs';
         break;
       case 'outline':
-        variantClass = 'bg-transparent text-slate-700 hover:bg-slate-100 border border-slate-200';
+        variantClass = 'bg-transparent text-slate-700 hover:bg-[#F0FAFE] hover:text-[#525AFF] border border-slate-300 hover:border-[#525AFF]/40';
         break;
       case 'success':
-        variantClass = 'bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-600 shadow-xs';
+        variantClass = 'bg-[#4AB5B5] text-white hover:bg-[#3DA1A1] border border-[#4AB5B5] shadow-xs shadow-[#4AB5B5]/25';
         break;
       case 'danger':
         variantClass = 'bg-rose-600 text-white hover:bg-rose-700 border border-rose-600 shadow-xs';
         break;
       case 'ghost':
-        variantClass = 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-transparent';
+        variantClass = 'text-slate-600 hover:text-[#525AFF] hover:bg-[#F2F5FA] border border-transparent';
         break;
     }
 

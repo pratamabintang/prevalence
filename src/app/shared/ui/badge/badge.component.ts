@@ -24,17 +24,17 @@ export class UiBadgeComponent {
   dotClass = computed(() => {
     switch (this.variant()) {
       case 'emerald':
-        return 'bg-emerald-500';
+        return 'bg-[#4AB5B5]';
       case 'amber':
         return 'bg-amber-500';
       case 'rose':
         return 'bg-rose-500';
       case 'blue':
-        return 'bg-blue-500';
+        return 'bg-[#4AB5B5]';
       case 'purple':
-        return 'bg-purple-500';
+        return 'bg-[#525AFF]';
       default:
-        return 'bg-slate-400';
+        return 'bg-[#6D8BC0]';
     }
   });
 
@@ -46,7 +46,7 @@ export class UiBadgeComponent {
     let variantClass = '';
     switch (this.variant()) {
       case 'emerald':
-        variantClass = 'bg-emerald-50 text-emerald-800 border border-emerald-200';
+        variantClass = 'bg-emerald-50 text-teal-800 border border-[#4AB5B5]/30';
         break;
       case 'amber':
         variantClass = 'bg-amber-50 text-amber-800 border border-amber-200';
@@ -55,16 +55,16 @@ export class UiBadgeComponent {
         variantClass = 'bg-rose-50 text-rose-800 border border-rose-200';
         break;
       case 'blue':
-        variantClass = 'bg-blue-50 text-blue-800 border border-blue-200';
+        variantClass = 'bg-[#F0FAFE] text-[#1E3A8A] border border-[#8FD9FB]/60';
         break;
       case 'purple':
-        variantClass = 'bg-purple-50 text-purple-800 border border-purple-200';
+        variantClass = 'bg-[#EEF0FF] text-[#525AFF] border border-[#525AFF]/30';
         break;
       case 'outline':
-        variantClass = 'bg-transparent text-slate-600 border border-slate-300';
+        variantClass = 'bg-transparent text-slate-600 border border-[#6D8BC0]/40';
         break;
       default:
-        variantClass = 'bg-slate-100 text-slate-700 border border-slate-200';
+        variantClass = 'bg-[#F2F5FA] text-[#445D87] border border-[#6D8BC0]/30';
         break;
     }
 
