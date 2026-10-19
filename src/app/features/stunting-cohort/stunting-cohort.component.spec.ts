@@ -23,10 +23,10 @@ describe('StuntingCohortComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should render empty state when no data is loaded', () => {
+  it('should render clean layout when no data is loaded', () => {
     const el = fixture.nativeElement as HTMLElement;
     expect(el.textContent).toContain('Analisis Kohort Balita Stunting');
-    expect(el.textContent).toContain('Mulai Analisis Kohort Balita');
+    expect(el.textContent).not.toContain('Mulai Analisis Kohort Balita');
     expect(el.textContent).not.toContain('Muat Data Contoh');
     expect(component.comparisonResult()).toBeNull();
   });
