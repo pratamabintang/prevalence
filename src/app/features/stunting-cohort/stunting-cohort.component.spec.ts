@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as XLSX from 'xlsx-js-style';
+import { ExcelEngine } from '../../shared/excel';
 import { StuntingCohortComponent } from './stunting-cohort.component';
 import { CohortTransitionStatus } from '../../core/stunting-cohort/stunting-cohort-engine';
 
@@ -26,7 +27,7 @@ describe('StuntingCohortComponent', () => {
     const el = fixture.nativeElement as HTMLElement;
     expect(el.textContent).toContain('Analisis Kohort Balita Stunting');
     expect(el.textContent).toContain('Muat Data Contoh');
-    expect(component.canEvaluate()).toBe(false);
+    expect(component.comparisonResult()).toBeNull();
   });
 
   it('should evaluate cohort comparison when data is populated', () => {
@@ -47,7 +48,6 @@ describe('StuntingCohortComponent', () => {
     component.p2Mapping.set({ nikKey: 'NIK', nameKey: 'Nama Balita', dobKey: 'Tanggal Lahir' });
     fixture.detectChanges();
 
-    expect(component.canEvaluate()).toBe(true);
     const result = component.comparisonResult();
     expect(result).not.toBeNull();
     expect(result?.summary.persistentCount).toBe(1); // Budi
@@ -147,7 +147,10 @@ describe('StuntingCohortComponent', () => {
     component.period2Data.set(p2Rows);
     fixture.detectChanges();
 
+    const writeSpy = vi.spyOn(ExcelEngine, 'writeWorkbook').mockImplementation(() => {});
     expect(() => component.exportExcel()).not.toThrow();
+    expect(writeSpy).toHaveBeenCalledTimes(1);
+    writeSpy.mockRestore();
   });
 
   it('should update column mapping correctly', () => {

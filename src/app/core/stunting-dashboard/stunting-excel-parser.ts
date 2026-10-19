@@ -491,43 +491,6 @@ export function parseStuntingWorkbook(
   };
 }
 
-export const STUNTING_EXCEL_CONSTRAINTS = `
-### Panduan & Batasan Format Berkas Excel (.xlsx)
-
-Untuk memvisualisasikan data stunting Anda secara instan ke dalam dashboard ini, berkas Excel wajib mematuhi ketentuan berikut:
-
-1. **Format Berkas**:
-   - Ekstensi: \`.xlsx\` (standar OpenXML).
-
-2. **10 Sheet Wajib (Case-Insensitive)**:
-   - \`TTD REMATRI\` — Indikator X1 (TTD Remaja Putri)
-   - \`TTD IBU HAMIL\` — Indikator X2 (TTD Ibu Hamil)
-   - \`PMT bumil KEK mendapat PMT\` — Indikator X3 (PMT Bumil KEK)
-   - \`Balita ditimbang DS\` — Indikator X4 (Balita Ditimbang D/S)
-   - \`ASI eksklusif\` — Indikator X5 (ASI Eksklusif)
-   - \`MP-ASI Beragam\` — Indikator X6 (MP-ASI Beragam)
-   - \`PMT gizi kurang\` — Indikator X7 (PMT Balita Gizi Kurang)
-   - \`Tatalaksana gizi buruk\` — Indikator X8 (Tatalaksana Gizi Buruk)
-   - \`Balita IDL\` — Indikator X9 (Balita Imunisasi Lengkap)
-   - \`Stunting\` — Indikator Y (Prevalensi Stunting %)
-
-3. **Struktur Kolom & Periode Triwulan (Bebas / Fleksibel)**:
-   - Kolom 1 (Kolom A): \`Kabupaten/Kota\` (nama daerah).
-   - Kolom 2 ke kanan: Nama periode triwulan (contoh: \`TW1 2024\`, \`TW2 2024\`, \`TW1 2025\`, \`TW2 2026\`, dst.).
-   - **TIDAK TERBATAS pada TW1 2025 – TW1 2026**: Anda dapat menggunakan rentang triwulan berapa pun (misalnya 4 triwulan, 8 triwulan, atau 12 triwulan dari tahun mana pun).
-   - Syarat utama: nama kolom periode triwulan harus **seragam di seluruh 10 sheet**.
-
-4. **Struktur Baris (35 Kabupaten/Kota)**:
-   - Harus memuat ke-35 wilayah Jawa Tengah.
-   - Penulisan wilayah didukung otomatis dengan prefiks standar, misalnya:
-     * \`Kab. Cilacap\` atau \`Kabupaten Cilacap\`
-     * \`Kota Semarang\` atau \`Semarang\` (untuk kota)
-   - Baris rangkuman seperti \`TARGET\`, \`JUMLAH\`, atau \`PROVINSI\` otomatis diabaikan.
-
-5. **Nilai Angka**:
-   - Seluruh sel data harus berupa angka desimal positif (%) tanpa teks penjelas atau nilai hilang (\`#N/A\`, \`null\`).
-`;
-
 export const PYTHON_TEMPLATE_SCRIPT = `# =====================================================================
 # Skrip Validasi & Template Otomatis Excel Stunting Jawa Tengah
 # Mendukung rentang triwulan dinamis (tidak terbatas pada 2025-2026)

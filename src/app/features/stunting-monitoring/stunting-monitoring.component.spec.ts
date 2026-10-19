@@ -1,9 +1,9 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { StuntingMonitoringComponent } from './stunting-monitoring.component';
-import { ChartDataBridge } from '../../core/chart/chart-data-bridge';
-import { StuntingDataBridge } from '../../core/stunting/stunting-data-bridge';
+import { HealthDataExchange } from '../../core/domain/health-data-exchange';
+import { StuntingExcelExporter } from '../../core/stunting/stunting-excel-exporter';
 import {
   StuntingPipelinePreset,
   StuntingPresetStore,
@@ -12,8 +12,7 @@ import {
 describe('StuntingMonitoringComponent', () => {
   let component: StuntingMonitoringComponent;
   let fixture: ComponentFixture<StuntingMonitoringComponent>;
-  let chartDataBridge: ChartDataBridge;
-  let stuntingDataBridge: StuntingDataBridge;
+  let healthDataExchange: HealthDataExchange;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
@@ -27,8 +26,7 @@ describe('StuntingMonitoringComponent', () => {
 
     fixture = TestBed.createComponent(StuntingMonitoringComponent);
     component = fixture.componentInstance;
-    chartDataBridge = TestBed.inject(ChartDataBridge);
-    stuntingDataBridge = TestBed.inject(StuntingDataBridge);
+    healthDataExchange = TestBed.inject(HealthDataExchange);
     fixture.detectChanges();
   });
 
@@ -302,7 +300,12 @@ describe('StuntingMonitoringComponent', () => {
     setupMockMultiSheetWorkbook();
     expect(component.validJoinedRows().length).toBe(2);
 
+    const exportSpy = vi
+      .spyOn(StuntingExcelExporter, 'exportJoinedData')
+      .mockReturnValue('Data_Gabungan_Stunting_Mock.xlsx');
+
     expect(() => component.exportJoinedData()).not.toThrow();
+    expect(exportSpy).toHaveBeenCalledTimes(1);
     expect(component.notificationMessage()).toContain('Data gabungan');
     expect(component.notificationMessage()).toContain('berhasil diunduh');
   });
@@ -327,11 +330,16 @@ describe('StuntingMonitoringComponent', () => {
       },
     ]);
 
+    const exportSpy = vi
+      .spyOn(StuntingExcelExporter, 'exportMonitoringReport')
+      .mockReturnValue('Monitoring_Stunting_Mock.xlsx');
+
     expect(() => component.exportExcel()).not.toThrow();
+    expect(exportSpy).toHaveBeenCalledTimes(1);
     expect(component.notificationMessage()).toContain('berhasil diunduh');
   });
 
-  it('should transfer stunting data to ChartDataBridge and route to chart', () => {
+  it('should transfer stunting data to HealthDataExchange and route to chart', () => {
     setupMockMultiSheetWorkbook();
     component.categories.set([
       {
@@ -352,7 +360,7 @@ describe('StuntingMonitoringComponent', () => {
     ]);
 
     component.visualizeInChart();
-    const bridgeData = chartDataBridge.data();
+    const bridgeData = healthDataExchange.chartData();
     expect(bridgeData).not.toBeNull();
     expect(bridgeData?.categoryColumn).toBe('Indikator');
     expect(bridgeData?.rows.length).toBe(1);
@@ -517,24 +525,6 @@ describe('StuntingMonitoringComponent', () => {
     stats = component.getSubCategoryLiveStats(sub);
     expect(stats.sumDen).toBe(3000);
     expect(stats.sumNum).toBe(2520);
-  });
-
-  it('should permanently delete individual row and bulk delete all inactive rows', () => {
-    setupMockMultiSheetWorkbook();
-    expect(component.joinedRows().length).toBe(3); // 2 data + 1 total
-    expect(component.validJoinedRows().length).toBe(2);
-
-    // Bulk delete excluded rows (should remove the TOTAL row completely)
-    expect(component.excludedRowIds().size).toBe(1);
-    component.deleteExcludedRows();
-    expect(component.joinedRows().length).toBe(2);
-    expect(component.excludedRowIds().size).toBe(0);
-
-    // Permanently delete 1 row
-    const firstRowId = String(component.joinedRows()[0]['__id']);
-    component.deleteRow(firstRowId);
-    expect(component.joinedRows().length).toBe(1);
-    expect(component.validJoinedRows().length).toBe(1);
   });
 
   it('should auto-exclude blank wilayah rows by default', () => {
@@ -794,8 +784,8 @@ describe('StuntingMonitoringComponent', () => {
       expect(component.previewWrapText()).toBe(false);
     });
 
-    it('should load transferred data from StuntingDataBridge upon init', () => {
-      stuntingDataBridge.setData({
+    it('should load transferred data from HealthDataExchange upon init', () => {
+      healthDataExchange.setStuntingData({
         title: 'Hasil Join Excel Terkini',
         source: 'join',
         keyColumn: 'Kabupaten/Kota',
@@ -824,6 +814,88 @@ describe('StuntingMonitoringComponent', () => {
       expect(component.joinedRows().length).toBe(0);
       expect(component.summaryRowData()).toBeNull();
       expect(component.targetRowData()).toBeNull();
+    });
+
+    it('should support Hasil Join paired SUM and MEAN columns workflow with manual previous year inputs and single quarter format matching capaian intervensi spesifik', () => {
+      healthDataExchange.setStuntingData({
+        title: 'Hasil Join Excel Terkini',
+        source: 'join',
+        keyColumn: 'Kabupaten/Kota',
+        columns: ['Kabupaten/Kota', 'Rematri  Konsumsi TTD', '% Konsumsi TTD', 'Rematri Skrining Anemia', '% Skrining Anemia'],
+        rows: [
+          { 'Kabupaten/Kota': 'KABUPATEN CILACAP', 'Rematri  Konsumsi TTD': 600000, '% Konsumsi TTD': 92, 'Rematri Skrining Anemia': 250000, '% Skrining Anemia': 91 },
+          { 'Kabupaten/Kota': 'KABUPATEN BANYUMAS', 'Rematri  Konsumsi TTD': 883925, '% Konsumsi TTD': 95.28, 'Rematri Skrining Anemia': 329995, '% Skrining Anemia': 96.52 },
+        ],
+        summaryRow: { 'Kabupaten/Kota': 'Jumlah', 'Rematri  Konsumsi TTD': 1483925, '% Konsumsi TTD': 93.64, 'Rematri Skrining Anemia': 579995, '% Skrining Anemia': 93.76 },
+        targetRow: { 'Kabupaten/Kota': 'Target', 'Rematri  Konsumsi TTD': '-', '% Konsumsi TTD': '>= 67', 'Rematri Skrining Anemia': '-', '% Skrining Anemia': '>= 77' },
+      });
+
+      component.ngOnInit();
+      expect(component.canProceedToStep2()).toBe(true);
+
+      // Navigate to Step 2
+      component.goToStep(2);
+      expect(component.activeStep()).toBe(2);
+
+      // Configure subcategory with standard No, sumCol, meanCol, and manual previous year values
+      const cat = component.categories()[0];
+      component.addSubCategory(cat.id);
+      const sub = component.categories().find((c) => c.id === cat.id)!.subCategories[0];
+
+      component.updateSubCategory(cat.id, sub.id, {
+        no: '2',
+        name: 'Remaja putri mengonsumsi TTD (tablet tambah darah)',
+        targetCurrentYear: 67,
+        targetPrevYear: 65,
+        actualPrevYear: 89.34,
+      });
+      component.onSumColChange(cat.id, sub.id, 'Rematri  Konsumsi TTD');
+      component.onMeanColChange(cat.id, sub.id, '% Konsumsi TTD');
+
+      const updatedSub = component.categories().find((c) => c.id === cat.id)!.subCategories[0];
+      expect(updatedSub.no).toBe('2');
+      expect(updatedSub.sumCol).toBe('Rematri  Konsumsi TTD');
+      expect(updatedSub.meanCol).toBe('% Konsumsi TTD');
+      expect(updatedSub.targetPrevYear).toBe(65);
+      expect(updatedSub.actualPrevYear).toBe(89.34);
+      expect(updatedSub.targetCurrentYear).toBe(67);
+
+      // Verify live stats
+      const liveStats = component.getSubCategoryLiveStats(updatedSub);
+      expect(liveStats.sumNum).toBe(1483925);
+      expect(liveStats.actualPercentage).toBe(93.64);
+
+      // Verify live status badge is On Track (93.64% >= 67%)
+      const badge = component.getInitialStatusBadge(updatedSub);
+      expect(badge.label).toBe('On Track');
+
+      // Navigate to Step 3
+      component.goToStep(3);
+      expect(component.activeStep()).toBe(3);
+      fixture.detectChanges();
+
+      const tableEl: HTMLElement = fixture.nativeElement.querySelector('table');
+      expect(tableEl).toBeTruthy();
+      const text = tableEl.textContent || '';
+
+      // Standard headers matching Format Analisas Intervensi Spesifik
+      expect(text).toContain('Pengkategorian');
+      expect(text).toContain('No');
+      expect(text).toContain('Intervensi Percepatan Penurunan Stunting');
+      expect(text).toContain('Target Tahun Lalu');
+      expect(text).toContain('Capaian Tahun Lalu');
+      expect(text).toContain('Target Tahun Ini');
+      expect(text).toContain('Jumlah');
+      expect(text).toContain('Capaian (%)');
+      expect(text).toContain('Status');
+
+      // Check evaluated row values
+      expect(text).toContain('65%');
+      expect(text).toContain('89.34%');
+      expect(text).toContain('67%');
+      expect(text).toContain('1,483,925');
+      expect(text).toContain('93.64%');
+      expect(text).toContain('On Track');
     });
   });
 });

@@ -47,6 +47,8 @@ export interface EvaluatedQuarterData {
   actualAchievement: number | null;
   gap: number | null;
   numeratorCol?: string;
+  sumCol?: string;
+  meanCol?: string;
   sumNumerator?: number | null;
   sumDenominator?: number | null;
   hasData?: boolean;
@@ -80,6 +82,9 @@ export interface EvaluatedStuntingRow {
   isImproved: boolean;
   isDeclined: boolean;
   needsValidation: boolean;
+  sumCol?: string;
+  meanCol?: string;
+  targetCol?: string;
   numeratorCol?: string;
   denominatorCol?: string;
   sumNumerator?: number | null;
@@ -90,12 +95,18 @@ export interface EvaluatedStuntingRow {
 export interface StuntingQuarterInputConfig {
   numeratorCol?: string;
   denominatorCol?: string;
+  sumCol?: string;
+  meanCol?: string;
 }
 
 export interface StuntingSubCategoryConfig {
   id: string;
+  no?: string | number;
   name?: string;
-  numeratorCol: string; // Kolom Data (Realisasi/Capaian yang sudah ada)
+  sumCol?: string; // Kolom Jumlah / SUM (e.g. 'Rematri  Konsumsi TTD')
+  meanCol?: string; // Kolom Capaian / MEAN (%) (e.g. '% Konsumsi TTD')
+  targetCol?: string; // Kolom acuan target jika diambil dari kolom data
+  numeratorCol: string; // Kolom Data (Realisasi/Capaian yang sudah ada / fallback meanCol)
   denominatorCol?: string; // Opsional / tidak wajib (tidak ada input kolom sasaran)
   dataCol?: string; // Alias untuk numeratorCol
   actualValue?: number | null; // Nilai capaian langsung dari data yang sudah ada
@@ -511,6 +522,214 @@ export class StuntingEvaluationEngine {
   }
 
   /**
+   * Menghitung nilai rata-rata (mean) kolom numerik pada sekumpulan baris yang telah di-join.
+   */
+  static averageColumnValues(
+    rows: Record<string, unknown>[],
+    columnName: string | undefined | null,
+  ): number | null {
+    if (!columnName || rows.length === 0) return null;
+    let sum = 0;
+    let count = 0;
+    for (const r of rows) {
+      const val = r[columnName];
+      const parsed = IndicatorEvaluator.parseSmartNumber(val);
+      if (parsed !== null && !isNaN(parsed)) {
+        sum += parsed;
+        count++;
+      }
+    }
+    return count > 0 ? Math.round((sum / count) * 100) / 100 : null;
+  }
+
+  /**
+   * Daftar 15 Indikator Intervensi Spesifik Standar Dinkes Jawa Tengah
+   * sesuai lembar kerja 'capaian intervensi spesifik' (TW1 - TW4).
+   */
+  static readonly DINKES_STANDARD_INDICATORS = [
+    {
+      no: '1',
+      name: 'Remaja putri mendapat skrining anemia',
+      category: 'Intervensi untuk remaja putri dan ibu hamil (sebelum kelahiran)',
+      canonicalCategory: 'sebelum_kelahiran' as StuntingLifecycleCategory,
+      sumKeywords: ['rematri skrining anemia', 'skrining anemia', 'rematri anemia'],
+      meanKeywords: ['% skrining anemia', '% rematri anemia', '% anemia'],
+      defaultTargetCurrent: 77,
+      defaultTargetPrev: 75,
+      defaultActualPrev: 90.58,
+      polarity: 'positive' as IndicatorPolarity,
+    },
+    {
+      no: '2',
+      name: 'Remaja putri mengonsumsi TTD (tablet tambah darah)',
+      category: 'Intervensi untuk remaja putri dan ibu hamil (sebelum kelahiran)',
+      canonicalCategory: 'sebelum_kelahiran' as StuntingLifecycleCategory,
+      sumKeywords: ['rematri  konsumsi ttd', 'rematri konsumsi ttd', 'konsumsi ttd', 'rematri ttd'],
+      meanKeywords: ['% konsumsi ttd', '% rematri ttd', '% ttd'],
+      defaultTargetCurrent: 67,
+      defaultTargetPrev: 65,
+      defaultActualPrev: 89.34,
+      polarity: 'positive' as IndicatorPolarity,
+    },
+    {
+      no: '3',
+      name: 'Ibu hamil ANC minimal 6x*',
+      category: 'Intervensi untuk remaja putri dan ibu hamil (sebelum kelahiran)',
+      canonicalCategory: 'sebelum_kelahiran' as StuntingLifecycleCategory,
+      sumKeywords: ['ibu hamil anc 6x', 'anc 6x', 'bumil anc 6x'],
+      meanKeywords: ['% anc 6x', '% anc'],
+      defaultTargetCurrent: 60,
+      defaultTargetPrev: 80,
+      defaultActualPrev: 91.46,
+      polarity: 'positive' as IndicatorPolarity,
+    },
+    {
+      no: '4',
+      name: 'Ibu hamil mengonsumsi suplementasi gizi (TTD/MMS) minimal 180 tablet selama kehamilan**',
+      category: 'Intervensi untuk remaja putri dan ibu hamil (sebelum kelahiran)',
+      canonicalCategory: 'sebelum_kelahiran' as StuntingLifecycleCategory,
+      sumKeywords: ['ibu hamil konsumsi ttd/mms', 'ibu hamil konsumsi ttd', 'bumil ttd/mms', 'bumil konsumsi ttd'],
+      meanKeywords: ['% ttd/mms', '% bumil ttd', '% ttd bumil'],
+      defaultTargetCurrent: 39,
+      defaultTargetPrev: 48,
+      defaultActualPrev: 91.1,
+      polarity: 'positive' as IndicatorPolarity,
+    },
+    {
+      no: '5',
+      name: 'Ibu hamil KEK mendapat tambahan asupan gizi',
+      category: 'Intervensi untuk remaja putri dan ibu hamil (sebelum kelahiran)',
+      canonicalCategory: 'sebelum_kelahiran' as StuntingLifecycleCategory,
+      sumKeywords: ['ibu hamil kek konsumsi mt', 'kek konsumsi mt', 'bumil kek mt', 'kek mt', 'bumil pmt'],
+      meanKeywords: ['% bumil pmt', '% pmt bumil', '% kek mt', '% bumil kek'],
+      defaultTargetCurrent: 85,
+      defaultTargetPrev: 84,
+      defaultActualPrev: 71.72,
+      polarity: 'positive' as IndicatorPolarity,
+    },
+    {
+      no: '6a',
+      name: 'Pemantauan pertumbuhan balita',
+      category: 'Intervensi untuk balita (setelah kelahiran)',
+      canonicalCategory: 'setelah_kelahiran' as StuntingLifecycleCategory,
+      sumKeywords: ['balita dipantau pertumbuhan (d/s)', 'pertumbuhan (d/s)', 'balita d/s', 'd/s'],
+      meanKeywords: ['% d/s', '% pertumbuhan'],
+      defaultTargetCurrent: 90,
+      defaultTargetPrev: 80,
+      defaultActualPrev: 94.38,
+      polarity: 'positive' as IndicatorPolarity,
+    },
+    {
+      no: '6b',
+      name: 'Pemantauan pertumbuhan dan perkembangan balita',
+      category: 'Intervensi untuk balita (setelah kelahiran)',
+      canonicalCategory: 'setelah_kelahiran' as StuntingLifecycleCategory,
+      sumKeywords: ['jumlah balita dipantau tumbang', 'balita dipantau tumbang', 'dipantau tumbang', 'tumbang'],
+      meanKeywords: ['% tumbang', '% perkembangan'],
+      defaultTargetCurrent: 55,
+      defaultTargetPrev: 50,
+      defaultActualPrev: 88.51,
+      polarity: 'positive' as IndicatorPolarity,
+    },
+    {
+      no: '7',
+      name: 'Bayi usia kurang dari 6 bulan mendapat ASI eksklusif',
+      category: 'Intervensi untuk balita (setelah kelahiran)',
+      canonicalCategory: 'setelah_kelahiran' as StuntingLifecycleCategory,
+      sumKeywords: ['asi eksklusif', 'bayi asi eksklusif', 'asi'],
+      meanKeywords: ['% asi', '% asi eksklusif'],
+      defaultTargetCurrent: 76,
+      defaultTargetPrev: 73,
+      defaultActualPrev: 90.24,
+      polarity: 'positive' as IndicatorPolarity,
+    },
+    {
+      no: '8',
+      name: 'Anak 6-23 bulan mendapat MP-ASI',
+      category: 'Intervensi untuk balita (setelah kelahiran)',
+      canonicalCategory: 'setelah_kelahiran' as StuntingLifecycleCategory,
+      sumKeywords: ['mpasi', 'mp-asi', 'anak mpasi'],
+      meanKeywords: ['% mpasi', '% mp-asi'],
+      defaultTargetCurrent: 76,
+      defaultTargetPrev: 73,
+      defaultActualPrev: 93.66,
+      polarity: 'positive' as IndicatorPolarity,
+    },
+    {
+      no: '9a',
+      name: 'Balita berat badan tidak naik (T) mendapat tambahan asupan gizi',
+      category: 'Intervensi untuk balita (setelah kelahiran)',
+      canonicalCategory: 'setelah_kelahiran' as StuntingLifecycleCategory,
+      sumKeywords: ['jumlah bb tidak naik (t) dapat mt', 'bb tidak naik (t) dapat mt', 'bb tidak naik (t)', 'tidak naik (t)'],
+      meanKeywords: ['% bb tidak naik (t) dapat mt', '% bb tidak naik', '% tidak naik (t)'],
+      defaultTargetCurrent: 70,
+      defaultTargetPrev: 65,
+      defaultActualPrev: 23.4,
+      polarity: 'positive' as IndicatorPolarity,
+    },
+    {
+      no: '9b',
+      name: 'Balita berat badan kurang mendapat tambahan asupan gizi',
+      category: 'Intervensi untuk balita (setelah kelahiran)',
+      canonicalCategory: 'setelah_kelahiran' as StuntingLifecycleCategory,
+      sumKeywords: ['jumlah bb kurang dapat mt', 'bb kurang dapat mt', 'bb kurang mt'],
+      meanKeywords: ['% bb kurang dapat mt', '% bb kurang mt', '% bb kurang'],
+      defaultTargetCurrent: 70,
+      defaultTargetPrev: 65,
+      defaultActualPrev: 55.6,
+      polarity: 'positive' as IndicatorPolarity,
+    },
+    {
+      no: '9c',
+      name: 'Balita gizi kurang mendapat tambahan asupan gizi',
+      category: 'Intervensi untuk balita (setelah kelahiran)',
+      canonicalCategory: 'setelah_kelahiran' as StuntingLifecycleCategory,
+      sumKeywords: ['jumlah  gizi kurang dapat mt', 'jumlah gizi kurang dapat mt', 'gizi kurang dapat mt', 'gizi kurang mt'],
+      meanKeywords: ['% gizi kurang dapat mt', '% gizi kurang mt', '% gizi kurang'],
+      defaultTargetCurrent: 70,
+      defaultTargetPrev: 65,
+      defaultActualPrev: 59.81,
+      polarity: 'positive' as IndicatorPolarity,
+    },
+    {
+      no: '9d',
+      name: 'Balita gizi buruk mendapat pelayanan tata laksana gizi buruk ',
+      category: 'Intervensi untuk balita (setelah kelahiran)',
+      canonicalCategory: 'setelah_kelahiran' as StuntingLifecycleCategory,
+      sumKeywords: ['jumlah kasus gizi buruk mendapat tata laksana', 'kasus gizi buruk mendapat tata laksana', 'talak gibur', 'tata laksana gizi buruk'],
+      meanKeywords: ['% talak gibur', '% gizi buruk', '% talak'],
+      defaultTargetCurrent: 92,
+      defaultTargetPrev: 91,
+      defaultActualPrev: 96.86,
+      polarity: 'positive' as IndicatorPolarity,
+    },
+    {
+      no: '10',
+      name: 'Baduta memperoleh imunisasi lengkap',
+      category: 'Intervensi untuk balita (setelah kelahiran)',
+      canonicalCategory: 'setelah_kelahiran' as StuntingLifecycleCategory,
+      sumKeywords: ['baduta idl', 'imunisasi lengkap', 'idl'],
+      meanKeywords: ['% idl', '% imunisasi lengkap'],
+      defaultTargetCurrent: 56.25,
+      defaultTargetPrev: 97,
+      defaultActualPrev: 99.46,
+      polarity: 'positive' as IndicatorPolarity,
+    },
+    {
+      no: '11',
+      name: 'Kab/Kota yang telah terverifikasi 100% Kepala Keluarga stop Buang Air Besar Sembarangan (BABS)***',
+      category: 'Intervensi lintas siklus hidup',
+      canonicalCategory: 'lainnya' as StuntingLifecycleCategory,
+      sumKeywords: ['babs', 'stop babs', 'desa babs'],
+      meanKeywords: ['% babs', '% stop babs'],
+      defaultTargetCurrent: '8653 desa',
+      defaultTargetPrev: '8653 desa',
+      defaultActualPrev: 100,
+      polarity: 'positive' as IndicatorPolarity,
+    },
+  ];
+
+  /**
    * Membersihkan nilai target dari string campuran huruf / format dokumen
    * (contoh: "tw3: 60", "≤23", "TW3: 56,25", "85%", "≤13", "8653 desa")
    * dan mendeteksi polaritas jika memuat simbol ≤ atau <.
@@ -569,7 +788,7 @@ export class StuntingEvaluationEngine {
       for (const sub of cat.subCategories) {
         const polarity: IndicatorPolarity = sub.polarity === 'negative' ? 'negative' : 'positive';
         const calcMode = sub.calculationMode || 'percentage';
-        const indicatorName = (sub.name || sub.numeratorCol || `Indikator ${itemNo}`).trim();
+        const indicatorName = (sub.name || sub.meanCol || sub.numeratorCol || `Indikator ${itemNo}`).trim();
 
         // Targets
         const targetCurrent = IndicatorEvaluator.parseSmartNumber(sub.targetCurrentYear);
@@ -600,10 +819,15 @@ export class StuntingEvaluationEngine {
         };
 
         for (const k of [1, 2, 3, 4] as const) {
-          // Resolve numerator column: check quarterColumns first, fallback to sub.numeratorCol
+          // Resolve columns: check quarterColumns first, fallback to sub-level config
+          const sumCol = sub.quarterColumns?.[k]?.sumCol || sub.sumCol;
+          let meanCol = sub.quarterColumns?.[k]?.meanCol || sub.meanCol;
           let numCol = sub.quarterColumns?.[k]?.numeratorCol;
-          if (!numCol && (!sub.quarterColumns || Object.keys(sub.quarterColumns).length === 0) && k === q) {
+          if (!meanCol && !numCol && (!sub.quarterColumns || Object.keys(sub.quarterColumns).length === 0) && k === q) {
+            meanCol = sub.meanCol || sub.numeratorCol;
             numCol = sub.numeratorCol;
+          } else if (!meanCol) {
+            meanCol = numCol;
           }
 
           const denCol = sub.quarterColumns?.[k]?.denominatorCol || sub.denominatorCol;
@@ -617,30 +841,54 @@ export class StuntingEvaluationEngine {
           if (sub.actualValue !== undefined && sub.actualValue !== null && k === q) {
             act = sub.actualValue;
             sumNum = sub.countValue ?? null;
-          } else if (numCol) {
-            if (joinedRows.length === 1) {
-              // Mode Pemantauan Tanpa Agregasi: Langsung dari data yang sudah ada (tanpa pembagian/penjumlahan)
-              const directVal = joinedRows[0][numCol];
-              act = IndicatorEvaluator.parseSmartNumber(directVal);
-              sumNum = sub.countValue ?? (typeof directVal === 'number' && directVal > 100 ? directVal : null);
-            } else {
-              sumNum = this.sumColumnValues(joinedRows, numCol);
-              sumDen = denCol ? this.sumColumnValues(joinedRows, denCol) : null;
-              if (sumNum !== null) {
-                if (calcMode === 'absolute' || sumDen === null || sumDen === 0) {
+          } else {
+            // 1. Calculate sumNum (Jumlah Triwulan Ini / SUM)
+            const targetSumCol = denCol ? (numCol || sumCol) : (sumCol || (calcMode === 'absolute' ? (meanCol || numCol) : undefined));
+            if (targetSumCol) {
+              if (joinedRows.length === 1) {
+                const directSum = joinedRows[0][targetSumCol];
+                sumNum = IndicatorEvaluator.parseSmartNumber(directSum);
+              } else {
+                sumNum = this.sumColumnValues(joinedRows, targetSumCol);
+              }
+            }
+            if (sumNum === null && sub.countValue !== undefined && sub.countValue !== null) {
+              sumNum = sub.countValue;
+            }
+
+            // 2. Calculate act (Capaian Triwulan Ini / MEAN %)
+            if (denCol && joinedRows.length > 0) {
+              sumDen = this.sumColumnValues(joinedRows, denCol);
+              if (sumDen && sumDen > 0 && sumNum !== null) {
+                act = Math.round((sumNum / sumDen) * 10000) / 100;
+              }
+            }
+
+            if (act === null) {
+              const targetMeanCol = meanCol || (!denCol ? numCol : undefined);
+              if (joinedRows.length === 1 && targetMeanCol) {
+                const directVal = joinedRows[0][targetMeanCol];
+                act = IndicatorEvaluator.parseSmartNumber(directVal);
+                if (sumNum === null) {
+                  sumNum = sub.countValue ?? (typeof directVal === 'number' && directVal > 100 ? directVal : null);
+                }
+              } else if (joinedRows.length > 0) {
+                if (targetMeanCol && calcMode !== 'absolute') {
+                  act = this.averageColumnValues(joinedRows, targetMeanCol);
+                } else if (targetSumCol && calcMode === 'absolute') {
                   act = sumNum;
-                } else {
-                  act = Math.round((sumNum / sumDen) * 10000) / 100;
                 }
               }
             }
           }
 
-          if (numCol || act !== null) {
+          if (sumCol || meanCol || numCol || act !== null || sumNum !== null) {
             const gap = this.calculateGap(act, exp, polarity);
             quarters[k] = {
               quarter: k,
-              numeratorCol: numCol,
+              sumCol,
+              meanCol,
+              numeratorCol: numCol || meanCol,
               sumNumerator: sumNum,
               sumDenominator: sumDen,
               expectedAchievement: exp,
@@ -699,11 +947,17 @@ export class StuntingEvaluationEngine {
         const isImproved = yoyChange !== null && (polarity === 'negative' ? yoyChange < 0 : yoyChange > 0);
         const isDeclined = yoyChange !== null && (polarity === 'negative' ? yoyChange > 0 : yoyChange < 0);
 
+        const displayNo =
+          sub.no !== undefined && sub.no !== null && String(sub.no).trim() !== ''
+            ? sub.no
+            : itemNo;
+        itemNo++;
+
         evaluatedRows.push({
-          id: sub.id || `stunting-agg-${itemNo}`,
+          id: sub.id || `stunting-agg-${displayNo}`,
           category: cat.name,
           canonicalCategory: canonical,
-          no: itemNo++,
+          no: displayNo,
           name: indicatorName,
           polarity,
           targetPrevYear: targetPrev,
@@ -722,6 +976,9 @@ export class StuntingEvaluationEngine {
           isImproved,
           isDeclined,
           needsValidation: status === 'belum_dinilai' || targetCurrent === null,
+          sumCol: sub.sumCol,
+          meanCol: sub.meanCol,
+          targetCol: sub.targetCol,
           numeratorCol: sub.numeratorCol,
           denominatorCol: sub.denominatorCol,
           sumNumerator: activeSumNum,

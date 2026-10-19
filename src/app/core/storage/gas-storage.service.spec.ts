@@ -163,6 +163,15 @@ describe('GasStorageService', () => {
       );
     });
 
+    it('saveDefault menolak buffer kosong (0 byte) dengan pesan error jelas', async () => {
+      environment.googleAppsScriptUrl = 'https://script.google.com/macros/s/MOCK/exec';
+      const emptyBuffer = new ArrayBuffer(0);
+      const res = await service.saveDefault(emptyBuffer, 'test.xlsx', { version: '1.0' });
+
+      expect(res.success).toBe(false);
+      expect(res.error).toContain('kosong');
+    });
+
     it('resetDefault mengirim permintaan reset ke GAS', async () => {
       environment.googleAppsScriptUrl = 'https://script.google.com/macros/s/MOCK/exec';
       const mockFetch = vi.fn().mockResolvedValue({

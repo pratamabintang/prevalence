@@ -1,32 +1,9 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import {
-  StuntingDashboardStore,
-  TrendPoint,
-  TransitionDelta,
-  HeatmapRow,
-  ScatterPoint,
-} from '../../core/stunting-dashboard/stunting-dashboard-store';
-import {
-  STUNTING_EXCEL_CONSTRAINTS,
-  PYTHON_TEMPLATE_SCRIPT,
-} from '../../core/stunting-dashboard/stunting-excel-parser';
-import {
-  DistrictMapFeature,
-  NeighborProvince,
-  JavaOverviewProvince,
-} from '../../core/stunting-dashboard/stunting-map-data';
-
-export interface ChartHover {
-  title: string;
-  subtitle?: string;
-  value: string;
-  detail?: string;
-  x: number;
-  y: number;
-}
-
+import { StuntingDashboardStore } from '../../core/stunting-dashboard/stunting-dashboard-store';
+import { PYTHON_TEMPLATE_SCRIPT } from '../../core/stunting-dashboard/stunting-excel-parser';
+import { DistrictMapFeature } from '../../core/stunting-dashboard/stunting-map-data';
 import {
   UiAlertComponent,
   UiButtonComponent,
@@ -60,7 +37,6 @@ export class StuntingDashboardComponent {
   readonly uploadSuccessMessage = signal<string | null>(null);
   readonly showConstraintModal = signal<boolean>(false);
   readonly copyFeedback = signal<string | null>(null);
-  readonly constraintsText = STUNTING_EXCEL_CONSTRAINTS;
   readonly pythonScriptText = PYTHON_TEMPLATE_SCRIPT;
 
   // Map state
@@ -74,9 +50,6 @@ export class StuntingDashboardComponent {
 
   // Background bundle lines toggle
   readonly showBackgroundLines = signal<boolean>(false);
-
-  // Hover states for tooltips
-  readonly hoveredPoint = signal<ChartHover | null>(null);
 
   // Computed properties from store
   readonly metadata = this.store.metadata;
@@ -92,7 +65,6 @@ export class StuntingDashboardComponent {
   readonly selectedScatterPeriod = this.store.selectedScatterPeriod;
   readonly selectedSpatialPeriod = this.store.selectedSpatialPeriod;
   readonly heatmapSearch = this.store.heatmapSearch;
-  readonly selectedBoxplotMetric = this.store.selectedBoxplotMetric;
   readonly showAdvancedStats = this.store.showAdvancedStats;
 
   readonly trendLineData = this.store.trendLineData;
@@ -283,10 +255,6 @@ export class StuntingDashboardComponent {
 
   toggleAdvancedStats() {
     this.store.toggleAdvancedStats();
-  }
-
-  setHover(hover: ChartHover | null) {
-    this.hoveredPoint.set(hover);
   }
 
   // File Upload Handlers

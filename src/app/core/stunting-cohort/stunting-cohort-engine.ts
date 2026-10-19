@@ -274,7 +274,6 @@ export class StuntingCohortEngine {
       const row2 = p2Map.get(nik);
 
       // Prioritize period 2 active data for name, dob, puskesmas, desa
-      const activeRow = row2 || row1 || {};
       const nama = String(
         row2 ? row2[name2Key] || row1?.[name1Key] || 'Tanpa Nama' : row1?.[name1Key] || 'Tanpa Nama'
       );

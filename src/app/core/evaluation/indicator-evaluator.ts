@@ -291,19 +291,17 @@ export class IndicatorEvaluator {
    * Menentukan CSS class formatting capaian (biru nilai tertinggi, merah nilai terendah).
    */
   static getCapaianFormatClass(capaianValue: number, stats: CapaianSummary): string {
-    if (stats.min === null || stats.max === null) {
-      return 'bg-slate-100 text-slate-800 font-bold';
+    if (stats.min === null || stats.max === null || stats.min === stats.max) {
+      return '';
     }
 
-    if (stats.min !== stats.max) {
-      if (capaianValue === stats.max) {
-        return 'bg-blue-100 text-blue-900 font-bold border border-blue-300';
-      }
-      if (capaianValue === stats.min) {
-        return 'bg-red-100 text-red-900 font-bold border border-red-300';
-      }
+    if (capaianValue === stats.max) {
+      return 'bg-blue-100 text-blue-900 font-semibold border-blue-300';
+    }
+    if (capaianValue === stats.min) {
+      return 'bg-red-100 text-red-900 font-semibold border-red-300';
     }
 
-    return 'bg-slate-100 text-slate-800 font-semibold border border-slate-300';
+    return '';
   }
 }

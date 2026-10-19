@@ -657,6 +657,13 @@ export class ExcelEngine {
     for (const s of sheets) {
       XLSX.utils.book_append_sheet(workbook, s.worksheet, s.sheetName);
     }
+    this.writeWorkbook(workbook, fileName);
+  }
+
+  /**
+   * Menyimpan workbook ke file disk / download browser.
+   */
+  static writeWorkbook(workbook: XLSX.WorkBook, fileName: string): void {
     XLSX.writeFile(workbook, fileName);
   }
 

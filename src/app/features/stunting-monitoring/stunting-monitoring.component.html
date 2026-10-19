@@ -1,4 +1,4 @@
-<div class="min-h-screen bg-slate-50 text-slate-800 pb-20">
+<div class="min-h-screen bg-[#F8FAFD] text-slate-800 pb-20">
   <!-- UNIFIED PAGE HEADER -->
   <ui-page-header
     title="Pemantauan Kinerja Stunting"
@@ -18,7 +18,7 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
-        <span>{{ showSettings() ? 'Tutup Pengaturan' : 'Pengaturan' }}</span>
+        <span>Pengaturan</span>
       </button>
 
       <!-- HIDDEN FILE INPUT UNTUK LOAD CONFIG JSON -->
@@ -112,15 +112,19 @@
         type="button"
         (click)="goToStep(1)"
         class="flex-1 min-w-[180px] flex items-center gap-2.5 p-2.5 rounded transition-colors text-left cursor-pointer"
-        [class.bg-slate-100]="activeStep() === 1"
-        [class.text-slate-900]="activeStep() === 1"
+        [class.bg-[#EEF0FF]]="activeStep() === 1"
+        [class.text-[#525AFF]]="activeStep() === 1"
+        [class.ring-1]="activeStep() === 1"
+        [class.ring-[#525AFF]/30]="activeStep() === 1"
         [class.hover:bg-slate-50]="activeStep() !== 1"
         [class.text-slate-600]="activeStep() !== 1"
       >
         <div
           class="w-6 h-6 rounded flex items-center justify-center font-bold text-xs shrink-0"
-          [class.bg-slate-900]="activeStep() === 1"
+          [class.bg-[#525AFF]]="activeStep() === 1"
           [class.text-white]="activeStep() === 1"
+          [class.shadow-xs]="activeStep() === 1"
+          [class.shadow-[#525AFF]/30]="activeStep() === 1"
           [class.bg-slate-200]="activeStep() !== 1"
           [class.text-slate-700]="activeStep() !== 1"
         >
@@ -139,15 +143,19 @@
         type="button"
         (click)="goToStep(2)"
         class="flex-1 min-w-[180px] flex items-center gap-2.5 p-2.5 rounded transition-colors text-left cursor-pointer"
-        [class.bg-slate-100]="activeStep() === 2"
-        [class.text-slate-900]="activeStep() === 2"
+        [class.bg-[#EEF0FF]]="activeStep() === 2"
+        [class.text-[#525AFF]]="activeStep() === 2"
+        [class.ring-1]="activeStep() === 2"
+        [class.ring-[#525AFF]/30]="activeStep() === 2"
         [class.hover:bg-slate-50]="activeStep() !== 2"
         [class.text-slate-600]="activeStep() !== 2"
       >
         <div
           class="w-6 h-6 rounded flex items-center justify-center font-bold text-xs shrink-0"
-          [class.bg-slate-900]="activeStep() === 2"
+          [class.bg-[#525AFF]]="activeStep() === 2"
           [class.text-white]="activeStep() === 2"
+          [class.shadow-xs]="activeStep() === 2"
+          [class.shadow-[#525AFF]/30]="activeStep() === 2"
           [class.bg-slate-200]="activeStep() !== 2"
           [class.text-slate-700]="activeStep() !== 2"
         >
@@ -166,15 +174,19 @@
         type="button"
         (click)="goToStep(3)"
         class="flex-1 min-w-[180px] flex items-center gap-2.5 p-2.5 rounded transition-colors text-left cursor-pointer"
-        [class.bg-slate-100]="activeStep() === 3"
-        [class.text-slate-900]="activeStep() === 3"
+        [class.bg-[#EEF0FF]]="activeStep() === 3"
+        [class.text-[#525AFF]]="activeStep() === 3"
+        [class.ring-1]="activeStep() === 3"
+        [class.ring-[#525AFF]/30]="activeStep() === 3"
         [class.hover:bg-slate-50]="activeStep() !== 3"
         [class.text-slate-600]="activeStep() !== 3"
       >
         <div
           class="w-6 h-6 rounded flex items-center justify-center font-bold text-xs shrink-0"
-          [class.bg-slate-900]="activeStep() === 3"
+          [class.bg-[#525AFF]]="activeStep() === 3"
           [class.text-white]="activeStep() === 3"
+          [class.shadow-xs]="activeStep() === 3"
+          [class.shadow-[#525AFF]/30]="activeStep() === 3"
           [class.bg-slate-200]="activeStep() !== 3"
           [class.text-slate-700]="activeStep() !== 3"
         >
@@ -203,18 +215,32 @@
               <p class="text-xs text-slate-500">Pilih berkas laporan berkala intervensi stunting berformat .xlsx.</p>
             </div>
             @if (file() || joinedRows().length > 0) {
-              <button
-                type="button"
-                uiButton
-                variant="secondary"
-                size="xs"
-                (click)="clearFile()"
-              >
-                <svg class="w-3.5 h-3.5 mr-1 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                {{ file() ? 'Ganti Berkas' : 'Reset / Muat Berkas Baru' }}
-              </button>
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  uiButton
+                  variant="secondary"
+                  size="xs"
+                  (click)="clearFile()"
+                >
+                  <svg class="w-3.5 h-3.5 mr-1 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  {{ file() ? 'Ganti Berkas' : 'Reset / Muat Berkas Baru' }}
+                </button>
+
+                <button
+                  type="button"
+                  uiButton
+                  variant="primary"
+                  size="xs"
+                  (click)="goToStep(2)"
+                  [disabled]="!canProceedToStep2()"
+                  title="Lanjut ke Langkah 2: Pemetaan Indikator & Target"
+                >
+                  <span>Lanjut ke Langkah 2 &rarr;</span>
+                </button>
+              </div>
             }
           </div>
 
@@ -589,9 +615,10 @@
               }
             </div>
           }
+        }
 
-          <!-- Preview & Row Exclusion Table -->
-          @if (joinedRows().length > 0) {
+        <!-- Preview & Row Exclusion Table -->
+        @if (joinedRows().length > 0) {
             <div class="bg-white rounded-lg p-5 border border-slate-200 space-y-4">
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -798,34 +825,34 @@
             </div>
           }
 
-          <!-- Step 1 Bottom Navigation Bar -->
-          <div class="bg-white rounded-lg p-4 border border-slate-200 flex flex-wrap items-center justify-between gap-3">
-            <div class="text-xs text-slate-500">
-              @if (joinedRows().length > 0) {
-                <span>
-                  <strong class="text-slate-800">{{ validJoinedRows().length }}</strong> wilayah aktif siap dipetakan ke indikator.
-                </span>
-              } @else {
-                <span>Pastikan berkas Excel telah dimuat dan lembar kerja acuan telah ditentukan.</span>
-              }
-            </div>
-
-            <button
-              type="button"
-              uiButton
-              variant="primary"
-              size="sm"
-              (click)="goToStep(2)"
-              [disabled]="!canProceedToStep2()"
-              title="Lanjut ke Langkah 2: Pemetaan Indikator & Target"
-            >
-              <span>Lanjut ke Langkah 2: Pemetaan Indikator</span>
-              <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-              </svg>
-            </button>
+        <!-- Step 1 Bottom Navigation Bar -->
+        <div class="bg-white rounded-lg p-4 border border-slate-200 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+          <div class="text-xs text-slate-500">
+            @if (validJoinedRows().length > 0) {
+              <span class="inline-flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span><strong class="text-slate-800 font-semibold">{{ validJoinedRows().length }}</strong> wilayah aktif siap dipetakan ke indikator stunting.</span>
+              </span>
+            } @else {
+              <span>Silakan unggah berkas Excel (.xlsx) atau gunakan data dari Modul Join untuk melanjutkan ke pemetaan.</span>
+            }
           </div>
-        }
+
+          <button
+            type="button"
+            uiButton
+            variant="primary"
+            size="sm"
+            (click)="goToStep(2)"
+            [disabled]="!canProceedToStep2()"
+            title="Lanjut ke Langkah 2: Pemetaan Indikator & Target"
+          >
+            <span>Lanjut ke Langkah 2: Pemetaan Indikator</span>
+            <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
+          </button>
+        </div>
       </div>
     }
 
@@ -885,6 +912,18 @@
               </svg>
               <span>Tambah Kategori</span>
             </button>
+
+            <button
+              type="button"
+              uiButton
+              variant="primary"
+              size="sm"
+              (click)="goToStep(3)"
+              [disabled]="!canProceedToStep3()"
+              title="Lanjut ke Langkah 3: Rapor Kinerja & Ekspor"
+            >
+              <span>Lanjut ke Langkah 3 &rarr;</span>
+            </button>
           </div>
         </div>
 
@@ -895,10 +934,10 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <div>
-              <span class="font-semibold text-blue-950">Petunjuk Pemantauan Stunting:</span>
-              <p class="mt-0.5 text-blue-800">
-                Data capaian (%) dan jumlah dibaca langsung dari baris data yang sudah dihitung tanpa memerlukan input kolom sasaran (denominator) dan tanpa operasi pembagian agregasi.
-                Silakan kelompokkan indikator ke dalam kategori intervensi yang sesuai, serta isikan capaian dan target tahun sebelumnya.
+              <span class="font-semibold text-blue-950">Petunjuk Pemetaan Indikator Dinkes:</span>
+              <p class="mt-0.5 text-blue-800 leading-relaxed">
+                Tiap indikator dapat dipetakan ke <strong>Kolom Jumlah (SUM)</strong> untuk jumlah kasus/cakupan riil dan <strong>Kolom Capaian (MEAN %)</strong> untuk persentase capaian.
+                Target dan capaian tahun lalu diisi manual sesuai dokumen acuan, sedangkan target tahun ini dapat diisi manual atau dideteksi otomatis dari berkas hasil join.
               </p>
             </div>
           </div>
@@ -922,16 +961,16 @@
 
         <div class="space-y-4">
           @for (cat of categories(); track cat.id) {
-            <div class="bg-white rounded-lg border border-slate-200 overflow-hidden">
+            <div class="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-xs">
               <!-- Category Header -->
-              <div class="bg-slate-50 p-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+              <div class="bg-slate-100/80 p-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
                 <div class="flex-1 min-w-[260px]">
                   <input
                     type="text"
                     [value]="cat.name"
                     (input)="updateCategoryName(cat.id, $event)"
                     placeholder="Nama Kategori (misal: Intervensi untuk balita)"
-                    class="w-full text-xs font-semibold text-slate-900 bg-white border border-slate-300 rounded py-1 px-2.5 focus:border-slate-500 focus:outline-none"
+                    class="w-full text-xs font-bold text-slate-900 bg-white border border-slate-300 rounded py-1.5 px-3 focus:border-slate-500 focus:outline-none"
                   />
                 </div>
 
@@ -953,13 +992,13 @@
                     (click)="removeCategory(cat.id)"
                     title="Hapus Kategori"
                   >
-                    Hapus
+                    Hapus Kategori
                   </button>
                 </div>
               </div>
 
               <!-- Sub-Categories / Indicators List -->
-              <div class="p-3.5 space-y-3">
+              <div class="p-3.5 space-y-3.5">
                 @if (cat.subCategories.length === 0) {
                   <div class="p-4 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded">
                     Belum ada sub-kategori indikator dalam kategori ini. Klik "+ Tambah Indikator" di atas.
@@ -968,11 +1007,15 @@
 
                 @for (sub of cat.subCategories; track sub.id) {
                   @let liveStats = getSubCategoryLiveStats(sub);
-                  <div class="bg-slate-50 border border-slate-200 rounded p-3.5 space-y-3">
-                    <!-- Top Info: Live Stats Badge -->
+                  @let statusBadge = getInitialStatusBadge(sub);
+                  <div class="bg-slate-50 border border-slate-200 rounded-lg p-3.5 space-y-3 shadow-xs">
+                    <!-- Top Info: Indicator Number, Name, Polarity & Live Evaluation Stats -->
                     <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-2">
-                      <div class="flex items-center gap-2">
-                        <span class="text-xs font-semibold text-slate-800">{{ sub.name || 'Indikator Baru' }}</span>
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <span class="inline-flex items-center justify-center px-2 py-0.5 rounded bg-slate-200 font-mono text-xs font-bold text-slate-800">
+                          No. {{ sub.no || '-' }}
+                        </span>
+                        <span class="text-xs font-bold text-slate-900">{{ sub.name || 'Indikator Baru' }}</span>
                         @if (sub.polarity === 'negative') {
                           <span class="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700">
                             Prevalensi / Kasus (Negatif)
@@ -984,44 +1027,49 @@
                         }
                       </div>
 
-                      <div class="flex items-center gap-2 font-mono text-xs">
-                        @if (liveStats.actualPercentage !== null) {
-                          <span class="rounded bg-white border border-slate-200 px-2 py-0.5 font-bold text-slate-900 shadow-xs">
-                            Capaian Saat Ini: {{ liveStats.actualPercentage }}%
+                      <div class="flex items-center gap-2 flex-wrap text-xs">
+                        <!-- Live Status Badge -->
+                        <span
+                          class="px-2.5 py-0.5 rounded-full font-semibold border text-[11px]"
+                          [class]="statusBadge.bgClass + ' ' + statusBadge.textClass + ' ' + statusBadge.borderClass"
+                        >
+                          {{ statusBadge.label }}
+                        </span>
+
+                        <!-- Live Values -->
+                        @if (liveStats.sumNum !== null) {
+                          <span class="rounded bg-white border border-slate-200 px-2 py-0.5 font-mono text-slate-700 shadow-xs">
+                            <span class="text-slate-400 mr-1 text-[10px]">SUM:</span><strong>{{ liveStats.sumNum | number }}</strong>
                           </span>
                         }
-                        @if (liveStats.sumNum !== null) {
-                          <span class="rounded bg-white border border-slate-200 px-2 py-0.5 text-slate-600 shadow-xs">
-                            Jumlah: {{ liveStats.sumNum | number }}
+                        @if (liveStats.actualPercentage !== null) {
+                          <span class="rounded bg-white border border-slate-200 px-2 py-0.5 font-mono font-bold text-slate-900 shadow-xs">
+                            <span class="text-slate-400 mr-1 text-[10px] font-normal">MEAN:</span>{{ liveStats.actualPercentage }}%
+                          </span>
+                        }
+                        @if (sub.targetCurrentYear !== null && sub.targetCurrentYear !== undefined) {
+                          <span class="rounded bg-white border border-slate-200 px-2 py-0.5 font-mono text-indigo-700 shadow-xs">
+                            <span class="text-slate-400 mr-1 text-[10px]">Target:</span>{{ sub.targetCurrentYear }}%
                           </span>
                         }
                       </div>
                     </div>
 
-                    <!-- Row 1: Kolom Data Capaian, Nama Indikator, & Pemindahan Kategori -->
-                    <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-                      <!-- Kolom Data Capaian (Persentase / Nilai yang sudah dihitung) -->
-                      <div class="md:col-span-5">
-                        <label class="block text-[11px] font-medium text-slate-700 mb-1">
-                          Kolom Data Capaian (% / Realisasi):
-                        </label>
-                        <select
-                          [ngModel]="sub.numeratorCol"
-                          (ngModelChange)="onDataColChange(cat.id, sub.id, $event)"
-                          class="w-full text-xs rounded border border-slate-300 bg-white py-1.5 px-2.5 font-medium text-slate-900 focus:border-slate-500 focus:outline-none"
-                        >
-                          <option value="">-- Pilih Kolom Data --</option>
-                          @for (col of joinedColumns(); track col) {
-                            <option [value]="col">{{ col }}</option>
-                          }
-                        </select>
+                    <!-- Row 1: No Urut, Nama Indikator, & Pindahkan Kategori -->
+                    <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                      <div class="sm:col-span-2 md:col-span-1">
+                        <label class="block text-[11px] font-semibold text-slate-700 mb-1">No:</label>
+                        <input
+                          type="text"
+                          [ngModel]="sub.no"
+                          (ngModelChange)="updateSubCategory(cat.id, sub.id, { no: $event })"
+                          placeholder="1"
+                          class="w-full text-xs rounded border border-slate-300 bg-white py-1.5 px-2 text-center font-mono font-bold text-slate-900 focus:border-slate-500 focus:outline-none"
+                        />
                       </div>
 
-                      <!-- Nama Indikator -->
-                      <div class="md:col-span-4">
-                        <label class="block text-[11px] font-medium text-slate-700 mb-1">
-                          Nama Indikator:
-                        </label>
+                      <div class="sm:col-span-10 md:col-span-6">
+                        <label class="block text-[11px] font-medium text-slate-700 mb-1">Nama Indikator / Intervensi:</label>
                         <input
                           type="text"
                           [ngModel]="sub.name"
@@ -1031,11 +1079,8 @@
                         />
                       </div>
 
-                      <!-- Pindahkan Kategori -->
-                      <div class="md:col-span-3">
-                        <label class="block text-[11px] font-medium text-slate-700 mb-1">
-                          Kategori Intervensi:
-                        </label>
+                      <div class="sm:col-span-12 md:col-span-5">
+                        <label class="block text-[11px] font-medium text-slate-700 mb-1">Kategori Intervensi:</label>
                         <select
                           [ngModel]="cat.id"
                           (ngModelChange)="moveSubCategoryToCategory(cat.id, sub.id, $event)"
@@ -1048,9 +1093,48 @@
                       </div>
                     </div>
 
-                    <!-- Row 2: Target Tahun Ini, Capaian Tahun Lalu, Target Tahun Lalu, Polaritas, & Hapus -->
-                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3 items-end pt-2 border-t border-slate-200">
-                      <!-- Target Tahun Berjalan -->
+                    <!-- Row 2: Pemilihan Kolom SUM (Jumlah) & MEAN (Capaian %) -->
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end p-2.5 rounded-lg bg-white border border-slate-200">
+                      <!-- Kolom Jumlah (SUM) -->
+                      <div class="md:col-span-6">
+                        <label class="block text-[11px] font-medium text-slate-700 mb-1">
+                          <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 mr-1">SUM</span>
+                          Kolom Jumlah (Akumulasi / Kasus Riil):
+                        </label>
+                        <select
+                          [ngModel]="sub.sumCol"
+                          (ngModelChange)="onSumColChange(cat.id, sub.id, $event)"
+                          class="w-full text-xs rounded border border-slate-300 bg-white py-1.5 px-2.5 font-medium text-slate-900 focus:border-indigo-500 focus:outline-none"
+                        >
+                          <option value="">-- Pilih Kolom Jumlah (SUM) --</option>
+                          @for (col of joinedColumns(); track col) {
+                            <option [value]="col">{{ col }}</option>
+                          }
+                        </select>
+                      </div>
+
+                      <!-- Kolom Capaian (MEAN %) -->
+                      <div class="md:col-span-6">
+                        <label class="block text-[11px] font-medium text-slate-700 mb-1">
+                          <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-teal-50 text-teal-700 border border-teal-200 mr-1">MEAN %</span>
+                          Kolom Capaian (Persentase % / Realisasi):
+                        </label>
+                        <select
+                          [ngModel]="sub.meanCol || sub.numeratorCol"
+                          (ngModelChange)="onMeanColChange(cat.id, sub.id, $event)"
+                          class="w-full text-xs rounded border border-slate-300 bg-white py-1.5 px-2.5 font-medium text-slate-900 focus:border-teal-500 focus:outline-none"
+                        >
+                          <option value="">-- Pilih Kolom Capaian (MEAN %) --</option>
+                          @for (col of joinedColumns(); track col) {
+                            <option [value]="col">{{ col }}</option>
+                          }
+                        </select>
+                      </div>
+                    </div>
+
+                    <!-- Row 3: Target Tahun Ini, Target Tahun Lalu, Capaian Tahun Lalu, Polaritas, & Hapus -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3 items-end pt-1">
+                      <!-- Target Tahun Ini -->
                       <div class="md:col-span-3">
                         <label class="block text-[11px] font-medium text-slate-700 mb-1">
                           Target Tahun Ini (%):
@@ -1059,42 +1143,42 @@
                           type="number"
                           [ngModel]="sub.targetCurrentYear"
                           (ngModelChange)="updateSubCategory(cat.id, sub.id, { targetCurrentYear: $event })"
-                          placeholder="Misal 80"
+                          placeholder="Target tahun ini"
                           class="w-full text-xs rounded border border-slate-300 bg-white py-1.5 px-2.5 font-mono font-medium text-slate-900 focus:border-slate-500 focus:outline-none"
                         />
                       </div>
 
-                      <!-- Capaian Tahun Lalu -->
-                      <div class="md:col-span-3">
-                        <label class="block text-[11px] font-medium text-slate-700 mb-1">
-                          Capaian Tahun Lalu (%):
-                        </label>
-                        <input
-                          type="number"
-                          [ngModel]="sub.actualPrevYear"
-                          (ngModelChange)="updateSubCategory(cat.id, sub.id, { actualPrevYear: $event })"
-                          placeholder="Realisasi tahun lalu"
-                          class="w-full text-xs rounded border border-slate-300 bg-white py-1.5 px-2.5 font-mono text-slate-900 focus:border-slate-500 focus:outline-none"
-                        />
-                      </div>
-
-                      <!-- Target Tahun Lalu -->
+                      <!-- Target Tahun Lalu (Input Manual) -->
                       <div class="md:col-span-2">
                         <label class="block text-[11px] font-medium text-slate-700 mb-1">
-                          Target Tahun Lalu (%):
+                          Target Thn Lalu (%):
                         </label>
                         <input
                           type="number"
                           [ngModel]="sub.targetPrevYear"
                           (ngModelChange)="updateSubCategory(cat.id, sub.id, { targetPrevYear: $event })"
-                          placeholder="Target tahun lalu"
+                          placeholder="Manual target"
                           class="w-full text-xs rounded border border-slate-300 bg-white py-1.5 px-2.5 font-mono text-slate-900 focus:border-slate-500 focus:outline-none"
                         />
                       </div>
 
-                      <!-- Polaritas Button -->
+                      <!-- Capaian Tahun Lalu (Input Manual) -->
                       <div class="md:col-span-3">
-                        <label class="block text-[11px] font-medium text-slate-700 mb-1">Polaritas Indikator:</label>
+                        <label class="block text-[11px] font-medium text-slate-700 mb-1">
+                          Capaian Thn Lalu (%):
+                        </label>
+                        <input
+                          type="number"
+                          [ngModel]="sub.actualPrevYear"
+                          (ngModelChange)="updateSubCategory(cat.id, sub.id, { actualPrevYear: $event })"
+                          placeholder="Manual capaian"
+                          class="w-full text-xs rounded border border-slate-300 bg-white py-1.5 px-2.5 font-mono text-slate-900 focus:border-slate-500 focus:outline-none"
+                        />
+                      </div>
+
+                      <!-- Polaritas Toggle -->
+                      <div class="md:col-span-3">
+                        <label class="block text-[11px] font-medium text-slate-700 mb-1">Polaritas:</label>
                         <button
                           type="button"
                           uiButton
@@ -1163,6 +1247,7 @@
     }
 
     <!-- ============================================================ -->
+    <!-- ============================================================ -->
     <!-- STEP 3: HASIL PEMANTAUAN & ANALISIS -->
     <!-- ============================================================ -->
     @if (activeStep() === 3) {
@@ -1174,12 +1259,59 @@
           <div class="bg-white rounded-lg p-5 border border-slate-200 space-y-4">
             <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200">
               <div>
-                <h3 class="text-sm font-semibold text-slate-900">Tabel Monitoring Kinerja Intervensi Stunting</h3>
-                <p class="text-xs text-slate-500">Evaluasi terstruktur capaian riil per wilayah terhadap target triwulan dan tahun berjalan.</p>
+                <h3 class="text-sm font-semibold text-slate-900">Tabel Analisis Capaian Intervensi Spesifik</h3>
+                <p class="text-xs text-slate-500">Standar Laporan Dinas Kesehatan Provinsi Jawa Tengah (Lembar capaian intervensi spesifik).</p>
               </div>
 
               <!-- Unified Toolbar Actions -->
               <div class="flex flex-wrap items-center gap-2">
+                <!-- Quarter Selector Buttons -->
+                <div class="inline-flex rounded-md shadow-2xs border border-slate-200 bg-slate-50 p-0.5">
+                  @for (q of [1, 2, 3, 4]; track q) {
+                    <button
+                      type="button"
+                      (click)="setActiveQuarter(q)"
+                      class="px-2.5 py-1 text-xs font-semibold rounded transition-colors"
+                      [class.bg-[#525AFF]]="activeQuarter() === q"
+                      [class.text-white]="activeQuarter() === q"
+                      [class.shadow-2xs]="activeQuarter() === q"
+                      [class.text-slate-600]="activeQuarter() !== q"
+                      [class.hover:text-slate-900]="activeQuarter() !== q"
+                      [title]="'Tampilkan evaluasi Triwulan ' + q"
+                    >
+                      TW {{ q }}
+                    </button>
+                  }
+                </div>
+
+                <!-- View Mode: Single vs Multi Quarter -->
+                <div class="inline-flex rounded-md shadow-2xs border border-slate-200 bg-slate-50 p-0.5">
+                  <button
+                    type="button"
+                    (click)="setViewMode('single_quarter')"
+                    class="px-2.5 py-1 text-xs font-medium rounded transition-colors"
+                    [class.bg-white]="viewMode() === 'single_quarter' || (viewMode() === 'auto' && displayedQuarters().length === 1)"
+                    [class.text-slate-900]="viewMode() === 'single_quarter' || (viewMode() === 'auto' && displayedQuarters().length === 1)"
+                    [class.shadow-2xs]="viewMode() === 'single_quarter' || (viewMode() === 'auto' && displayedQuarters().length === 1)"
+                    [class.text-slate-500]="viewMode() !== 'single_quarter' && (viewMode() !== 'auto' || displayedQuarters().length !== 1)"
+                    title="Fokus tampilan 1 Triwulan (Format Standar Dinkes)"
+                  >
+                    1 Triwulan
+                  </button>
+                  <button
+                    type="button"
+                    (click)="setViewMode('all_quarters')"
+                    class="px-2.5 py-1 text-xs font-medium rounded transition-colors"
+                    [class.bg-white]="viewMode() === 'all_quarters' || (viewMode() === 'auto' && displayedQuarters().length > 1)"
+                    [class.text-slate-900]="viewMode() === 'all_quarters' || (viewMode() === 'auto' && displayedQuarters().length > 1)"
+                    [class.shadow-2xs]="viewMode() === 'all_quarters' || (viewMode() === 'auto' && displayedQuarters().length > 1)"
+                    [class.text-slate-500]="viewMode() !== 'all_quarters' && (viewMode() !== 'auto' || displayedQuarters().length <= 1)"
+                    title="Tampilkan matriks seluruh Triwulan (TW1 - TW4)"
+                  >
+                    Semua TW
+                  </button>
+                </div>
+
                 <button
                   type="button"
                   uiButton
@@ -1224,42 +1356,118 @@
               </div>
             </div>
 
+            <!-- Search Bar & Status Filter Chips -->
+            <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
+              <div class="flex flex-wrap items-center gap-1.5">
+                <span class="text-xs font-semibold text-slate-600 mr-1">Filter:</span>
+                <button
+                  type="button"
+                  (click)="setFilter('all')"
+                  class="px-2.5 py-1 text-xs rounded transition-colors"
+                  [class.bg-slate-800]="activeFilter() === 'all'"
+                  [class.text-white]="activeFilter() === 'all'"
+                  [class.bg-slate-100]="activeFilter() !== 'all'"
+                  [class.text-slate-600]="activeFilter() !== 'all'"
+                >
+                  Semua ({{ res.rows.length }})
+                </button>
+                <button
+                  type="button"
+                  (click)="setFilter('on_track')"
+                  class="px-2.5 py-1 text-xs rounded transition-colors"
+                  [class.bg-emerald-600]="activeFilter() === 'on_track'"
+                  [class.text-white]="activeFilter() === 'on_track'"
+                  [class.bg-emerald-50]="activeFilter() !== 'on_track'"
+                  [class.text-emerald-700]="activeFilter() !== 'on_track'"
+                >
+                  On Track ({{ onTrackCount() }})
+                </button>
+                <button
+                  type="button"
+                  (click)="setFilter('perlu_percepatan')"
+                  class="px-2.5 py-1 text-xs rounded transition-colors"
+                  [class.bg-rose-600]="activeFilter() === 'perlu_percepatan'"
+                  [class.text-white]="activeFilter() === 'perlu_percepatan'"
+                  [class.bg-rose-50]="activeFilter() !== 'perlu_percepatan'"
+                  [class.text-rose-700]="activeFilter() !== 'perlu_percepatan'"
+                >
+                  Perlu Percepatan ({{ perluPercepatanCount() }})
+                </button>
+                <button
+                  type="button"
+                  (click)="setFilter('perlu_perhatian')"
+                  class="px-2.5 py-1 text-xs rounded transition-colors"
+                  [class.bg-amber-600]="activeFilter() === 'perlu_perhatian'"
+                  [class.text-white]="activeFilter() === 'perlu_perhatian'"
+                  [class.bg-amber-50]="activeFilter() !== 'perlu_perhatian'"
+                  [class.text-amber-700]="activeFilter() !== 'perlu_perhatian'"
+                >
+                  Perhatian ({{ perluPerhatianCount() }})
+                </button>
+              </div>
+
+              <div class="relative w-64">
+                <input
+                  type="text"
+                  [ngModel]="searchQuery()"
+                  (ngModelChange)="searchQuery.set($event)"
+                  placeholder="Cari indikator / kategori..."
+                  class="w-full text-xs rounded border border-slate-300 py-1.5 pl-8 pr-3 focus:border-slate-500 focus:outline-none bg-slate-50/50"
+                />
+                <svg class="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+            </div>
+
+            <!-- Table Layout matching Format Analisas Intervensi Spesifik -->
             <div class="overflow-x-auto border border-slate-200 rounded">
               <table class="w-full text-xs text-left">
-                <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200 sticky top-0 z-10 shadow-xs">
                   <tr>
-                    <th rowspan="2" class="px-3 py-2 w-10 text-center border-b border-slate-200">No</th>
-                    <th rowspan="2" class="px-3 py-2 border-b border-slate-200">Intervensi / Indikator</th>
-                    <th rowspan="2" class="px-3 py-2 text-right border-b border-slate-200">Target Berjalan</th>
-                    @for (q of availableQuarters(); track q) {
+                    <th rowspan="2" class="px-3.5 py-2.5 text-left bg-slate-100 border-b border-slate-200 w-64">Pengkategorian</th>
+                    <th rowspan="2" class="px-3 py-2.5 text-center w-12 bg-slate-100 border-b border-slate-200">No</th>
+                    <th rowspan="2" class="px-3.5 py-2.5 text-left min-w-[280px] bg-slate-100 border-b border-slate-200">
+                      Intervensi Percepatan Penurunan Stunting
+                    </th>
+                    <th rowspan="2" class="px-3 py-2.5 text-right whitespace-nowrap bg-slate-100 border-b border-slate-200">
+                      Target Tahun Lalu
+                    </th>
+                    <th rowspan="2" class="px-3 py-2.5 text-right whitespace-nowrap bg-slate-100 border-b border-slate-200">
+                      Capaian Tahun Lalu
+                    </th>
+                    <th rowspan="2" class="px-3 py-2.5 text-right whitespace-nowrap bg-slate-100 border-b border-slate-200">
+                      Target Tahun Ini
+                    </th>
+                    @for (q of displayedQuarters(); track q) {
                       <th
                         colspan="2"
-                        class="px-3 py-1.5 text-center border-l font-semibold bg-slate-200/60 text-slate-800 border-slate-300"
+                        class="px-3 py-1.5 text-center border-l font-semibold bg-slate-200/70 text-slate-800 border-slate-300"
                       >
                         Triwulan {{ q }}
                       </th>
                     }
-                    <th rowspan="2" class="px-3 py-2 text-center border-l border-b border-slate-200">Status</th>
+                    <th rowspan="2" class="px-3.5 py-2.5 text-center border-l border-b border-slate-200 bg-slate-100">Status</th>
                   </tr>
                   <tr class="bg-slate-50 text-slate-600 text-[11px] border-b border-slate-200">
-                    @for (q of availableQuarters(); track q) {
-                      <th class="px-3 py-1.5 text-right font-medium border-l border-slate-200 text-slate-700">
+                    @for (q of displayedQuarters(); track q) {
+                      <th class="px-3 py-1.5 text-right font-medium border-l border-slate-200 text-slate-700 whitespace-nowrap">
                         Jumlah
                       </th>
-                      <th class="px-3 py-1.5 text-right font-medium text-slate-800">
+                      <th class="px-3 py-1.5 text-right font-medium text-slate-800 whitespace-nowrap">
                         Capaian (%)
                       </th>
                     }
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
-                  @for (group of res.groupedRows; track group.categoryName) {
+                  @for (group of filteredGroupedRows(); track group.categoryName) {
                     <!-- Group Header Row -->
                     <tr
                       class="bg-slate-100/70 font-semibold text-slate-800 cursor-pointer hover:bg-slate-100 transition-colors"
                       (click)="toggleCategoryCollapse(group.categoryName)"
                     >
-                      <td [attr.colspan]="4 + (availableQuarters().length * 2)" class="px-3 py-2">
+                      <td [attr.colspan]="7 + (displayedQuarters().length * 2)" class="px-3.5 py-2">
                         <span class="mr-1.5 text-slate-500 font-mono">{{ collapsedCategories()[group.categoryName] ? '+' : '-' }}</span>
                         <span>{{ group.categoryName }}</span>
                         <span class="ml-2 font-normal text-slate-500 text-[11px]">({{ group.rows.length }} indikator)</span>
@@ -1269,42 +1477,55 @@
                     @if (!collapsedCategories()[group.categoryName]) {
                       @for (row of group.rows; track row.id) {
                         <tr class="hover:bg-slate-50 transition-colors">
-                          <td class="px-3 py-2 text-center text-slate-400 font-mono">{{ row.no }}</td>
-                          <td class="px-3 py-2 font-medium text-slate-900">
-                            {{ row.name }}
-                            @if (row.polarity === 'negative') {
-                              <span class="ml-1 text-[10px] text-rose-600 font-normal">(Kasus)</span>
-                            }
+                          <td class="px-3.5 py-2 text-slate-600 text-xs font-medium border-r border-slate-100 bg-slate-50/40">
+                            {{ group.categoryName }}
                           </td>
-                          <td class="px-3 py-2 text-right font-mono font-medium text-slate-800">
-                            {{ row.targetCurrentYear !== null ? row.targetCurrentYear + '%' : '-' }}
+                          <td class="px-3 py-2 text-center text-slate-700 font-mono font-bold text-xs">{{ row.no }}</td>
+                          <td class="px-3.5 py-2 font-medium text-slate-900 text-xs">
+                            <div class="flex items-center gap-1.5">
+                              <span>{{ row.name }}</span>
+                              @if (row.polarity === 'negative') {
+                                <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-rose-50 text-rose-700 border border-rose-200">
+                                  Kasus
+                                </span>
+                              }
+                            </div>
+                          </td>
+                          <td class="px-3 py-2 text-right font-mono text-slate-700 text-xs whitespace-nowrap">
+                            {{ row.targetPrevYear !== null && row.targetPrevYear !== undefined ? row.targetPrevYear + '%' : '-' }}
+                          </td>
+                          <td class="px-3 py-2 text-right font-mono text-slate-700 text-xs whitespace-nowrap">
+                            {{ row.actualPrevYear !== null && row.actualPrevYear !== undefined ? row.actualPrevYear + '%' : '-' }}
+                          </td>
+                          <td class="px-3 py-2 text-right font-mono font-semibold text-indigo-950 text-xs whitespace-nowrap">
+                            {{ row.targetCurrentYear !== null && row.targetCurrentYear !== undefined ? row.targetCurrentYear + '%' : '-' }}
                           </td>
 
-                          @for (q of availableQuarters(); track q) {
+                          @for (q of displayedQuarters(); track q) {
                             @let qData = row.quarters[q];
-                            <td class="px-3 py-2 text-right font-mono text-slate-700 border-l border-slate-100">
+                            <td class="px-3 py-2 text-right font-mono text-slate-700 border-l border-slate-100 text-xs whitespace-nowrap">
                               {{ qData.sumNumerator !== null && qData.sumNumerator !== undefined ? (qData.sumNumerator | number) : '-' }}
                             </td>
-                            <td class="px-3 py-2 text-right font-mono font-medium text-slate-900">
+                            <td class="px-3 py-2 text-right font-mono font-bold text-slate-900 text-xs whitespace-nowrap">
                               {{ qData.actualAchievement !== null && qData.actualAchievement !== undefined ? qData.actualAchievement + (row.calculationMode === 'absolute' ? '' : '%') : '-' }}
                             </td>
                           }
 
-                          <td class="px-3 py-2 text-center border-l border-slate-100">
+                          <td class="px-3.5 py-2 text-center border-l border-slate-100 whitespace-nowrap">
                             @if (row.status === 'on_track') {
-                              <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                                 On Track
                               </span>
                             } @else if (row.status === 'perlu_perhatian') {
-                              <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
                                 Perhatian
                               </span>
                             } @else if (row.status === 'perlu_percepatan') {
-                              <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-rose-50 text-rose-700 border border-rose-200">
+                              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
                                 Percepatan
                               </span>
                             } @else {
-                              <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-50 text-slate-600 border border-slate-200">
+                              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-50 text-slate-600 border border-slate-200">
                                 Belum Dinilai
                               </span>
                             }
@@ -1315,6 +1536,68 @@
                   }
                 </tbody>
               </table>
+            </div>
+
+            <!-- Step 3 Bottom Navigation Bar -->
+            <div class="pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+              <button
+                type="button"
+                uiButton
+                variant="secondary"
+                size="sm"
+                (click)="goToStep(2)"
+                title="Kembali ke Langkah 2: Pemetaan Indikator & Target"
+              >
+                <svg class="w-4 h-4 mr-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                <span>Kembali ke Langkah 2: Pemetaan Indikator</span>
+              </button>
+
+              <div class="flex flex-wrap items-center gap-2 text-xs">
+                <span class="px-2.5 py-1 rounded bg-slate-100 text-slate-700 font-medium">
+                  Total: <strong>{{ res.rows.length }}</strong> Indikator
+                </span>
+                <span class="px-2.5 py-1 rounded bg-emerald-50 text-emerald-800 font-semibold border border-emerald-200">
+                  On Track: <strong>{{ onTrackCount() }}</strong>
+                </span>
+                <span class="px-2.5 py-1 rounded bg-rose-50 text-rose-800 font-semibold border border-rose-200">
+                  Percepatan: <strong>{{ perluPercepatanCount() }}</strong>
+                </span>
+                <span class="px-2.5 py-1 rounded bg-amber-50 text-amber-800 font-semibold border border-amber-200">
+                  Perhatian: <strong>{{ perluPerhatianCount() }}</strong>
+                </span>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  uiButton
+                  variant="secondary"
+                  size="sm"
+                  (click)="visualizeInChart()"
+                  title="Kirim data indikator ini ke modul Visualisasi Grafik"
+                >
+                  <svg class="w-4 h-4 mr-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  <span>Visualisasikan Grafik</span>
+                </button>
+
+                <button
+                  type="button"
+                  uiButton
+                  variant="primary"
+                  size="sm"
+                  (click)="exportExcel()"
+                  title="Ekspor seluruh rapor kinerja ke berkas Excel (.xlsx)"
+                >
+                  <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  <span>Ekspor Laporan (.xlsx)</span>
+                </button>
+              </div>
             </div>
           </div>
         } @else {

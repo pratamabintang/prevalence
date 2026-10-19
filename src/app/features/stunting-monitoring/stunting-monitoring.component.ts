@@ -2,20 +2,18 @@ import { DecimalPipe } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { ChartDataBridge } from '../../core/chart/chart-data-bridge';
-import { StuntingDataBridge } from '../../core/stunting/stunting-data-bridge';
+import { HealthDataExchange } from '../../core/domain/health-data-exchange';
 import { RegionNormalizer } from '../../core/domain/region-normalizer';
 import { IndicatorEvaluator } from '../../core/evaluation/indicator-evaluator';
 import {
-  EvaluatedStuntingRow,
   IndicatorPolarity,
   StuntingCategoryConfig,
   StuntingEvaluationEngine,
   StuntingEvaluationResult,
-  StuntingLifecycleCategory,
   StuntingSubCategoryConfig,
 } from '../../core/stunting/stunting-evaluation-engine';
-import { ColumnHeaderMeta, ColumnInfo, ExcelEngine } from '../../shared/excel';
+import { ColumnInfo, ExcelEngine } from '../../shared/excel';
+import { StuntingExcelExporter } from '../../core/stunting/stunting-excel-exporter';
 import {
   AnyStuntingPreset,
   StuntingConfigurationPreset,
@@ -61,8 +59,7 @@ export interface JoinedRowPreviewItem {
 })
 export class StuntingMonitoringComponent implements OnInit {
   private router = inject(Router);
-  private chartDataBridge = inject(ChartDataBridge);
-  private stuntingDataBridge = inject(StuntingDataBridge);
+  private healthDataExchange = inject(HealthDataExchange);
 
   ngOnInit(): void {
     this.loadTransferredData();
@@ -76,8 +73,6 @@ export class StuntingMonitoringComponent implements OnInit {
   // ============================================================
   file = signal<File | null>(null);
   workbook: any = null;
-  isProcessing = signal(false);
-  isJoining = signal(false);
   showSettings = signal<boolean>(false);
 
   availableSheets = signal<string[]>([]);
@@ -204,6 +199,26 @@ export class StuntingMonitoringComponent implements OnInit {
   searchQuery = signal<string>('');
   activeFilter = signal<string>('all');
   collapsedCategories = signal<Record<string, boolean>>({});
+  viewMode = signal<'auto' | 'single_quarter' | 'all_quarters'>('auto');
+
+  displayedQuarters = computed<(1 | 2 | 3 | 4)[]>(() => {
+    const mode = this.viewMode();
+    if (mode === 'single_quarter') {
+      return [this.activeQuarter()];
+    }
+    if (mode === 'all_quarters') {
+      return this.availableQuarters();
+    }
+    return this.availableQuarters();
+  });
+
+  onTrackCount = computed(() => this.evaluationResult()?.rows.filter((r) => r.status === 'on_track').length ?? 0);
+  perluPercepatanCount = computed(() => this.evaluationResult()?.rows.filter((r) => r.status === 'perlu_percepatan').length ?? 0);
+  perluPerhatianCount = computed(() => this.evaluationResult()?.rows.filter((r) => r.status === 'perlu_perhatian').length ?? 0);
+
+  setViewMode(mode: 'auto' | 'single_quarter' | 'all_quarters'): void {
+    this.viewMode.set(mode);
+  }
 
   // Preset State
   pendingPreset: AnyStuntingPreset | null = null;
@@ -245,7 +260,6 @@ export class StuntingMonitoringComponent implements OnInit {
 
     this.file.set(file);
     this.showSettings.set(false);
-    this.isProcessing.set(true);
 
     try {
       const buffer = await file.arrayBuffer();
@@ -266,7 +280,6 @@ export class StuntingMonitoringComponent implements OnInit {
         `Gagal membaca berkas: ${err instanceof Error ? err.message : 'Format tidak didukung.'}`,
       );
     } finally {
-      this.isProcessing.set(false);
       input.value = '';
     }
   }
@@ -284,7 +297,7 @@ export class StuntingMonitoringComponent implements OnInit {
   }
 
   private loadTransferredData(): void {
-    const transferred = this.stuntingDataBridge.data();
+    const transferred = this.healthDataExchange.stuntingData();
     if (!transferred || transferred.rows.length === 0) {
       return;
     }
@@ -370,7 +383,7 @@ export class StuntingMonitoringComponent implements OnInit {
       `Data hasil join berhasil dimuat (${transferred.rows.length} baris wilayah, ${transferred.columns.length} kolom)! Anda dapat langsung memeriksa baris aktif atau melanjutkan ke Langkah 2.`,
     );
 
-    this.stuntingDataBridge.clearData();
+    this.healthDataExchange.clearStuntingData();
   }
 
   private refreshAvailableSheets(): void {
@@ -656,31 +669,6 @@ export class StuntingMonitoringComponent implements OnInit {
     });
   }
 
-  deleteRow(rowId: string): void {
-    const row = this.joinedRows().find((r) => r['__id'] === rowId);
-    const rawKey = row ? String(row[this.primaryKeyCol()] ?? '').trim().toLowerCase() : '';
-
-    this.joinedRows.update((rows) => rows.filter((r) => r['__id'] !== rowId));
-    this.excludedRowIds.update((set) => {
-      const next = new Set(set);
-      next.delete(rowId);
-      return next;
-    });
-    if (rawKey) {
-      this.manualExcludedKeys.update((mSet) => {
-        const mNext = new Set(mSet);
-        mNext.delete(rawKey);
-        return mNext;
-      });
-    }
-  }
-
-  deleteExcludedRows(): void {
-    const exSet = this.excludedRowIds();
-    this.joinedRows.update((rows) => rows.filter((r) => !exSet.has(String(r['__id']))));
-    this.excludedRowIds.set(new Set());
-  }
-
   setAllRowsActive(active: boolean): void {
     if (active) {
       this.excludedRowIds.set(new Set());
@@ -765,136 +753,130 @@ export class StuntingMonitoringComponent implements OnInit {
     const masterWs = this.workbook.Sheets[this.primarySheet()];
     if (!masterWs) return;
 
-    this.isJoining.set(true);
+    const pCols = this.primaryColumns();
+    const pKey = this.primaryKeyCol();
 
-    try {
-      const pCols = this.primaryColumns();
-      const pKey = this.primaryKeyCol();
+    // Read master rows
+    const masterRows = ExcelEngine.readSheetRows(
+      masterWs,
+      pCols,
+      this.primaryDataStartRow(),
+    );
 
-      // Read master rows
-      const masterRows = ExcelEngine.readSheetRows(
-        masterWs,
-        pCols,
-        this.primaryDataStartRow(),
-      );
+    const activeSecondaries = this.secondarySheets().filter((s) => s.selected);
+    const allColsMap = new Map<string, string>(); // normalized -> original column header
 
-      const activeSecondaries = this.secondarySheets().filter((s) => s.selected);
-      const allColsMap = new Map<string, string>(); // normalized -> original column header
+    // Register master columns
+    for (const c of pCols) {
+      allColsMap.set(c.header.toLowerCase(), c.header);
+    }
 
-      // Register master columns
-      for (const c of pCols) {
-        allColsMap.set(c.header.toLowerCase(), c.header);
-      }
+    // Map secondary sheets data
+    const secondaryIndexes: {
+      sheet: SecondarySheetSetup;
+      map: Map<string, Record<string, unknown>>;
+    }[] = [];
 
-      // Map secondary sheets data
-      const secondaryIndexes: {
-        sheet: SecondarySheetSetup;
-        map: Map<string, Record<string, unknown>>;
-      }[] = [];
+    for (const sec of activeSecondaries) {
+      const ws = this.getWorksheet(sec.sheetName);
+      if (!ws) continue;
 
-      for (const sec of activeSecondaries) {
-        const ws = this.getWorksheet(sec.sheetName);
-        if (!ws) continue;
+      const secRows = ExcelEngine.readSheetRows(ws, sec.columns, sec.dataStartRow);
+      const map = new Map<string, Record<string, unknown>>();
 
-        const secRows = ExcelEngine.readSheetRows(ws, sec.columns, sec.dataStartRow);
-        const map = new Map<string, Record<string, unknown>>();
-
-        for (const sr of secRows) {
-          const rawK = String(sr[sec.keyCol] ?? '').trim();
-          if (rawK) {
-            const normK = RegionNormalizer.normalizeJoinKey(rawK, this.stripKabupaten());
-            map.set(normK, sr);
-          }
-        }
-
-        secondaryIndexes.push({ sheet: sec, map });
-
-        // Register secondary columns (prefix with sheet name if collision occurs)
-        for (const sc of sec.columns) {
-          if (sc.header.toLowerCase() === sec.keyCol.toLowerCase()) continue;
-          let colHeader = sc.header;
-          if (allColsMap.has(colHeader.toLowerCase())) {
-            colHeader = `${sec.sheetName} - ${sc.header}`;
-          }
-          allColsMap.set(colHeader.toLowerCase(), colHeader);
+      for (const sr of secRows) {
+        const rawK = String(sr[sec.keyCol] ?? '').trim();
+        if (rawK) {
+          const normK = RegionNormalizer.normalizeJoinKey(rawK, this.stripKabupaten());
+          map.set(normK, sr);
         }
       }
 
-      // Merge rows
-      const merged: Record<string, unknown>[] = [];
-      let rowCounter = 0;
-      for (const mr of masterRows) {
-        const rawPKey = String(mr[pKey] ?? '').trim();
-        const normPKey = RegionNormalizer.normalizeJoinKey(rawPKey, this.stripKabupaten());
+      secondaryIndexes.push({ sheet: sec, map });
 
-        const mergedRow: Record<string, unknown> = {
-          __id: `row-${rowCounter++}`,
-          ...mr,
-        };
+      // Register secondary columns (prefix with sheet name if collision occurs)
+      for (const sc of sec.columns) {
+        if (sc.header.toLowerCase() === sec.keyCol.toLowerCase()) continue;
+        let colHeader = sc.header;
+        if (allColsMap.has(colHeader.toLowerCase())) {
+          colHeader = `${sec.sheetName} - ${sc.header}`;
+        }
+        allColsMap.set(colHeader.toLowerCase(), colHeader);
+      }
+    }
 
-        for (const { sheet, map } of secondaryIndexes) {
-          const secRow = map.get(normPKey);
-          if (secRow) {
-            for (const sc of sheet.columns) {
-              if (sc.header.toLowerCase() === sheet.keyCol.toLowerCase()) continue;
-              let targetName = sc.header;
-              if (pCols.some((pc) => pc.header.toLowerCase() === sc.header.toLowerCase())) {
-                targetName = `${sheet.sheetName} - ${sc.header}`;
-              }
-              mergedRow[targetName] = secRow[sc.header];
+    // Merge rows
+    const merged: Record<string, unknown>[] = [];
+    let rowCounter = 0;
+    for (const mr of masterRows) {
+      const rawPKey = String(mr[pKey] ?? '').trim();
+      const normPKey = RegionNormalizer.normalizeJoinKey(rawPKey, this.stripKabupaten());
+
+      const mergedRow: Record<string, unknown> = {
+        __id: `row-${rowCounter++}`,
+        ...mr,
+      };
+
+      for (const { sheet, map } of secondaryIndexes) {
+        const secRow = map.get(normPKey);
+        if (secRow) {
+          for (const sc of sheet.columns) {
+            if (sc.header.toLowerCase() === sheet.keyCol.toLowerCase()) continue;
+            let targetName = sc.header;
+            if (pCols.some((pc) => pc.header.toLowerCase() === sc.header.toLowerCase())) {
+              targetName = `${sheet.sheetName} - ${sc.header}`;
             }
+            mergedRow[targetName] = secRow[sc.header];
           }
         }
-
-        merged.push(mergedRow);
       }
 
-      this.joinedRows.set(merged);
-      this.joinedColumns.set(Array.from(allColsMap.values()));
-      this.applyKeywordAndPatternExclusions(merged);
+      merged.push(mergedRow);
+    }
 
-      // Deteksi baris ringkasan (JAWA TENGAH / PROVINSI / TOTAL) dan baris target (TARGET)
-      let detectedSummaryRow: Record<string, unknown> | null = null;
-      let detectedTargetRow: Record<string, unknown> | null = null;
+    this.joinedRows.set(merged);
+    this.joinedColumns.set(Array.from(allColsMap.values()));
+    this.applyKeywordAndPatternExclusions(merged);
 
+    // Deteksi baris ringkasan (JAWA TENGAH / PROVINSI / TOTAL) dan baris target (TARGET)
+    let detectedSummaryRow: Record<string, unknown> | null = null;
+    let detectedTargetRow: Record<string, unknown> | null = null;
+
+    for (const r of merged) {
+      const keyStr = String(r[pKey] ?? '').trim().toUpperCase();
+      if (keyStr.includes('TARGET')) {
+        detectedTargetRow = r;
+      } else if (
+        keyStr.includes('JAWA TENGAH') ||
+        keyStr.includes('PROVINSI') ||
+        keyStr.startsWith('PROV')
+      ) {
+        detectedSummaryRow = r;
+      }
+    }
+
+    if (!detectedSummaryRow) {
       for (const r of merged) {
         const keyStr = String(r[pKey] ?? '').trim().toUpperCase();
-        if (keyStr.includes('TARGET')) {
-          detectedTargetRow = r;
-        } else if (
-          keyStr.includes('JAWA TENGAH') ||
-          keyStr.includes('PROVINSI') ||
-          keyStr.startsWith('PROV')
-        ) {
+        if (keyStr.includes('TOTAL') || keyStr.includes('JUMLAH')) {
           detectedSummaryRow = r;
+          break;
         }
       }
+    }
 
-      if (!detectedSummaryRow) {
-        for (const r of merged) {
-          const keyStr = String(r[pKey] ?? '').trim().toUpperCase();
-          if (keyStr.includes('TOTAL') || keyStr.includes('JUMLAH')) {
-            detectedSummaryRow = r;
-            break;
-          }
-        }
+    if (detectedSummaryRow) {
+      this.summaryRowId.set(String(detectedSummaryRow['__id']));
+      this.summaryRowData.set(detectedSummaryRow);
+      const keyStr = String(detectedSummaryRow[pKey] ?? '').trim().toUpperCase();
+      if (keyStr.includes('JAWA TENGAH') || keyStr.includes('PROVINSI')) {
+        this.calculationDataSource.set('summary_row');
       }
+    }
 
-      if (detectedSummaryRow) {
-        this.summaryRowId.set(String(detectedSummaryRow['__id']));
-        this.summaryRowData.set(detectedSummaryRow);
-        const keyStr = String(detectedSummaryRow[pKey] ?? '').trim().toUpperCase();
-        if (keyStr.includes('JAWA TENGAH') || keyStr.includes('PROVINSI')) {
-          this.calculationDataSource.set('summary_row');
-        }
-      }
-
-      if (detectedTargetRow) {
-        this.targetRowId.set(String(detectedTargetRow['__id']));
-        this.targetRowData.set(detectedTargetRow);
-      }
-    } finally {
-      this.isJoining.set(false);
+    if (detectedTargetRow) {
+      this.targetRowId.set(String(detectedTargetRow['__id']));
+      this.targetRowData.set(detectedTargetRow);
     }
   }
 
@@ -932,55 +914,120 @@ export class StuntingMonitoringComponent implements OnInit {
     const cat1Subs: StuntingSubCategoryConfig[] = [];
     const cat2Subs: StuntingSubCategoryConfig[] = [];
     const cat3Subs: StuntingSubCategoryConfig[] = [];
+    const matchedMeanCols = new Set<string>();
+    const matchedSumCols = new Set<string>();
 
+    // 1. First pass: Match standard Dinkes indicators
+    for (const std of StuntingEvaluationEngine.DINKES_STANDARD_INDICATORS) {
+      let matchedSum: string | undefined;
+      let matchedMean: string | undefined;
+
+      // Find best sumCol match
+      for (const kw of std.sumKeywords) {
+        const found = cols.find((c) => c.toLowerCase().trim() === kw.toLowerCase().trim()) ||
+          cols.find((c) => c.toLowerCase().includes(kw.toLowerCase()));
+        if (found) {
+          matchedSum = found;
+          break;
+        }
+      }
+
+      // Find best meanCol match
+      for (const kw of std.meanKeywords) {
+        const found = cols.find((c) => c.toLowerCase().trim() === kw.toLowerCase().trim()) ||
+          cols.find((c) => c.toLowerCase().includes(kw.toLowerCase()));
+        if (found) {
+          matchedMean = found;
+          break;
+        }
+      }
+
+      // If either sum or mean column matched in the dataset
+      if (matchedSum || matchedMean) {
+        const effectiveMean = matchedMean || matchedSum!;
+        matchedMeanCols.add(effectiveMean);
+        if (matchedSum) matchedSumCols.add(matchedSum);
+
+        let rawTarget = targetRow ? (targetRow[effectiveMean] ?? (matchedSum ? targetRow[matchedSum] : null)) : null;
+        const cleanedTarget = StuntingEvaluationEngine.cleanTargetValue(rawTarget);
+        const targetVal = cleanedTarget.value !== null ? cleanedTarget.value : std.defaultTargetCurrent;
+
+        const rawDirectVal = summaryRow ? summaryRow[effectiveMean] : null;
+        const directVal = IndicatorEvaluator.parseSmartNumber(rawDirectVal);
+
+        const rawCountVal = matchedSum && summaryRow ? summaryRow[matchedSum] : null;
+        const countVal = IndicatorEvaluator.parseSmartNumber(rawCountVal);
+
+        const subConfig: StuntingSubCategoryConfig = {
+          id: `sub-std-${std.no}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          no: std.no,
+          name: std.name,
+          sumCol: matchedSum,
+          meanCol: matchedMean,
+          numeratorCol: effectiveMean,
+          dataCol: effectiveMean,
+          actualValue: directVal,
+          countValue: countVal,
+          calculationMode: 'percentage',
+          targetCurrentYear: targetVal,
+          prevYearMode: 'manual',
+          actualPrevYear: std.defaultActualPrev ?? null,
+          targetPrevYear: std.defaultTargetPrev ?? null,
+          polarity: cleanedTarget.polarity !== 'positive' ? cleanedTarget.polarity : std.polarity,
+        };
+
+        if (std.canonicalCategory === 'sebelum_kelahiran') {
+          cat1Subs.push(subConfig);
+        } else if (std.canonicalCategory === 'setelah_kelahiran') {
+          cat2Subs.push(subConfig);
+        } else {
+          cat3Subs.push(subConfig);
+        }
+      }
+    }
+
+    // 2. Second pass: Any other % or cakupan columns that were not matched by standard definitions
     for (let i = 0; i < cols.length; i++) {
       const col = cols[i];
       const lowerCol = col.toLowerCase();
 
-      // Hanya ambil kolom yang merepresentasikan indikator capaian (%) atau cakupan
+      if (matchedMeanCols.has(col) || matchedSumCols.has(col)) {
+        continue;
+      }
+
       if (!col.includes('%') && !lowerCol.includes('persen') && !lowerCol.includes('cakupan')) {
         continue;
       }
 
-      // Cari kolom jumlah absolut (biasanya berada tepat sebelum kolom %)
-      const prevCol = i > 0 ? cols[i - 1] : undefined;
+      const prevCol = i > 0 && !matchedMeanCols.has(cols[i - 1]) ? cols[i - 1] : undefined;
       const rawDirectVal = summaryRow ? summaryRow[col] : null;
       const directVal = IndicatorEvaluator.parseSmartNumber(rawDirectVal);
 
-      // Lewati kolom jika kosong atau tanpa data
-      if (rawDirectVal === undefined && directVal === null) {
+      if (rawDirectVal === undefined && directVal === null && !this.validJoinedRows().some((r) => r[col] !== undefined)) {
         continue;
       }
 
       const rawCountVal = prevCol && summaryRow ? summaryRow[prevCol] : null;
-      const countVal =
-        typeof rawCountVal === 'number'
-          ? rawCountVal
-          : IndicatorEvaluator.parseSmartNumber(rawCountVal);
+      const countVal = IndicatorEvaluator.parseSmartNumber(rawCountVal);
 
-      // Cari target di kolom ini atau kolom sebelumnya
       let rawTarget = targetRow ? targetRow[col] : null;
       if (rawTarget === undefined || rawTarget === null || rawTarget === '') {
         rawTarget = prevCol && targetRow ? targetRow[prevCol] : null;
       }
-
       const cleanedTarget = StuntingEvaluationEngine.cleanTargetValue(rawTarget);
 
-      // Tentukan polaritas
       let polarity: IndicatorPolarity = cleanedTarget.polarity;
-      if (
-        lowerCol.includes('anemia') ||
-        lowerCol.includes('kek') ||
-        lowerCol.includes('gibur') ||
-        lowerCol.includes('kurang')
-      ) {
+      if (lowerCol.includes('anemia') || lowerCol.includes('kek') || lowerCol.includes('gibur') || lowerCol.includes('kurang')) {
         polarity = 'negative';
       }
 
       const subId = `sub-auto-${i}-${Date.now()}`;
       const subConfig: StuntingSubCategoryConfig = {
         id: subId,
+        no: String(cat1Subs.length + cat2Subs.length + cat3Subs.length + 1),
         name: col.trim(),
+        sumCol: prevCol,
+        meanCol: col,
         numeratorCol: col,
         dataCol: col,
         actualValue: directVal,
@@ -1029,6 +1076,34 @@ export class StuntingMonitoringComponent implements OnInit {
       }
     }
 
+    // 3. Fallback: If still no subcategories were populated, scaffold standard indicators
+    if (cat1Subs.length === 0 && cat2Subs.length === 0 && cat3Subs.length === 0) {
+      for (const std of StuntingEvaluationEngine.DINKES_STANDARD_INDICATORS) {
+        const subConfig: StuntingSubCategoryConfig = {
+          id: `sub-std-${std.no}-${Date.now()}`,
+          no: std.no,
+          name: std.name,
+          numeratorCol: '',
+          dataCol: '',
+          actualValue: null,
+          countValue: null,
+          calculationMode: 'percentage',
+          targetCurrentYear: std.defaultTargetCurrent,
+          prevYearMode: 'manual',
+          actualPrevYear: std.defaultActualPrev ?? null,
+          targetPrevYear: std.defaultTargetPrev ?? null,
+          polarity: std.polarity,
+        };
+        if (std.canonicalCategory === 'sebelum_kelahiran') {
+          cat1Subs.push(subConfig);
+        } else if (std.canonicalCategory === 'setelah_kelahiran') {
+          cat2Subs.push(subConfig);
+        } else {
+          cat3Subs.push(subConfig);
+        }
+      }
+    }
+
     this.categories.set([
       {
         id: 'cat-1',
@@ -1042,7 +1117,7 @@ export class StuntingMonitoringComponent implements OnInit {
       },
       {
         id: 'cat-3',
-        name: 'Intervensi lainnya',
+        name: 'Intervensi lintas siklus hidup',
         subCategories: cat3Subs,
       },
     ]);
@@ -1072,8 +1147,23 @@ export class StuntingMonitoringComponent implements OnInit {
     }
   }
 
-  onDataColChange(catId: string, subId: string, colName: string): void {
+  onSumColChange(catId: string, subId: string, colName: string): void {
+    const summaryRow = this.summaryRowData();
+    let countVal: number | null = null;
+    if (this.calculationDataSource() === 'summary_row' && summaryRow && colName) {
+      countVal = IndicatorEvaluator.parseSmartNumber(summaryRow[colName]);
+    }
+    this.updateSubCategory(catId, subId, {
+      sumCol: colName,
+      countValue: countVal !== null ? countVal : undefined,
+    });
+  }
+
+  onMeanColChange(catId: string, subId: string, colName: string): void {
     this.onNumeratorColChange(catId, subId, colName);
+    this.updateSubCategory(catId, subId, {
+      meanCol: colName,
+    });
   }
 
   // ============================================================
@@ -1094,7 +1184,7 @@ export class StuntingMonitoringComponent implements OnInit {
       },
       {
         id: 'cat-3',
-        name: 'Intervensi lainnya',
+        name: 'Intervensi lintas siklus hidup',
         subCategories: [],
       },
     ]);
@@ -1118,24 +1208,32 @@ export class StuntingMonitoringComponent implements OnInit {
   }
 
   addSubCategory(catId: string): void {
-    const cols = this.joinedColumns();
+    const pKey = this.primaryKeyCol();
+    const metricCols = this.joinedColumns().filter((c) => c !== pKey);
     const subId = `sub-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-    const numCol = cols.length > 1 ? cols[1] : cols[0] || '';
+    const cat = this.categories().find((c) => c.id === catId);
+    const existingCount = cat ? cat.subCategories.length : 0;
+    const numCol = metricCols.length > 1 ? metricCols[1] : metricCols[0] || '';
+    const prevCol = metricCols.length > 1 ? metricCols[0] : '';
     const summaryRow = this.summaryRowData();
     const targetRow = this.targetRowData();
 
     let rawTarget = targetRow ? targetRow[numCol] : null;
     const cleanedTarget = StuntingEvaluationEngine.cleanTargetValue(rawTarget);
     const directVal = summaryRow ? IndicatorEvaluator.parseSmartNumber(summaryRow[numCol]) : null;
+    const countVal = prevCol && summaryRow ? IndicatorEvaluator.parseSmartNumber(summaryRow[prevCol]) : null;
 
     const newSub: StuntingSubCategoryConfig = {
       id: subId,
+      no: String(existingCount + 1),
       name: numCol || 'Indikator Baru',
+      sumCol: prevCol || undefined,
+      meanCol: numCol || undefined,
       numeratorCol: numCol,
       dataCol: numCol,
       actualValue: directVal,
-      countValue: null,
+      countValue: countVal,
       calculationMode: 'percentage',
       targetCurrentYear: cleanedTarget.value !== null ? cleanedTarget.value : null,
       prevYearMode: 'manual',
@@ -1218,41 +1316,6 @@ export class StuntingMonitoringComponent implements OnInit {
     return '';
   }
 
-  isQuarterConfigured(sub: StuntingSubCategoryConfig, q: number): boolean {
-    return !!this.getQuarterNumeratorCol(sub, q);
-  }
-
-  onQuarterNumeratorColChange(catId: string, subId: string, q: number, colName: string): void {
-    const quarter = (q >= 1 && q <= 4 ? q : 1) as 1 | 2 | 3 | 4;
-    this.categories.update((cats) =>
-      cats.map((c) => {
-        if (c.id !== catId) return c;
-        return {
-          ...c,
-          subCategories: c.subCategories.map((s) => {
-            if (s.id !== subId) return s;
-            const nextQuarterColumns = {
-              ...(s.quarterColumns || {}),
-              [quarter]: {
-                ...(s.quarterColumns?.[quarter] || {}),
-                numeratorCol: colName,
-              },
-            };
-            const shouldAutoRename = !s.name || s.name === s.numeratorCol;
-            const nextNumeratorCol = colName || s.numeratorCol;
-            return {
-              ...s,
-              quarterColumns: nextQuarterColumns,
-              numeratorCol: nextNumeratorCol,
-              dataCol: nextNumeratorCol,
-              name: shouldAutoRename && colName ? colName : s.name,
-            };
-          }),
-        };
-      }),
-    );
-  }
-
   updateSubCategory(
     catId: string,
     subId: string,
@@ -1291,48 +1354,70 @@ export class StuntingMonitoringComponent implements OnInit {
     actualPercentage: number | null;
   } {
     const quarter = (q >= 1 && q <= 4 ? q : 1) as 1 | 2 | 3 | 4;
-    const numCol = this.getQuarterNumeratorCol(sub, quarter);
-    if (!numCol) return { sumNum: null, sumDen: null, actualPercentage: null };
+    const sumCol = sub.quarterColumns?.[quarter]?.sumCol || sub.sumCol;
+    let meanCol = sub.quarterColumns?.[quarter]?.meanCol || sub.meanCol;
+    let numCol = this.getQuarterNumeratorCol(sub, quarter);
+    if (!meanCol && !numCol && quarter === this.activeQuarter()) {
+      meanCol = sub.meanCol || sub.numeratorCol;
+      numCol = sub.numeratorCol;
+    } else if (!meanCol) {
+      meanCol = numCol;
+    }
 
-    const rows = this.validJoinedRows();
-    if (rows.length === 0) {
+    if (!sumCol && !meanCol && !numCol && sub.actualValue === null && sub.countValue === null) {
       return { sumNum: null, sumDen: null, actualPercentage: null };
     }
 
+    const rows = this.validJoinedRows();
     const denCol = sub.quarterColumns?.[quarter]?.denominatorCol || sub.denominatorCol;
 
-    if (!denCol) {
-      if (sub.actualValue !== undefined && sub.actualValue !== null && quarter === this.activeQuarter()) {
-        return {
-          sumNum: sub.countValue ?? null,
-          sumDen: null,
-          actualPercentage: sub.actualValue,
-        };
-      }
-
-      if (rows.length === 1) {
-        const row = rows[0];
-        const directVal = IndicatorEvaluator.parseSmartNumber(row[numCol]);
-        const countVal = sub.countValue ?? (typeof directVal === 'number' && directVal > 100 ? directVal : null);
-        return {
-          sumNum: countVal,
-          sumDen: null,
-          actualPercentage: directVal,
-        };
-      }
-    }
-
-    const sumNum = StuntingEvaluationEngine.sumColumnValues(rows, numCol);
-    const sumDen = denCol ? StuntingEvaluationEngine.sumColumnValues(rows, denCol) : null;
-
+    let sumNum: number | null = null;
+    let sumDen: number | null = null;
     let actualPercentage: number | null = null;
-    if (sumNum !== null) {
-      if (sub.calculationMode === 'absolute' || sumDen === null || sumDen === 0) {
-        actualPercentage = sumNum;
-      } else {
-        actualPercentage = Math.round((sumNum / sumDen) * 10000) / 100;
+
+    if (sub.actualValue !== undefined && sub.actualValue !== null && quarter === this.activeQuarter()) {
+      actualPercentage = sub.actualValue;
+      sumNum = sub.countValue ?? null;
+    } else {
+      // 1. Calculate sumNum
+      const targetSumCol = denCol ? (numCol || sumCol) : (sumCol || (sub.calculationMode === 'absolute' ? (meanCol || numCol) : undefined));
+      if (targetSumCol && rows.length > 0) {
+        if (rows.length === 1) {
+          sumNum = IndicatorEvaluator.parseSmartNumber(rows[0][targetSumCol]);
+        } else {
+          sumNum = StuntingEvaluationEngine.sumColumnValues(rows, targetSumCol);
+        }
+      }
+      if (sumNum === null && sub.countValue !== undefined && sub.countValue !== null) {
+        sumNum = sub.countValue;
+      }
+
+      // 2. Calculate actualPercentage
+      if (denCol && rows.length > 0) {
+        sumDen = StuntingEvaluationEngine.sumColumnValues(rows, denCol);
+        if (sumDen && sumDen > 0 && sumNum !== null) {
+          actualPercentage = Math.round((sumNum / sumDen) * 10000) / 100;
+        }
+      }
+
+      if (actualPercentage === null) {
+        const targetMeanCol = meanCol || (!denCol ? numCol : undefined);
+        if (rows.length === 1 && targetMeanCol) {
+          const directVal = IndicatorEvaluator.parseSmartNumber(rows[0][targetMeanCol]);
+          actualPercentage = directVal;
+          if (sumNum === null) {
+            sumNum = sub.countValue ?? (typeof directVal === 'number' && directVal > 100 ? directVal : null);
+          }
+        } else if (rows.length > 0) {
+          if (targetMeanCol && sub.calculationMode !== 'absolute') {
+            actualPercentage = StuntingEvaluationEngine.averageColumnValues(rows, targetMeanCol);
+          } else if (targetSumCol && sub.calculationMode === 'absolute') {
+            actualPercentage = sumNum;
+          }
+        }
       }
     }
+
     return { sumNum, sumDen, actualPercentage };
   }
 
@@ -1341,52 +1426,42 @@ export class StuntingMonitoringComponent implements OnInit {
     sumDen: number | null;
     actualPercentage: number | null;
   } {
-    // If active quarter is configured, use its stats; otherwise fallback to primary numeratorCol
-    const qStats = this.getSubCategoryQuarterLiveStats(sub, this.activeQuarter());
-    if (qStats.actualPercentage !== null || qStats.sumNum !== null) {
-      return qStats;
+    return this.getSubCategoryQuarterLiveStats(sub, this.activeQuarter());
+  }
+
+  getInitialStatusBadge(sub: StuntingSubCategoryConfig): {
+    label: string;
+    bgClass: string;
+    textClass: string;
+    borderClass: string;
+  } {
+    const stats = this.getSubCategoryLiveStats(sub);
+    const target = IndicatorEvaluator.parseSmartNumber(sub.targetCurrentYear);
+    if (stats.actualPercentage === null || target === null) {
+      return {
+        label: 'Belum Dinilai',
+        bgClass: 'bg-slate-100',
+        textClass: 'text-slate-600',
+        borderClass: 'border-slate-200',
+      };
     }
-
-    const rows = this.validJoinedRows();
-    if (rows.length === 0) {
-      return { sumNum: null, sumDen: null, actualPercentage: null };
+    const isNegative = sub.polarity === 'negative';
+    const isSuccess = isNegative ? stats.actualPercentage <= target : stats.actualPercentage >= target;
+    if (isSuccess) {
+      return {
+        label: 'On Track',
+        bgClass: 'bg-emerald-100',
+        textClass: 'text-emerald-800',
+        borderClass: 'border-emerald-200',
+      };
+    } else {
+      return {
+        label: 'Perlu Percepatan',
+        bgClass: 'bg-rose-100',
+        textClass: 'text-rose-800',
+        borderClass: 'border-rose-200',
+      };
     }
-
-    const denCol = sub.denominatorCol;
-    if (!denCol) {
-      if (sub.actualValue !== undefined && sub.actualValue !== null) {
-        return {
-          sumNum: sub.countValue ?? null,
-          sumDen: null,
-          actualPercentage: sub.actualValue,
-        };
-      }
-
-      if (rows.length === 1) {
-        const row = rows[0];
-        const directVal = IndicatorEvaluator.parseSmartNumber(row[sub.numeratorCol]);
-        const countVal = sub.countValue ?? (typeof directVal === 'number' && directVal > 100 ? directVal : null);
-        return {
-          sumNum: countVal,
-          sumDen: null,
-          actualPercentage: directVal,
-        };
-      }
-    }
-
-    const sumNum = StuntingEvaluationEngine.sumColumnValues(rows, sub.numeratorCol);
-    const sumDen = denCol ? StuntingEvaluationEngine.sumColumnValues(rows, denCol) : null;
-
-    let actualPercentage: number | null = null;
-    if (sumNum !== null) {
-      if (sub.calculationMode === 'absolute' || sumDen === null || sumDen === 0) {
-        actualPercentage = sumNum;
-      } else {
-        actualPercentage = Math.round((sumNum / sumDen) * 10000) / 100;
-      }
-    }
-
-    return { sumNum, sumDen, actualPercentage };
   }
 
   // ============================================================
@@ -1500,25 +1575,10 @@ export class StuntingMonitoringComponent implements OnInit {
       return;
     }
 
-    const pKey = this.primaryKeyCol();
-    const columns: ColumnHeaderMeta[] = [];
-    if (pKey) {
-      columns.push({ key: pKey, layers: ['Wilayah', pKey] });
-    }
-    for (const c of this.joinedColumns()) {
-      if (c !== pKey) {
-        columns.push({ key: c, layers: ['Variabel / Indikator', c] });
-      }
-    }
-
-    const dateStr = new Date().toISOString().slice(0, 10);
-    const fileName = `Data_Gabungan_Stunting_${dateStr}.xlsx`;
-
-    ExcelEngine.exportStyledTable({
-      sheetName: 'Data Gabungan',
-      columns,
-      dataRows: rows,
-      fileName,
+    const fileName = StuntingExcelExporter.exportJoinedData({
+      rows,
+      primaryKeyColumn: this.primaryKeyCol(),
+      joinedColumns: this.joinedColumns(),
     });
 
     this.notificationMessage.set(`Data gabungan ${fileName} berhasil diunduh.`);
@@ -1531,101 +1591,17 @@ export class StuntingMonitoringComponent implements OnInit {
       return;
     }
 
-    const availQuarters = this.availableQuarters();
-    const columnsRekap: ColumnHeaderMeta[] = [
-      { key: 'Kategori', layers: ['Kategori', 'Kategori'] },
-      { key: 'No', layers: ['No', 'No'] },
-      { key: 'Intervensi', layers: ['Intervensi / Indikator', 'Intervensi / Indikator'] },
-      { key: 'TargetCurr', layers: ['Target Tahun Berjalan', 'Target Tahun Berjalan'] },
-    ];
+    const quartersToExport = this.viewMode() === 'single_quarter'
+      ? [this.activeQuarter()]
+      : this.availableQuarters();
 
-    for (const q of availQuarters) {
-      columnsRekap.push({ key: `JumlahTW${q}`, layers: [`Triwulan ${q}`, 'Jumlah'] });
-      columnsRekap.push({ key: `CapaianTW${q}`, layers: [`Triwulan ${q}`, 'Capaian (%)'] });
-    }
-
-    columnsRekap.push({ key: 'Status', layers: ['Status', 'Status'] });
-
-    const exportRows = res.rows.map((r) => {
-      const rowObj: Record<string, any> = {
-        Kategori: r.category,
-        No: r.no,
-        Intervensi: r.name,
-        TargetCurr: r.targetCurrentYear !== null ? `${r.targetCurrentYear}%` : '-',
-      };
-
-      for (const q of availQuarters) {
-        const qData = r.quarters[q];
-        rowObj[`JumlahTW${q}`] =
-          qData?.sumNumerator !== null && qData?.sumNumerator !== undefined
-            ? qData.sumNumerator
-            : '-';
-        rowObj[`CapaianTW${q}`] =
-          qData?.actualAchievement !== null && qData?.actualAchievement !== undefined
-            ? `${qData.actualAchievement}${r.calculationMode === 'absolute' ? '' : '%'}`
-            : '-';
-      }
-
-      rowObj['Status'] =
-        r.status === 'on_track'
-          ? 'On Track'
-          : r.status === 'perlu_perhatian'
-          ? 'Perlu Perhatian'
-          : r.status === 'perlu_percepatan'
-          ? 'Perlu Percepatan'
-          : 'Belum Dapat Dinilai';
-
-      return rowObj;
+    const fileName = StuntingExcelExporter.exportMonitoringReport({
+      evaluationResult: res,
+      availableQuarters: quartersToExport,
+      validJoinedRows: this.validJoinedRows(),
+      primaryKeyColumn: this.primaryKeyCol(),
+      joinedColumns: this.joinedColumns(),
     });
-
-    const dateStr = new Date().toISOString().slice(0, 10);
-    const qStr = availQuarters.map((q) => `TW${q}`).join('_');
-    const fileName = `Monitoring_Stunting_${qStr}_${dateStr}.xlsx`;
-
-    const wsRekap = ExcelEngine.buildStyledWorksheet({
-      sheetName: `Rekap Kinerja ${qStr}`,
-      columns: columnsRekap,
-      dataRows: exportRows,
-      cellStyler: (row, colKey, val) => {
-        if (colKey === 'Status') {
-          const s = String(val);
-          if (s === 'On Track') return { fill: { fgColor: { rgb: 'D1FAE5' } }, font: { color: { rgb: '065F46' }, bold: true } };
-          if (s === 'Perlu Perhatian') return { fill: { fgColor: { rgb: 'FEF3C7' } }, font: { color: { rgb: '92400E' }, bold: true } };
-          if (s === 'Perlu Percepatan') return { fill: { fgColor: { rgb: 'FFE4E6' } }, font: { color: { rgb: '9F1239' }, bold: true } };
-          return { fill: { fgColor: { rgb: 'F1F5F9' } }, font: { color: { rgb: '475569' } } };
-        }
-        return undefined;
-      },
-    });
-
-    const validRows = this.validJoinedRows();
-    if (validRows.length > 0) {
-      const pKey = this.primaryKeyCol();
-      const columnsWilayah: ColumnHeaderMeta[] = [];
-      if (pKey) {
-        columnsWilayah.push({ key: pKey, layers: ['Wilayah', pKey] });
-      }
-      for (const col of this.joinedColumns()) {
-        if (col !== pKey) {
-          columnsWilayah.push({ key: col, layers: ['Indikator / Variabel', col] });
-        }
-      }
-
-      const wsWilayah = ExcelEngine.buildStyledWorksheet({
-        sheetName: 'Data Riil Wilayah',
-        columns: columnsWilayah,
-        dataRows: validRows,
-      });
-
-      ExcelEngine.exportMultiSheetTable(fileName, [
-        { sheetName: 'Rekap Kinerja', worksheet: wsRekap },
-        { sheetName: 'Data Riil Wilayah', worksheet: wsWilayah },
-      ]);
-    } else {
-      ExcelEngine.exportMultiSheetTable(fileName, [
-        { sheetName: 'Rekap Kinerja', worksheet: wsRekap },
-      ]);
-    }
 
     this.notificationMessage.set(`Laporan ${fileName} berhasil diunduh.`);
   }
@@ -1634,23 +1610,9 @@ export class StuntingMonitoringComponent implements OnInit {
     const res = this.evaluationResult();
     if (!res || res.rows.length === 0) return;
 
-    const chartRows = res.rows.map((r) => {
-      const rowObj: Record<string, any> = {
-        Indikator: r.name,
-        Target: r.targetCurrentYear ?? 0,
-        [`Capaian TW ${this.activeQuarter()}`]: r.activeActual ?? 0,
-        [`Expected TW ${this.activeQuarter()}`]: r.activeExpected ?? 0,
-      };
-      return rowObj;
-    });
-
-    this.chartDataBridge.setData({
-      title: `Grafik Pemantauan Stunting TW ${this.activeQuarter()}`,
-      source: 'join',
-      categoryColumn: 'Indikator',
-      columns: ['Indikator', 'Target', `Capaian TW ${this.activeQuarter()}`, `Expected TW ${this.activeQuarter()}`],
-      rows: chartRows,
-      targetValue: null,
+    this.healthDataExchange.publishStuntingEvaluationToChart({
+      activeQuarter: this.activeQuarter(),
+      rows: res.rows,
     });
 
     this.router.navigate(['/chart']);
@@ -1849,7 +1811,7 @@ export class StuntingMonitoringComponent implements OnInit {
     this.summaryRowData.set(null);
     this.targetRowData.set(null);
     this.calculationDataSource.set('all_rows');
-    this.stuntingDataBridge.clearData();
+    this.healthDataExchange.clearStuntingData();
     this.notificationMessage.set(null);
     this.activeStep.set(1);
   }

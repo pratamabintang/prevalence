@@ -2,14 +2,6 @@ import { Injectable, computed, signal } from '@angular/core';
 import {
   StuntingDashboardDataset,
   StuntingIndicatorDef,
-  StuntingObservation,
-  BoxPlotMetric,
-  TwoWayFERow,
-  FirstDifferenceRow,
-  MoransIRow,
-  GWRRow,
-  PCAVarianceRow,
-  VIFRow,
 } from './stunting-dashboard.types';
 import dashboardDataRaw from './stunting-dashboard-data.json';
 import { parseStuntingWorkbook, ParseResult } from './stunting-excel-parser';
@@ -19,9 +11,6 @@ import {
   JAVA_OVERVIEW_PROVINCES,
   MAIN_MAP_VIEWBOX,
   JAVA_MAP_VIEWBOX,
-  DistrictMapFeature,
-  NeighborProvince,
-  JavaOverviewProvince,
 } from './stunting-map-data';
 
 export interface TrendPoint {
@@ -67,7 +56,6 @@ export class StuntingDashboardStore {
   }
 
   // Map geometry metadata
-  readonly districtBoundaries = CENTRAL_JAVA_DISTRICTS;
   readonly neighborProvinces = NEIGHBOR_PROVINCES;
   readonly javaOverviewProvinces = JAVA_OVERVIEW_PROVINCES;
   readonly mainMapViewBox = MAIN_MAP_VIEWBOX;
@@ -81,7 +69,6 @@ export class StuntingDashboardStore {
     dashboardDataRaw.metadata.periods[dashboardDataRaw.metadata.periods.length - 1],
   );
   readonly heatmapSearch = signal<string>('');
-  readonly selectedBoxplotMetric = signal<'all' | 'median' | 'min' | 'max' | 'range'>('all');
   readonly showAdvancedStats = signal<boolean>(false);
 
   // Core metadata computed
@@ -441,10 +428,6 @@ export class StuntingDashboardStore {
 
   setHeatmapSearch(query: string) {
     this.heatmapSearch.set(query);
-  }
-
-  setBoxplotMetric(metric: 'all' | 'median' | 'min' | 'max' | 'range') {
-    this.selectedBoxplotMetric.set(metric);
   }
 
   toggleAdvancedStats() {

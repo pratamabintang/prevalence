@@ -192,8 +192,21 @@ export class GasStorageService {
       };
     }
 
+    if (!excelBuffer || excelBuffer.byteLength === 0) {
+      return {
+        success: false,
+        error: 'Data file Excel kosong (0 byte). Field excelBase64 wajib diisi.',
+      };
+    }
+
     try {
       const excelBase64 = arrayBufferToBase64(excelBuffer);
+      if (!excelBase64) {
+        return {
+          success: false,
+          error: 'Gagal mengonversi file Excel ke base64 (hasil konversi kosong).',
+        };
+      }
       const payload = {
         action: 'saveDefault',
         fileName,

@@ -2,6 +2,7 @@ import { Component, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import * as XLSX from 'xlsx-js-style';
+import { ExcelEngine } from '../../shared/excel';
 import {
   StuntingCohortEngine,
   CohortTransitionStatus,
@@ -67,10 +68,6 @@ export class StuntingCohortComponent {
   readonly errorMessage = signal<string | null>(null);
 
   // Computed state
-  readonly canEvaluate = computed(() => {
-    return !!this.period1Data() && !!this.period2Data();
-  });
-
   readonly comparisonResult = computed<CohortComparisonResult | null>(() => {
     const p1 = this.period1Data();
     const p2 = this.period2Data();
@@ -345,7 +342,7 @@ export class StuntingCohortComponent {
     const wb = StuntingCohortEngine.generateExcelWorkbook(res);
     const dateStr = this.evaluationDate();
     const filename = `Laporan_Kohort_Stunting_${dateStr}.xlsx`;
-    XLSX.writeFile(wb, filename);
+    ExcelEngine.writeWorkbook(wb, filename);
   }
 
   /**

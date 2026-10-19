@@ -65,4 +65,29 @@ describe('IndicatorEvaluator', () => {
       expect(IndicatorEvaluator.formatSumValue(null)).toBe('-');
     });
   });
+
+  describe('getCapaianFormatClass', () => {
+    it('should return empty string if min or max is null or min equals max', () => {
+      expect(IndicatorEvaluator.getCapaianFormatClass(5, { min: null, max: null })).toBe('');
+      expect(IndicatorEvaluator.getCapaianFormatClass(5, { min: 5, max: 5 })).toBe('');
+    });
+
+    it('should return blue highlight class for highest capaian value', () => {
+      const cls = IndicatorEvaluator.getCapaianFormatClass(10, { min: 2, max: 10 });
+      expect(cls).toContain('bg-blue-100');
+      expect(cls).toContain('text-blue-900');
+      expect(cls).toContain('border-blue-300');
+    });
+
+    it('should return red highlight class for lowest capaian value', () => {
+      const cls = IndicatorEvaluator.getCapaianFormatClass(2, { min: 2, max: 10 });
+      expect(cls).toContain('bg-red-100');
+      expect(cls).toContain('text-red-900');
+      expect(cls).toContain('border-red-300');
+    });
+
+    it('should return empty string for middle capaian values', () => {
+      expect(IndicatorEvaluator.getCapaianFormatClass(6, { min: 2, max: 10 })).toBe('');
+    });
+  });
 });
