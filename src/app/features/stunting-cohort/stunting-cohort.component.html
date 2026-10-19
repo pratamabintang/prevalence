@@ -17,27 +17,6 @@
 
     <!-- ACTION BUTTONS -->
     <div class="flex items-center flex-wrap gap-2">
-      <!-- LOAD SAMPLE DATA -->
-      <button
-        type="button"
-        (click)="loadSampleData()"
-        [disabled]="isLoadingSample()"
-        class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-[#134E4E] bg-[#E8F7F7] hover:bg-[#D1EFEF] border border-[#4AB5B5]/40 rounded-lg transition-all shadow-2xs disabled:opacity-50"
-      >
-        @if (isLoadingSample()) {
-          <svg class="animate-spin h-3.5 w-3.5 text-[#4AB5B5]" viewBox="0 0 24 24" fill="none">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-          </svg>
-          <span>Memuat Contoh...</span>
-        } @else {
-          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-          </svg>
-          <span>Muat Data Contoh</span>
-        }
-      </button>
-
       <!-- COLUMN MAPPING TOGGLE -->
       @if (period1Columns().length > 0 || period2Columns().length > 0) {
         <button
@@ -651,20 +630,8 @@
       <div class="max-w-md mx-auto space-y-1">
         <h3 class="text-base font-bold text-slate-800">Mulai Analisis Kohort Balita</h3>
         <p class="text-xs text-slate-500">
-          Unggah berkas Excel untuk Periode Awal dan Periode Evaluasi di atas, atau klik tombol di bawah untuk langsung mencoba dengan data contoh.
+          Unggah berkas Excel untuk Periode Awal dan Periode Evaluasi di atas untuk memulai analisis perbandingan kohort balita.
         </p>
-      </div>
-      <div>
-        <button
-          type="button"
-          (click)="loadSampleData()"
-          class="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-2xs transition-all"
-        >
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-          </svg>
-          <span>Muat Data Contoh Sekarang</span>
-        </button>
       </div>
     </section>
   }

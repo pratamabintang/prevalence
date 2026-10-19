@@ -64,7 +64,6 @@ export class StuntingCohortComponent {
   readonly isMappingOpen = signal<boolean>(false);
   readonly activeFilter = signal<'ALL' | CohortTransitionStatus>('ALL');
   readonly searchQuery = signal<string>('');
-  readonly isLoadingSample = signal<boolean>(false);
   readonly errorMessage = signal<string | null>(null);
 
   // Computed state
@@ -287,50 +286,6 @@ export class StuntingCohortComponent {
 
   // Expose engine to template
   readonly StuntingCohortEngine = StuntingCohortEngine;
-
-  /**
-   * Helper to fetch and parse Excel workbook from URL
-   */
-  private async fetchExcelRows(url: string): Promise<Record<string, unknown>[]> {
-    const res = await fetch(url);
-    if (!res) throw new Error(`Gagal memuat file dari ${url}`);
-    const buf = await res.arrayBuffer();
-    const wb = XLSX.read(buf, { type: 'array' });
-    const sheetName = wb.SheetNames[0];
-    return XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[sheetName], { defval: '' });
-  }
-
-  /**
-   * One-click action to load pre-packaged Dinkes sample files
-   */
-  async loadSampleData(): Promise<void> {
-    this.isLoadingSample.set(true);
-    this.errorMessage.set(null);
-
-    try {
-      const data1 = await this.fetchExcelRows('data/sample-stunting-periode-1.xlsx');
-      const data2 = await this.fetchExcelRows('data/sample-stunting-periode-2.xlsx');
-
-      const cols1 = Object.keys(data1[0] || {});
-      const cols2 = Object.keys(data2[0] || {});
-
-      this.period1Data.set(data1);
-      this.period1FileName.set('sample-stunting-periode-1.xlsx');
-      this.period1Label.set('Periode 1 (Januari 2026)');
-      this.period1Columns.set(cols1);
-      this.p1Mapping.set(StuntingCohortEngine.detectColumnKeys(cols1));
-
-      this.period2Data.set(data2);
-      this.period2FileName.set('sample-stunting-periode-2.xlsx');
-      this.period2Label.set('Periode 2 (Juli 2026)');
-      this.period2Columns.set(cols2);
-      this.p2Mapping.set(StuntingCohortEngine.detectColumnKeys(cols2));
-    } catch (err: unknown) {
-      this.errorMessage.set(`Gagal memuat data contoh: ${String(err)}`);
-    } finally {
-      this.isLoadingSample.set(false);
-    }
-  }
 
   /**
    * Exports multi-sheet styled Excel report
