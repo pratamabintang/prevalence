@@ -307,6 +307,19 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
             this.workbook = ExcelEngine.readWorkbook(cloudRes.excelBuffer);
             this.loadSheets();
 
+            const hasilJoinSheetName = this.detectHasilJoinSheet(this.workbook);
+            if (hasilJoinSheetName) {
+              this.loadPreJoinedHasilJoinSheet(this.workbook, hasilJoinSheetName, fileName);
+              this.isDefaultData.set(true);
+              this.isCloudDefault.set(true);
+              this.showSettings.set(false);
+              this.configNotification.set({
+                type: 'success',
+                message: 'Berhasil memuat file Excel dan konfigurasi default dari Google Drive.',
+              });
+              return;
+            }
+
             if (cloudRes.config) {
               const preset = cloudRes.config as JoinConfigurationPreset;
               this.applyConfiguration(
@@ -623,14 +636,17 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
 
   hasValidJoinColumns = computed(() => {
     const selected = this.selectedSheets();
-    return selected.length >= 2 && selected.every((sheet) => !!this.getSheetJoinColumn(sheet));
+    return (
+      (selected.length >= 2 || (selected.length === 1 && this.resultRows().length > 0)) &&
+      selected.every((sheet) => !!this.getSheetJoinColumn(sheet))
+    );
   });
 
   canPreview = computed(() => {
     const selected = this.selectedSheets();
 
     return (
-      selected.length >= 2 &&
+      (selected.length >= 2 || (selected.length === 1 && this.resultRows().length > 0)) &&
       selected.every((sheet) => !!this.getSheetJoinColumn(sheet)) &&
       selected.some((sheet) => sheet.variables.length > 0)
     );
@@ -639,7 +655,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   validationMessage = computed(() => {
     const selected = this.selectedSheets();
 
-    if (selected.length < 2) {
+    if (selected.length < 2 && !(selected.length === 1 && this.resultRows().length > 0)) {
       return 'Pilih minimal 2 sheet.';
     }
 
@@ -726,6 +742,16 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       this.workbook = workbook;
       this.loadSheets();
 
+      // Cek apakah file yang diunggah adalah file pre-joined / "Hasil Join" standar Dinkes
+      const hasilJoinSheetName = this.detectHasilJoinSheet(workbook);
+      if (hasilJoinSheetName) {
+        this.pendingPreset = null;
+        this.preservedPreset = null;
+        this.preservedPresetName = null;
+        this.loadPreJoinedHasilJoinSheet(workbook, hasilJoinSheetName, file.name);
+        return;
+      }
+
       if (presetToApply && presetToApply.sheets && presetToApply.sheets.length > 0) {
         // Cek apakah ada sheet pada workbook baru yang cocok dengan preset
         const matchedSheetMap = PresetStore.matchSheets(
@@ -772,6 +798,366 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       this.isProcessing.set(false);
       input.value = '';
     }
+  }
+
+  // ============================================================
+  // PRE-JOINED DINKES FILE DETECTION & EXTRACTION
+  // ============================================================
+
+  /**
+   * Mendeteksi apakah workbook adalah berkas hasil join Dinkes yang sudah terformat
+   * (memiliki sheet "Hasil Join" atau struktur kolom indikator Dinkes dengan baris ringkasan).
+   */
+  detectHasilJoinSheet(workbook: XLSX.WorkBook): string | null {
+    if (!workbook || !workbook.SheetNames || workbook.SheetNames.length === 0) {
+      return null;
+    }
+
+    // 1. Cek sheet yang bernama persis "Hasil Join" (case-insensitive)
+    const exactMatch = workbook.SheetNames.find(
+      (name) => name.trim().toLowerCase() === 'hasil join',
+    );
+    if (exactMatch) {
+      return exactMatch;
+    }
+
+    // 2. Cek apakah ada sheet yang mengandung kata "hasil join"
+    const partialMatch = workbook.SheetNames.find((name) =>
+      name.trim().toLowerCase().includes('hasil join'),
+    );
+    if (partialMatch) {
+      return partialMatch;
+    }
+
+    // 3. HANYA jika buku kerja memiliki HANYA 1 SHEET (misal hasil unduh yang di-rename):
+    if (workbook.SheetNames.length === 1) {
+      const name = workbook.SheetNames[0];
+      const ws = workbook.Sheets[name];
+      if (!ws) return null;
+      const rawData = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1 });
+      if (!rawData || rawData.length < 10) return null;
+
+      const headerIdx = rawData.findIndex(
+        (r) =>
+          Array.isArray(r) &&
+          r.some((cell) => {
+            const s = String(cell || '').trim().toLowerCase();
+            return (
+              s === 'kabupaten/kota' ||
+              s === 'kab/kota' ||
+              s === 'kabupaten' ||
+              s === 'kota' ||
+              s === 'wilayah'
+            );
+          }),
+      );
+
+      if (headerIdx !== -1 && headerIdx < 10) {
+        const headerRow = rawData[headerIdx];
+        const regionColIdx = headerRow.findIndex((cell) => {
+          const s = String(cell || '').trim().toLowerCase();
+          return (
+            s === 'kabupaten/kota' ||
+            s === 'kab/kota' ||
+            s === 'kabupaten' ||
+            s === 'kota' ||
+            s === 'wilayah'
+          );
+        });
+
+        let hasSummaryRow = false;
+        for (let r = headerIdx + 1; r < rawData.length; r++) {
+          const row = rawData[r];
+          if (!row) continue;
+          const regVal = String(row[regionColIdx] || '').trim().toLowerCase();
+          const firstVal = String(row[0] || '').trim().toLowerCase();
+          if (
+            regVal === 'jumlah' ||
+            regVal === 'total' ||
+            regVal === 'rata-rata' ||
+            regVal === 'rata rata' ||
+            regVal === 'target' ||
+            firstVal === 'jumlah' ||
+            firstVal === 'total' ||
+            firstVal === 'rata-rata' ||
+            firstVal === 'rata rata' ||
+            firstVal === 'target'
+          ) {
+            hasSummaryRow = true;
+            break;
+          }
+        }
+
+        const hasPercentIndicator = headerRow.some((col) => String(col || '').includes('%'));
+
+        if (hasSummaryRow && hasPercentIndicator && rawData.length >= 30) {
+          return name;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Mengekstrak sheet yang sudah berformat Hasil Join secara langsung:
+   * Mengambil baris data wilayah, mengecualikan 'No' dan 'Capaian' dari resultColumns,
+   * mendeteksi baris Jumlah, Rata-rata, dan Target, serta mengonfigurasi sinyal terkait.
+   */
+  loadPreJoinedHasilJoinSheet(
+    workbook: XLSX.WorkBook,
+    sheetName: string,
+    fileName: string,
+  ): void {
+    const ws = workbook.Sheets[sheetName];
+    if (!ws) return;
+
+    const rawData = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1 });
+    if (!rawData || rawData.length === 0) return;
+
+    // Cari baris header yang memuat kolom wilayah
+    let headerRowIdx = rawData.findIndex(
+      (r) =>
+        Array.isArray(r) &&
+        r.some((cell) => {
+          const s = String(cell || '').trim().toLowerCase();
+          return (
+            s === 'kabupaten/kota' ||
+            s === 'kab/kota' ||
+            s === 'kabupaten' ||
+            s === 'kota' ||
+            s === 'wilayah'
+          );
+        }),
+    );
+
+    if (headerRowIdx === -1) {
+      headerRowIdx = 0;
+    }
+
+    const headerRow = rawData[headerRowIdx] || [];
+    let regionColIdx = headerRow.findIndex((cell) => {
+      const s = String(cell || '').trim().toLowerCase();
+      return (
+        s === 'kabupaten/kota' ||
+        s === 'kab/kota' ||
+        s === 'kabupaten' ||
+        s === 'kota' ||
+        s === 'wilayah'
+      );
+    });
+
+    if (regionColIdx === -1) {
+      regionColIdx = 1;
+    }
+
+    // Filter kolom yang valid (kecualikan 'No', 'Nomor', 'Capaian')
+    const validCols: string[] = [];
+    const validColIndices: number[] = [];
+
+    // Kolom wilayah utama diletakkan di indeks 0
+    const primaryRegionHeader = String(headerRow[regionColIdx] || 'Kabupaten/Kota').trim();
+    validCols.push(primaryRegionHeader);
+    validColIndices.push(regionColIdx);
+
+    headerRow.forEach((col, idx) => {
+      const colName = String(col || '').trim();
+      if (
+        idx !== regionColIdx &&
+        colName &&
+        !/^(no|nomor|no\.|capaian)$/i.test(colName)
+      ) {
+        validCols.push(colName);
+        validColIndices.push(idx);
+      }
+    });
+
+    const dataRows: ResultRow[] = [];
+    let rawJumlahRow: unknown[] | null = null;
+    let rawRataRataRow: unknown[] | null = null;
+    let rawTargetRow: unknown[] | null = null;
+
+    for (let r = headerRowIdx + 1; r < rawData.length; r++) {
+      const row = rawData[r];
+      if (!row || row.length === 0) continue;
+
+      const regVal = String(row[regionColIdx] || '').trim().toLowerCase();
+      const firstVal = String(row[0] || '').trim().toLowerCase();
+
+      if (
+        regVal === 'jumlah' ||
+        regVal === 'total' ||
+        firstVal === 'jumlah' ||
+        firstVal === 'total'
+      ) {
+        rawJumlahRow = row;
+      } else if (
+        regVal === 'rata-rata' ||
+        regVal === 'rata rata' ||
+        regVal === 'average' ||
+        regVal === 'mean' ||
+        firstVal === 'rata-rata' ||
+        firstVal === 'rata rata' ||
+        firstVal === 'average'
+      ) {
+        rawRataRataRow = row;
+      } else if (
+        regVal === 'target' ||
+        firstVal === 'target'
+      ) {
+        rawTargetRow = row;
+      } else {
+        if (!regVal || regVal === '-') continue;
+
+        const rowObj: ResultRow = {};
+        validCols.forEach((colName, cIdx) => {
+          const cellVal = row[validColIndices[cIdx]];
+          if (cIdx === 0) {
+            const rawStr = String(cellVal ?? '').trim();
+            rowObj[colName] = this.stripKabupaten()
+              ? RegionNormalizer.cleanKabupatenPrefix(rawStr)
+              : RegionNormalizer.cleanCodePrefix(rawStr);
+          } else {
+            if (cellVal !== undefined && cellVal !== null && cellVal !== '-' && cellVal !== '') {
+              if (typeof cellVal === 'number') {
+                rowObj[colName] = cellVal;
+              } else {
+                const parsed = IndicatorEvaluator.parseSmartNumber(cellVal);
+                rowObj[colName] = parsed !== null ? parsed : cellVal;
+              }
+            } else {
+              rowObj[colName] = null;
+            }
+          }
+        });
+        dataRows.push(rowObj);
+      }
+    }
+
+    // Setup kolom configs, targets, sums, avgs
+    const configs: Record<string, ColumnConfig> = {};
+    const targets: Record<string, ColumnTargetConfig> = {};
+    const sums: Record<string, boolean> = {};
+    const avgs: Record<string, boolean> = {};
+
+    validCols.forEach((colName, cIdx) => {
+      if (cIdx === 0) {
+        configs[colName] = {
+          dataType: 'string',
+          anomalyEnabled: false,
+          minAnomaly: null,
+          maxAnomaly: null,
+        };
+        sums[colName] = false;
+        avgs[colName] = false;
+        targets[colName] = { operator: '>=', value: null, enabled: false };
+      } else {
+        const isPercent = colName.includes('%');
+        configs[colName] = {
+          dataType: isPercent ? 'percentage' : 'number',
+          anomalyEnabled: false,
+          minAnomaly: null,
+          maxAnomaly: null,
+        };
+        sums[colName] = !isPercent;
+        avgs[colName] = isPercent;
+
+        let targetParsed: ColumnTargetConfig = { operator: '>=', value: null, enabled: false };
+        if (rawTargetRow) {
+          const targetCell = String(rawTargetRow[validColIndices[cIdx]] ?? '').trim();
+          const targetMatch = targetCell.match(/^([><]=?|=)?\s*([0-9]+(?:[.,][0-9]+)?)$/);
+          if (targetMatch) {
+            let op: TargetOperator = '>=';
+            if (
+              targetMatch[1] === '<=' ||
+              targetMatch[1] === '>=' ||
+              targetMatch[1] === '<' ||
+              targetMatch[1] === '>'
+            ) {
+              op = targetMatch[1];
+            } else if (targetMatch[1] === '=' || targetMatch[1] === '==') {
+              op = '==';
+            }
+            const numStr = targetMatch[2].replace(',', '.');
+            targetParsed = {
+              operator: op,
+              value: parseFloat(numStr),
+              enabled: true,
+            };
+          }
+        }
+        targets[colName] = targetParsed;
+      }
+    });
+
+    const columnsMeta: ColumnHeaderMeta[] = validCols.map((c) => ({
+      key: c,
+      layers: [c],
+    }));
+
+    // Update state signals
+    this.resultRows.set(dataRows);
+    this.originalResultRows.set(dataRows.map((r) => ({ ...r })));
+    this.resultColumns.set(validCols);
+    this.resultColumnsMeta.set(columnsMeta);
+    this.defaultResultColumns.set(validCols);
+    this.defaultResultColumnsMeta.set(columnsMeta);
+
+    this.columnConfigs.set(configs);
+    this.columnTargets.set(targets);
+    this.sumColumns.set(sums);
+    this.avgColumns.set(avgs);
+
+    this.enableJumlah.set(rawJumlahRow !== null || Object.values(sums).some(Boolean));
+    this.enableAverage.set(rawRataRataRow !== null || Object.values(avgs).some(Boolean));
+    this.enableTarget.set(
+      rawTargetRow !== null &&
+        Object.values(targets).some((t) => t.enabled && t.value !== null),
+    );
+    this.enableCapaian.set(true);
+
+    this.joinBy.set(primaryRegionHeader);
+
+    // Update sheet list agar konsisten dengan preset & sheet view
+    const sheetCols: ColumnInfo[] = validCols.map((c, idx) => ({
+      colIndex: validColIndices[idx],
+      colLetter: XLSX.utils.encode_col(validColIndices[idx]),
+      header: c,
+      leafHeader: c,
+      layers: [c],
+    }));
+
+    const preJoinedSheetInfo: SheetInfo = {
+      name: sheetName,
+      columns: sheetCols,
+      headers: validCols,
+      selected: true,
+      variables: validCols.slice(1),
+      joinColumn: primaryRegionHeader,
+      headerStartRow: headerRowIdx + 1,
+      headerEndRow: headerRowIdx + 1,
+      dataStartRow: headerRowIdx + 2,
+    };
+
+    const existingSheets = this.sheets();
+    if (existingSheets.some((s) => s.name === sheetName)) {
+      this.sheets.set(
+        existingSheets.map((s) =>
+          s.name === sheetName ? preJoinedSheetInfo : { ...s, selected: false },
+        ),
+      );
+    } else {
+      this.sheets.set([preJoinedSheetInfo, ...existingSheets]);
+    }
+
+    this.activePresetName.set(`Hasil Join - ${fileName}`);
+    this.showSettings.set(false);
+    this.configNotification.set({
+      type: 'success',
+      message: `File hasil join "${fileName}" berhasil dimuat! Terdeteksi ${dataRows.length} wilayah, ${validCols.length - 1} indikator, baris ringkasan (Jumlah & Rata-rata), serta target capaian. Siap disimpan ke cloud atau dianalisis.`,
+    });
+
+    this.saveCurrentStateToStore();
   }
 
   // ============================================================
@@ -1984,6 +2370,18 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       this.workbook = ExcelEngine.readWorkbook(res.rawExcelBuffer);
       this.loadSheets();
 
+      const hasilJoinSheetName = this.detectHasilJoinSheet(this.workbook);
+      if (hasilJoinSheetName) {
+        this.loadPreJoinedHasilJoinSheet(this.workbook, hasilJoinSheetName, fileName);
+        this.isCloudDefault.set(false);
+        this.isDefaultData.set(false);
+        this.configNotification.set({
+          type: 'success',
+          message: `Berhasil memuat data periode ${yr} ${qr} dari Google Drive (${res.resultExcelAvailable ? 'termasuk arsip hasil join' : 'data hasil join'}).`,
+        });
+        return;
+      }
+
       if (res.config && typeof res.config === 'object') {
         const preset = res.config as JoinConfigurationPreset;
         this.applyConfiguration(preset, preset.name || `Drive ${yr} ${qr}`);
@@ -2340,77 +2738,45 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     const cols = this.resultColumns();
     if (cols.length === 0) return;
 
-    const findKey = (dict: Record<string, unknown>, col: string): string | undefined => {
-      const colNorm = this.normalizeKey(col);
-      const colClean = colNorm.replace(/[^a-z0-9]/g, '');
-      const colBase = colClean.replace(/\d+$/, '');
+    const findKey = (
+      dict: Record<string, unknown>,
+      col: string,
+      alias?: string,
+    ): string | undefined => {
+      const candidates = [col];
+      const dashIdx = col.indexOf(' - ');
+      if (dashIdx !== -1) {
+        candidates.push(col.slice(dashIdx + 3).trim());
+      }
+      if (alias && alias !== col) {
+        candidates.push(alias);
+      }
 
-      return Object.keys(dict).find((k) => {
-        if (k === col) return true;
-        const kNorm = this.normalizeKey(k);
-        if (kNorm === colNorm) return true;
-        const kClean = kNorm.replace(/[^a-z0-9]/g, '');
-        if (kClean === colClean) return true;
-        if (colBase.length > 5 && kClean.replace(/\d+$/, '') === colBase) return true;
-        return false;
-      });
+      for (const cand of candidates) {
+        const colNorm = this.normalizeKey(cand);
+        const colClean = colNorm.replace(/[^a-z0-9]/g, '');
+        const colBase = colClean.replace(/\d+$/, '');
+
+        const found = Object.keys(dict).find((k) => {
+          if (k === cand) return true;
+          const kNorm = this.normalizeKey(k);
+          if (kNorm === colNorm) return true;
+          const kClean = kNorm.replace(/[^a-z0-9]/g, '');
+          if (kClean === colClean) return true;
+          const kDash = k.indexOf(' - ');
+          if (kDash !== -1) {
+            const kSubClean = this.normalizeKey(k.slice(kDash + 3)).replace(/[^a-z0-9]/g, '');
+            if (kSubClean === colClean) return true;
+          }
+          if (colBase.length > 5 && kClean.replace(/\d+$/, '') === colBase) return true;
+          return false;
+        });
+        if (found) return found;
+      }
+      return undefined;
     };
 
-    if (preset.columnTargets) {
-      const newTargets: Record<string, ColumnTargetConfig> = {};
-      for (const col of cols) {
-        const matchedKey = findKey(preset.columnTargets, col);
-        if (matchedKey && preset.columnTargets[matchedKey]) {
-          newTargets[col] = preset.columnTargets[matchedKey];
-        }
-      }
-      if (Object.keys(newTargets).length > 0) {
-        this.columnTargets.update((curr) => ({ ...curr, ...newTargets }));
-      }
-    }
-
-    if (preset.columnConfigs) {
-      const newConfigs: Record<string, ColumnConfig> = {};
-      for (const col of cols) {
-        const matchedKey = findKey(preset.columnConfigs, col);
-        if (matchedKey && preset.columnConfigs[matchedKey]) {
-          newConfigs[col] = preset.columnConfigs[matchedKey];
-          if (preset.columnConfigs[matchedKey].dataType !== 'auto') {
-            this.convertColumnValuesInResultRows(col, preset.columnConfigs[matchedKey].dataType);
-          }
-        }
-      }
-      if (Object.keys(newConfigs).length > 0) {
-        this.columnConfigs.update((curr) => ({ ...curr, ...newConfigs }));
-      }
-    }
-
-    if (preset.sumColumns) {
-      const newSums: Record<string, boolean> = {};
-      for (const col of cols) {
-        const matchedKey = findKey(preset.sumColumns, col);
-        if (matchedKey && preset.sumColumns[matchedKey] !== undefined) {
-          newSums[col] = preset.sumColumns[matchedKey];
-        }
-      }
-      if (Object.keys(newSums).length > 0) {
-        this.sumColumns.update((curr) => ({ ...curr, ...newSums }));
-      }
-    }
-
-    if (preset.avgColumns) {
-      const newAvgs: Record<string, boolean> = {};
-      for (const col of cols) {
-        const matchedKey = findKey(preset.avgColumns, col);
-        if (matchedKey && preset.avgColumns[matchedKey] !== undefined) {
-          newAvgs[col] = preset.avgColumns[matchedKey];
-        }
-      }
-      if (Object.keys(newAvgs).length > 0) {
-        this.avgColumns.update((curr) => ({ ...curr, ...newAvgs }));
-      }
-    }
-
+    // 1. Kustomisasi nama kolom (alias) diproses terlebih dahulu agar tersedia untuk konfigurasi lainnya
     if (preset.customColumnNames) {
       const newCustomNames: Record<string, string> = {};
       for (const col of cols) {
@@ -2424,6 +2790,72 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       }
     }
 
+    const currentAliases = this.customColumnNames();
+
+    // 2. Target capaian indikator
+    if (preset.columnTargets) {
+      const newTargets: Record<string, ColumnTargetConfig> = {};
+      for (const col of cols) {
+        const alias = currentAliases[col];
+        const matchedKey = findKey(preset.columnTargets, col, alias);
+        if (matchedKey && preset.columnTargets[matchedKey]) {
+          newTargets[col] = preset.columnTargets[matchedKey];
+        }
+      }
+      if (Object.keys(newTargets).length > 0) {
+        this.columnTargets.update((curr) => ({ ...curr, ...newTargets }));
+      }
+    }
+
+    // 3. Tipe data kolom
+    if (preset.columnConfigs) {
+      const newConfigs: Record<string, ColumnConfig> = {};
+      for (const col of cols) {
+        const alias = currentAliases[col];
+        const matchedKey = findKey(preset.columnConfigs, col, alias);
+        if (matchedKey && preset.columnConfigs[matchedKey]) {
+          newConfigs[col] = preset.columnConfigs[matchedKey];
+          if (preset.columnConfigs[matchedKey].dataType !== 'auto') {
+            this.convertColumnValuesInResultRows(col, preset.columnConfigs[matchedKey].dataType);
+          }
+        }
+      }
+      if (Object.keys(newConfigs).length > 0) {
+        this.columnConfigs.update((curr) => ({ ...curr, ...newConfigs }));
+      }
+    }
+
+    // 4. Kolom Jumlah (SUM)
+    if (preset.sumColumns) {
+      const newSums: Record<string, boolean> = {};
+      for (const col of cols) {
+        const alias = currentAliases[col];
+        const matchedKey = findKey(preset.sumColumns, col, alias);
+        if (matchedKey && preset.sumColumns[matchedKey] !== undefined) {
+          newSums[col] = preset.sumColumns[matchedKey];
+        }
+      }
+      if (Object.keys(newSums).length > 0) {
+        this.sumColumns.update((curr) => ({ ...curr, ...newSums }));
+      }
+    }
+
+    // 5. Kolom Rata-rata (AVERAGE)
+    if (preset.avgColumns) {
+      const newAvgs: Record<string, boolean> = {};
+      for (const col of cols) {
+        const alias = currentAliases[col];
+        const matchedKey = findKey(preset.avgColumns, col, alias);
+        if (matchedKey && preset.avgColumns[matchedKey] !== undefined) {
+          newAvgs[col] = preset.avgColumns[matchedKey];
+        }
+      }
+      if (Object.keys(newAvgs).length > 0) {
+        this.avgColumns.update((curr) => ({ ...curr, ...newAvgs }));
+      }
+    }
+
+    // 6. Urutan kolom hasil join
     if (preset.columnOrder && preset.columnOrder.length > 0) {
       const currentCols = [...this.resultColumns()];
       const currentMetaMap = new Map(this.resultColumnsMeta().map((m) => [m.key, m]));
@@ -2431,7 +2863,27 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       const orderedMeta: ColumnHeaderMeta[] = [];
 
       for (const ord of preset.columnOrder) {
-        const matched = currentCols.find((c) => this.normalizeKey(c) === this.normalizeKey(ord));
+        const normOrd = this.normalizeKey(ord);
+        const ordClean = normOrd.replace(/[^a-z0-9]/g, '');
+
+        const matched = currentCols.find((c) => {
+          if (this.normalizeKey(c) === normOrd) return true;
+          const alias = currentAliases[c];
+          if (alias && this.normalizeKey(alias) === normOrd) return true;
+
+          const cDash = c.indexOf(' - ');
+          if (cDash !== -1) {
+            const cSub = this.normalizeKey(c.slice(cDash + 3));
+            if (cSub === normOrd) return true;
+          }
+
+          const cClean = this.normalizeKey(c).replace(/[^a-z0-9]/g, '');
+          if (cClean === ordClean) return true;
+          if (alias && this.normalizeKey(alias).replace(/[^a-z0-9]/g, '') === ordClean) return true;
+
+          return false;
+        });
+
         if (matched && !orderedCols.includes(matched)) {
           orderedCols.push(matched);
           const m = currentMetaMap.get(matched);
@@ -2459,6 +2911,20 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
 
   preview(): void {
     if (!this.canPreview() || !this.workbook) {
+      return;
+    }
+
+    const hasilJoinSheetName = this.detectHasilJoinSheet(this.workbook);
+    if (
+      hasilJoinSheetName &&
+      this.selectedSheets().length === 1 &&
+      this.selectedSheets()[0].name === hasilJoinSheetName
+    ) {
+      this.loadPreJoinedHasilJoinSheet(
+        this.workbook,
+        hasilJoinSheetName,
+        this.file()?.name || hasilJoinSheetName,
+      );
       return;
     }
 

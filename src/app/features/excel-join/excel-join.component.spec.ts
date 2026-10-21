@@ -4,6 +4,7 @@ import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { ExcelJoinComponent, SheetInfo } from './excel-join.component';
 import { ExcelJoinStore, ExcelJoinStoredState } from './excel-join-store';
 import { PresetStore, JoinConfigurationPreset } from './preset-store';
+import { DEFAULT_JOIN_CONFIG } from './default-join-config';
 import * as XLSX from 'xlsx-js-style';
 import { environment } from '../../../environments/environment';
 import { GasStorageService } from '../../core/storage/gas-storage.service';
@@ -1818,6 +1819,191 @@ describe('ExcelJoinComponent', () => {
       expect(component.selectedYear()).toBe(2023);
       expect(component.selectedQuarter()).toBe('TW2');
       expect(openSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('Pre-joined Hasil Join Workbook Direct Import', () => {
+    it('harus menerima dan mengekstrak berkas pre-joined dengan sheet "Hasil Join" secara langsung', async () => {
+      const wb = XLSX.utils.book_new();
+      const headers = ['No', 'Kabupaten/Kota', 'Rematri  Konsumsi TTD', '% Konsumsi TTD', 'Capaian'];
+      const rowCilacap = [1, 'CILACAP', 77877, 98.78, 1];
+      const rowBanyumas = [2, 'BANYUMAS', 80194, 99.45, 1];
+      const rowJumlah = ['-', 'Jumlah', 158071, '-', '-'];
+      const rowRataRata = ['-', 'Rata-rata', '-', 99.115, '-'];
+      const rowTarget = ['-', 'Target', '-', '>= 67', 1];
+
+      const ws = XLSX.utils.aoa_to_sheet([
+        headers,
+        rowCilacap,
+        rowBanyumas,
+        rowJumlah,
+        rowRataRata,
+        rowTarget,
+      ]);
+      XLSX.utils.book_append_sheet(wb, ws, 'Hasil Join');
+
+      const u8 = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as Uint8Array;
+      const file = new File([u8 as BlobPart], 'Hasil_Join_Excel_2026-10-15.xlsx', {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+
+      const mockEvent = {
+        target: {
+          files: [file],
+          value: '',
+        },
+      } as unknown as Event;
+
+      await component.onFileSelected(mockEvent);
+
+      expect(component.file()).toBeTruthy();
+      expect(component.showSettings()).toBe(false);
+      expect(component.configNotification()?.type).toBe('success');
+
+      // Verifikasi baris data (3 baris summary tidak boleh masuk ke resultRows)
+      const rows = component.resultRows();
+      expect(rows.length).toBe(2);
+      expect(rows[0]['Kabupaten/Kota']).toBe('CILACAP');
+      expect(rows[0]['Rematri  Konsumsi TTD']).toBe(77877);
+      expect(rows[0]['% Konsumsi TTD']).toBe(98.78);
+      expect(rows[1]['Kabupaten/Kota']).toBe('BANYUMAS');
+
+      // Verifikasi kolom: No dan Capaian tidak boleh digandakan di resultColumns
+      const cols = component.resultColumns();
+      expect(cols).toEqual(['Kabupaten/Kota', 'Rematri  Konsumsi TTD', '% Konsumsi TTD']);
+      expect(cols).not.toContain('No');
+      expect(cols).not.toContain('Capaian');
+      expect(cols[0]).toBe('Kabupaten/Kota');
+
+      // Verifikasi aktivasi fitur baris bawah tabel
+      expect(component.enableJumlah()).toBe(true);
+      expect(component.enableAverage()).toBe(true);
+      expect(component.enableTarget()).toBe(true);
+      expect(component.enableCapaian()).toBe(true);
+
+      // Verifikasi target yang terdeteksi
+      const targetTTD = component.columnTargets()['% Konsumsi TTD'];
+      expect(targetTTD).toBeDefined();
+      expect(targetTTD.enabled).toBe(true);
+      expect(targetTTD.operator).toBe('>=');
+      expect(targetTTD.value).toBe(67);
+
+      // Verifikasi konfigurasi tipe data kolom
+      expect(component.columnConfigs()['% Konsumsi TTD']?.dataType).toBe('percentage');
+      expect(component.columnConfigs()['Rematri  Konsumsi TTD']?.dataType).toBe('number');
+      expect(component.columnConfigs()['Kabupaten/Kota']?.dataType).toBe('string');
+
+      // Verifikasi sumColumns & avgColumns
+      expect(component.sumColumns()['Rematri  Konsumsi TTD']).toBe(true);
+      expect(component.sumColumns()['% Konsumsi TTD']).toBe(false);
+      expect(component.avgColumns()['% Konsumsi TTD']).toBe(true);
+      expect(component.avgColumns()['Rematri  Konsumsi TTD']).toBe(false);
+    });
+
+    it('harus dapat menyimpan berkas hasil join yang diunggah ke Google Drive via confirmSavePeriodToCloud', async () => {
+      vi.spyOn(component.gasStorageService, 'isConfigured').mockReturnValue(true);
+      let capturedPayload: any = null;
+      vi.spyOn(component.gasStorageService, 'savePeriod').mockImplementation(async (payload) => {
+        capturedPayload = payload;
+        return { success: true, message: 'Saved successfully' };
+      });
+
+      const wb = XLSX.utils.book_new();
+      const headers = ['No', 'Kabupaten/Kota', '% Konsumsi TTD', 'Capaian'];
+      const row1 = [1, 'CILACAP', 98.78, 1];
+      const rowTarget = ['-', 'Target', '>= 67', 1];
+      const ws = XLSX.utils.aoa_to_sheet([headers, row1, rowTarget]);
+      XLSX.utils.book_append_sheet(wb, ws, 'Hasil Join');
+
+      const u8 = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as Uint8Array;
+      const file = new File([u8 as BlobPart], 'Hasil_Join_TW1.xlsx', {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+
+      await component.onFileSelected({ target: { files: [file], value: '' } } as unknown as Event);
+      component.selectedYear.set(2026);
+      component.selectedQuarter.set('TW1');
+
+      await component.confirmSavePeriodToCloud();
+
+      expect(capturedPayload).toBeTruthy();
+      expect(capturedPayload.year).toBe(2026);
+      expect(capturedPayload.quarter).toBe('TW1');
+      expect(capturedPayload.rawExcelBuffer).toBeTruthy();
+      expect(capturedPayload.rawExcelBuffer.byteLength).toBeGreaterThan(0);
+      expect(capturedPayload.resultExcelBuffer).toBeTruthy();
+      expect(capturedPayload.resultExcelBuffer.byteLength).toBeGreaterThan(0);
+      expect(component.activePeriodLabel()).toBe('2026 TW1');
+    });
+
+    it('harus memuat ulang sheet hasil join saat preview() dipanggil tanpa menghapus baris tabel', async () => {
+      const wb = XLSX.utils.book_new();
+      const headers = ['No', 'Kabupaten/Kota', '% Konsumsi TTD', 'Capaian'];
+      const row1 = [1, 'KUDUS', 88.5, 1];
+      const ws = XLSX.utils.aoa_to_sheet([headers, row1]);
+      XLSX.utils.book_append_sheet(wb, ws, 'Hasil Join');
+
+      const u8 = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as Uint8Array;
+      const file = new File([u8 as BlobPart], 'Hasil_Join.xlsx', {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+
+      await component.onFileSelected({ target: { files: [file], value: '' } } as unknown as Event);
+      expect(component.resultRows().length).toBe(1);
+
+      component.preview();
+      expect(component.resultRows().length).toBe(1);
+      expect(component.resultRows()[0]['Kabupaten/Kota']).toBe('KUDUS');
+    });
+
+    it('tidak boleh salah mendeteksi sheet mentah sebagai Hasil Join pada workbook multi-sheet', () => {
+      const wb = XLSX.utils.book_new();
+      // Sheet 1: Raw sheet dengan baris Jumlah
+      const rawRows1 = [
+        ['No', 'Kabupaten/Kota', 'Variabel A'],
+        [1, 'CILACAP', 100],
+        ['-', 'Jumlah', 100],
+      ];
+      const ws1 = XLSX.utils.aoa_to_sheet(rawRows1);
+      XLSX.utils.book_append_sheet(wb, ws1, 'MASALAH GIZI');
+
+      // Sheet 2: Raw sheet kedua
+      const rawRows2 = [
+        ['No', 'Kabupaten/Kota', 'Variabel B'],
+        [1, 'CILACAP', 50],
+      ];
+      const ws2 = XLSX.utils.aoa_to_sheet(rawRows2);
+      XLSX.utils.book_append_sheet(wb, ws2, 'anak');
+
+      const detected = component.detectHasilJoinSheet(wb);
+      expect(detected).toBeNull();
+    });
+
+    it('harus mendeteksi sheet Hasil Join pada single-sheet workbook yang memiliki ringkasan dan indikator %', () => {
+      const wb = XLSX.utils.book_new();
+      const rows = [
+        ['No', 'Kabupaten/Kota', '% Konsumsi TTD'],
+        ...Array.from({ length: 35 }, (_, i) => [i + 1, `KABUPATEN ${i}`, 75]),
+        ['-', 'Jumlah', 2625],
+        ['-', 'Target', '>= 67'],
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb, ws, 'Data Ekspor');
+
+      const detected = component.detectHasilJoinSheet(wb);
+      expect(detected).toBe('Data Ekspor');
+    });
+
+    it('harus menerapkan seluruh konfigurasi 28 indikator (alias, target, sum, avg, order) dari DEFAULT_JOIN_CONFIG', () => {
+      expect(DEFAULT_JOIN_CONFIG.sheets.length).toBe(5);
+      const totalVars = DEFAULT_JOIN_CONFIG.sheets.reduce((acc, s) => acc + s.variables.length, 0);
+      expect(totalVars).toBe(28);
+      expect(DEFAULT_JOIN_CONFIG.enableJumlah).toBe(true);
+      expect(DEFAULT_JOIN_CONFIG.enableAverage).toBe(true);
+      expect(DEFAULT_JOIN_CONFIG.enableTarget).toBe(true);
+      expect(DEFAULT_JOIN_CONFIG.enableCapaian).toBe(true);
+      expect(DEFAULT_JOIN_CONFIG.columnOrder?.length).toBe(29);
+      expect(Object.keys(DEFAULT_JOIN_CONFIG.customColumnNames || {}).length).toBeGreaterThanOrEqual(28);
     });
   });
 });
