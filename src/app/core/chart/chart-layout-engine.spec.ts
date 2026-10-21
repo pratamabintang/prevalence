@@ -91,5 +91,126 @@ describe('ChartLayoutEngine', () => {
     expect(layout.targetLineX).toBeDefined();
     expect(layout.categoryGroups[1].bars[0].width).toBeGreaterThan(layout.categoryGroups[0].bars[0].width);
   });
+
+  it('computes side-by-side 2-column layout with 2 regions per row when columns = 2', () => {
+    const multiRegionSpec: ChartLayoutSpec = {
+      categoryColumn: 'wilayah',
+      categories: ['Bantul', 'Sanden', 'Kretek', 'Pundong', 'Bambanglipuro'],
+      series: [
+        { key: 'tw1', label: 'Triwulan 1', color: '#3b82f6' },
+        { key: 'tw2', label: 'Triwulan 2', color: '#10b981' },
+      ],
+      rows: [
+        { wilayah: 'Bantul', tw1: 80, tw2: 90 },
+        { wilayah: 'Sanden', tw1: 70, tw2: 75 },
+        { wilayah: 'Kretek', tw1: 85, tw2: 60 },
+        { wilayah: 'Pundong', tw1: 95, tw2: 88 },
+        { wilayah: 'Bambanglipuro', tw1: 65, tw2: 70 },
+      ],
+      columns: 2,
+      targetValue: 75,
+    };
+
+    const layout = ChartLayoutEngine.computeLayout(multiRegionSpec);
+
+    expect(layout.columns).toBe(2);
+    expect(layout.categoryGroups.length).toBe(5);
+
+    // Row 0: Bantul (Col 0) and Sanden (Col 1)
+    expect(layout.categoryGroups[0].categoryName).toBe('Bantul');
+    expect(layout.categoryGroups[0].colIndex).toBe(0);
+    expect(layout.categoryGroups[0].rowIdx).toBe(0);
+
+    expect(layout.categoryGroups[1].categoryName).toBe('Sanden');
+    expect(layout.categoryGroups[1].colIndex).toBe(1);
+    expect(layout.categoryGroups[1].rowIdx).toBe(0);
+    expect(layout.categoryGroups[1].y).toBe(layout.categoryGroups[0].y); // same vertical row!
+
+    // Row 1: Kretek (Col 0) and Pundong (Col 1)
+    expect(layout.categoryGroups[2].colIndex).toBe(0);
+    expect(layout.categoryGroups[2].rowIdx).toBe(1);
+    expect(layout.categoryGroups[3].colIndex).toBe(1);
+    expect(layout.categoryGroups[3].rowIdx).toBe(1);
+    expect(layout.categoryGroups[3].y).toBe(layout.categoryGroups[2].y);
+
+    // Row 2: Bambanglipuro (Col 0)
+    expect(layout.categoryGroups[4].colIndex).toBe(0);
+    expect(layout.categoryGroups[4].rowIdx).toBe(2);
+
+    // Column 1 plotX should be distinctly to the right of Column 0
+    expect(layout.categoryGroups[1].plotX).toBeGreaterThan(
+      layout.categoryGroups[0].plotX + layout.categoryGroups[0].plotWidth,
+    );
+
+    // Verify 2 target lines generated for both columns
+    expect(layout.targetLines?.length).toBe(2);
+    expect(layout.targetLines![1]).toBeGreaterThan(layout.targetLines![0]);
+
+    // Divider line between the two columns
+    expect(layout.dividerX).toBeDefined();
+    expect(layout.dividerX!).toBeGreaterThan(layout.categoryGroups[0].plotX);
+    expect(layout.dividerX!).toBeLessThan(layout.categoryGroups[1].plotX);
+  });
+
+  it('supports categoryTargets for individual targets per row (per-wilayah mode)', () => {
+    const specWithCategoryTargets: ChartLayoutSpec = {
+      categoryColumn: 'indikator',
+      categories: ['% Gizi Kurang', '% BB Kurang', '% IDL'],
+      series: [{ key: 'capaian', label: 'Capaian', color: '#525AFF' }],
+      rows: [
+        { indikator: '% Gizi Kurang', capaian: 82 },
+        { indikator: '% BB Kurang', capaian: 70 },
+        { indikator: '% IDL', capaian: 95 },
+      ],
+      categoryTargets: {
+        '% Gizi Kurang': 80,
+        '% BB Kurang': 85,
+        '% IDL': 90,
+      },
+    };
+
+    const layout = ChartLayoutEngine.computeLayout(specWithCategoryTargets);
+
+    // Global targetLineX should be null when categoryTargets is provided
+    expect(layout.targetLineX).toBeNull();
+    expect(layout.hasCategoryTargets).toBe(true);
+
+    const bars0 = layout.categoryGroups[0].bars[0];
+    expect(bars0.numericVal).toBe(82);
+    expect(bars0.targetVal).toBe(80);
+    expect(bars0.targetX).toBeDefined();
+    expect(bars0.isAchieved).toBe(true); // 82 >= 80
+
+    const bars1 = layout.categoryGroups[1].bars[0];
+    expect(bars1.numericVal).toBe(70);
+    expect(bars1.targetVal).toBe(85);
+    expect(bars1.targetX).toBeDefined();
+    expect(bars1.isAchieved).toBe(false); // 70 < 85
+
+    const bars2 = layout.categoryGroups[2].bars[0];
+    expect(bars2.numericVal).toBe(95);
+    expect(bars2.targetVal).toBe(90);
+    expect(bars2.targetX).toBeDefined();
+    expect(bars2.isAchieved).toBe(true); // 95 >= 90
+  });
+
+  it('expands maxValue when any category target exceeds the data maximum', () => {
+    const specWithHighCategoryTarget: ChartLayoutSpec = {
+      categoryColumn: 'indikator',
+      categories: ['Indikator A', 'Indikator B'],
+      series: [{ key: 'capaian', label: 'Capaian', color: '#525AFF' }],
+      rows: [
+        { indikator: 'Indikator A', capaian: 40 },
+        { indikator: 'Indikator B', capaian: 50 },
+      ],
+      categoryTargets: {
+        'Indikator A': 60,
+        'Indikator B': 120, // exceeds data max (50)
+      },
+    };
+
+    const layout = ChartLayoutEngine.computeLayout(specWithHighCategoryTarget);
+    expect(layout.maxValue).toBeGreaterThanOrEqual(120);
+  });
 });
 

@@ -409,6 +409,114 @@ describe('StuntingEvaluationEngine', () => {
     expect(row.quarters[4].actualAchievement).toBeNull();
   });
 
+  it('should not duplicate single-quarter column config to other unconfigured quarters', () => {
+    const joinedRows = [
+      { Puskesmas: 'Puskesmas A', Kasus_TW3: 150, Capaian_TW3: 75 },
+      { Puskesmas: 'Puskesmas B', Kasus_TW3: 250, Capaian_TW3: 85 },
+    ];
+
+    const categories = [
+      {
+        id: 'cat-1',
+        name: 'Intervensi Khusus',
+        subCategories: [
+          {
+            id: 'sub-single',
+            name: 'Pemberian Makanan Tambahan',
+            sumCol: 'Kasus_TW3',
+            meanCol: 'Capaian_TW3',
+            numeratorCol: 'Capaian_TW3',
+            targetCurrentYear: 80,
+            calculationMode: 'percentage' as const,
+          },
+        ],
+      },
+    ];
+
+    // Evaluasi dataset hanya untuk TW 3
+    const result = StuntingEvaluationEngine.evaluateAggregatedDataset(categories, joinedRows, {
+      activeQuarter: 3,
+    });
+
+    // Available quarters should ONLY be [3], NOT [1, 2, 3, 4]
+    expect(result.availableQuarters).toEqual([3]);
+
+    const row = result.rows[0];
+
+    // TW 3 has the actual data
+    expect(row.quarters[3].hasData).toBe(true);
+    expect(row.quarters[3].sumNumerator).toBe(400); // 150 + 250
+    expect(row.quarters[3].actualAchievement).toBe(80); // (75 + 85) / 2
+
+    // Quarters 1, 2, and 4 must NOT have duplicated data
+    expect(row.quarters[1].hasData).toBe(false);
+    expect(row.quarters[1].sumNumerator).toBeNull();
+    expect(row.quarters[1].actualAchievement).toBeNull();
+
+    expect(row.quarters[2].hasData).toBe(false);
+    expect(row.quarters[2].sumNumerator).toBeNull();
+    expect(row.quarters[2].actualAchievement).toBeNull();
+
+    expect(row.quarters[4].hasData).toBe(false);
+    expect(row.quarters[4].sumNumerator).toBeNull();
+    expect(row.quarters[4].actualAchievement).toBeNull();
+  });
+
+  it('should support partial quarter selection (e.g. TW 1 & TW 2 only) with independent columns', () => {
+    const joinedRows = [
+      {
+        Puskesmas: 'Puskesmas A',
+        TW1_Jml: 100,
+        TW1_Prc: 50,
+        TW2_Jml: 200,
+        TW2_Prc: 70,
+      },
+    ];
+
+    const categories = [
+      {
+        id: 'cat-1',
+        name: 'Gizi',
+        subCategories: [
+          {
+            id: 'sub-partial',
+            name: 'Skrining Anemia',
+            numeratorCol: '',
+            quarterColumns: {
+              1: { sumCol: 'TW1_Jml', meanCol: 'TW1_Prc' },
+              2: { sumCol: 'TW2_Jml', meanCol: 'TW2_Prc' },
+            },
+            targetCurrentYear: 90,
+            calculationMode: 'percentage' as const,
+          },
+        ],
+      },
+    ];
+
+    const result = StuntingEvaluationEngine.evaluateAggregatedDataset(categories, joinedRows, {
+      activeQuarter: 2,
+    });
+
+    expect(result.availableQuarters).toEqual([1, 2]);
+
+    const row = result.rows[0];
+    expect(row.quarters[1].hasData).toBe(true);
+    expect(row.quarters[1].sumNumerator).toBe(100);
+    expect(row.quarters[1].actualAchievement).toBe(50);
+
+    expect(row.quarters[2].hasData).toBe(true);
+    expect(row.quarters[2].sumNumerator).toBe(200);
+    expect(row.quarters[2].actualAchievement).toBe(70);
+
+    expect(row.quarters[3].hasData).toBe(false);
+    expect(row.quarters[3].sumNumerator).toBeNull();
+    expect(row.quarters[3].actualAchievement).toBeNull();
+
+    expect(row.quarters[4].hasData).toBe(false);
+    expect(row.quarters[4].sumNumerator).toBeNull();
+    expect(row.quarters[4].actualAchievement).toBeNull();
+  });
+
   describe('cleanTargetValue', () => {
     it('should parse mixed target string prefixes and clean decimal commas', () => {
       expect(StuntingEvaluationEngine.cleanTargetValue('tw3: 60')).toEqual({

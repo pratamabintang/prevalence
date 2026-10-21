@@ -4,88 +4,85 @@
     title="Visualisasi Grafik Indikator"
     subtitle="Visualisasikan capaian indikator kesehatan dengan grafik batang kelompok horizontal interaktif."
   >
-    <div actions class="flex flex-wrap items-center gap-2">
-      <!-- Status Data Source Badge -->
-      <ui-badge
-        [variant]="dataSource() === 'join' ? 'purple' : dataSource() === 'upload' ? 'emerald' : 'slate'"
-        [dot]="true"
-        size="md"
-      >
-        {{ dataSource() === 'join' ? 'Sumber: Hasil Join' : dataSource() === 'upload' ? 'Sumber: File Upload' : 'Belum Ada Data' }}
-      </ui-badge>
+    @if (enableSettingsButton() || enableToolbarActions()) {
+      <div actions class="flex flex-wrap items-center gap-2">
+        <!-- TOMBOL GERIGI (PENGATURAN) -->
+        @if (enableSettingsButton()) {
+          <button
+            type="button"
+            uiButton
+            [variant]="showSettings() ? 'primary' : 'secondary'"
+            size="sm"
+            (click)="toggleSettings()"
+            [title]="showSettings() ? 'Tutup Panel Pengaturan' : 'Buka Pengaturan Data & Indikator'"
+          >
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span>Pengaturan</span>
+          </button>
+        }
 
-      <!-- TOMBOL GERIGI (PENGATURAN) -->
-      <button
-        type="button"
-        uiButton
-        [variant]="showSettings() ? 'primary' : 'secondary'"
-        size="sm"
-        (click)="toggleSettings()"
-        [title]="showSettings() ? 'Tutup Panel Pengaturan' : 'Buka Pengaturan Data & Indikator'"
-      >
-        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-        <span>Pengaturan</span>
-      </button>
+        @if (enableToolbarActions()) {
+        <!-- HIDDEN FILE INPUT UNTUK LOAD CONFIG JSON -->
+        <input
+          type="file"
+          accept=".json"
+          #configFileInput
+          (change)="onConfigFileSelected($event)"
+          class="hidden"
+        />
 
-      <!-- HIDDEN FILE INPUT UNTUK LOAD CONFIG JSON -->
-      <input
-        type="file"
-        accept=".json"
-        #configFileInput
-        (change)="onConfigFileSelected($event)"
-        class="hidden"
-      />
+        @if (hasSavedConfig()) {
+          <button
+            type="button"
+            uiButton
+            variant="secondary"
+            size="sm"
+            (click)="loadSavedConfigurationFromStorage()"
+            title="Muat konfigurasi grafik terakhir yang tersimpan di browser"
+          >
+            <svg class="w-4 h-4 mr-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Konfigurasi Terakhir
+          </button>
+        }
 
-      @if (hasSavedConfig()) {
         <button
           type="button"
           uiButton
           variant="secondary"
           size="sm"
-          (click)="loadSavedConfigurationFromStorage()"
-          title="Muat konfigurasi grafik terakhir yang tersimpan di browser"
+          (click)="configFileInput.click()"
+          title="Unggah berkas konfigurasi grafik .json"
         >
           <svg class="w-4 h-4 mr-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
           </svg>
-          Konfigurasi Terakhir
+          Muat (.json)
+        </button>
+
+        <button
+          type="button"
+          uiButton
+          variant="secondary"
+          size="sm"
+          (click)="exportConfiguration()"
+          title="Simpan pengaturan ke berkas .json"
+        >
+          <svg class="w-4 h-4 mr-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          Simpan (.json)
         </button>
       }
-
-      <button
-        type="button"
-        uiButton
-        variant="secondary"
-        size="sm"
-        (click)="configFileInput.click()"
-        title="Unggah berkas konfigurasi grafik .json"
-      >
-        <svg class="w-4 h-4 mr-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-        </svg>
-        Muat (.json)
-      </button>
-
-      <button
-        type="button"
-        uiButton
-        variant="secondary"
-        size="sm"
-        (click)="exportConfiguration()"
-        title="Simpan pengaturan ke berkas .json"
-      >
-        <svg class="w-4 h-4 mr-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-        </svg>
-        Simpan (.json)
-      </button>
     </div>
-  </ui-page-header>
+  }
+</ui-page-header>
 
-  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-6">
+  <div class="w-full px-4 sm:px-6 lg:px-8 pt-6">
     <!-- NOTIFIKASI HASIL LOAD/SIMPAN KONFIGURASI PRESET -->
     @if (configNotification()) {
       <div class="mb-6">
@@ -116,9 +113,97 @@
     }
 
     <!-- ====================================================== -->
+    <!-- UPLOAD EXCEL (DI LUAR PENGATURAN, DI ATAS TABEL)       -->
+    <!-- ====================================================== -->
+    <section class="mb-5 rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-2xs">
+      <div class="mb-3 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div
+            class="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-r from-[#525AFF] to-[#4AB5B5] text-xs font-semibold text-white shadow-xs"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+          </div>
+          <div>
+            <h2 class="font-semibold text-slate-900 text-sm">Upload Excel</h2>
+          </div>
+        </div>
+      </div>
+
+      @if (!file() && dataSource() !== 'join') {
+        <label
+          class="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-8 transition hover:border-[#525AFF] hover:bg-slate-100/50"
+        >
+          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-[#525AFF] mb-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+          </div>
+          <p class="font-medium text-slate-900 text-sm">Klik untuk memilih file Excel</p>
+          <p class="mt-1 text-xs text-slate-500">Format .xlsx</p>
+          <input type="file" accept=".xlsx" class="hidden" (change)="onFileSelected($event)" />
+        </label>
+      } @else if (file()) {
+        @if (isProcessing()) {
+          <div class="rounded-lg border border-slate-300 bg-slate-100 p-4">
+            <div class="flex items-center gap-3">
+              <div class="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700"></div>
+              <div>
+                <p class="font-medium text-slate-900 text-sm">Membaca file Excel...</p>
+                <p class="text-xs text-slate-600">Mendeteksi tingkatan header dan sub-header...</p>
+              </div>
+            </div>
+          </div>
+        } @else {
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3.5">
+            <div>
+              <p class="font-medium text-slate-900 text-sm">{{ file()?.name }}</p>
+              <p class="text-xs text-emerald-700">{{ sheetNames().length }} sheet ditemukan (Aktif: {{ selectedSheet() }})</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition text-center shadow-2xs">
+                Upload File Baru
+                <input type="file" accept=".xlsx" class="hidden" (change)="onFileSelected($event)" />
+              </label>
+              @if (hasJoinBridgeData()) {
+                <button
+                  type="button"
+                  (click)="restoreJoinData()"
+                  class="rounded-md border border-purple-300 bg-white px-3 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-50 transition cursor-pointer shadow-2xs"
+                  title="Kembali ke visualisasi data hasil join"
+                >
+                  Kembali ke Data Join
+                </button>
+              }
+              <button
+                type="button"
+                (click)="clearFile()"
+                class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-2xs"
+              >
+                Ganti File
+              </button>
+            </div>
+          </div>
+        }
+      } @else if (dataSource() === 'join') {
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-purple-200 bg-purple-50 p-3.5">
+          <div>
+            <p class="font-medium text-slate-900 text-sm">{{ chartTitle() }}</p>
+            <p class="text-xs text-purple-700">Data hasil penggabungan multi-sheet siap divisualisasikan</p>
+          </div>
+          <label class="cursor-pointer rounded-md border border-purple-300 bg-white px-3.5 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-50 transition text-center shadow-2xs">
+            Unggah File Baru
+            <input type="file" accept=".xlsx" class="hidden" (change)="onFileSelected($event)" />
+          </label>
+        </div>
+      }
+    </section>
+
+    <!-- ====================================================== -->
     <!-- PANEL PENGATURAN (DISEMBUNYIKAN DI BALIK TOMBOL GERIGI) -->
     <!-- ====================================================== -->
-    @if (showSettings() || (!hasLoadedData() && !isProcessing())) {
+    @if (showSettings() && hasLoadedData()) {
       <div class="mb-8 rounded-2xl border border-slate-300/80 bg-slate-100/60 p-4 sm:p-6 shadow-xs space-y-6">
         <div class="flex items-center justify-between pb-3 border-b border-slate-200">
           <div class="flex items-center gap-2">
@@ -346,14 +431,14 @@
           </section>
         }
 
-        <!-- STEP 3 : PILIH KOLOM BARIS & INDIKATOR -->
+        <!-- STEP 2 : PILIH KOLOM BARIS & INDIKATOR -->
         @if ((file() && selectedSheet()) || dataSource() === 'join') {
           <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">
             <div class="mb-4 flex items-center gap-2.5">
               <div
                 class="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-r from-[#525AFF] to-[#4AB5B5] text-xs font-semibold text-white shadow-xs"
               >
-                {{ dataSource() === 'join' ? '2' : '3' }}
+                {{ dataSource() === 'join' ? '1' : '2' }}
               </div>
               <div>
                 <h2 class="font-semibold text-slate-900 text-sm">Pilih Kolom Baris (Sumbu Y) &amp; Indikator</h2>
@@ -579,51 +664,6 @@
               </button>
             </div>
 
-            <!-- TOGGLE PANEL PENGATURAN PILIH & KELOLA BARIS -->
-            <button
-              type="button"
-              (click)="toggleSettingsPanel()"
-              class="inline-flex items-center gap-1.5 rounded border px-3 py-1.5 text-xs font-medium transition cursor-pointer"
-              [class.border-slate-800]="showSettingsPanel()"
-              [class.bg-slate-100]="showSettingsPanel()"
-              [class.text-slate-900]="showSettingsPanel()"
-              [class.border-slate-300]="!showSettingsPanel()"
-              [class.bg-white]="!showSettingsPanel()"
-              [class.text-slate-700]="!showSettingsPanel()"
-              title="Saring atau sembunyikan baris tertentu dari visualisasi"
-            >
-              <svg class="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-              </svg>
-              <span>{{ showSettingsPanel() ? 'Tutup Kelola Baris' : 'Kelola Baris' }}</span>
-              @if (hasHiddenOrDeletedRows()) {
-                <span class="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-medium text-rose-700">
-                  Filter
-                </span>
-              }
-            </button>
-
-            <!-- TOGGLE PANEL PENGATURAN PILIH & KELOLA INDIKATOR -->
-            <button
-              type="button"
-              (click)="toggleIndicatorPanel()"
-              class="inline-flex items-center gap-1.5 rounded border px-3 py-1.5 text-xs font-medium transition cursor-pointer"
-              [class.border-slate-800]="showIndicatorPanel()"
-              [class.bg-slate-100]="showIndicatorPanel()"
-              [class.text-slate-900]="showIndicatorPanel()"
-              [class.border-slate-300]="!showIndicatorPanel()"
-              [class.bg-white]="!showIndicatorPanel()"
-              [class.text-slate-700]="!showIndicatorPanel()"
-              title="Pilih atau kelola indikator (persentase & angka) yang ditampilkan pada grafik"
-            >
-              <svg class="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-              <span>{{ showIndicatorPanel() ? 'Tutup Kelola Indikator' : 'Kelola Indikator' }}</span>
-              <span class="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-800">
-                {{ selectedSeriesKeys().length }}
-              </span>
-            </button>
 
             <!-- UNDUH DATA KE EXCEL -->
             @if (canRenderChart()) {
@@ -834,6 +874,172 @@
           </div>
         }
 
+        <!-- BAR FILTER VISUALISASI TERPADU (MODAL WILAYAH & MODAL INDIKATOR) -->
+        <div class="mb-5 rounded-xl border border-slate-200/90 bg-gradient-to-r from-slate-50 to-[#F8FAFD] p-3 sm:p-3.5 shadow-2xs">
+          <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-2.5 flex-1 min-w-0">
+              <span class="font-bold text-slate-700 text-xs flex items-center gap-1.5 shrink-0">
+                <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+                <span>Filter:</span>
+              </span>
+
+              <!-- 1. PENCARIAN LIVE WILAYAH -->
+              <div class="relative flex-1 min-w-[160px] max-w-xs">
+                <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-400">
+                  <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  [value]="chartRegionSearch()"
+                  (input)="chartRegionSearch.set($any($event.target).value)"
+                  placeholder="Cari wilayah / puskesmas..."
+                  class="w-full rounded-lg border border-slate-300 bg-white py-1.5 pl-8 pr-7 text-xs text-slate-800 placeholder-slate-400 focus:border-[#525AFF] focus:outline-none focus:ring-1 focus:ring-[#525AFF]"
+                />
+                @if (chartRegionSearch()) {
+                  <button
+                    type="button"
+                    (click)="chartRegionSearch.set('')"
+                    class="absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    title="Hapus pencarian wilayah"
+                  >
+                    ✕
+                  </button>
+                }
+              </div>
+
+              <!-- 2. TOMBOL MODAL FILTER WILAYAH (CHECKBOX) -->
+              <button
+                type="button"
+                (click)="openRegionFilterModal()"
+                class="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition cursor-pointer shadow-2xs"
+                [class.border-[#525AFF]]="selectedCategories().length < availableCategories().length"
+                [class.bg-[#EEF0FF]]="selectedCategories().length < availableCategories().length"
+                [class.text-[#525AFF]]="selectedCategories().length < availableCategories().length"
+                [class.border-slate-300]="selectedCategories().length === availableCategories().length"
+                [class.bg-white]="selectedCategories().length === availableCategories().length"
+                [class.text-slate-700]="selectedCategories().length === availableCategories().length"
+                title="Buka dialog filter wilayah dalam bentuk modal checkbox"
+              >
+                <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span>Filter Wilayah</span>
+                <span
+                  class="rounded-full px-1.5 py-0.2 text-[10px] font-bold"
+                  [class.bg-[#525AFF]]="selectedCategories().length < availableCategories().length"
+                  [class.text-white]="selectedCategories().length < availableCategories().length"
+                  [class.bg-slate-200]="selectedCategories().length === availableCategories().length"
+                  [class.text-slate-700]="selectedCategories().length === availableCategories().length"
+                >
+                  {{ selectedCategories().length }}/{{ availableCategories().length }}
+                </span>
+              </button>
+
+              <!-- 3. TOMBOL MODAL FILTER INDIKATOR (CHECKBOX) -->
+              <button
+                type="button"
+                (click)="openIndicatorFilterModal()"
+                class="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition cursor-pointer shadow-2xs"
+                [class.border-[#525AFF]]="hasFilteredIndicators()"
+                [class.bg-[#EEF0FF]]="hasFilteredIndicators()"
+                [class.text-[#525AFF]]="hasFilteredIndicators()"
+                [class.border-slate-300]="!hasFilteredIndicators()"
+                [class.bg-white]="!hasFilteredIndicators()"
+                [class.text-slate-700]="!hasFilteredIndicators()"
+                title="Buka dialog filter indikator dalam bentuk modal checkbox"
+              >
+                <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                <span>Filter Indikator</span>
+                <span
+                  class="rounded-full px-1.5 py-0.2 text-[10px] font-bold"
+                  [class.bg-[#525AFF]]="hasFilteredIndicators()"
+                  [class.text-white]="hasFilteredIndicators()"
+                  [class.bg-slate-200]="!hasFilteredIndicators()"
+                  [class.text-slate-700]="!hasFilteredIndicators()"
+                >
+                  {{ selectedSeriesKeys().length }}/{{ allCandidateSeriesColumns().length }}
+                </span>
+              </button>
+            </div>
+
+            <!-- KONTROL URUTAN WILAYAH & GRAFIK PER BARIS DALAM FILTER BAR -->
+            <div class="flex flex-wrap items-center gap-3 shrink-0">
+              @if (viewMode() === 'by-region') {
+                <!-- SELECT URUTAN WILAYAH -->
+                <div class="flex items-center gap-1.5">
+                  <label for="regionSortModeSelect" class="text-xs text-slate-500 font-medium shrink-0">Urutan Wilayah:</label>
+                  <select
+                    id="regionSortModeSelect"
+                    [value]="regionSortMode()"
+                    (change)="setRegionSortMode($any($event.target).value)"
+                    class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 focus:border-[#525AFF] focus:outline-none focus:ring-1 focus:ring-[#525AFF] cursor-pointer shadow-2xs"
+                    title="Urutkan kartu wilayah berdasarkan capaian rata-rata"
+                  >
+                    <option value="default" [selected]="regionSortMode() === 'default'">Sesuai Urutan Data (Asli)</option>
+                    <option value="desc" [selected]="regionSortMode() === 'desc'">Rata-rata Tertinggi ↓</option>
+                    <option value="asc" [selected]="regionSortMode() === 'asc'">Rata-rata Terendah ↑</option>
+                  </select>
+                </div>
+
+                <!-- SELECT GRAFIK PER BARIS -->
+                <div class="flex items-center gap-1.5">
+                  <label for="regionGridColumnsSelect" class="text-xs text-slate-500 font-medium shrink-0">Grafik per Baris:</label>
+                  <select
+                    id="regionGridColumnsSelect"
+                    [value]="regionGridColumns()"
+                    (change)="setRegionGridColumns(+$any($event.target).value)"
+                    class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 focus:border-[#525AFF] focus:outline-none focus:ring-1 focus:ring-[#525AFF] cursor-pointer shadow-2xs"
+                    title="Pilih jumlah kolom grafik per baris"
+                  >
+                    <option value="1" [selected]="regionGridColumns() === 1">1 Kolom / Baris</option>
+                    <option value="2" [selected]="regionGridColumns() === 2">2 Kolom / Baris</option>
+                    <option value="3" [selected]="regionGridColumns() === 3">3 Kolom / Baris</option>
+                  </select>
+                </div>
+              } @else {
+                <!-- SELECT URUTAN WILAYAH -->
+                <div class="flex items-center gap-1.5">
+                  <label for="indicatorSortModeSelect" class="text-xs text-slate-500 font-medium shrink-0">Urutan Wilayah:</label>
+                  <select
+                    id="indicatorSortModeSelect"
+                    [value]="indicatorSortMode()"
+                    (change)="setIndicatorSortMode($any($event.target).value)"
+                    class="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:border-[#525AFF] focus:outline-none focus:ring-1 focus:ring-[#525AFF] cursor-pointer shadow-2xs"
+                    title="Urutkan wilayah pada grafik indikator"
+                  >
+                    <option value="default" [selected]="indicatorSortMode() === 'default'">Sesuai Urutan Data (Asli)</option>
+                    <option value="desc" [selected]="indicatorSortMode() === 'desc'">Capaian Tertinggi ↓</option>
+                    <option value="asc" [selected]="indicatorSortMode() === 'asc'">Capaian Terendah ↑</option>
+                  </select>
+                </div>
+
+                <!-- SELECT GRAFIK PER BARIS -->
+                <div class="flex items-center gap-1.5">
+                  <label for="indicatorGridColumnsSelect" class="text-xs text-slate-500 font-medium shrink-0">Grafik per Baris:</label>
+                  <select
+                    id="indicatorGridColumnsSelect"
+                    [value]="indicatorGridColumns()"
+                    (change)="setIndicatorGridColumns(+$any($event.target).value)"
+                    class="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:border-[#525AFF] focus:outline-none focus:ring-1 focus:ring-[#525AFF] cursor-pointer shadow-2xs"
+                    title="Pilih jumlah kolom grafik per baris"
+                  >
+                    <option value="1" [selected]="indicatorGridColumns() === 1">1 Grafik / Baris</option>
+                    <option value="2" [selected]="indicatorGridColumns() === 2">2 Grafik / Baris</option>
+                    <option value="3" [selected]="indicatorGridColumns() === 3">3 Grafik / Baris</option>
+                  </select>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+
         <!-- 3.3 HASIL GRAFIK VISUALISASI SVG -->
         @if (selectedSeriesKeys().length === 0) {
           <div class="py-12 text-center">
@@ -873,44 +1079,118 @@
               </button>
             </div>
           } @else if (viewMode() === 'by-region') {
-            <!-- LEGEND INDIKATOR BATANG DAN AKSI GRAFIK WILAYAH -->
-            <div class="mb-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-xs font-medium text-slate-700">
-              <!-- LEGENDA SERI INDIKATOR -->
-              <div class="flex flex-wrap items-center gap-2">
-                <span class="font-bold text-slate-900">Seri Indikator:</span>
-                @for (s of seriesList(); track s.key) {
+            <!-- AKSI GRAFIK WILAYAH: TARGET PER INDIKATOR & UNDUH SVG/PNG -->
+            <div class="mb-4 flex flex-wrap items-center justify-end gap-3 border-t border-slate-100 pt-4 text-xs font-medium text-slate-700">
+              <div class="relative flex flex-wrap items-center gap-2.5">
+                <!-- TOMBOL POPOVER TARGET INDIKATOR -->
+                <button
+                  type="button"
+                  (click)="toggleTargetPopover()"
+                  class="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition cursor-pointer shadow-2xs"
+                  [class.border-[#525AFF]]="showTargetPopover() || configuredTargetCount() > 0"
+                  [class.bg-[#EEF0FF]]="showTargetPopover() || configuredTargetCount() > 0"
+                  [class.text-[#525AFF]]="showTargetPopover() || configuredTargetCount() > 0"
+                  [class.border-slate-300]="!showTargetPopover() && configuredTargetCount() === 0"
+                  [class.bg-white]="!showTargetPopover() && configuredTargetCount() === 0"
+                  [class.text-slate-700]="!showTargetPopover() && configuredTargetCount() === 0"
+                  title="Atur target khusus per masing-masing indikator"
+                >
+                  <span>🎯 Target Indikator</span>
+                  @if (configuredTargetCount() > 0) {
+                    <span class="rounded-full bg-[#525AFF] px-1.5 py-0.2 text-[10px] font-bold text-white">
+                      {{ configuredTargetCount() }}
+                    </span>
+                  }
+                </button>
+
+                <!-- POPOVER MODAL PENGATURAN TARGET INDIKATOR -->
+                @if (showTargetPopover()) {
+                  <!-- BACKDROP CLOSE -->
                   <div
-                    class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-slate-800 shadow-2xs"
+                    class="fixed inset-0 z-40 bg-slate-900/10 backdrop-blur-[1px]"
+                    (click)="closeTargetPopover()"
+                  ></div>
+
+                  <div
+                    class="absolute right-0 top-full mt-2 z-50 w-96 rounded-xl border border-slate-200 bg-white p-4 shadow-xl ring-1 ring-black/5 animate-in fade-in"
                   >
-                    <span
-                      class="h-3 w-3 rounded-full"
-                      [style.backgroundColor]="s.color"
-                    ></span>
-                    <span class="font-semibold">{{ s.label }}</span>
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
+                      <div>
+                        <h4 class="text-xs font-bold text-slate-900">Target Indikator (Per Wilayah)</h4>
+                        <p class="text-[11px] text-slate-500">Tentukan target spesifik per indikator.</p>
+                      </div>
+                      <button
+                        type="button"
+                        (click)="closeTargetPopover()"
+                        class="text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <!-- BATCH TARGET ASSIGNMENT -->
+                    <div class="mb-3 rounded-lg bg-slate-50 p-2.5 border border-slate-200">
+                      <label class="block text-[11px] font-semibold text-slate-700 mb-1.5">
+                        Terapkan Target Serentak ke Semua Indikator:
+                      </label>
+                      <div class="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          (keydown)="preventNegativeKey($event)"
+                          #batchTargetInput
+                          placeholder="Nilai target..."
+                          class="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 focus:border-[#525AFF] focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          (click)="applyGlobalTargetToAll(batchTargetInput.value); batchTargetInput.value = ''"
+                          class="shrink-0 rounded bg-[#525AFF] px-2.5 py-1 text-xs font-semibold text-white hover:bg-[#4348E6] transition cursor-pointer"
+                        >
+                          Terapkan
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- DAFTAR INPUT TARGET PER INDIKATOR -->
+                    <div class="max-h-56 overflow-y-auto space-y-2 pr-1">
+                      @for (s of seriesList(); track s.key) {
+                        <div class="flex items-center justify-between gap-2 rounded border border-slate-200 p-2 text-xs bg-white">
+                          <div class="flex items-center gap-1.5 min-w-0 flex-1">
+                            <span class="h-2.5 w-2.5 rounded-full shrink-0" [style.backgroundColor]="s.color"></span>
+                            <span class="truncate font-medium text-slate-800" [title]="s.label">{{ s.label }}</span>
+                          </div>
+                          <input
+                            type="number"
+                            min="0"
+                            (keydown)="preventNegativeKey($event)"
+                            [value]="getIndicatorTarget(s.key) ?? ''"
+                            (input)="onIndicatorTargetChange(s.key, $any($event.target).value)"
+                            placeholder="Kosongkan"
+                            class="w-18 rounded border border-slate-300 bg-slate-50 px-2 py-1 text-center font-bold text-slate-900 focus:bg-white focus:border-[#525AFF] focus:outline-none"
+                          />
+                        </div>
+                      }
+                    </div>
+
+                    <div class="mt-3 flex items-center justify-between border-t border-slate-100 pt-2.5">
+                      <button
+                        type="button"
+                        (click)="clearAllIndicatorTargets()"
+                        class="text-[11px] font-semibold text-rose-600 hover:text-rose-800 cursor-pointer"
+                      >
+                        Reset Semua Target
+                      </button>
+                      <button
+                        type="button"
+                        (click)="closeTargetPopover()"
+                        class="rounded bg-slate-900 px-3 py-1 text-xs font-semibold text-white hover:bg-slate-800 transition cursor-pointer"
+                      >
+                        Selesai
+                      </button>
+                    </div>
                   </div>
                 }
-
-                @if (targetValue() !== null) {
-                  <div class="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-red-800 font-semibold shadow-2xs">
-                    <span class="inline-block h-0.5 w-4 border-t-2 border-dashed border-red-600"></span>
-                    <span>Target: {{ targetValue() }}</span>
-                  </div>
-                }
-              </div>
-
-              <!-- AKSI GRAFIK WILAYAH: GARIS TARGET & UNDUH SVG/PNG -->
-              <div class="flex flex-wrap items-center gap-2 shrink-0">
-                <!-- TARGET BENCHMARK INPUT KHUSUS GRAFIK WILAYAH -->
-                <div class="flex items-center gap-2 rounded border border-slate-300 bg-slate-50 px-2.5 py-1 text-xs">
-                  <span class="font-semibold text-slate-700">Garis Target:</span>
-                  <input
-                    type="number"
-                    [value]="targetValue() ?? ''"
-                    (input)="targetValue.set($any($event.target).value ? +$any($event.target).value : null)"
-                    placeholder="Kosongkan"
-                    class="w-16 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-center font-bold text-slate-900 focus:outline-none"
-                  />
-                </div>
 
                 <!-- UNDUH SVG -->
                 <button
@@ -939,375 +1219,293 @@
                 </button>
               </div>
             </div>
-            <div class="overflow-x-auto rounded-xl border border-slate-100 p-2">
-              <div class="min-w-[850px]">
-                @let res = layout();
-                <svg
-                  id="chartSvg"
-                  [attr.viewBox]="'0 0 ' + res.viewBoxWidth + ' ' + res.viewBoxHeight"
-                  style="background-color: #ffffff; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;"
-                  class="w-full h-auto overflow-visible select-none"
-                >
-                  <!-- BACKGROUND FOR EXPORT -->
-                  <rect width="100%" height="100%" fill="#ffffff" />
+            <!-- DAFTAR KELOMPOK GRAFIK PER WILAYAH -->
+            <div [class]="regionGridClass()">
+              @for (item of regionLayouts(); track item.regionName; let idx = $index) {
+                <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">
+                  <!-- HEADER KARTU KELOMPOK WILAYAH -->
+                  <div class="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3">
+                    <div>
+                      <div class="flex items-center gap-2">
+                        <span
+                          class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white bg-[#525AFF]"
+                        >
+                          {{ idx + 1 }}
+                        </span>
+                        <h3 class="text-sm font-bold text-slate-900">
+                          {{ item.regionName }}
+                        </h3>
+                        <span
+                          class="rounded-full px-2 py-0.5 text-[10px] font-semibold bg-[#EEF0FF] text-[#525AFF]"
+                        >
+                          Wilayah
+                        </span>
+                      </div>
 
-                  <!-- CHART TITLE & SUBTITLE IN SVG (UNTUK FILE EXPORT) -->
-                  <text
-                    [attr.x]="res.plotX"
-                    y="28"
-                    font-family="system-ui, sans-serif"
-                    font-size="16"
-                    font-weight="bold"
-                    fill="#0f172a"
-                  >
-                    {{ chartTitle() }}
-                  </text>
-                  <text
-                    [attr.x]="res.plotX"
-                    y="48"
-                    font-family="system-ui, sans-serif"
-                    font-size="11"
-                    fill="#64748b"
-                  >
-                    {{ chartSubtitle() }}
-                  </text>
-                  @if (targetValue() !== null) {
-                    <text
-                      [attr.x]="res.plotX"
-                      y="64"
-                      font-family="system-ui, sans-serif"
-                      font-size="10.5"
-                      font-weight="bold"
-                      fill="#b91c1c"
-                    >
-                      Target Acuan: {{ targetValue() }}
-                    </text>
-                  }
-
-                  <!-- 1. GRID LINES & X-AXIS TICKS -->
-                  <g class="grid-lines">
-                    @for (tick of res.ticks; track tick.value) {
-                      <line
-                        [attr.x1]="tick.x"
-                        [attr.y1]="res.plotY"
-                        [attr.x2]="tick.x"
-                        [attr.y2]="res.plotY + res.plotHeight"
-                        stroke="#e2e8f0"
-                        stroke-width="1"
-                        stroke-dasharray="3 3"
-                      />
-                      <text
-                        [attr.x]="tick.x"
-                        [attr.y]="res.plotY - 12"
-                        text-anchor="middle"
-                        font-family="monospace, sans-serif"
-                        font-size="11"
-                        fill="#94a3b8"
-                      >
-                        {{ tick.label }}
-                      </text>
-                      <text
-                        [attr.x]="tick.x"
-                        [attr.y]="res.plotY + res.plotHeight + 20"
-                        text-anchor="middle"
-                        font-family="monospace, sans-serif"
-                        font-size="11"
-                        fill="#64748b"
-                      >
-                        {{ tick.label }}
-                      </text>
-                    }
-
-                    <line
-                      [attr.x1]="res.plotX"
-                      [attr.y1]="res.plotY + res.plotHeight"
-                      [attr.x2]="res.plotX + res.plotWidth"
-                      [attr.y2]="res.plotY + res.plotHeight"
-                      stroke="#cbd5e1"
-                      stroke-width="1.5"
-                    />
-                  </g>
-
-                  <!-- 2. CATEGORY GROUPS (Y-AXIS LABELS & BARS) -->
-                  @for (group of res.categoryGroups; track group.categoryName; let cIdx = $index) {
-                    @if (cIdx % 2 === 1) {
-                      <rect
-                        [attr.x]="res.plotX"
-                        [attr.y]="group.y"
-                        [attr.width]="res.plotWidth"
-                        [attr.height]="group.height"
-                        fill="#f8fafc"
-                        class="pointer-events-none"
-                      />
-                    }
-
-                    <line
-                      [attr.x1]="res.plotX - 10"
-                      [attr.y1]="group.y + group.height"
-                      [attr.x2]="res.plotX + res.plotWidth"
-                      [attr.y2]="group.y + group.height"
-                      stroke="#f1f5f9"
-                      stroke-width="1"
-                    />
-
-                    <!-- Y-Axis Category Label (Wilayah) -->
-                    <text
-                      [attr.x]="res.plotX - 16"
-                      [attr.y]="group.y + group.height / 2 + 4"
-                      text-anchor="end"
-                      font-family="system-ui, sans-serif"
-                      font-size="12"
-                      font-weight="bold"
-                      fill="#1e293b"
-                    >
-                      {{ group.categoryName }}
-                    </text>
-
-                    <!-- Bars in Group -->
-                    @for (bar of group.bars; track bar.seriesKey) {
-                      <g
-                        class="bar-group group cursor-pointer"
-                        (mouseenter)="onBarHover($event, bar, group.categoryName)"
-                        (mousemove)="onBarMouseMove($event)"
-                        (mouseleave)="onBarLeave()"
-                      >
-                        <title>{{ group.categoryName }} - {{ bar.seriesLabel }}: {{ bar.displayLabel }}</title>
-
-                        <!-- Bar Rectangle -->
-                        @if (!bar.isMissing && bar.numericVal !== null && bar.numericVal > 0) {
-                          <rect
-                            [attr.x]="bar.x"
-                            [attr.y]="bar.y"
-                            [attr.width]="bar.width"
-                            [attr.height]="bar.height"
-                            [attr.fill]="bar.color"
-                            rx="3"
-                            ry="3"
-                            class="transition-opacity hover:opacity-85"
-                          />
-                        } @else if (bar.isZero) {
-                          <!-- Zero Value Tick Marker -->
-                          <rect
-                            [attr.x]="bar.x"
-                            [attr.y]="bar.y"
-                            width="3"
-                            [attr.height]="bar.height"
-                            fill="#64748b"
-                            rx="1"
-                          />
+                      <!-- METRIK SUMMARY STATS WILAYAH -->
+                      <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                        <span>Rata-rata: <strong class="text-slate-700">{{ item.stats.avgValue !== null ? item.stats.avgValue : '-' }}</strong></span>
+                        @if (item.stats.highest) {
+                          <span>Tertinggi: <strong class="text-slate-700">{{ item.stats.highest.label }} ({{ item.stats.highest.value }})</strong></span>
                         }
+                        @if (item.stats.lowest) {
+                          <span>Terendah: <strong class="text-slate-700">{{ item.stats.lowest.label }} ({{ item.stats.lowest.value }})</strong></span>
+                        }
+                        @if (item.stats.totalTargeted > 0) {
+                          <span
+                            class="rounded px-1.5 py-0.2 font-semibold"
+                            [class.bg-emerald-50]="item.stats.achievedCount > 0"
+                            [class.text-emerald-700]="item.stats.achievedCount > 0"
+                            [class.bg-slate-100]="item.stats.achievedCount === 0"
+                            [class.text-slate-600]="item.stats.achievedCount === 0"
+                          >
+                            {{ item.stats.achievedCount }}/{{ item.stats.totalTargeted }} Indikator Capai Target
+                          </span>
+                        }
+                      </div>
+                    </div>
 
-                        <!-- Value Label at End of Bar -->
-                        <text
-                          [attr.x]="bar.x + bar.width + 6"
-                          [attr.y]="bar.y + bar.height / 2 + 4"
-                          font-family="monospace, sans-serif"
-                          font-size="10"
-                          [attr.font-weight]="bar.numericVal !== null && bar.numericVal > 0 ? 'bold' : 'normal'"
-                          [attr.fill]="bar.isMissing ? '#94a3b8' : bar.isZero ? '#64748b' : '#334155'"
-                          [attr.font-style]="bar.isMissing ? 'italic' : 'normal'"
-                        >
-                          {{ bar.displayLabel }}
-                        </text>
-                      </g>
-                    }
-                  }
-
-                  <!-- 3. TARGET REFERENCE LINE -->
-                  @if (res.targetLineX; as targetLineX) {
-                    @if (targetValue() !== null) {
-                      <g class="target-line-group pointer-events-none">
-                        <line
-                          [attr.x1]="targetLineX"
-                          [attr.y1]="res.plotY - 6"
-                          [attr.x2]="targetLineX"
-                          [attr.y2]="res.plotY + res.plotHeight + 6"
-                          stroke="#dc2626"
-                          stroke-width="2"
-                          stroke-dasharray="5 4"
-                        />
-
-                        <!-- Top Badge -->
-                        <rect
-                          [attr.x]="targetLineX - 26"
-                          [attr.y]="res.plotY - 26"
-                          width="52"
-                          height="18"
-                          rx="4"
-                          fill="#fef2f2"
-                          stroke="#fca5a5"
-                          stroke-width="1"
-                        />
-                        <text
-                          [attr.x]="targetLineX"
-                          [attr.y]="res.plotY - 13"
-                          text-anchor="middle"
-                          font-family="monospace, sans-serif"
-                          font-size="10"
-                          font-weight="bold"
-                          fill="#b91c1c"
-                        >
-                          {{ targetValue() }}
-                        </text>
-
-                        <!-- Bottom Badge -->
-                        <rect
-                          [attr.x]="targetLineX - 26"
-                          [attr.y]="res.plotY + res.plotHeight + 8"
-                          width="52"
-                          height="18"
-                          rx="4"
-                          fill="#fef2f2"
-                          stroke="#fca5a5"
-                          stroke-width="1"
-                        />
-                        <text
-                          [attr.x]="targetLineX"
-                          [attr.y]="res.plotY + res.plotHeight + 21"
-                          text-anchor="middle"
-                          font-family="monospace, sans-serif"
-                          font-size="10"
-                          font-weight="bold"
-                          fill="#b91c1c"
-                        >
-                          {{ targetValue() }}
-                        </text>
-                      </g>
-                    }
-                  }
-
-                  <!-- TARGET INFO DI BAGIAN BAWAH INDIKATOR -->
-                  @if (targetValue() !== null) {
-                    <g class="chart-footer-target pointer-events-none">
-                      <rect
-                        [attr.x]="res.plotX"
-                        [attr.y]="res.plotY + res.plotHeight + 36"
-                        width="160"
-                        height="18"
-                        rx="4"
-                        fill="#fef2f2"
-                        stroke="#fca5a5"
-                        stroke-width="0.8"
-                      />
-                      <text
-                        [attr.x]="res.plotX + 8"
-                        [attr.y]="res.plotY + res.plotHeight + 49"
-                        font-family="system-ui, sans-serif"
-                        font-size="10.5"
-                        font-weight="bold"
-                        fill="#b91c1c"
+                    <!-- EXPORT BUTTONS PER-WILAYAH (Excel, SVG, PNG) -->
+                    <div class="flex flex-wrap items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        (click)="exportRegionExcel(item.regionName)"
+                        class="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                        title="Unduh data {{ item.regionName }} format Excel"
                       >
-                        Target Acuan: {{ targetValue() }}
-                      </text>
-                    </g>
-                  }
-                </svg>
-              </div>
+                        <svg class="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span>Excel</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        (click)="exportSvg('regionChartSvg-' + idx, item.regionName)"
+                        class="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                        title="Unduh grafik {{ item.regionName }} format SVG"
+                      >
+                        <svg class="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span>SVG</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        (click)="exportPng('regionChartSvg-' + idx, item.regionName)"
+                        class="inline-flex items-center gap-1 rounded bg-[#525AFF] px-2.5 py-1 text-xs font-medium text-white hover:bg-[#4348E6] shadow-xs shadow-[#525AFF]/20 transition cursor-pointer"
+                        title="Unduh grafik {{ item.regionName }} format PNG"
+                      >
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        <span>PNG</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- KANVAS SVG GRAFIK PER WILAYAH -->
+                  <div class="overflow-x-auto rounded-lg border border-slate-100 p-2">
+                    <div class="min-w-[550px]">
+                      @let res = item.layout;
+                      <svg
+                        [id]="'regionChartSvg-' + idx"
+                        [attr.viewBox]="'0 0 ' + res.viewBoxWidth + ' ' + res.viewBoxHeight"
+                        style="background-color: #ffffff; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;"
+                        class="w-full h-auto overflow-visible select-none chart-canvas"
+                      >
+                        <!-- BACKGROUND FOR EXPORT -->
+                        <rect width="100%" height="100%" fill="#ffffff" />
+
+                        <!-- CHART TITLE IN SVG -->
+                        <text
+                          [attr.x]="res.plotX"
+                          y="24"
+                          font-family="system-ui, sans-serif"
+                          font-size="14"
+                          font-weight="bold"
+                          fill="#0f172a"
+                        >
+                          {{ item.regionName }}
+                        </text>
+
+                        <!-- 1. GRID LINES & X-AXIS TICKS -->
+                        <g class="grid-lines">
+                          @for (tick of res.ticks; track tick.value) {
+                            <line
+                              [attr.x1]="tick.x"
+                              [attr.y1]="res.plotY"
+                              [attr.x2]="tick.x"
+                              [attr.y2]="res.plotY + res.plotHeight"
+                              stroke="#e2e8f0"
+                              stroke-width="1"
+                              stroke-dasharray="3 3"
+                            />
+                            <text
+                              [attr.x]="tick.x"
+                              [attr.y]="res.plotY - 10"
+                              text-anchor="middle"
+                              font-family="monospace, sans-serif"
+                              font-size="11"
+                              fill="#94a3b8"
+                            >
+                              {{ tick.label }}
+                            </text>
+                            <text
+                              [attr.x]="tick.x"
+                              [attr.y]="res.plotY + res.plotHeight + 20"
+                              text-anchor="middle"
+                              font-family="monospace, sans-serif"
+                              font-size="11"
+                              fill="#64748b"
+                            >
+                              {{ tick.label }}
+                            </text>
+                          }
+
+                          <line
+                            [attr.x1]="res.plotX"
+                            [attr.y1]="res.plotY + res.plotHeight"
+                            [attr.x2]="res.plotX + res.plotWidth"
+                            [attr.y2]="res.plotY + res.plotHeight"
+                            stroke="#cbd5e1"
+                            stroke-width="1.5"
+                          />
+                        </g>
+
+                        <!-- 2. CATEGORY GROUPS (Y-AXIS INDIKATOR & BARS) -->
+                        @for (group of res.categoryGroups; track group.categoryName; let cIdx = $index) {
+                          @if (cIdx % 2 === 1) {
+                            <rect
+                              [attr.x]="res.plotX"
+                              [attr.y]="group.y"
+                              [attr.width]="res.plotWidth"
+                              [attr.height]="group.height"
+                              fill="#f8fafc"
+                              class="pointer-events-none"
+                            />
+                          }
+
+                          <line
+                            [attr.x1]="res.plotX - 10"
+                            [attr.y1]="group.y + group.height"
+                            [attr.x2]="res.plotX + res.plotWidth"
+                            [attr.y2]="group.y + group.height"
+                            stroke="#f1f5f9"
+                            stroke-width="1"
+                          />
+
+                          <!-- Y-Axis Category Label (Indikator) -->
+                          <text
+                            [attr.x]="res.plotX - 16"
+                            [attr.y]="group.y + group.height / 2 + 4"
+                            text-anchor="end"
+                            font-family="system-ui, sans-serif"
+                            font-size="11"
+                            font-weight="semibold"
+                            fill="#1e293b"
+                          >
+                            {{ group.categoryName }}
+                          </text>
+
+                          <!-- Bar for Indicator -->
+                          @for (bar of group.bars; track bar.seriesKey) {
+                            <g
+                              class="bar-group group cursor-pointer"
+                              (mouseenter)="onBarHover($event, bar, item.regionName, bar.targetVal, group.categoryName)"
+                              (mousemove)="onBarMouseMove($event)"
+                              (mouseleave)="onBarLeave()"
+                            >
+                              <title>{{ item.regionName }} - {{ group.categoryName }}: {{ bar.displayLabel }}{{ bar.targetVal !== null ? ' (Target: ' + bar.targetVal + ')' : '' }}</title>
+
+                              @if (!bar.isMissing && bar.numericVal !== null && bar.numericVal > 0) {
+                                <rect
+                                  [attr.x]="bar.x"
+                                  [attr.y]="bar.y"
+                                  [attr.width]="bar.width"
+                                  [attr.height]="bar.height"
+                                  [attr.fill]="bar.color"
+                                  rx="3"
+                                  ry="3"
+                                  class="transition-opacity hover:opacity-85"
+                                />
+                              } @else if (bar.isZero) {
+                                <rect
+                                  [attr.x]="bar.x"
+                                  [attr.y]="bar.y"
+                                  width="3"
+                                  [attr.height]="bar.height"
+                                  fill="#64748b"
+                                  rx="1"
+                                />
+                              }
+
+                              <!-- Target Pin on Individual Bar -->
+                              @let tX = bar.targetX;
+                              @if (bar.targetVal !== null && bar.targetVal !== undefined && tX !== null && tX !== undefined) {
+                                <g class="target-pin pointer-events-none">
+                                  <line
+                                    [attr.x1]="tX"
+                                    [attr.y1]="bar.y - 3"
+                                    [attr.x2]="tX"
+                                    [attr.y2]="bar.y + bar.height + 3"
+                                    stroke="#dc2626"
+                                    stroke-width="2"
+                                  />
+                                  <polygon
+                                    [attr.points]="tX + ',' + (bar.y - 1) + ' ' + (tX - 3.5) + ',' + (bar.y - 6) + ' ' + (tX + 3.5) + ',' + (bar.y - 6)"
+                                    fill="#dc2626"
+                                  />
+                                </g>
+                              }
+
+                              <!-- Display Label & Target Badge -->
+                              <text
+                                [attr.x]="bar.x + bar.width + 6"
+                                [attr.y]="bar.y + bar.height / 2 + 4"
+                                font-family="monospace, sans-serif"
+                                font-size="10"
+                                [attr.font-weight]="bar.numericVal !== null && bar.numericVal > 0 ? 'bold' : 'normal'"
+                                [attr.fill]="bar.isMissing ? '#94a3b8' : bar.isZero ? '#64748b' : '#334155'"
+                                [attr.font-style]="bar.isMissing ? 'italic' : 'normal'"
+                              >
+                                {{ bar.displayLabel }}
+                                @if (bar.targetVal !== null) {
+                                  <tspan fill="#64748b" font-size="9"> (T: {{ bar.targetVal }})</tspan>
+                                  @if (bar.isAchieved !== null) {
+                                    <tspan [attr.fill]="bar.isAchieved ? '#16a34a' : '#dc2626'" font-weight="bold"> {{ bar.isAchieved ? '✓' : '✗' }}</tspan>
+                                  }
+                                }
+                              </text>
+                            </g>
+                          }
+                        }
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              }
+              @if (regionLayouts().length === 0) {
+                <div class="col-span-full py-12 text-center text-slate-400 italic">
+                  Tidak ada data wilayah yang cocok dengan pencarian atau filter.
+                </div>
+              }
             </div>
 
             <!-- RINGKASAN DATA STATISTIK DI BAWAH GRAFIK -->
             <div class="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 border-t border-slate-100 pt-3">
               <span>
-                Menampilkan <strong>{{ visibleCategories().length }}</strong> baris dengan <strong>{{ seriesList().length }}</strong> seri indikator batang.
+                Menampilkan <strong>{{ regionLayouts().length }}</strong> kartu wilayah dengan <strong>{{ seriesList().length }}</strong> indikator kesehatan.
               </span>
             </div>
           } @else {
             <!-- ============================================== -->
             <!-- MODE 2: PER INDIKATOR (KELOMPOK GRAFIK PER KOLOM) -->
             <!-- ============================================== -->
-            <div class="mb-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-t border-slate-100 pt-4">
-              <!-- TAB FILTER INDIKATOR / QUICK JUMP -->
-              <div class="flex flex-wrap items-center gap-1.5 overflow-x-auto pb-1">
-                <button
-                  type="button"
-                  (click)="setSelectedIndicatorFilter('all')"
-                  class="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition cursor-pointer"
-                  [class.border-[#525AFF]]="selectedIndicatorFilter() === 'all'"
-                  [class.bg-[#525AFF]]="selectedIndicatorFilter() === 'all'"
-                  [class.text-white]="selectedIndicatorFilter() === 'all'"
-                  [class.shadow-xs]="selectedIndicatorFilter() === 'all'"
-                  [class.shadow-[#525AFF]/20]="selectedIndicatorFilter() === 'all'"
-                  [class.border-slate-200]="selectedIndicatorFilter() !== 'all'"
-                  [class.bg-white]="selectedIndicatorFilter() !== 'all'"
-                  [class.text-slate-700]="selectedIndicatorFilter() !== 'all'"
-                  [class.hover:bg-slate-50]="selectedIndicatorFilter() !== 'all'"
-                >
-                  <span>Semua Indikator</span>
-                  <span
-                    class="rounded-full px-1.5 py-0.2 text-[10px]"
-                    [class.bg-white/20]="selectedIndicatorFilter() === 'all'"
-                    [class.text-white]="selectedIndicatorFilter() === 'all'"
-                    [class.bg-slate-100]="selectedIndicatorFilter() !== 'all'"
-                    [class.text-slate-600]="selectedIndicatorFilter() !== 'all'"
-                  >
-                    {{ seriesList().length }}
-                  </span>
-                </button>
-
-                @for (s of seriesList(); track s.key) {
-                  @let isTabActive = selectedIndicatorFilter() === s.key;
-                  <button
-                    type="button"
-                    (click)="setSelectedIndicatorFilter(s.key)"
-                    class="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition cursor-pointer"
-                    [class.border-[#525AFF]]="isTabActive"
-                    [class.bg-[#EEF0FF]]="isTabActive"
-                    [class.text-[#525AFF]]="isTabActive"
-                    [class.font-semibold]="isTabActive"
-                    [class.border-slate-200]="!isTabActive"
-                    [class.bg-white]="!isTabActive"
-                    [class.text-slate-600]="!isTabActive"
-                    [class.hover:bg-slate-50]="!isTabActive"
-                  >
-                    <span class="h-2.5 w-2.5 rounded-full flex-shrink-0" [style.backgroundColor]="s.color"></span>
-                    <span class="max-w-[140px] truncate">{{ s.label }}</span>
-                  </button>
-                }
-              </div>
-
-              <!-- PENGURUTAN CAPAIAN WILAYAH -->
-              <div class="flex items-center gap-2 self-start md:self-auto shrink-0">
-                <span class="text-xs text-slate-500 font-medium">Urutan Wilayah:</span>
-                <div class="inline-flex rounded-md border border-slate-200 bg-white p-0.5 text-xs">
-                  <button
-                    type="button"
-                    (click)="setIndicatorSortMode('default')"
-                    class="rounded px-2 py-1 font-medium transition cursor-pointer"
-                    [class.bg-slate-100]="indicatorSortMode() === 'default'"
-                    [class.text-slate-900]="indicatorSortMode() === 'default'"
-                    [class.text-slate-600]="indicatorSortMode() !== 'default'"
-                    title="Urutan asli wilayah sesuai berkas data"
-                  >
-                    Asli
-                  </button>
-                  <button
-                    type="button"
-                    (click)="setIndicatorSortMode('desc')"
-                    class="rounded px-2 py-1 font-medium transition cursor-pointer"
-                    [class.bg-slate-100]="indicatorSortMode() === 'desc'"
-                    [class.text-slate-900]="indicatorSortMode() === 'desc'"
-                    [class.text-slate-600]="indicatorSortMode() !== 'desc'"
-                    title="Urutkan dari nilai capaian tertinggi ke terendah"
-                  >
-                    Tertinggi ↓
-                  </button>
-                  <button
-                    type="button"
-                    (click)="setIndicatorSortMode('asc')"
-                    class="rounded px-2 py-1 font-medium transition cursor-pointer"
-                    [class.bg-slate-100]="indicatorSortMode() === 'asc'"
-                    [class.text-slate-900]="indicatorSortMode() === 'asc'"
-                    [class.text-slate-600]="indicatorSortMode() !== 'asc'"
-                    title="Urutkan dari nilai capaian terendah ke tertinggi"
-                  >
-                    Terendah ↑
-                  </button>
-                </div>
-              </div>
-            </div>
 
             <!-- DAFTAR KELOMPOK GRAFIK PER INDIKATOR -->
-            <div class="space-y-8">
+            <div [class]="indicatorGridClass()">
               @for (item of filteredIndicatorLayouts(); track item.series.key; let idx = $index) {
                 <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">
                   <!-- HEADER KARTU KELOMPOK INDIKATOR -->
@@ -1421,27 +1619,7 @@
                         >
                           {{ item.series.label }}
                         </text>
-                        <text
-                          [attr.x]="res.plotX"
-                          y="40"
-                          font-family="system-ui, sans-serif"
-                          font-size="11"
-                          fill="#64748b"
-                        >
-                          Perbandingan Seluruh Wilayah ({{ res.categoryGroups.length }} Daerah) · {{ chartSubtitle() }}
-                        </text>
-                        @if (item.stats.targetValue !== null) {
-                          <text
-                            [attr.x]="res.plotX"
-                            y="54"
-                            font-family="system-ui, sans-serif"
-                            font-size="10.5"
-                            font-weight="bold"
-                            fill="#b91c1c"
-                          >
-                            Target Indikator: ≥ {{ item.stats.targetValue }}
-                          </text>
-                        }
+
 
                         <!-- 1. GRID LINES & X-AXIS TICKS -->
                         <g class="grid-lines">
@@ -1724,4 +1902,305 @@
       }
     }
   </div>
+
+  <!-- ============================================================ -->
+  <!-- MODAL CHECKBOX FILTER WILAYAH -->
+  <!-- ============================================================ -->
+  @if (showRegionFilterModal()) {
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <!-- Backdrop -->
+      <div
+        class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity"
+        (click)="closeRegionFilterModal()"
+      ></div>
+
+      <!-- Modal Card -->
+      <div class="relative z-10 w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+          <div class="flex items-center gap-2.5">
+            <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-[#525AFF]/10 text-[#525AFF]">
+              <svg class="h-4.5 w-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-slate-900">Filter Wilayah Visualisasi</h3>
+              <p class="text-xs text-slate-500">Centang wilayah yang ingin ditampilkan dalam grafik perbandingan.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            (click)="closeRegionFilterModal()"
+            class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+
+        <!-- Pencarian & Quick Actions -->
+        <div class="space-y-3 mb-4">
+          <div class="relative">
+            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <input
+              type="text"
+              [value]="regionModalSearch()"
+              (input)="regionModalSearch.set($any($event.target).value)"
+              placeholder="Cari nama wilayah / puskesmas..."
+              class="w-full rounded-xl border border-slate-300 bg-white py-2 pl-9 pr-8 text-xs text-slate-800 placeholder-slate-400 focus:border-[#525AFF] focus:outline-none focus:ring-1 focus:ring-[#525AFF]"
+            />
+            @if (regionModalSearch()) {
+              <button
+                type="button"
+                (click)="regionModalSearch.set('')"
+                class="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                ✕
+              </button>
+            }
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                (click)="selectAllCategories()"
+                class="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700 hover:bg-slate-100 transition cursor-pointer font-medium"
+              >
+                Pilih Semua
+              </button>
+              <button
+                type="button"
+                (click)="clearAllCategories()"
+                class="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700 hover:bg-slate-100 transition cursor-pointer font-medium"
+              >
+                Batal Semua
+              </button>
+              @if (hasHiddenOrDeletedRows()) {
+                <button
+                  type="button"
+                  (click)="restoreAllRows()"
+                  class="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-700 hover:bg-emerald-100 transition cursor-pointer font-medium"
+                >
+                  Pulihkan Semua Baris
+                </button>
+              }
+            </div>
+
+            <span class="text-slate-500 font-medium">
+              <strong class="text-slate-800">{{ selectedCategories().length }}</strong> dari {{ availableCategories().length }} wilayah dipilih
+            </span>
+          </div>
+        </div>
+
+        <!-- Checkbox List -->
+        <div class="max-h-72 overflow-y-auto p-1 border border-slate-100 rounded-xl bg-slate-50/50">
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+            @for (cat of filteredModalCategories(); track cat) {
+              @let isChecked = isCategorySelected(cat);
+              <label
+                class="flex items-center gap-2.5 rounded-lg border p-2 text-xs transition cursor-pointer"
+                [class.border-[#525AFF]]="isChecked"
+                [class.bg-[#EEF0FF]/60]="isChecked"
+                [class.text-[#525AFF]]="isChecked"
+                [class.border-slate-200]="!isChecked"
+                [class.bg-white]="!isChecked"
+                [class.hover:bg-slate-50]="!isChecked"
+              >
+                <input
+                  type="checkbox"
+                  [checked]="isChecked"
+                  (change)="toggleCategory(cat)"
+                  class="rounded border-slate-300 text-[#525AFF] focus:ring-0 accent-[#525AFF]"
+                />
+                <span class="truncate font-medium text-slate-800" [title]="cat">{{ cat }}</span>
+              </label>
+            }
+          </div>
+
+          @if (filteredModalCategories().length === 0) {
+            <div class="py-6 text-center text-xs text-slate-400 italic">
+              Tidak ada wilayah yang cocok dengan "{{ regionModalSearch() }}".
+            </div>
+          }
+        </div>
+
+        <!-- Footer -->
+        <div class="mt-5 flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+          <button
+            type="button"
+            (click)="closeRegionFilterModal()"
+            class="rounded-lg bg-[#525AFF] px-4 py-2 text-xs font-semibold text-white hover:bg-[#4348E6] transition cursor-pointer shadow-xs shadow-[#525AFF]/20"
+          >
+            Selesai &amp; Terapkan
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- ============================================================ -->
+  <!-- MODAL CHECKBOX FILTER INDIKATOR -->
+  <!-- ============================================================ -->
+  @if (showIndicatorFilterModal()) {
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <!-- Backdrop -->
+      <div
+        class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity"
+        (click)="closeIndicatorFilterModal()"
+      ></div>
+
+      <!-- Modal Card -->
+      <div class="relative z-10 w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+          <div class="flex items-center gap-2.5">
+            <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-[#525AFF]/10 text-[#525AFF]">
+              <svg class="h-4.5 w-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-slate-900">Filter Indikator Visualisasi</h3>
+              <p class="text-xs text-slate-500">Centang indikator capaian kesehatan yang ingin ditampilkan dan dibandingkan.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            (click)="closeIndicatorFilterModal()"
+            class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+
+        <!-- Pencarian & Quick Actions -->
+        <div class="space-y-3 mb-4">
+          <div class="relative">
+            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <input
+              type="text"
+              [value]="indicatorModalSearch()"
+              (input)="indicatorModalSearch.set($any($event.target).value)"
+              placeholder="Cari indikator kesehatan..."
+              class="w-full rounded-xl border border-slate-300 bg-white py-2 pl-9 pr-8 text-xs text-slate-800 placeholder-slate-400 focus:border-[#525AFF] focus:outline-none focus:ring-1 focus:ring-[#525AFF]"
+            />
+            @if (indicatorModalSearch()) {
+              <button
+                type="button"
+                (click)="indicatorModalSearch.set('')"
+                class="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                ✕
+              </button>
+            }
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div class="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                (click)="selectAllSeriesColumns()"
+                class="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700 hover:bg-slate-100 transition cursor-pointer font-medium"
+              >
+                Pilih Semua
+              </button>
+              <button
+                type="button"
+                (click)="selectPercentageSeriesColumns()"
+                class="rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-indigo-700 hover:bg-indigo-100 transition cursor-pointer font-medium"
+              >
+                Hanya Persentase (%)
+              </button>
+              <button
+                type="button"
+                (click)="selectNumericSeriesColumns()"
+                class="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700 hover:bg-slate-100 transition cursor-pointer font-medium"
+              >
+                Hanya Numerik (123)
+              </button>
+              <button
+                type="button"
+                (click)="clearAllSeriesColumns()"
+                class="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700 hover:bg-slate-100 transition cursor-pointer font-medium"
+              >
+                Kosongkan
+              </button>
+            </div>
+
+            <span class="text-slate-500 font-medium">
+              <strong class="text-slate-800">{{ selectedSeriesKeys().length }}</strong> dari {{ allCandidateSeriesColumns().length }} indikator dipilih
+            </span>
+          </div>
+        </div>
+
+        <!-- Checkbox List -->
+        <div class="max-h-72 overflow-y-auto p-1 border border-slate-100 rounded-xl bg-slate-50/50">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            @for (col of filteredModalIndicators(); track col.header) {
+              @let isChecked = selectedSeriesKeys().includes(col.header);
+              @let isPct = isPercentageColumn(col.header);
+              <label
+                class="flex items-center gap-2.5 rounded-lg border p-2.5 text-xs transition cursor-pointer"
+                [class.border-[#525AFF]]="isChecked"
+                [class.bg-[#EEF0FF]/60]="isChecked"
+                [class.border-slate-200]="!isChecked"
+                [class.bg-white]="!isChecked"
+                [class.hover:bg-slate-50]="!isChecked"
+              >
+                <input
+                  type="checkbox"
+                  [checked]="isChecked"
+                  (change)="toggleSeriesColumn(col.header)"
+                  class="rounded border-slate-300 text-[#525AFF] focus:ring-0 accent-[#525AFF]"
+                />
+                <span
+                  class="h-3 w-3 rounded-full shrink-0"
+                  [style.backgroundColor]="getIndicatorColor(col.header)"
+                ></span>
+                <span
+                  class="rounded px-1.5 py-0.2 text-[9px] font-bold shrink-0"
+                  [class.bg-indigo-100]="isPct"
+                  [class.text-indigo-700]="isPct"
+                  [class.bg-slate-200]="!isPct"
+                  [class.text-slate-700]="!isPct"
+                >
+                  {{ isPct ? '%' : '123' }}
+                </span>
+                <span class="truncate font-medium text-slate-800 flex-1 min-w-0" [title]="col.header">
+                  {{ col.header }}
+                </span>
+              </label>
+            }
+          </div>
+
+          @if (filteredModalIndicators().length === 0) {
+            <div class="py-6 text-center text-xs text-slate-400 italic">
+              Tidak ada indikator yang cocok dengan "{{ indicatorModalSearch() }}".
+            </div>
+          }
+        </div>
+
+        <!-- Footer -->
+        <div class="mt-5 flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+          <button
+            type="button"
+            (click)="closeIndicatorFilterModal()"
+            class="rounded-lg bg-[#525AFF] px-4 py-2 text-xs font-semibold text-white hover:bg-[#4348E6] transition cursor-pointer shadow-xs shadow-[#525AFF]/20"
+          >
+            Selesai &amp; Terapkan
+          </button>
+        </div>
+      </div>
+    </div>
+  }
 </div>

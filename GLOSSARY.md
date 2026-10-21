@@ -98,6 +98,18 @@ _Avoid_: Kolom target riil, sum bawah
 Layanan backend berbasis Google Apps Script Web App yang terhubung ke Google Drive untuk menyimpan dan memuat file Excel biner (`.xlsx`) dan konfigurasi join (`.json`) secara terpusat di cloud tanpa membutuhkan server database terpisah.
 _Avoid_: Database server, local storage eksternal, backend API server
 
+**Slot Periode Lintas Triwulan**:
+Partisi penyimpanan di Google Drive yang diidentifikasi oleh pasangan Tahun Anggaran dan Triwulan (misal: 2025/TW1), yang menampung berkas data mentah, berkas hasil penggabungan, dan konfigurasi join resmi untuk triwulan tersebut.
+_Avoid_: Folder acak, save slot bebas, tag periode
+
+**Berkas Data Mentah (Raw Excel)**:
+Berkas buku kerja Excel multi-sheet asli yang diunggah oleh pengguna ke sistem sebelum dilakukan proses penggabungan atau normalisasi kolom.
+_Avoid_: Data awal, uncleaned data, file mentah sembarang
+
+**Berkas Hasil Penggabungan (Joined Result Excel)**:
+Berkas lembar kerja Excel teragregasi yang telah melalui proses Left Join, normalisasi wilayah, kalkulasi indikator, dan pembersihan baris, siap digunakan untuk visualisasi dan pelaporan.
+_Avoid_: File final, joined table, data bersih lepas
+
 **Default Kustom**:
 Pasangan file Excel dan konfigurasi preset yang ditetapkan oleh pengguna/admin pada penyimpanan eksternal untuk menggantikan file bawaan sistem saat aplikasi diinisialisasi.
 _Avoid_: Custom setting, override file, data baru

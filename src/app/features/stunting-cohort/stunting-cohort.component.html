@@ -1,62 +1,124 @@
-<div class="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+<div class="space-y-6 w-full px-4 sm:px-6 lg:px-8 py-6">
   <!-- 1. HEADER & UNIFIED ACTION TOOLBAR -->
   <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-2xs">
-    <div>
-      <div class="flex items-center gap-2">
-        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#EEF0FF] text-[#525AFF] border border-[#525AFF]/30">
-          Analisis Kohort
-        </span>
-        <h1 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-          Analisis Kohort Balita Stunting
-        </h1>
+    <div class="space-y-3">
+      <!-- SUB-MENU TAB PILLS -->
+      <div class="flex items-center gap-1 p-1 bg-slate-100 rounded-lg border border-slate-200/80 w-fit">
+        <button
+          type="button"
+          (click)="activeSubMenu.set('rekap')"
+          [class.bg-white]="activeSubMenu() === 'rekap'"
+          [class.text-[#525AFF]]="activeSubMenu() === 'rekap'"
+          [class.font-bold]="activeSubMenu() === 'rekap'"
+          [class.shadow-xs]="activeSubMenu() === 'rekap'"
+          [class.text-slate-600]="activeSubMenu() !== 'rekap'"
+          class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-xs transition-all cursor-pointer"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <span>Rekap Status Gizi (e-PPGBM)</span>
+        </button>
+        <button
+          type="button"
+          (click)="activeSubMenu.set('cohort')"
+          [class.bg-white]="activeSubMenu() === 'cohort'"
+          [class.text-[#525AFF]]="activeSubMenu() === 'cohort'"
+          [class.font-bold]="activeSubMenu() === 'cohort'"
+          [class.shadow-xs]="activeSubMenu() === 'cohort'"
+          [class.text-slate-600]="activeSubMenu() !== 'cohort'"
+          class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-xs transition-all cursor-pointer"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+          </svg>
+          <span>Analisis Kohort Balita Stunting</span>
+        </button>
       </div>
-      <p class="text-xs sm:text-sm text-slate-500 mt-1">
-        Pelacakan dinamika transisi status stunting balita lintas periode pemantauan berbasis NIK unik.
-      </p>
+
+      <!-- TITLE & SUBTITLE -->
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#EEF0FF] text-[#525AFF] border border-[#525AFF]/30">
+            {{ activeSubMenu() === 'rekap' ? 'Rekap Status Gizi' : 'Analisis Kohort' }}
+          </span>
+          <h1 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+            {{ activeSubMenu() === 'rekap' ? 'Rekapitulasi Status Gizi Balita (e-PPGBM)' : 'Analisis Kohort Balita Stunting' }}
+          </h1>
+        </div>
+        <p class="text-xs sm:text-sm text-slate-500 mt-1">
+          {{ activeSubMenu() === 'rekap'
+            ? 'Pengolahan data mentah antropometri individual anak menjadi rekapitulasi indikator BB/U, TB/U, dan BB/TB per wilayah.'
+            : 'Pelacakan dinamika transisi status stunting balita lintas periode pemantauan berbasis NIK unik.' }}
+        </p>
+      </div>
     </div>
 
     <!-- ACTION BUTTONS -->
     <div class="flex items-center flex-wrap gap-2">
-      <!-- COLUMN MAPPING TOGGLE -->
-      @if (period1Columns().length > 0 || period2Columns().length > 0) {
-        <button
-          type="button"
-          (click)="isMappingOpen.set(!isMappingOpen())"
-          class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg transition-all shadow-2xs"
-        >
-          <svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-          </svg>
-          <span>Pemetaan Kolom</span>
-        </button>
-      }
-
-      <!-- EXCEL EXPORT (ACTIVE WHEN DATA READY) -->
-      @if (comparisonResult()) {
-        <button
-          type="button"
-          (click)="exportExcel()"
-          class="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-[#525AFF] hover:bg-[#4348E6] rounded-lg shadow-xs shadow-[#525AFF]/20 transition-all"
-        >
-          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          <span>Unduh Excel (.xlsx)</span>
-        </button>
-      }
-
-      <!-- RESET BUTTON -->
-      @if (period1Data() || period2Data()) {
-        <button
-          type="button"
-          (click)="resetAll()"
-          class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-all shadow-2xs"
-        >
-          <svg class="w-3.5 h-3.5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-          <span>Reset</span>
-        </button>
+      @if (activeSubMenu() === 'rekap') {
+        @if (rekapResult()) {
+          <button
+            type="button"
+            (click)="exportRekapExcel()"
+            class="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-[#525AFF] hover:bg-[#4348E6] rounded-lg shadow-xs shadow-[#525AFF]/20 transition-all cursor-pointer"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            <span>Unduh Excel Rekap (.xlsx)</span>
+          </button>
+        }
+        @if (rekapRawData()) {
+          <button
+            type="button"
+            (click)="resetRekap()"
+            class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-all shadow-2xs cursor-pointer"
+          >
+            <svg class="w-3.5 h-3.5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            <span>Reset Data Rekap</span>
+          </button>
+        }
+      } @else {
+        <!-- COHORT ACTIONS -->
+        @if (period1Columns().length > 0 || period2Columns().length > 0) {
+          <button
+            type="button"
+            (click)="isMappingOpen.set(!isMappingOpen())"
+            class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg transition-all shadow-2xs cursor-pointer"
+          >
+            <svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            </svg>
+            <span>Pemetaan Kolom</span>
+          </button>
+        }
+        @if (comparisonResult()) {
+          <button
+            type="button"
+            (click)="exportExcel()"
+            class="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-[#525AFF] hover:bg-[#4348E6] rounded-lg shadow-xs shadow-[#525AFF]/20 transition-all cursor-pointer"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            <span>Unduh Excel (.xlsx)</span>
+          </button>
+        }
+        @if (period1Data() || period2Data()) {
+          <button
+            type="button"
+            (click)="resetAll()"
+            class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-all shadow-2xs cursor-pointer"
+          >
+            <svg class="w-3.5 h-3.5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            <span>Reset</span>
+          </button>
+        }
       }
     </div>
   </header>
@@ -74,550 +136,1540 @@
     </div>
   }
 
-  <!-- 2. DATA INGESTION: DUAL UPLOAD BOXES -->
-  <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
-    <!-- CARD 1: PERIODE AWAL (BASELINE) -->
-    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-4">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <span class="w-6 h-6 rounded-md bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center">1</span>
-          <h2 class="text-sm font-bold text-slate-800">Periode Awal (Baseline)</h2>
+  <!-- ======================================================== -->
+  <!-- SUB-MENU 1: REKAP STATUS GIZI (DINKES / e-PPGBM)          -->
+  <!-- ======================================================== -->
+  @if (activeSubMenu() === 'rekap') {
+    <!-- UPLOAD & CONFIGURATION SECTION -->
+    @if (!rekapRawData()) {
+      <div class="bg-white p-8 rounded-xl border border-slate-200 shadow-2xs text-center space-y-4 max-w-3xl mx-auto">
+        <div class="w-14 h-14 mx-auto rounded-2xl bg-[#EEF0FF] text-[#525AFF] flex items-center justify-center">
+          <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
         </div>
-        @if (period1Data()) {
-          <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-            {{ period1Data()!.length }} Baris
+
+        <div>
+          <h2 class="text-base sm:text-lg font-bold text-slate-800">
+            Unggah Berkas Data Mentah Antropometri Balita
+          </h2>
+          <p class="text-xs sm:text-sm text-slate-500 max-w-xl mx-auto mt-1">
+            Mendukung format berkas data individual anak (.xlsx, .xls, .csv) seperti sample_data_mentah.csv untuk dikompilasi secara otomatis menjadi rekapitulasi status gizi standar Dinkes.
+          </p>
+        </div>
+
+        <!-- DROPZONE -->
+        <label class="block border-2 border-dashed border-slate-300 hover:border-[#525AFF] bg-slate-50/70 hover:bg-[#EEF0FF]/30 rounded-xl p-8 cursor-pointer transition-colors max-w-lg mx-auto">
+          <input type="file" accept=".xlsx, .xls, .csv" (change)="onRekapFileChange($event)" class="hidden" />
+          <svg class="mx-auto h-10 w-10 text-slate-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          </svg>
+          <span class="text-xs sm:text-sm font-semibold text-slate-700 block">
+            Pilih Berkas atau Seret ke Sini
           </span>
-        }
-      </div>
-
-      <!-- LABEL PERIODE 1 -->
-      <div>
-        <label class="block text-xs font-medium text-slate-600 mb-1">Label Periode Awal</label>
-        <input
-          type="text"
-          [ngModel]="period1Label()"
-          (ngModelChange)="period1Label.set($event)"
-          placeholder="Misal: Triwulan 1 2026"
-          class="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-slate-800"
-        />
-      </div>
-
-      <!-- FILE UPLOAD DROPZONE 1 -->
-      <label class="block border-2 border-dashed border-slate-200 hover:border-blue-400 bg-slate-50/50 hover:bg-blue-50/30 rounded-xl p-4 text-center cursor-pointer transition-colors">
-        <input type="file" accept=".xlsx, .xls" (change)="onFileChange(1, $event)" class="hidden" />
-        <svg class="mx-auto h-7 w-7 text-slate-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-        </svg>
-        <span class="text-xs font-medium text-slate-700 block">
-          {{ period1FileName() || 'Klik atau seret berkas Excel Periode 1' }}
-        </span>
-        <span class="text-[11px] text-slate-400 block mt-0.5">Format: .xlsx / .xls</span>
-      </label>
-    </div>
-
-    <!-- CARD 2: PERIODE EVALUASI (TERKINI) -->
-    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-4">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <span class="w-6 h-6 rounded-md bg-emerald-100 text-emerald-700 text-xs font-bold flex items-center justify-center">2</span>
-          <h2 class="text-sm font-bold text-slate-800">Periode Evaluasi (Terkini)</h2>
-        </div>
-        @if (period2Data()) {
-          <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            {{ period2Data()!.length }} Baris
+          <span class="text-xs text-slate-400 block mt-1">
+            Format: .xlsx / .xls / .csv (Data Individual Balita)
           </span>
-        }
-      </div>
+        </label>
 
-      <!-- LABEL PERIODE 2 -->
-      <div>
-        <label class="block text-xs font-medium text-slate-600 mb-1">Label Periode Evaluasi</label>
-        <input
-          type="text"
-          [ngModel]="period2Label()"
-          (ngModelChange)="period2Label.set($event)"
-          placeholder="Misal: Triwulan 2 2026"
-          class="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all text-slate-800"
-        />
-      </div>
-
-      <!-- FILE UPLOAD DROPZONE 2 -->
-      <label class="block border-2 border-dashed border-slate-200 hover:border-emerald-400 bg-slate-50/50 hover:bg-emerald-50/30 rounded-xl p-4 text-center cursor-pointer transition-colors">
-        <input type="file" accept=".xlsx, .xls" (change)="onFileChange(2, $event)" class="hidden" />
-        <svg class="mx-auto h-7 w-7 text-slate-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-        </svg>
-        <span class="text-xs font-medium text-slate-700 block">
-          {{ period2FileName() || 'Klik atau seret berkas Excel Periode 2' }}
-        </span>
-        <span class="text-[11px] text-slate-400 block mt-0.5">Format: .xlsx / .xls</span>
-      </label>
-    </div>
-  </section>
-
-  <!-- 3. COLLAPSIBLE COLUMN MAPPING DRAWER -->
-  @if (isMappingOpen() && (period1Columns().length > 0 || period2Columns().length > 0)) {
-    <section class="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-4">
-      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-        <h3 class="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-2">
-          <span>⚙️ Pengaturan Pemetaan Kolom Data</span>
-        </h3>
-        <button type="button" (click)="isMappingOpen.set(false)" class="text-xs text-slate-500 hover:text-slate-800">
-          Tutup
-        </button>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <!-- MAPPING PERIODE 1 -->
-        <div class="space-y-3">
-          <h4 class="text-xs font-bold text-blue-700 uppercase tracking-wider">Kolom Periode Awal</h4>
-          <div>
-            <label class="block text-[11px] font-medium text-slate-600 mb-0.5">Kolom NIK</label>
-            <select
-              [ngModel]="p1Mapping().nikKey"
-              (ngModelChange)="updateMapping(1, 'nikKey', $event)"
-              class="w-full text-xs px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800"
-            >
-              @for (col of period1Columns(); track col) {
-                <option [value]="col">{{ col }}</option>
-              }
-            </select>
-          </div>
-          <div>
-            <label class="block text-[11px] font-medium text-slate-600 mb-0.5">Kolom Nama Balita</label>
-            <select
-              [ngModel]="p1Mapping().nameKey"
-              (ngModelChange)="updateMapping(1, 'nameKey', $event)"
-              class="w-full text-xs px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800"
-            >
-              @for (col of period1Columns(); track col) {
-                <option [value]="col">{{ col }}</option>
-              }
-            </select>
-          </div>
-          <div>
-            <label class="block text-[11px] font-medium text-slate-600 mb-0.5">Kolom Tanggal Lahir</label>
-            <select
-              [ngModel]="p1Mapping().dobKey"
-              (ngModelChange)="updateMapping(1, 'dobKey', $event)"
-              class="w-full text-xs px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800"
-            >
-              @for (col of period1Columns(); track col) {
-                <option [value]="col">{{ col }}</option>
-              }
-            </select>
-          </div>
-        </div>
-
-        <!-- MAPPING PERIODE 2 -->
-        <div class="space-y-3">
-          <h4 class="text-xs font-bold text-emerald-700 uppercase tracking-wider">Kolom Periode Evaluasi</h4>
-          <div>
-            <label class="block text-[11px] font-medium text-slate-600 mb-0.5">Kolom NIK</label>
-            <select
-              [ngModel]="p2Mapping().nikKey"
-              (ngModelChange)="updateMapping(2, 'nikKey', $event)"
-              class="w-full text-xs px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800"
-            >
-              @for (col of period2Columns(); track col) {
-                <option [value]="col">{{ col }}</option>
-              }
-            </select>
-          </div>
-          <div>
-            <label class="block text-[11px] font-medium text-slate-600 mb-0.5">Kolom Nama Balita</label>
-            <select
-              [ngModel]="p2Mapping().nameKey"
-              (ngModelChange)="updateMapping(2, 'nameKey', $event)"
-              class="w-full text-xs px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800"
-            >
-              @for (col of period2Columns(); track col) {
-                <option [value]="col">{{ col }}</option>
-              }
-            </select>
-          </div>
-          <div>
-            <label class="block text-[11px] font-medium text-slate-600 mb-0.5">Kolom Tanggal Lahir</label>
-            <select
-              [ngModel]="p2Mapping().dobKey"
-              (ngModelChange)="updateMapping(2, 'dobKey', $event)"
-              class="w-full text-xs px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800"
-            >
-              @for (col of period2Columns(); track col) {
-                <option [value]="col">{{ col }}</option>
-              }
-            </select>
-          </div>
-        </div>
-      </div>
-    </section>
-  }
-
-  <!-- 4. COMPARISON RESULTS SECTION -->
-  @if (comparisonResult(); as res) {
-    <!-- DUPLICATE WARNING BANNER -->
-    @if (res.summary.duplicateNikPeriod1Count > 0 || res.summary.duplicateNikPeriod2Count > 0) {
-      <div class="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center gap-2">
-        <svg class="w-4 h-4 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-        </svg>
-        <span>
-          Pemberitahuan: Terdeteksi
-          <strong>{{ res.summary.duplicateNikPeriod1Count }}</strong> duplikat NIK pada Periode Awal dan
-          <strong>{{ res.summary.duplicateNikPeriod2Count }}</strong> duplikat NIK pada Periode Evaluasi. Data telah dideduplikasi otomatis.
-        </span>
-      </div>
-    }
-
-    <!-- OUTLIER AGE WARNING BANNER -->
-    @if (res.summary.ageOutlierPeriod2Count > 0) {
-      <div class="p-3.5 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-900 flex items-center gap-2">
-        <svg class="w-4 h-4 text-purple-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <span>
-          <strong>Perhatian Outlier Data:</strong> Terdeteksi <strong>{{ res.summary.ageOutlierPeriod2Count }}</strong> balita berusia &ge; 60 bulan yang masih tercatat stunting pada Periode Evaluasi. Ini mengindikasikan kemungkinan kesalahan input tanggal lahir atau balita yang terlambat dikeluarkan dari pelaporan.
-        </span>
-      </div>
-    }
-
-    <!-- 4.1 KPI METRIC CARDS -->
-    <section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-      <!-- CARD 1: TOTAL P1 -->
-      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-        <span class="text-[11px] font-semibold text-slate-500 uppercase block tracking-wider truncate">Total Periode 1</span>
-        <div class="text-xl sm:text-2xl font-bold text-slate-900 mt-1">{{ res.summary.totalPeriod1 }}</div>
-        <span class="text-[11px] text-slate-400 mt-0.5 block truncate">{{ res.p1Label }}</span>
-      </div>
-
-      <!-- CARD 2: TOTAL P2 -->
-      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-        <span class="text-[11px] font-semibold text-slate-500 uppercase block tracking-wider truncate">Total Periode 2</span>
-        <div class="text-xl sm:text-2xl font-bold text-slate-900 mt-1">{{ res.summary.totalPeriod2 }}</div>
-        <span class="text-[11px] text-slate-400 mt-0.5 block truncate">{{ res.p2Label }}</span>
-      </div>
-
-      <!-- CARD 3: TETAP STUNTING -->
-      <div class="bg-rose-50/50 p-4 rounded-xl border border-rose-200 shadow-2xs">
-        <span class="text-[11px] font-semibold text-rose-700 uppercase block tracking-wider truncate">Tetap Stunting</span>
-        <div class="text-xl sm:text-2xl font-bold text-rose-700 mt-1">{{ res.summary.persistentCount }}</div>
-        <span class="text-[11px] font-medium text-rose-600 mt-0.5 block">
-          {{ res.summary.persistentPercent.toFixed(1) }}% dari balita
-        </span>
-      </div>
-
-      <!-- CARD 4: BEBAS STUNTING -->
-      <div class="bg-[#E8F7F7]/60 p-4 rounded-xl border border-[#4AB5B5]/30 shadow-2xs">
-        <span class="text-[11px] font-semibold text-[#134E4E] uppercase block tracking-wider truncate">Bebas Stunting</span>
-        <div class="text-xl sm:text-2xl font-bold text-[#134E4E] mt-1">{{ res.summary.recoveredCount }}</div>
-        <span class="text-[11px] font-medium text-[#4AB5B5] mt-0.5 block">
-          {{ res.summary.recoveredPercent.toFixed(1) }}% pulih
-        </span>
-      </div>
-
-      <!-- CARD 5: KASUS BARU STUNTING -->
-      <div class="bg-amber-50/50 p-4 rounded-xl border border-amber-200 shadow-2xs">
-        <span class="text-[11px] font-semibold text-amber-700 uppercase block tracking-wider truncate">Kasus Baru Stunting</span>
-        <div class="text-xl sm:text-2xl font-bold text-amber-700 mt-1">{{ res.summary.newCaseCount }}</div>
-        <span class="text-[11px] font-medium text-amber-600 mt-0.5 block">
-          {{ res.summary.newCasePercent.toFixed(1) }}% kasus baru
-        </span>
-      </div>
-
-      <!-- CARD 6: LULUS USIA BALITA -->
-      <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-2xs">
-        <span class="text-[11px] font-semibold text-slate-600 uppercase block tracking-wider truncate">Lulus Usia</span>
-        <div class="text-xl sm:text-2xl font-bold text-slate-700 mt-1">{{ res.summary.agedOutCount }}</div>
-        <span class="text-[11px] text-slate-500 mt-0.5 block">
-          &ge; 60 Bulan
-        </span>
-      </div>
-    </section>
-
-    <!-- 4.2 VISUALIZATION CHARTS: DONUT & WATERFALL FLOW -->
-    <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <!-- CHART 1: DONUT PROPORTION CHART -->
-      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-4">
-        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-          <h3 class="text-xs sm:text-sm font-bold text-slate-800">Proporsi Kategori Transisi Balita</h3>
-          <span class="text-[11px] text-slate-500">Total: {{ res.children.length }} Anak</span>
-        </div>
-
-        <div class="flex flex-col sm:flex-row items-center justify-around gap-6 py-2">
-          <!-- SVG DONUT CANVAS -->
-          <div class="relative w-44 h-44 shrink-0">
-            <svg class="w-full h-full -rotate-90" viewBox="0 0 160 160">
-              <!-- Background circle -->
-              <circle cx="80" cy="80" r="60" fill="transparent" stroke="#f1f5f9" stroke-width="20" />
-              <!-- Segments -->
-              @for (arc of donutData(); track arc.status) {
-                @if (arc.count > 0) {
-                  <circle
-                    cx="80"
-                    cy="80"
-                    r="60"
-                    fill="transparent"
-                    [attr.stroke]="arc.color"
-                    stroke-width="20"
-                    [attr.stroke-dasharray]="arc.strokeDasharray"
-                    [attr.stroke-dashoffset]="arc.strokeDashoffset"
-                    class="transition-all duration-500 hover:opacity-85 cursor-pointer"
-                  >
-                    <title>{{ arc.label }}: {{ arc.count }} Balita ({{ arc.percent.toFixed(1) }}%)</title>
-                  </circle>
-                }
-              }
+        <!-- SAMPLE DATA ACTION BUTTON -->
+        <div class="pt-2">
+          <button
+            type="button"
+            (click)="loadSyntheticSampleData()"
+            [disabled]="isRekapProcessing()"
+            class="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-[#525AFF] bg-[#EEF0FF] hover:bg-[#E0E4FF] border border-[#525AFF]/30 rounded-lg transition-all shadow-2xs cursor-pointer"
+          >
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
-            <div class="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-              <span class="text-xl font-extrabold text-slate-800 leading-tight">{{ res.children.length }}</span>
-              <span class="text-[10px] text-slate-400 font-medium">Balita</span>
+            <span>
+              {{ isRekapProcessing() ? 'Memproses Berkas...' : 'Gunakan Sampel Data Mentah (420 Balita Jateng)' }}
+            </span>
+          </button>
+        </div>
+      </div>
+    } @else {
+      <!-- CONTROLS STRIP (WHEN FILE IS LOADED) -->
+      <section class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs sm:text-sm font-bold text-slate-800">{{ rekapFileName() }}</span>
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                {{ rekapRawData()!.length }} Data Anak
+              </span>
+            </div>
+            <p class="text-[11px] text-slate-500 mt-0.5">
+              Cutoff Data: <span class="font-mono text-slate-700 font-semibold">{{ rekapCutoffDate() }}</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center flex-wrap gap-2.5">
+          <!-- GROUPING LEVEL SELECT -->
+          <div class="flex items-center gap-1.5">
+            <label class="text-xs font-medium text-slate-600">Wilayah:</label>
+            <select
+              [ngModel]="rekapGroupingLevel()"
+              (ngModelChange)="rekapGroupingLevel.set($event)"
+              class="px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:bg-white focus:ring-2 focus:ring-[#525AFF] focus:outline-hidden"
+            >
+              <option value="kabupaten_kota">Kabupaten / Kota</option>
+              <option value="kecamatan">Kecamatan</option>
+              <option value="puskesmas">Puskesmas</option>
+              <option value="desa_kelurahan">Desa / Kelurahan</option>
+            </select>
+          </div>
+
+          <!-- CHANGE FILE BUTTON -->
+          <label class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer transition-colors">
+            <input type="file" accept=".xlsx, .xls, .csv" (change)="onRekapFileChange($event)" class="hidden" />
+            <svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+            <span>Ganti Berkas</span>
+          </label>
+        </div>
+      </section>
+
+      <!-- KPI SUMMARY CARDS -->
+      @if (rekapResult(); as res) {
+        <section class="grid grid-cols-2 lg:grid-cols-6 gap-3 sm:gap-4">
+          <!-- CARD 1: TOTAL BALITA DIUKUR (D) -->
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Ditimbang</span>
+              <span class="w-6 h-6 rounded bg-blue-50 text-blue-600 flex items-center justify-center text-xs font-bold">D</span>
+            </div>
+            <div class="mt-2 flex items-baseline gap-1.5">
+              <span class="text-xl sm:text-2xl font-extrabold text-slate-900">{{ res.summary.totalAnak | number }}</span>
+              <span class="text-xs text-slate-400">Anak</span>
+            </div>
+            <div class="mt-1 text-[11px] text-emerald-600 font-semibold">
+              % D/S: {{ res.summary.persenDS }}%
             </div>
           </div>
 
-          <!-- DONUT LEGEND LIST -->
-          <div class="space-y-2 text-xs w-full max-w-xs">
-            @for (arc of donutData(); track arc.status) {
-              <div class="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors">
-                <div class="flex items-center gap-2">
-                  <span class="w-3 h-3 rounded-full shrink-0" [style.backgroundColor]="arc.color"></span>
-                  <span class="font-medium text-slate-700">{{ arc.label }}</span>
-                </div>
-                <div class="text-right">
-                  <span class="font-bold text-slate-900">{{ arc.count }}</span>
-                  <span class="text-[11px] text-slate-400 ml-1">({{ arc.percent.toFixed(1) }}%)</span>
-                </div>
-              </div>
+          <!-- CARD 2: STUNTING -->
+          <div class="bg-white p-4 rounded-xl border border-rose-100 shadow-2xs bg-gradient-to-b from-white to-rose-50/20">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-semibold text-rose-600 uppercase tracking-wider">Stunting</span>
+              <span class="w-6 h-6 rounded bg-rose-100 text-rose-700 flex items-center justify-center text-xs font-bold">TB</span>
+            </div>
+            <div class="mt-2 flex items-baseline gap-1.5">
+              <span class="text-xl sm:text-2xl font-extrabold text-rose-700">{{ res.summary.persenStunting }}%</span>
+            </div>
+            <div class="mt-1 text-[11px] text-slate-500">
+              {{ res.summary.totalStunting | number }} Anak (P+SP)
+            </div>
+          </div>
+
+          <!-- CARD 3: WASTING -->
+          <div class="bg-white p-4 rounded-xl border border-amber-100 shadow-2xs bg-gradient-to-b from-white to-amber-50/20">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-semibold text-amber-600 uppercase tracking-wider">Wasting</span>
+              <span class="w-6 h-6 rounded bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold">BB</span>
+            </div>
+            <div class="mt-2 flex items-baseline gap-1.5">
+              <span class="text-xl sm:text-2xl font-extrabold text-amber-700">{{ res.summary.persenWasting }}%</span>
+            </div>
+            <div class="mt-1 text-[11px] text-slate-500">
+              {{ res.summary.totalWasting | number }} Anak (GK+GB)
+            </div>
+          </div>
+
+          <!-- CARD 4: UNDERWEIGHT -->
+          <div class="bg-white p-4 rounded-xl border border-yellow-200/80 shadow-2xs bg-gradient-to-b from-white to-yellow-50/20">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-semibold text-yellow-700 uppercase tracking-wider">Underweight</span>
+              <span class="w-6 h-6 rounded bg-yellow-100 text-yellow-800 flex items-center justify-center text-xs font-bold">U</span>
+            </div>
+            <div class="mt-2 flex items-baseline gap-1.5">
+              <span class="text-xl sm:text-2xl font-extrabold text-yellow-800">{{ res.summary.persenUnderweight }}%</span>
+            </div>
+            <div class="mt-1 text-[11px] text-slate-500">
+              {{ res.summary.totalUnderweight | number }} Anak (K+SK)
+            </div>
+          </div>
+
+          <!-- CARD 5: OVERWEIGHT -->
+          <div class="bg-white p-4 rounded-xl border border-purple-100 shadow-2xs bg-gradient-to-b from-white to-purple-50/20">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-semibold text-purple-700 uppercase tracking-wider">Overweight</span>
+              <span class="w-6 h-6 rounded bg-purple-100 text-purple-800 flex items-center justify-center text-xs font-bold">+</span>
+            </div>
+            <div class="mt-2 flex items-baseline gap-1.5">
+              <span class="text-xl sm:text-2xl font-extrabold text-purple-800">{{ res.summary.persenOverweight }}%</span>
+            </div>
+            <div class="mt-1 text-[11px] text-slate-500">
+              {{ res.summary.totalOverweight | number }} Anak (GL+Ob)
+            </div>
+          </div>
+
+          <!-- CARD 6: OUTLIERS -->
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Outlier / Error</span>
+              <span class="w-6 h-6 rounded bg-slate-100 text-slate-700 flex items-center justify-center text-xs font-bold">!</span>
+            </div>
+            <div class="mt-2 flex items-baseline gap-1.5">
+              <span class="text-xl sm:text-2xl font-extrabold text-slate-800">{{ res.summary.totalOutlier }}</span>
+              <span class="text-xs text-slate-400">Kasus</span>
+            </div>
+            <div class="mt-1 text-[11px] text-slate-500">
+              {{ res.summary.persenOutlier }}% dari total D
+            </div>
+          </div>
+        </section>
+
+        <!-- TABLE SECTION -->
+        <section class="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+          <!-- TABLE TOOLBAR -->
+          <div class="p-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/70">
+            <div class="flex items-center gap-2">
+              <h3 class="text-xs sm:text-sm font-bold text-slate-900">
+                Tabel Rekapitulasi Status Gizi Balita
+              </h3>
+              <span class="rounded-full bg-[#EEF0FF] border border-[#525AFF]/30 px-2 py-0.5 text-[11px] font-semibold text-[#525AFF]">
+                {{ filteredRekapRows().length }} Wilayah
+              </span>
+            </div>
+
+            <!-- SEARCH INPUT -->
+            <div class="relative w-full sm:w-64">
+              <input
+                type="text"
+                [ngModel]="rekapSearchQuery()"
+                (ngModelChange)="rekapSearchQuery.set($event)"
+                placeholder="Cari nama wilayah..."
+                class="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-[#525AFF] transition-all"
+              />
+              <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+          </div>
+
+          <!-- TABLE DATA WITH STICKY SCROLL -->
+          <div class="overflow-x-auto max-h-[640px]">
+            <table class="min-w-[1400px] w-full border-collapse border border-slate-300 text-xs">
+              <!-- ROW 1 HEADER: PRIMARY CATEGORIES -->
+              <thead class="sticky top-0 z-20 shadow-2xs">
+                <tr class="bg-gradient-to-b from-[#F2F5FA] to-[#E6ECF5] text-slate-800 font-bold border-b border-slate-300 text-center">
+                  <th rowspan="2" class="border border-slate-300 py-2.5 px-2 w-12 text-center font-bold text-slate-800 bg-gradient-to-b from-[#F2F5FA] to-[#E6ECF5]">
+                    No
+                  </th>
+                  <th rowspan="2" class="border border-slate-300 py-2.5 px-3 w-52 text-left font-bold text-slate-800 sticky left-0 z-30 bg-[#F2F5FA] shadow-xs">
+                    Kabupaten / Kota
+                  </th>
+                  <th colspan="5" class="border border-slate-300 py-2 px-2 text-center font-bold text-slate-800 bg-[#EEF2F9]">
+                    BB/U (Berat Badan / Umur)
+                  </th>
+                  <th colspan="5" class="border border-slate-300 py-2 px-2 text-center font-bold text-slate-800 bg-[#EAF0FA]">
+                    TB/U (Tinggi Badan / Umur)
+                  </th>
+                  <th colspan="7" class="border border-slate-300 py-2 px-2 text-center font-bold text-slate-800 bg-[#EEF2F9]">
+                    BB/TB (Berat Badan / Tinggi Badan)
+                  </th>
+                  <th colspan="13" class="border border-slate-300 py-2 px-2 text-center font-bold text-[#134E4E] bg-[#E8F7F7]">
+                    Indikator Hasil Olahan &amp; Agregasi
+                  </th>
+                </tr>
+
+                <!-- ROW 2 HEADER: INDIVIDUAL METRICS -->
+                <tr class="bg-slate-50/90 text-slate-700 font-bold border-b border-slate-300 text-center text-[11px]">
+                  <!-- BB/U -->
+                  <th class="border border-slate-300 py-2 px-1.5 bg-slate-50/80">Sangat Kurang</th>
+                  <th class="border border-slate-300 py-2 px-1.5 bg-slate-50/80">Kurang</th>
+                  <th class="border border-slate-300 py-2 px-1.5 bg-slate-50/80">BB Normal</th>
+                  <th class="border border-slate-300 py-2 px-1.5 bg-slate-50/80">Risiko Lebih</th>
+                  <th class="border border-slate-300 py-2 px-1.5 bg-amber-50/70 text-amber-800">Outlier</th>
+
+                  <!-- TB/U -->
+                  <th class="border border-slate-300 py-2 px-1.5 bg-slate-50/80">Sangat Pendek</th>
+                  <th class="border border-slate-300 py-2 px-1.5 bg-slate-50/80">Pendek</th>
+                  <th class="border border-slate-300 py-2 px-1.5 bg-slate-50/80">Normal</th>
+                  <th class="border border-slate-300 py-2 px-1.5 bg-slate-50/80">Tinggi</th>
+                  <th class="border border-slate-300 py-2 px-1.5 bg-amber-50/70 text-amber-800">Outlier</th>
+
+                  <!-- BB/TB -->
+                  <th class="border border-slate-300 py-2 px-1.5 bg-slate-50/80">Gizi Buruk</th>
+                  <th class="border border-slate-300 py-2 px-1.5 bg-slate-50/80">Gizi Kurang</th>
+                  <th class="border border-slate-300 py-2 px-1.5 bg-slate-50/80">Normal</th>
+                  <th class="border border-slate-300 py-2 px-1.5 bg-slate-50/80">Risiko Lebih</th>
+                  <th class="border border-slate-300 py-2 px-1.5 bg-slate-50/80">Gizi Lebih</th>
+                  <th class="border border-slate-300 py-2 px-1.5 bg-slate-50/80">Obesitas</th>
+                  <th class="border border-slate-300 py-2 px-1.5 bg-amber-50/70 text-amber-800">Outlier</th>
+
+                  <!-- INDIKATOR AGREGAT -->
+                  <th class="border border-slate-300 py-2 px-2 font-bold text-[#134E4E] bg-teal-100/60">Jml Ditimbang (D)</th>
+                  <th class="border border-slate-300 py-2 px-1.5 bg-rose-50/70 text-rose-800">Stunting</th>
+                  <th class="border border-slate-300 py-2 px-1.5 font-bold bg-rose-100/60 text-rose-800">%</th>
+                  <th class="border border-slate-300 py-2 px-1.5 bg-amber-50/70 text-amber-800">Wasting</th>
+                  <th class="border border-slate-300 py-2 px-1.5 font-bold bg-amber-100/60 text-amber-800">%</th>
+                  <th class="border border-slate-300 py-2 px-1.5 bg-yellow-50/70 text-yellow-800">Underweight</th>
+                  <th class="border border-slate-300 py-2 px-1.5 font-bold bg-yellow-100/60 text-yellow-800">%</th>
+                  <th class="border border-slate-300 py-2 px-1.5 bg-rose-50/50 text-rose-700">Gizi Buruk</th>
+                  <th class="border border-slate-300 py-2 px-1.5 font-bold bg-rose-100/50 text-rose-700">%</th>
+                  <th class="border border-slate-300 py-2 px-1.5 bg-purple-50/70 text-purple-800">Overweight</th>
+                  <th class="border border-slate-300 py-2 px-1.5 font-bold bg-purple-100/60 text-purple-800">%</th>
+                  <th class="border border-slate-300 py-2 px-2 bg-slate-50/70">Sasaran (S)</th>
+                  <th class="border border-slate-300 py-2 px-1.5 font-bold bg-emerald-100/60 text-emerald-800">% D/S</th>
+                </tr>
+              </thead>
+
+              <!-- TABLE BODY -->
+              <tbody class="divide-y divide-slate-200 text-slate-700">
+                @for (row of filteredRekapRows(); track row.wilayah; let idx = $index) {
+                  <tr class="hover:bg-[#F2F5FA]/80 transition group">
+                    <td class="w-12 border border-slate-300 py-2 px-2 text-center font-semibold text-slate-600 bg-slate-50/50 text-xs font-mono">
+                      {{ row.no }}
+                    </td>
+                    <td class="border border-slate-300 py-2 px-3 font-semibold text-slate-900 sticky left-0 z-10 bg-white group-hover:bg-[#F2F5FA] transition shadow-xs whitespace-nowrap text-left text-xs">
+                      {{ row.wilayah }}
+                    </td>
+
+                    <!-- BB/U -->
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono whitespace-nowrap text-xs">{{ row.sangatKurangBbu | number }}</td>
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono whitespace-nowrap text-xs">{{ row.kurangBbu | number }}</td>
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono whitespace-nowrap text-xs">{{ row.normalBbu | number }}</td>
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono whitespace-nowrap text-xs">{{ row.risikoLebihBbu | number }}</td>
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono whitespace-nowrap text-xs bg-amber-50/30 text-amber-700">{{ row.outlierBbu | number }}</td>
+
+                    <!-- TB/U -->
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono whitespace-nowrap text-xs text-rose-700 font-medium">{{ row.sangatPendekTbu | number }}</td>
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono whitespace-nowrap text-xs text-amber-700 font-medium">{{ row.pendekTbu | number }}</td>
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono whitespace-nowrap text-xs">{{ row.normalTbu | number }}</td>
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono whitespace-nowrap text-xs text-purple-700 font-medium">{{ row.tinggiTbu | number }}</td>
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono whitespace-nowrap text-xs bg-amber-50/30 text-amber-700">{{ row.outlierTbu | number }}</td>
+
+                    <!-- BB/TB -->
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono whitespace-nowrap text-xs text-rose-700 font-medium">{{ row.giziBurukBbtb | number }}</td>
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono whitespace-nowrap text-xs text-amber-700 font-medium">{{ row.giziKurangBbtb | number }}</td>
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono whitespace-nowrap text-xs">{{ row.normalBbtb | number }}</td>
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono whitespace-nowrap text-xs text-yellow-700 font-medium">{{ row.risikoGiziLebihBbtb | number }}</td>
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono whitespace-nowrap text-xs text-purple-700 font-medium">{{ row.giziLebihBbtb | number }}</td>
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono whitespace-nowrap text-xs text-rose-800 font-medium">{{ row.obesitasBbtb | number }}</td>
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono whitespace-nowrap text-xs bg-amber-50/30 text-amber-700">{{ row.outlierBbtb | number }}</td>
+
+                    <!-- AGREGASI -->
+                    <td class="border border-slate-300 py-2 px-2 text-right font-mono font-bold text-slate-900 whitespace-nowrap text-xs bg-teal-50/40">
+                      {{ row.jumlahDitimbangDiukur | number }}
+                    </td>
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono text-rose-700 whitespace-nowrap text-xs">{{ row.stuntingCount | number }}</td>
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono font-bold text-rose-700 whitespace-nowrap text-xs bg-rose-50/30">{{ row.stuntingPercent }}%</td>
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono text-amber-700 whitespace-nowrap text-xs">{{ row.wastingCount | number }}</td>
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono font-bold text-amber-700 whitespace-nowrap text-xs bg-amber-50/30">{{ row.wastingPercent }}%</td>
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono text-yellow-800 whitespace-nowrap text-xs">{{ row.underweightCount | number }}</td>
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono font-bold text-yellow-800 whitespace-nowrap text-xs bg-yellow-50/30">{{ row.underweightPercent }}%</td>
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono text-rose-600 whitespace-nowrap text-xs">{{ row.giziBurukCount | number }}</td>
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono font-bold text-rose-600 whitespace-nowrap text-xs">{{ row.giziBurukPercent }}%</td>
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono text-purple-700 whitespace-nowrap text-xs">{{ row.overweightCount | number }}</td>
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono font-bold text-purple-700 whitespace-nowrap text-xs bg-purple-50/30">{{ row.overweightPercent }}%</td>
+                    <td class="border border-slate-300 py-2 px-2 text-right font-mono text-slate-600 whitespace-nowrap text-xs">{{ row.sasaranAnak | number }}</td>
+                    <td class="border border-slate-300 py-2 px-1.5 text-right font-mono font-bold text-emerald-600 whitespace-nowrap text-xs bg-emerald-50/30">{{ row.persenDS }}%</td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="32" class="border border-slate-300 py-8 text-center text-slate-400 text-xs">
+                      Tidak ada wilayah yang sesuai dengan kata kunci pencarian.
+                    </td>
+                  </tr>
+                }
+              </tbody>
+
+              <!-- FOOTER TOTAL (JUMLAH) SESUAI STANDAR EXCEL JOIN -->
+              @if (res.totals; as tot) {
+                <tfoot class="border-t-2 border-[#4AB5B5]/60 bg-[#E8F7F7]/85 font-medium">
+                  <tr>
+                    <td colspan="2" class="border border-[#4AB5B5]/30 py-2.5 px-3 text-center uppercase tracking-wider sticky left-0 z-10 bg-[#E8F7F7] text-[#134E4E] font-bold border-r border-slate-300 shadow-xs text-xs">
+                      JUMLAH
+                    </td>
+
+                    <!-- BB/U -->
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-bold text-[#134E4E] whitespace-nowrap text-xs">{{ tot.sangatKurangBbu | number }}</td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-bold text-[#134E4E] whitespace-nowrap text-xs">{{ tot.kurangBbu | number }}</td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-bold text-[#134E4E] whitespace-nowrap text-xs">{{ tot.normalBbu | number }}</td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-bold text-[#134E4E] whitespace-nowrap text-xs">{{ tot.risikoLebihBbu | number }}</td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-bold text-amber-800 whitespace-nowrap text-xs">{{ tot.outlierBbu | number }}</td>
+
+                    <!-- TB/U -->
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-bold text-rose-800 whitespace-nowrap text-xs">{{ tot.sangatPendekTbu | number }}</td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-bold text-amber-800 whitespace-nowrap text-xs">{{ tot.pendekTbu | number }}</td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-bold text-[#134E4E] whitespace-nowrap text-xs">{{ tot.normalTbu | number }}</td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-bold text-purple-800 whitespace-nowrap text-xs">{{ tot.tinggiTbu | number }}</td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-bold text-amber-800 whitespace-nowrap text-xs">{{ tot.outlierTbu | number }}</td>
+
+                    <!-- BB/TB -->
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-bold text-rose-800 whitespace-nowrap text-xs">{{ tot.giziBurukBbtb | number }}</td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-bold text-amber-800 whitespace-nowrap text-xs">{{ tot.giziKurangBbtb | number }}</td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-bold text-[#134E4E] whitespace-nowrap text-xs">{{ tot.normalBbtb | number }}</td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-bold text-yellow-800 whitespace-nowrap text-xs">{{ tot.risikoGiziLebihBbtb | number }}</td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-bold text-purple-800 whitespace-nowrap text-xs">{{ tot.giziLebihBbtb | number }}</td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-bold text-rose-900 whitespace-nowrap text-xs">{{ tot.obesitasBbtb | number }}</td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-bold text-amber-800 whitespace-nowrap text-xs">{{ tot.outlierBbtb | number }}</td>
+
+                    <!-- AGREGASI -->
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-2 text-right font-mono font-extrabold text-[#134E4E] whitespace-nowrap text-xs bg-teal-100/60">
+                      {{ tot.jumlahDitimbangDiukur | number }}
+                    </td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-bold text-rose-800 whitespace-nowrap text-xs">{{ tot.stuntingCount | number }}</td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-extrabold text-rose-800 whitespace-nowrap text-xs bg-rose-100/60">{{ tot.stuntingPercent }}%</td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-bold text-amber-800 whitespace-nowrap text-xs">{{ tot.wastingCount | number }}</td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-extrabold text-amber-800 whitespace-nowrap text-xs bg-amber-100/60">{{ tot.wastingPercent }}%</td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-bold text-yellow-900 whitespace-nowrap text-xs">{{ tot.underweightCount | number }}</td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-extrabold text-yellow-900 whitespace-nowrap text-xs bg-yellow-100/60">{{ tot.underweightPercent }}%</td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-bold text-rose-800 whitespace-nowrap text-xs">{{ tot.giziBurukCount | number }}</td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-extrabold text-rose-800 whitespace-nowrap text-xs bg-rose-100/50">{{ tot.giziBurukPercent }}%</td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-bold text-purple-800 whitespace-nowrap text-xs">{{ tot.overweightCount | number }}</td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-extrabold text-purple-800 whitespace-nowrap text-xs bg-purple-100/60">{{ tot.overweightPercent }}%</td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-2 text-right font-mono font-bold text-slate-700 whitespace-nowrap text-xs">{{ tot.sasaranAnak | number }}</td>
+                    <td class="border border-[#4AB5B5]/30 py-2.5 px-1.5 text-right font-mono font-extrabold text-emerald-800 whitespace-nowrap text-xs bg-emerald-100/60">{{ tot.persenDS }}%</td>
+                  </tr>
+                </tfoot>
+              }
+            </table>
+          </div>
+        </section>
+      }
+    }
+  } @else {
+    <!-- ======================================================== -->
+    <!-- SUB-MENU 2: ANALISIS KOHORT BALITA (TRANSISI)             -->
+    <!-- ======================================================== -->
+    <!-- 2. QUICK ACTIONS & SAMPLE DATA TOOLBAR -->
+    <div class="bg-gradient-to-r from-blue-50/70 via-indigo-50/50 to-slate-50 border border-blue-100 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-[#525AFF] text-white flex items-center justify-center shrink-0 shadow-xs">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+        </div>
+        <div>
+          <h2 class="text-xs sm:text-sm font-bold text-slate-800">Komparasi Kohort Longitudinal Balita</h2>
+          <p class="text-[11px] text-slate-500">
+            Bandingkan status antropometri balita antar-periode untuk mendeteksi persistensi, pemulihan (bebas stunting), dan insidensi baru.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          (click)="loadSyntheticCohortSampleData()"
+          [disabled]="isCohortProcessing()"
+          class="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-[#525AFF] bg-white hover:bg-blue-50/80 border border-[#525AFF]/30 rounded-lg transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+        >
+          <svg class="w-4 h-4 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <span>
+            {{ isCohortProcessing() ? 'Memuat Sampel...' : 'Gunakan Sampel Data Kohort (P1 & P2)' }}
+          </span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 3. DATA INGESTION: DUAL UPLOAD BOXES -->
+    <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- CARD 1: PERIODE AWAL (BASELINE) -->
+      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="w-6 h-6 rounded-md bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center">1</span>
+            <h2 class="text-sm font-bold text-slate-800">Periode Awal (Baseline)</h2>
+          </div>
+          @if (period1Data()) {
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+              {{ period1Data()!.length }} Baris
+            </span>
+          }
+        </div>
+
+        <!-- LABEL PERIODE 1 -->
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Label Periode Awal</label>
+          <input
+            type="text"
+            [ngModel]="period1Label()"
+            (ngModelChange)="period1Label.set($event)"
+            placeholder="Misal: Triwulan 1 2026"
+            class="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-slate-800"
+          />
+        </div>
+
+        <!-- FILE UPLOAD DROPZONE 1 -->
+        <label class="block border-2 border-dashed border-slate-200 hover:border-blue-400 bg-slate-50/50 hover:bg-blue-50/30 rounded-xl p-4 text-center cursor-pointer transition-colors">
+          <input type="file" accept=".xlsx, .xls, .csv" (change)="onFileChange(1, $event)" class="hidden" />
+          <svg class="mx-auto h-7 w-7 text-slate-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          </svg>
+          <span class="text-xs font-medium text-slate-700 block">
+            {{ period1FileName() || 'Klik atau seret berkas Excel / CSV Periode 1' }}
+          </span>
+          <span class="text-[11px] text-slate-400 block mt-0.5">Format: .xlsx / .xls / .csv</span>
+        </label>
+      </div>
+
+      <!-- CARD 2: PERIODE EVALUASI (TERKINI) -->
+      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="w-6 h-6 rounded-md bg-emerald-100 text-emerald-700 text-xs font-bold flex items-center justify-center">2</span>
+            <h2 class="text-sm font-bold text-slate-800">Periode Evaluasi (Terkini)</h2>
+          </div>
+          @if (period2Data()) {
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              {{ period2Data()!.length }} Baris
+            </span>
+          }
+        </div>
+
+        <!-- LABEL PERIODE 2 -->
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Label Periode Evaluasi</label>
+          <input
+            type="text"
+            [ngModel]="period2Label()"
+            (ngModelChange)="period2Label.set($event)"
+            placeholder="Misal: Triwulan 2 2026"
+            class="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all text-slate-800"
+          />
+        </div>
+
+        <!-- FILE UPLOAD DROPZONE 2 -->
+        <label class="block border-2 border-dashed border-slate-200 hover:border-emerald-400 bg-slate-50/50 hover:bg-emerald-50/30 rounded-xl p-4 text-center cursor-pointer transition-colors">
+          <input type="file" accept=".xlsx, .xls, .csv" (change)="onFileChange(2, $event)" class="hidden" />
+          <svg class="mx-auto h-7 w-7 text-slate-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          </svg>
+          <span class="text-xs font-medium text-slate-700 block">
+            {{ period2FileName() || 'Klik atau seret berkas Excel / CSV Periode 2' }}
+          </span>
+          <span class="text-[11px] text-slate-400 block mt-0.5">Format: .xlsx / .xls / .csv</span>
+        </label>
+      </div>
+    </section>
+
+    <!-- 3. COLUMN MAPPING ACCORDION (CONDITIONAL) -->
+    @if (isMappingOpen() && (period1Columns().length > 0 || period2Columns().length > 0)) {
+      <section class="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <h3 class="text-sm font-bold text-slate-800">Konfigurasi Pemetaan Kolom</h3>
+            <p class="text-xs text-slate-500">Sesuaikan nama kolom kunci pada lembar kerja Excel Anda.</p>
+          </div>
+          <button type="button" (click)="isMappingOpen.set(false)" class="text-slate-400 hover:text-slate-600 text-sm">
+            Tutup
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+          <!-- P1 MAPPING -->
+          <div class="space-y-3">
+            <h4 class="font-semibold text-blue-700">Kolom {{ period1Label() }}</h4>
+
+            <div>
+              <label class="block text-slate-600 mb-1">Kolom NIK Balita (Wajib)</label>
+              <select
+                [ngModel]="p1Mapping().nikKey || ''"
+                (ngModelChange)="updateMapping(1, 'nikKey', $event)"
+                class="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700"
+              >
+                <option value="">-- Pilih Kolom NIK --</option>
+                @for (col of period1Columns(); track col) {
+                  <option [value]="col">{{ col }}</option>
+                }
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-slate-600 mb-1">Kolom Nama Balita</label>
+              <select
+                [ngModel]="p1Mapping().nameKey || ''"
+                (ngModelChange)="updateMapping(1, 'nameKey', $event)"
+                class="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700"
+              >
+                <option value="">-- Pilih Kolom Nama --</option>
+                @for (col of period1Columns(); track col) {
+                  <option [value]="col">{{ col }}</option>
+                }
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-slate-600 mb-1">Kolom Tanggal Lahir</label>
+              <select
+                [ngModel]="p1Mapping().dobKey || ''"
+                (ngModelChange)="updateMapping(1, 'dobKey', $event)"
+                class="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700"
+              >
+                <option value="">-- Pilih Kolom Tgl Lahir --</option>
+                @for (col of period1Columns(); track col) {
+                  <option [value]="col">{{ col }}</option>
+                }
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-slate-600 mb-1">Kolom Tinggi Badan (cm)</label>
+              <select
+                [ngModel]="p1Mapping().heightKey || ''"
+                (ngModelChange)="updateMapping(1, 'heightKey', $event)"
+                class="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700"
+              >
+                <option value="">-- Otomatis / Pilih Kolom TB --</option>
+                @for (col of period1Columns(); track col) {
+                  <option [value]="col">{{ col }}</option>
+                }
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-slate-600 mb-1">Kolom Berat Badan (kg)</label>
+              <select
+                [ngModel]="p1Mapping().weightKey || ''"
+                (ngModelChange)="updateMapping(1, 'weightKey', $event)"
+                class="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700"
+              >
+                <option value="">-- Otomatis / Pilih Kolom BB --</option>
+                @for (col of period1Columns(); track col) {
+                  <option [value]="col">{{ col }}</option>
+                }
+              </select>
+            </div>
+          </div>
+
+          <!-- P2 MAPPING -->
+          <div class="space-y-3">
+            <h4 class="font-semibold text-emerald-700">Kolom {{ period2Label() }}</h4>
+
+            <div>
+              <label class="block text-slate-600 mb-1">Kolom NIK Balita (Wajib)</label>
+              <select
+                [ngModel]="p2Mapping().nikKey || ''"
+                (ngModelChange)="updateMapping(2, 'nikKey', $event)"
+                class="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700"
+              >
+                <option value="">-- Pilih Kolom NIK --</option>
+                @for (col of period2Columns(); track col) {
+                  <option [value]="col">{{ col }}</option>
+                }
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-slate-600 mb-1">Kolom Nama Balita</label>
+              <select
+                [ngModel]="p2Mapping().nameKey || ''"
+                (ngModelChange)="updateMapping(2, 'nameKey', $event)"
+                class="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700"
+              >
+                <option value="">-- Pilih Kolom Nama --</option>
+                @for (col of period2Columns(); track col) {
+                  <option [value]="col">{{ col }}</option>
+                }
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-slate-600 mb-1">Kolom Tanggal Lahir</label>
+              <select
+                [ngModel]="p2Mapping().dobKey || ''"
+                (ngModelChange)="updateMapping(2, 'dobKey', $event)"
+                class="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700"
+              >
+                <option value="">-- Pilih Kolom Tgl Lahir --</option>
+                @for (col of period2Columns(); track col) {
+                  <option [value]="col">{{ col }}</option>
+                }
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-slate-600 mb-1">Kolom Tinggi Badan (cm)</label>
+              <select
+                [ngModel]="p2Mapping().heightKey || ''"
+                (ngModelChange)="updateMapping(2, 'heightKey', $event)"
+                class="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700"
+              >
+                <option value="">-- Otomatis / Pilih Kolom TB --</option>
+                @for (col of period2Columns(); track col) {
+                  <option [value]="col">{{ col }}</option>
+                }
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-slate-600 mb-1">Kolom Berat Badan (kg)</label>
+              <select
+                [ngModel]="p2Mapping().weightKey || ''"
+                (ngModelChange)="updateMapping(2, 'weightKey', $event)"
+                class="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700"
+              >
+                <option value="">-- Otomatis / Pilih Kolom BB --</option>
+                @for (col of period2Columns(); track col) {
+                  <option [value]="col">{{ col }}</option>
+                }
+              </select>
+            </div>
+          </div>
+        </div>
+      </section>
+    }
+
+    <!-- 4. EVALUATION DASHBOARD (ACTIVE WHEN DATA IS POPULATED) -->
+    @if (comparisonResult(); as res) {
+      <!-- 4.0 INDICATOR SWITCHER PILL BAR -->
+      <section class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full shrink-0" [style.backgroundColor]="activeIndicatorConfig().color"></span>
+            <span class="text-xs font-bold text-slate-800 uppercase tracking-wider">Indikator Kohort:</span>
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+              {{ activeIndicatorConfig().subLabel }}
+            </span>
+          </div>
+
+          <div class="flex items-center gap-1.5 flex-wrap">
+            @for (opt of indicatorOptions; track opt.id) {
+              <button
+                type="button"
+                (click)="switchIndicator(opt.id)"
+                [class]="activeIndicator() === opt.id ? opt.activeClass : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer shadow-2xs"
+              >
+                <span>{{ opt.label }}</span>
+                <span
+                  class="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium"
+                  [class]="activeIndicator() === opt.id ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'"
+                >
+                  {{ opt.badge }}
+                </span>
+              </button>
             }
           </div>
         </div>
-      </div>
+      </section>
 
-      <!-- CHART 2: WATERFALL TRANSITION FLOW CHART -->
-      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-4">
-        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-          <h3 class="text-xs sm:text-sm font-bold text-slate-800">Alur Dinamika Beban Stunting</h3>
-          <span class="text-[11px] font-semibold" [class.text-emerald-600]="res.summary.netChange <= 0" [class.text-rose-600]="res.summary.netChange > 0">
-            Net Change: {{ res.summary.netChange > 0 ? '+' : '' }}{{ res.summary.netChange }} Anak
+      <!-- DUPLICATE NIK NOTIFICATION BANNER -->
+      @if (res.summary.duplicateNikPeriod1Count > 0 || res.summary.duplicateNikPeriod2Count > 0) {
+        <div class="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center gap-2">
+          <svg class="w-4 h-4 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <span>
+            Pemberitahuan: Terdeteksi
+            <strong>{{ res.summary.duplicateNikPeriod1Count }}</strong> duplikat NIK pada Periode Awal dan
+            <strong>{{ res.summary.duplicateNikPeriod2Count }}</strong> duplikat NIK pada Periode Evaluasi. Data telah dideduplikasi otomatis.
           </span>
         </div>
+      }
 
-        <!-- SVG WATERFALL CANVAS -->
-        <div class="w-full h-48 py-2">
-          <svg class="w-full h-full" viewBox="0 0 500 180" preserveAspectRatio="none">
-            <!-- Grid baseline line -->
-            <line x1="20" y1="140" x2="480" y2="140" stroke="#e2e8f0" stroke-width="1.5" stroke-dasharray="4 4" />
+      <!-- OUTLIER AGE WARNING BANNER -->
+      @if (res.summary.ageOutlierPeriod2Count > 0) {
+        <div class="p-3.5 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-900 flex items-center gap-2">
+          <svg class="w-4 h-4 text-purple-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span>
+            <strong>Perhatian Outlier Data:</strong> Terdeteksi <strong>{{ res.summary.ageOutlierPeriod2Count }}</strong> balita berusia &ge; 60 bulan yang masih tercatat {{ activeIndicatorConfig().label.toLowerCase() }} pada Periode Evaluasi. Ini mengindikasikan kemungkinan kesalahan input tanggal lahir atau balita yang terlambat dikeluarkan dari pelaporan.
+          </span>
+        </div>
+      }
 
-            <!-- Bars -->
-            @for (bar of waterfallBars(); track bar.label; let idx = $index) {
-              <g class="transition-all duration-300">
-                <!-- Bar Rect -->
-                <rect
-                  [attr.x]="40 + idx * 90"
-                  [attr.y]="bar.barY"
-                  width="50"
-                  [attr.height]="bar.barHeight > 0 ? bar.barHeight : 4"
-                  [attr.fill]="bar.color"
-                  rx="4"
-                  class="hover:opacity-90 transition-opacity"
-                />
-                <!-- Top Value -->
-                <text
-                  [attr.x]="65 + idx * 90"
-                  [attr.y]="bar.barY - 6"
-                  text-anchor="middle"
-                  font-size="11"
-                  font-weight="bold"
-                  [attr.fill]="bar.color"
-                >
-                  {{ bar.displayValue }}
-                </text>
-                <!-- Bottom Label -->
-                <text
-                  [attr.x]="65 + idx * 90"
-                  y="156"
-                  text-anchor="middle"
-                  font-size="10"
-                  font-weight="500"
-                  fill="#64748b"
-                >
-                  {{ bar.label }}
-                </text>
-              </g>
+      <!-- 4.1 KPI METRIC CARDS -->
+      <section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+        <!-- CARD 1: TOTAL P1 -->
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+          <span class="text-[11px] font-semibold text-slate-500 uppercase block tracking-wider truncate">Total Periode 1</span>
+          <div class="text-xl sm:text-2xl font-bold text-slate-900 mt-1">{{ res.summary.totalPeriod1 }}</div>
+          <span class="text-[11px] text-slate-400 mt-0.5 block truncate">{{ res.p1Label }}</span>
+        </div>
+
+        <!-- CARD 2: TETAP KASUS -->
+        <div class="bg-white p-4 rounded-xl border border-rose-100 shadow-2xs bg-gradient-to-b from-white to-rose-50/20">
+          <span class="text-[11px] font-semibold text-rose-600 uppercase block tracking-wider truncate">
+            {{ getStatusLabel(CohortTransitionStatus.PERSISTENT) }}
+          </span>
+          <div class="text-xl sm:text-2xl font-bold text-rose-700 mt-1">{{ res.summary.persistentCount }}</div>
+          <span class="text-[11px] text-rose-500 font-medium mt-0.5 block">{{ res.summary.persistentPercent | number:'1.2-2' }}% kohort</span>
+        </div>
+
+        <!-- CARD 3: BEBAS KASUS -->
+        <div class="bg-white p-4 rounded-xl border border-emerald-100 shadow-2xs bg-gradient-to-b from-white to-emerald-50/20">
+          <span class="text-[11px] font-semibold text-emerald-600 uppercase block tracking-wider truncate">
+            {{ getStatusLabel(CohortTransitionStatus.RECOVERED) }}
+          </span>
+          <div class="text-xl sm:text-2xl font-bold text-emerald-700 mt-1">{{ res.summary.recoveredCount }}</div>
+          <span class="text-[11px] text-emerald-600 font-medium mt-0.5 block">{{ res.summary.recoveredPercent | number:'1.2-2' }}% sembuh</span>
+          @if (res.summary.missingPeriod2Count > 0) {
+            <span class="text-[10px] text-emerald-700/80 block mt-0.5 font-medium truncate" title="Termasuk balita periode 1 yang tidak terdata di periode evaluasi (dianggap lulus)">
+              *Termasuk {{ res.summary.missingPeriod2Count }} tidak terdata P2 (lulus)
+            </span>
+          }
+        </div>
+
+        <!-- CARD 4: KASUS BARU -->
+        <div class="bg-white p-4 rounded-xl border border-amber-100 shadow-2xs bg-gradient-to-b from-white to-amber-50/20">
+          <span class="text-[11px] font-semibold text-amber-600 uppercase block tracking-wider truncate">
+            {{ getStatusLabel(CohortTransitionStatus.NEW_CASE) }}
+          </span>
+          <div class="text-xl sm:text-2xl font-bold text-amber-700 mt-1">{{ res.summary.newCaseCount }}</div>
+          <span class="text-[11px] text-amber-600 font-medium mt-0.5 block">{{ res.summary.newCasePercent | number:'1.2-2' }}% penambahan</span>
+        </div>
+
+        <!-- CARD 5: LULUS USIA -->
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+          <span class="text-[11px] font-semibold text-slate-500 uppercase block tracking-wider truncate">Lulus Usia (&ge;5 Thn)</span>
+          <div class="text-xl sm:text-2xl font-bold text-slate-700 mt-1">{{ res.summary.agedOutCount }}</div>
+          <span class="text-[11px] text-slate-400 mt-0.5 block truncate">{{ res.summary.agedOutPercent | number:'1.2-2' }}% keluar</span>
+        </div>
+
+        <!-- CARD 6: TOTAL P2 -->
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+          <span class="text-[11px] font-semibold text-slate-500 uppercase block tracking-wider truncate">Total Periode 2</span>
+          <div class="text-xl sm:text-2xl font-bold text-slate-900 mt-1">{{ res.summary.totalPeriod2 }}</div>
+          <span class="text-[11px] font-semibold mt-0.5 block truncate" [class.text-emerald-600]="res.summary.netChange <= 0" [class.text-rose-600]="res.summary.netChange > 0">
+            {{ res.summary.netChange > 0 ? '+' + res.summary.netChange : res.summary.netChange }} Net
+          </span>
+        </div>
+      </section>
+
+      <!-- 4.3 DETAIL TABLE: DATA INDIVIDUAL BALITA -->
+      <section class="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+        <!-- TABLE TOOLBAR -->
+        <div class="p-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
+          <!-- FILTER BUTTONS -->
+          <div class="flex items-center flex-wrap gap-1.5 text-xs">
+            <button
+              type="button"
+              (click)="activeFilter.set('ALL')"
+              [class.bg-[#525AFF]]="activeFilter() === 'ALL'"
+              [class.text-white]="activeFilter() === 'ALL'"
+              [class.bg-white]="activeFilter() !== 'ALL'"
+              [class.text-slate-700]="activeFilter() !== 'ALL'"
+              class="px-3 py-1.5 rounded-lg font-medium transition-colors border border-slate-200 shadow-2xs cursor-pointer"
+            >
+              Semua Balita ({{ res.children.length }})
+            </button>
+            <button
+              type="button"
+              (click)="activeFilter.set(CohortTransitionStatus.PERSISTENT)"
+              [class.bg-rose-600]="activeFilter() === CohortTransitionStatus.PERSISTENT"
+              [class.text-white]="activeFilter() === CohortTransitionStatus.PERSISTENT"
+              [class.bg-rose-50]="activeFilter() !== CohortTransitionStatus.PERSISTENT"
+              [class.text-rose-700]="activeFilter() !== CohortTransitionStatus.PERSISTENT"
+              class="px-3 py-1.5 rounded-lg font-medium transition-colors border border-rose-200 cursor-pointer"
+            >
+              {{ getStatusLabel(CohortTransitionStatus.PERSISTENT) }} ({{ res.summary.persistentCount }})
+            </button>
+            <button
+              type="button"
+              (click)="activeFilter.set(CohortTransitionStatus.RECOVERED)"
+              [class.bg-emerald-600]="activeFilter() === CohortTransitionStatus.RECOVERED"
+              [class.text-white]="activeFilter() === CohortTransitionStatus.RECOVERED"
+              [class.bg-emerald-50]="activeFilter() !== CohortTransitionStatus.RECOVERED"
+              [class.text-emerald-700]="activeFilter() !== CohortTransitionStatus.RECOVERED"
+              class="px-3 py-1.5 rounded-lg font-medium transition-colors border border-emerald-200 cursor-pointer"
+            >
+              {{ getStatusLabel(CohortTransitionStatus.RECOVERED) }} ({{ res.summary.recoveredCount }})
+            </button>
+            <button
+              type="button"
+              (click)="activeFilter.set(CohortTransitionStatus.NEW_CASE)"
+              [class.bg-amber-600]="activeFilter() === CohortTransitionStatus.NEW_CASE"
+              [class.text-white]="activeFilter() === CohortTransitionStatus.NEW_CASE"
+              [class.bg-amber-50]="activeFilter() !== CohortTransitionStatus.NEW_CASE"
+              [class.text-amber-700]="activeFilter() !== CohortTransitionStatus.NEW_CASE"
+              class="px-3 py-1.5 rounded-lg font-medium transition-colors border border-amber-200 cursor-pointer"
+            >
+              {{ getStatusLabel(CohortTransitionStatus.NEW_CASE) }} ({{ res.summary.newCaseCount }})
+            </button>
+            <button
+              type="button"
+              (click)="activeFilter.set(CohortTransitionStatus.AGED_OUT)"
+              [class.bg-slate-700]="activeFilter() === CohortTransitionStatus.AGED_OUT"
+              [class.text-white]="activeFilter() === CohortTransitionStatus.AGED_OUT"
+              [class.bg-slate-100]="activeFilter() !== CohortTransitionStatus.AGED_OUT"
+              [class.text-slate-700]="activeFilter() !== CohortTransitionStatus.AGED_OUT"
+              class="px-3 py-1.5 rounded-lg transition-colors border border-slate-200 cursor-pointer"
+            >
+              Lulus Usia ({{ res.summary.agedOutCount }})
+            </button>
+          </div>
+
+          <!-- SEARCH & ACTIVE SORT PILL -->
+          <div class="flex items-center gap-2 w-full md:w-auto">
+            @if (sortColumn() && sortDirection() !== 'none') {
+              <button
+                type="button"
+                (click)="resetSort()"
+                class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-[#EEF0FF] text-[#525AFF] border border-[#525AFF]/30 hover:bg-[#E0E4FF] transition cursor-pointer shadow-2xs whitespace-nowrap"
+                title="Klik untuk mereset urutan tabel ke awal"
+              >
+                <span>Urut: <strong>{{ getSortColumnLabel() }}</strong> ({{ sortDirection() === 'asc' ? 'A-Z / Naik' : 'Z-A / Turun' }})</span>
+                <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             }
-          </svg>
-        </div>
-      </div>
-    </section>
 
-    <!-- 4.3 INTERACTIVE TABLE SECTION -->
-    <section class="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden space-y-4 p-5">
-      <!-- TABLE CONTROLS & FILTER TABS -->
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-        <!-- STATUS TABS -->
-        <div class="flex items-center flex-wrap gap-1.5 text-xs font-medium">
-          <button
-            type="button"
-            (click)="activeFilter.set('ALL')"
-            [class.bg-slate-900]="activeFilter() === 'ALL'"
-            [class.text-white]="activeFilter() === 'ALL'"
-            [class.bg-slate-100]="activeFilter() !== 'ALL'"
-            [class.text-slate-600]="activeFilter() !== 'ALL'"
-            class="px-3 py-1.5 rounded-lg transition-colors"
-          >
-            Semua ({{ res.children.length }})
-          </button>
-          <button
-            type="button"
-            (click)="activeFilter.set(CohortTransitionStatus.PERSISTENT)"
-            [class.bg-rose-600]="activeFilter() === CohortTransitionStatus.PERSISTENT"
-            [class.text-white]="activeFilter() === CohortTransitionStatus.PERSISTENT"
-            [class.bg-rose-50]="activeFilter() !== CohortTransitionStatus.PERSISTENT"
-            [class.text-rose-700]="activeFilter() !== CohortTransitionStatus.PERSISTENT"
-            class="px-3 py-1.5 rounded-lg transition-colors border border-rose-200"
-          >
-            Tetap Stunting ({{ res.summary.persistentCount }})
-          </button>
-          <button
-            type="button"
-            (click)="activeFilter.set(CohortTransitionStatus.RECOVERED)"
-            [class.bg-emerald-600]="activeFilter() === CohortTransitionStatus.RECOVERED"
-            [class.text-white]="activeFilter() === CohortTransitionStatus.RECOVERED"
-            [class.bg-emerald-50]="activeFilter() !== CohortTransitionStatus.RECOVERED"
-            [class.text-emerald-700]="activeFilter() !== CohortTransitionStatus.RECOVERED"
-            class="px-3 py-1.5 rounded-lg transition-colors border border-emerald-200"
-          >
-            Bebas Stunting ({{ res.summary.recoveredCount }})
-          </button>
-          <button
-            type="button"
-            (click)="activeFilter.set(CohortTransitionStatus.NEW_CASE)"
-            [class.bg-amber-600]="activeFilter() === CohortTransitionStatus.NEW_CASE"
-            [class.text-white]="activeFilter() === CohortTransitionStatus.NEW_CASE"
-            [class.bg-amber-50]="activeFilter() !== CohortTransitionStatus.NEW_CASE"
-            [class.text-amber-700]="activeFilter() !== CohortTransitionStatus.NEW_CASE"
-            class="px-3 py-1.5 rounded-lg transition-colors border border-amber-200"
-          >
-            Kasus Baru Stunting ({{ res.summary.newCaseCount }})
-          </button>
-          <button
-            type="button"
-            (click)="activeFilter.set(CohortTransitionStatus.AGED_OUT)"
-            [class.bg-slate-700]="activeFilter() === CohortTransitionStatus.AGED_OUT"
-            [class.text-white]="activeFilter() === CohortTransitionStatus.AGED_OUT"
-            [class.bg-slate-100]="activeFilter() !== CohortTransitionStatus.AGED_OUT"
-            [class.text-slate-700]="activeFilter() !== CohortTransitionStatus.AGED_OUT"
-            class="px-3 py-1.5 rounded-lg transition-colors border border-slate-200"
-          >
-            Lulus Usia ({{ res.summary.agedOutCount }})
-          </button>
+            <div class="relative w-full md:w-64">
+              <input
+                type="text"
+                [ngModel]="searchQuery()"
+                (ngModelChange)="searchQuery.set($event)"
+                placeholder="Cari NIK atau Nama balita..."
+                class="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all text-slate-800"
+              />
+              <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+          </div>
         </div>
 
-        <!-- SEARCH INPUT -->
-        <div class="relative w-full md:w-64">
-          <input
-            type="text"
-            [ngModel]="searchQuery()"
-            (ngModelChange)="searchQuery.set($event)"
-            placeholder="Cari NIK atau Nama balita..."
-            class="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all text-slate-800"
-          />
-          <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-        </div>
-      </div>
+        <!-- TABLE DATA -->
+        <div class="overflow-x-auto">
+          <table class="min-w-full border-collapse border border-slate-300 text-xs">
+            <thead>
+              <tr class="bg-gradient-to-b from-[#F2F5FA] to-[#E6ECF5] text-slate-800 font-bold border-b border-slate-300">
+                <th class="w-12 border border-slate-300 px-3 py-2.5 text-center font-bold text-slate-800 text-xs tracking-wide select-none">No</th>
 
-      <!-- TABLE DATA -->
-      <div class="overflow-x-auto">
-        <table class="w-full text-left text-xs border-collapse">
-          <thead>
-            <tr class="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-              <th class="py-2.5 px-3 w-12 text-center">No</th>
-              <th class="py-2.5 px-3">NIK Balita</th>
-              <th class="py-2.5 px-3">Nama Balita</th>
-              <th class="py-2.5 px-3">Tanggal Lahir</th>
-              <th class="py-2.5 px-3 text-center">Usia</th>
-              <th class="py-2.5 px-3">Puskesmas / Wilayah</th>
-              <th class="py-2.5 px-3 text-center">Status Transisi</th>
-              <th class="py-2.5 px-3 text-center">{{ res.p1Label }}</th>
-              <th class="py-2.5 px-3 text-center">{{ res.p2Label }}</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100 text-slate-700">
-            @for (child of filteredChildren(); track child.nik; let idx = $index) {
-              <tr class="hover:bg-slate-50/80 transition-colors">
-                <td class="py-2.5 px-3 text-center font-mono text-slate-400">{{ idx + 1 }}</td>
-                <td class="py-2.5 px-3 font-mono font-medium text-slate-900 whitespace-nowrap">
-                  {{ child.nik }}
-                  @if (!StuntingCohortEngine.isValid16Digits(child.nik)) {
-                    <span class="text-amber-500 ml-1 text-[11px] cursor-help" title="Format NIK tidak standar 16 digit">⚠️</span>
-                  }
-                </td>
-                <td class="py-2.5 px-3 font-semibold text-slate-800 whitespace-nowrap">{{ child.nama }}</td>
-                <td class="py-2.5 px-3 whitespace-nowrap">{{ child.tanggalLahir || '-' }}</td>
-                <td class="py-2.5 px-3 text-center font-medium whitespace-nowrap">
-                  {{ child.ageMonths !== null ? child.ageMonths + ' Bln' : '-' }}
-                  @if (child.isAgeOutlier) {
-                    <span class="inline-flex items-center ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200" title="Outlier: Anak berusia >= 60 bulan masih tercatat stunting di Periode Evaluasi">
-                      ⚠️ Outlier (&ge;60 Bln)
+                <!-- NIK Balita -->
+                <th
+                  (click)="toggleSort('nik')"
+                  class="border border-slate-300 px-3 py-2.5 text-left font-bold text-xs tracking-wide cursor-pointer select-none transition-colors hover:bg-slate-200/70"
+                  [class.bg-[#EEF0FF]]="sortColumn() === 'nik'"
+                  [class.text-[#525AFF]]="sortColumn() === 'nik'"
+                  [class.text-slate-800]="sortColumn() !== 'nik'"
+                  title="Urutkan berdasarkan NIK Balita"
+                >
+                  <div class="flex items-center justify-between gap-1.5">
+                    <span>NIK Balita</span>
+                    <span class="inline-flex items-center shrink-0">
+                      @if (sortColumn() === 'nik') {
+                        @if (sortDirection() === 'asc') {
+                          <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7" /></svg>
+                        } @else if (sortDirection() === 'desc') {
+                          <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" /></svg>
+                        }
+                      } @else {
+                        <svg class="w-3 h-3 text-slate-400 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
+                      }
                     </span>
-                  }
-                </td>
-                <td class="py-2.5 px-3 whitespace-nowrap text-slate-600">
-                  {{ child.puskesmas || '-' }}
-                  @if (child.desa) {
-                    <span class="text-[11px] text-slate-400 block">{{ child.desa }}</span>
-                  }
-                </td>
-                <td class="py-2.5 px-3 text-center whitespace-nowrap">
-                  @switch (child.status) {
-                    @case (CohortTransitionStatus.PERSISTENT) {
-                      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-100 text-rose-800 border border-rose-200">
-                        Tetap Stunting
+                  </div>
+                </th>
+
+                <!-- Nama Balita -->
+                <th
+                  (click)="toggleSort('nama')"
+                  class="border border-slate-300 px-3 py-2.5 text-left font-bold text-xs tracking-wide cursor-pointer select-none transition-colors hover:bg-slate-200/70"
+                  [class.bg-[#EEF0FF]]="sortColumn() === 'nama'"
+                  [class.text-[#525AFF]]="sortColumn() === 'nama'"
+                  [class.text-slate-800]="sortColumn() !== 'nama'"
+                  title="Urutkan berdasarkan Nama Balita"
+                >
+                  <div class="flex items-center justify-between gap-1.5">
+                    <span>Nama Balita</span>
+                    <span class="inline-flex items-center shrink-0">
+                      @if (sortColumn() === 'nama') {
+                        @if (sortDirection() === 'asc') {
+                          <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7" /></svg>
+                        } @else if (sortDirection() === 'desc') {
+                          <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" /></svg>
+                        }
+                      } @else {
+                        <svg class="w-3 h-3 text-slate-400 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
+                      }
+                    </span>
+                  </div>
+                </th>
+
+                <!-- Tanggal Lahir -->
+                <th
+                  (click)="toggleSort('tanggalLahir')"
+                  class="border border-slate-300 px-3 py-2.5 text-left font-bold text-xs tracking-wide cursor-pointer select-none transition-colors hover:bg-slate-200/70"
+                  [class.bg-[#EEF0FF]]="sortColumn() === 'tanggalLahir'"
+                  [class.text-[#525AFF]]="sortColumn() === 'tanggalLahir'"
+                  [class.text-slate-800]="sortColumn() !== 'tanggalLahir'"
+                  title="Urutkan berdasarkan Tanggal Lahir"
+                >
+                  <div class="flex items-center justify-between gap-1.5">
+                    <span>Tanggal Lahir</span>
+                    <span class="inline-flex items-center shrink-0">
+                      @if (sortColumn() === 'tanggalLahir') {
+                        @if (sortDirection() === 'asc') {
+                          <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7" /></svg>
+                        } @else if (sortDirection() === 'desc') {
+                          <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" /></svg>
+                        }
+                      } @else {
+                        <svg class="w-3 h-3 text-slate-400 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
+                      }
+                    </span>
+                  </div>
+                </th>
+
+                <!-- Usia -->
+                <th
+                  (click)="toggleSort('ageMonths')"
+                  class="border border-slate-300 px-3 py-2.5 text-center font-bold text-xs tracking-wide cursor-pointer select-none transition-colors hover:bg-slate-200/70"
+                  [class.bg-[#EEF0FF]]="sortColumn() === 'ageMonths'"
+                  [class.text-[#525AFF]]="sortColumn() === 'ageMonths'"
+                  [class.text-slate-800]="sortColumn() !== 'ageMonths'"
+                  title="Urutkan berdasarkan Usia"
+                >
+                  <div class="flex items-center justify-center gap-1.5">
+                    <span>Usia</span>
+                    <span class="inline-flex items-center shrink-0">
+                      @if (sortColumn() === 'ageMonths') {
+                        @if (sortDirection() === 'asc') {
+                          <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7" /></svg>
+                        } @else if (sortDirection() === 'desc') {
+                          <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" /></svg>
+                        }
+                      } @else {
+                        <svg class="w-3 h-3 text-slate-400 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
+                      }
+                    </span>
+                  </div>
+                </th>
+
+                <!-- Puskesmas / Wilayah -->
+                <th
+                  (click)="toggleSort('puskesmas')"
+                  class="border border-slate-300 px-3 py-2.5 text-left font-bold text-xs tracking-wide cursor-pointer select-none transition-colors hover:bg-slate-200/70"
+                  [class.bg-[#EEF0FF]]="sortColumn() === 'puskesmas'"
+                  [class.text-[#525AFF]]="sortColumn() === 'puskesmas'"
+                  [class.text-slate-800]="sortColumn() !== 'puskesmas'"
+                  title="Urutkan berdasarkan Puskesmas / Wilayah"
+                >
+                  <div class="flex items-center justify-between gap-1.5">
+                    <span>Puskesmas / Wilayah</span>
+                    <span class="inline-flex items-center shrink-0">
+                      @if (sortColumn() === 'puskesmas') {
+                        @if (sortDirection() === 'asc') {
+                          <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7" /></svg>
+                        } @else if (sortDirection() === 'desc') {
+                          <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" /></svg>
+                        }
+                      } @else {
+                        <svg class="w-3 h-3 text-slate-400 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
+                      }
+                    </span>
+                  </div>
+                </th>
+
+                <!-- Status Transisi -->
+                <th
+                  (click)="toggleSort('status')"
+                  class="border border-slate-300 px-3 py-2.5 text-center font-bold text-xs tracking-wide cursor-pointer select-none transition-colors hover:bg-slate-200/70"
+                  [class.bg-[#EEF0FF]]="sortColumn() === 'status'"
+                  [class.text-[#525AFF]]="sortColumn() === 'status'"
+                  [class.text-slate-800]="sortColumn() !== 'status'"
+                  title="Urutkan berdasarkan Status Transisi"
+                >
+                  <div class="flex items-center justify-center gap-1.5">
+                    <span>Status Transisi</span>
+                    <span class="inline-flex items-center shrink-0">
+                      @if (sortColumn() === 'status') {
+                        @if (sortDirection() === 'asc') {
+                          <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7" /></svg>
+                        } @else if (sortDirection() === 'desc') {
+                          <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" /></svg>
+                        }
+                      } @else {
+                        <svg class="w-3 h-3 text-slate-400 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
+                      }
+                    </span>
+                  </div>
+                </th>
+
+                @if (activeIndicator() === 'stunting') {
+                  <th
+                    (click)="toggleSort('p1')"
+                    class="border border-slate-300 px-3 py-2.5 text-center font-bold text-xs tracking-wide cursor-pointer select-none transition-colors hover:bg-slate-200/70"
+                    [class.bg-[#EEF0FF]]="sortColumn() === 'p1'"
+                    [class.text-[#525AFF]]="sortColumn() === 'p1'"
+                    [class.text-slate-800]="sortColumn() !== 'p1'"
+                    title="Urutkan berdasarkan TB Periode Baseline"
+                  >
+                    <div class="flex items-center justify-center gap-1.5">
+                      <span>TB ({{ res.p1Label }})</span>
+                      <span class="inline-flex items-center shrink-0">
+                        @if (sortColumn() === 'p1') {
+                          @if (sortDirection() === 'asc') {
+                            <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7" /></svg>
+                          } @else if (sortDirection() === 'desc') {
+                            <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" /></svg>
+                          }
+                        } @else {
+                          <svg class="w-3 h-3 text-slate-400 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
+                        }
                       </span>
-                    }
-                    @case (CohortTransitionStatus.RECOVERED) {
-                      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                        Bebas Stunting
+                    </div>
+                  </th>
+                  <th
+                    (click)="toggleSort('p2')"
+                    class="border border-slate-300 px-3 py-2.5 text-center font-bold text-xs tracking-wide cursor-pointer select-none transition-colors hover:bg-slate-200/70"
+                    [class.bg-[#EEF0FF]]="sortColumn() === 'p2'"
+                    [class.text-[#525AFF]]="sortColumn() === 'p2'"
+                    [class.text-slate-800]="sortColumn() !== 'p2'"
+                    title="Urutkan berdasarkan TB Periode Evaluasi"
+                  >
+                    <div class="flex items-center justify-center gap-1.5">
+                      <span>TB ({{ res.p2Label }})</span>
+                      <span class="inline-flex items-center shrink-0">
+                        @if (sortColumn() === 'p2') {
+                          @if (sortDirection() === 'asc') {
+                            <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7" /></svg>
+                          } @else if (sortDirection() === 'desc') {
+                            <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" /></svg>
+                          }
+                        } @else {
+                          <svg class="w-3 h-3 text-slate-400 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
+                        }
                       </span>
-                    }
-                    @case (CohortTransitionStatus.NEW_CASE) {
-                      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
-                        Kasus Baru Stunting
+                    </div>
+                  </th>
+                  <th
+                    (click)="toggleSort('delta')"
+                    class="border border-slate-300 px-3 py-2.5 text-center font-bold text-xs tracking-wide cursor-pointer select-none transition-colors hover:bg-slate-200/70"
+                    [class.bg-[#EEF0FF]]="sortColumn() === 'delta'"
+                    [class.text-[#525AFF]]="sortColumn() === 'delta'"
+                    [class.text-slate-800]="sortColumn() !== 'delta'"
+                    title="Urutkan berdasarkan Pertumbuhan (Δ TB)"
+                  >
+                    <div class="flex items-center justify-center gap-1.5">
+                      <span>Pertumbuhan (&Delta; TB)</span>
+                      <span class="inline-flex items-center shrink-0">
+                        @if (sortColumn() === 'delta') {
+                          @if (sortDirection() === 'asc') {
+                            <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7" /></svg>
+                          } @else if (sortDirection() === 'desc') {
+                            <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" /></svg>
+                          }
+                        } @else {
+                          <svg class="w-3 h-3 text-slate-400 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
+                        }
                       </span>
-                    }
-                    @case (CohortTransitionStatus.AGED_OUT) {
-                      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-200 text-slate-800 border border-slate-300">
-                        Lulus Usia Balita
+                    </div>
+                  </th>
+                } @else if (activeIndicator() === 'underweight') {
+                  <th
+                    (click)="toggleSort('p1')"
+                    class="border border-slate-300 px-3 py-2.5 text-center font-bold text-xs tracking-wide cursor-pointer select-none transition-colors hover:bg-slate-200/70"
+                    [class.bg-[#EEF0FF]]="sortColumn() === 'p1'"
+                    [class.text-[#525AFF]]="sortColumn() === 'p1'"
+                    [class.text-slate-800]="sortColumn() !== 'p1'"
+                    title="Urutkan berdasarkan BB Periode Baseline"
+                  >
+                    <div class="flex items-center justify-center gap-1.5">
+                      <span>BB ({{ res.p1Label }})</span>
+                      <span class="inline-flex items-center shrink-0">
+                        @if (sortColumn() === 'p1') {
+                          @if (sortDirection() === 'asc') {
+                            <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7" /></svg>
+                          } @else if (sortDirection() === 'desc') {
+                            <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" /></svg>
+                          }
+                        } @else {
+                          <svg class="w-3 h-3 text-slate-400 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
+                        }
                       </span>
-                    }
-                  }
-                </td>
-                <td class="py-2.5 px-3 text-center">
-                  @if (child.inPeriod1) {
-                    <span class="text-rose-600 font-bold">✓ Stunting</span>
-                  } @else {
-                    <span class="text-slate-400">-</span>
-                  }
-                </td>
-                <td class="py-2.5 px-3 text-center">
-                  @if (child.inPeriod2) {
-                    <span class="text-rose-600 font-bold">✓ Stunting</span>
-                  } @else {
-                    <span class="text-slate-400">-</span>
-                  }
-                </td>
+                    </div>
+                  </th>
+                  <th
+                    (click)="toggleSort('p2')"
+                    class="border border-slate-300 px-3 py-2.5 text-center font-bold text-xs tracking-wide cursor-pointer select-none transition-colors hover:bg-slate-200/70"
+                    [class.bg-[#EEF0FF]]="sortColumn() === 'p2'"
+                    [class.text-[#525AFF]]="sortColumn() === 'p2'"
+                    [class.text-slate-800]="sortColumn() !== 'p2'"
+                    title="Urutkan berdasarkan BB Periode Evaluasi"
+                  >
+                    <div class="flex items-center justify-center gap-1.5">
+                      <span>BB ({{ res.p2Label }})</span>
+                      <span class="inline-flex items-center shrink-0">
+                        @if (sortColumn() === 'p2') {
+                          @if (sortDirection() === 'asc') {
+                            <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7" /></svg>
+                          } @else if (sortDirection() === 'desc') {
+                            <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" /></svg>
+                          }
+                        } @else {
+                          <svg class="w-3 h-3 text-slate-400 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
+                        }
+                      </span>
+                    </div>
+                  </th>
+                  <th
+                    (click)="toggleSort('delta')"
+                    class="border border-slate-300 px-3 py-2.5 text-center font-bold text-xs tracking-wide cursor-pointer select-none transition-colors hover:bg-slate-200/70"
+                    [class.bg-[#EEF0FF]]="sortColumn() === 'delta'"
+                    [class.text-[#525AFF]]="sortColumn() === 'delta'"
+                    [class.text-slate-800]="sortColumn() !== 'delta'"
+                    title="Urutkan berdasarkan Perubahan (Δ BB)"
+                  >
+                    <div class="flex items-center justify-center gap-1.5">
+                      <span>Perubahan (&Delta; BB)</span>
+                      <span class="inline-flex items-center shrink-0">
+                        @if (sortColumn() === 'delta') {
+                          @if (sortDirection() === 'asc') {
+                            <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7" /></svg>
+                          } @else if (sortDirection() === 'desc') {
+                            <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" /></svg>
+                          }
+                        } @else {
+                          <svg class="w-3 h-3 text-slate-400 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
+                        }
+                      </span>
+                    </div>
+                  </th>
+                } @else {
+                  <th
+                    (click)="toggleSort('p1')"
+                    class="border border-slate-300 px-3 py-2.5 text-center font-bold text-xs tracking-wide cursor-pointer select-none transition-colors hover:bg-slate-200/70"
+                    [class.bg-[#EEF0FF]]="sortColumn() === 'p1'"
+                    [class.text-[#525AFF]]="sortColumn() === 'p1'"
+                    [class.text-slate-800]="sortColumn() !== 'p1'"
+                    title="Urutkan berdasarkan Pengukuran P1"
+                  >
+                    <div class="flex items-center justify-center gap-1.5">
+                      <span>Pengukuran &amp; Status BB/TB ({{ res.p1Label }})</span>
+                      <span class="inline-flex items-center shrink-0">
+                        @if (sortColumn() === 'p1') {
+                          @if (sortDirection() === 'asc') {
+                            <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7" /></svg>
+                          } @else if (sortDirection() === 'desc') {
+                            <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" /></svg>
+                          }
+                        } @else {
+                          <svg class="w-3 h-3 text-slate-400 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
+                        }
+                      </span>
+                    </div>
+                  </th>
+                  <th
+                    (click)="toggleSort('p2')"
+                    class="border border-slate-300 px-3 py-2.5 text-center font-bold text-xs tracking-wide cursor-pointer select-none transition-colors hover:bg-slate-200/70"
+                    [class.bg-[#EEF0FF]]="sortColumn() === 'p2'"
+                    [class.text-[#525AFF]]="sortColumn() === 'p2'"
+                    [class.text-slate-800]="sortColumn() !== 'p2'"
+                    title="Urutkan berdasarkan Pengukuran P2"
+                  >
+                    <div class="flex items-center justify-center gap-1.5">
+                      <span>Pengukuran &amp; Status BB/TB ({{ res.p2Label }})</span>
+                      <span class="inline-flex items-center shrink-0">
+                        @if (sortColumn() === 'p2') {
+                          @if (sortDirection() === 'asc') {
+                            <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7" /></svg>
+                          } @else if (sortDirection() === 'desc') {
+                            <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" /></svg>
+                          }
+                        } @else {
+                          <svg class="w-3 h-3 text-slate-400 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
+                        }
+                      </span>
+                    </div>
+                  </th>
+                  <th
+                    (click)="toggleSort('delta')"
+                    class="border border-slate-300 px-3 py-2.5 text-center font-bold text-xs tracking-wide cursor-pointer select-none transition-colors hover:bg-slate-200/70"
+                    [class.bg-[#EEF0FF]]="sortColumn() === 'delta'"
+                    [class.text-[#525AFF]]="sortColumn() === 'delta'"
+                    [class.text-slate-800]="sortColumn() !== 'delta'"
+                    title="Urutkan berdasarkan Dinamika Fisik"
+                  >
+                    <div class="flex items-center justify-center gap-1.5">
+                      <span>Dinamika Fisik (&Delta; BB &amp; &Delta; TB)</span>
+                      <span class="inline-flex items-center shrink-0">
+                        @if (sortColumn() === 'delta') {
+                          @if (sortDirection() === 'asc') {
+                            <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7" /></svg>
+                          } @else if (sortDirection() === 'desc') {
+                            <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" /></svg>
+                          }
+                        } @else {
+                          <svg class="w-3 h-3 text-slate-400 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
+                        }
+                      </span>
+                    </div>
+                  </th>
+                }
               </tr>
-            } @empty {
-              <tr>
-                <td colspan="9" class="py-8 text-center text-slate-400 text-xs">
-                  Tidak ada balita yang sesuai dengan filter atau kata kunci pencarian.
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-    </section>
+            </thead>
+            <tbody class="divide-y divide-slate-200 text-slate-700">
+              @for (child of filteredChildren(); track child.nik; let idx = $index) {
+                <tr class="hover:bg-[#F2F5FA]/80 transition group">
+                  <td class="w-12 border border-slate-300 px-2 py-2 text-center font-semibold text-slate-600 bg-slate-50/50 text-xs font-mono">
+                    {{ idx + 1 }}
+                  </td>
+                  <td class="whitespace-nowrap border border-slate-300 px-3 py-2 font-mono font-medium text-slate-900 text-xs">
+                    {{ child.nik }}
+                    @if (!StuntingCohortEngine.isValid16Digits(child.nik)) {
+                      <span class="text-amber-500 ml-1 text-[11px] cursor-help" title="Format NIK tidak standar 16 digit">⚠️</span>
+                    }
+                  </td>
+                  <td class="whitespace-nowrap border border-slate-300 px-3 py-2 font-semibold text-slate-800 text-xs">{{ child.nama }}</td>
+                  <td class="whitespace-nowrap border border-slate-300 px-3 py-2 font-mono text-slate-700 text-xs">{{ child.tanggalLahir || '-' }}</td>
+                  <td class="whitespace-nowrap border border-slate-300 px-3 py-2 text-center font-medium text-xs">
+                    {{ child.ageMonths !== null ? child.ageMonths + ' Bln' : '-' }}
+                    @if (child.isAgeOutlier) {
+                      <span class="inline-flex items-center ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700" title="Outlier: Anak berusia >= 60 bulan masih tercatat kasus di Periode Evaluasi">
+                        ⚠️ Outlier (&ge;60 Bln)
+                      </span>
+                    }
+                  </td>
+                  <td class="whitespace-nowrap border border-slate-300 px-3 py-2 text-slate-600 text-xs">
+                    <div class="font-medium text-slate-800">{{ child.puskesmas || '-' }}</div>
+                    @if (child.desa) {
+                      <div class="text-[11px] text-slate-500">{{ child.desa }}</div>
+                    }
+                  </td>
+
+                  <!-- STATUS TRANSISI DENGAN BADGE KONSISTEN -->
+                  <td class="border border-slate-300 px-3 py-2 text-center whitespace-nowrap text-xs">
+                    @switch (child.status) {
+                      @case (CohortTransitionStatus.PERSISTENT) {
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                          {{ child.statusLabel }}
+                        </span>
+                      }
+                      @case (CohortTransitionStatus.RECOVERED) {
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          {{ child.statusLabel }}
+                        </span>
+                      }
+                      @case (CohortTransitionStatus.NEW_CASE) {
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                          {{ child.statusLabel }}
+                        </span>
+                      }
+                      @case (CohortTransitionStatus.AGED_OUT) {
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                          {{ child.statusLabel }}
+                        </span>
+                      }
+                    }
+                  </td>
+
+                  <!-- ANTHROPOMETRIC COLUMNS BY INDICATOR -->
+                  @if (activeIndicator() === 'stunting') {
+                    <!-- TB PERIODE 1 -->
+                    <td class="whitespace-nowrap border border-slate-300 px-3 py-2 text-center text-xs">
+                      @if (child.p1Height !== null && child.p1Height !== undefined) {
+                        <div class="font-bold font-mono text-slate-800">{{ child.p1Height }} cm</div>
+                        <div
+                          class="text-[10px] font-medium"
+                          [class.text-rose-600]="child.p1StatusTbu?.includes('Pendek') || child.inPeriod1"
+                          [class.text-emerald-600]="!child.p1StatusTbu?.includes('Pendek') && !child.inPeriod1"
+                        >
+                          {{ child.p1StatusTbu || (child.inPeriod1 ? 'Pendek' : 'Normal') }}
+                        </div>
+                      } @else if (child.inPeriod1) {
+                        <span class="text-rose-600 font-bold">✓ Stunting</span>
+                      } @else {
+                        <span class="text-slate-400">-</span>
+                      }
+                    </td>
+
+                    <!-- TB PERIODE 2 -->
+                    <td class="whitespace-nowrap border border-slate-300 px-3 py-2 text-center text-xs">
+                      @if (child.p2Height !== null && child.p2Height !== undefined) {
+                        <div class="font-bold font-mono text-slate-800">{{ child.p2Height }} cm</div>
+                        <div
+                          class="text-[10px] font-medium"
+                          [class.text-rose-600]="child.p2StatusTbu?.includes('Pendek') || child.inPeriod2"
+                          [class.text-emerald-600]="!child.p2StatusTbu?.includes('Pendek') && !child.inPeriod2"
+                        >
+                          {{ child.p2StatusTbu || (child.inPeriod2 ? 'Pendek' : 'Normal') }}
+                        </div>
+                      } @else if (child.inPeriod2) {
+                        <span class="text-rose-600 font-bold">✓ Stunting</span>
+                      } @else {
+                        <div class="text-slate-400 font-mono">-</div>
+                        <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200" title="Balita tidak terdata di Periode Evaluasi - Dianggap Lulus Stunting">
+                          Tidak terdata P2
+                        </span>
+                      }
+                    </td>
+
+                    <!-- PERTUMBUHAN (DELTA TB): CLEAN BADGES -->
+                    <td class="whitespace-nowrap border border-slate-300 px-3 py-2 text-center text-xs font-mono">
+                      @if (child.heightGain !== null && child.heightGain !== undefined) {
+                        @if (child.heightGain >= 6.0) {
+                          <span class="inline-flex items-center px-2 py-0.5 rounded font-bold text-xs bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            +{{ child.heightGain }} cm
+                          </span>
+                        } @else if (child.heightGain >= 3.0) {
+                          <span class="inline-flex items-center px-2 py-0.5 rounded font-semibold text-xs bg-blue-50 text-blue-800 border border-blue-200">
+                            +{{ child.heightGain }} cm
+                          </span>
+                        } @else if (child.heightGain >= 0) {
+                          <span class="inline-flex items-center px-2 py-0.5 rounded font-medium text-xs bg-amber-50 text-amber-800 border border-amber-200">
+                            +{{ child.heightGain }} cm
+                          </span>
+                        } @else {
+                          <span class="inline-flex items-center px-2 py-0.5 rounded font-bold text-xs bg-rose-50 text-rose-800 border border-rose-200">
+                            {{ child.heightGain }} cm
+                          </span>
+                        }
+                      } @else {
+                        <span class="text-slate-400">-</span>
+                      }
+                    </td>
+                  } @else if (activeIndicator() === 'underweight') {
+                    <!-- BB PERIODE 1 -->
+                    <td class="whitespace-nowrap border border-slate-300 px-3 py-2 text-center text-xs">
+                      @if (child.p1Weight !== null && child.p1Weight !== undefined) {
+                        <div class="font-bold font-mono text-slate-800">{{ child.p1Weight }} kg</div>
+                        <div
+                          class="text-[10px] font-medium"
+                          [class.text-yellow-700]="child.p1StatusBbu?.includes('Kurang') || child.inPeriod1"
+                          [class.text-emerald-600]="!child.p1StatusBbu?.includes('Kurang') && !child.inPeriod1"
+                        >
+                          {{ child.p1StatusBbu || (child.inPeriod1 ? 'Berat Kurang' : 'Normal') }}
+                        </div>
+                      } @else if (child.inPeriod1) {
+                        <span class="text-yellow-700 font-bold">✓ Underweight</span>
+                      } @else {
+                        <span class="text-slate-400">-</span>
+                      }
+                    </td>
+
+                    <!-- BB PERIODE 2 -->
+                    <td class="whitespace-nowrap border border-slate-300 px-3 py-2 text-center text-xs">
+                      @if (child.p2Weight !== null && child.p2Weight !== undefined) {
+                        <div class="font-bold font-mono text-slate-800">{{ child.p2Weight }} kg</div>
+                        <div
+                          class="text-[10px] font-medium"
+                          [class.text-yellow-700]="child.p2StatusBbu?.includes('Kurang') || child.inPeriod2"
+                          [class.text-emerald-600]="!child.p2StatusBbu?.includes('Kurang') && !child.inPeriod2"
+                        >
+                          {{ child.p2StatusBbu || (child.inPeriod2 ? 'Berat Kurang' : 'Normal') }}
+                        </div>
+                      } @else if (child.inPeriod2) {
+                        <span class="text-yellow-700 font-bold">✓ Underweight</span>
+                      } @else {
+                        <div class="text-slate-400 font-mono">-</div>
+                        <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200" title="Balita tidak terdata di Periode Evaluasi">
+                          Tidak terdata P2
+                        </span>
+                      }
+                    </td>
+
+                    <!-- PERUBAHAN (DELTA BB): CLEAN BADGES -->
+                    <td class="whitespace-nowrap border border-slate-300 px-3 py-2 text-center text-xs font-mono">
+                      @if (child.weightGain !== null && child.weightGain !== undefined) {
+                        @if (child.weightGain >= 0.5) {
+                          <span class="inline-flex items-center px-2 py-0.5 rounded font-bold text-xs bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            +{{ child.weightGain }} kg
+                          </span>
+                        } @else if (child.weightGain >= 0) {
+                          <span class="inline-flex items-center px-2 py-0.5 rounded font-semibold text-xs bg-blue-50 text-blue-800 border border-blue-200">
+                            +{{ child.weightGain }} kg
+                          </span>
+                        } @else {
+                          <span class="inline-flex items-center px-2 py-0.5 rounded font-bold text-xs bg-rose-50 text-rose-800 border border-rose-200">
+                            {{ child.weightGain }} kg
+                          </span>
+                        }
+                      } @else {
+                        <span class="text-slate-400">-</span>
+                      }
+                    </td>
+                  } @else {
+                    <!-- WASTING / GIZI BURUK / OVERWEIGHT PERIODE 1 -->
+                    <td class="whitespace-nowrap border border-slate-300 px-3 py-2 text-center text-xs">
+                      @if (child.p1Weight !== null || child.p1Height !== null) {
+                        <div class="font-bold font-mono text-slate-800">
+                          {{ child.p1Weight !== null && child.p1Weight !== undefined ? child.p1Weight + ' kg' : '-' }} / {{ child.p1Height !== null && child.p1Height !== undefined ? child.p1Height + ' cm' : '-' }}
+                        </div>
+                        <div
+                          class="text-[10px] font-medium"
+                          [class.text-amber-700]="child.p1StatusBbtb?.includes('Kurang')"
+                          [class.text-rose-700]="child.p1StatusBbtb?.includes('Buruk')"
+                          [class.text-purple-700]="child.p1StatusBbtb?.includes('Lebih') || child.p1StatusBbtb?.includes('Obesitas')"
+                          [class.text-emerald-600]="child.p1StatusBbtb?.includes('Normal') || child.p1StatusBbtb?.includes('Baik')"
+                        >
+                          {{ child.p1StatusBbtb || (child.inPeriod1 ? 'Ada Kasus' : 'Normal') }}
+                          @if (child.p1ZscoreBbtb !== null && child.p1ZscoreBbtb !== undefined) {
+                            <span class="font-mono text-[9px] text-slate-500">(Z: {{ child.p1ZscoreBbtb }})</span>
+                          }
+                        </div>
+                      } @else if (child.inPeriod1) {
+                        <span class="text-amber-700 font-bold">✓ Kasus</span>
+                      } @else {
+                        <span class="text-slate-400">-</span>
+                      }
+                    </td>
+
+                    <!-- WASTING / GIZI BURUK / OVERWEIGHT PERIODE 2 -->
+                    <td class="whitespace-nowrap border border-slate-300 px-3 py-2 text-center text-xs">
+                      @if (child.p2Weight !== null || child.p2Height !== null) {
+                        <div class="font-bold font-mono text-slate-800">
+                          {{ child.p2Weight !== null && child.p2Weight !== undefined ? child.p2Weight + ' kg' : '-' }} / {{ child.p2Height !== null && child.p2Height !== undefined ? child.p2Height + ' cm' : '-' }}
+                        </div>
+                        <div
+                          class="text-[10px] font-medium"
+                          [class.text-amber-700]="child.p2StatusBbtb?.includes('Kurang')"
+                          [class.text-rose-700]="child.p2StatusBbtb?.includes('Buruk')"
+                          [class.text-purple-700]="child.p2StatusBbtb?.includes('Lebih') || child.p2StatusBbtb?.includes('Obesitas')"
+                          [class.text-emerald-600]="child.p2StatusBbtb?.includes('Normal') || child.p2StatusBbtb?.includes('Baik')"
+                        >
+                          {{ child.p2StatusBbtb || (child.inPeriod2 ? 'Ada Kasus' : 'Normal') }}
+                          @if (child.p2ZscoreBbtb !== null && child.p2ZscoreBbtb !== undefined) {
+                            <span class="font-mono text-[9px] text-slate-500">(Z: {{ child.p2ZscoreBbtb }})</span>
+                          }
+                        </div>
+                      } @else if (child.inPeriod2) {
+                        <span class="text-amber-700 font-bold">✓ Kasus</span>
+                      } @else {
+                        <div class="text-slate-400 font-mono">-</div>
+                        <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200" title="Balita tidak terdata di Periode Evaluasi">
+                          Tidak terdata P2
+                        </span>
+                      }
+                    </td>
+
+                    <!-- DINAMIKA FISIK (DELTA BB & DELTA TB) -->
+                    <td class="whitespace-nowrap border border-slate-300 px-3 py-2 text-center font-mono text-[11px]">
+                      @if (child.weightGain !== null && child.weightGain !== undefined) {
+                        <div [class.text-emerald-700]="child.weightGain >= 0" [class.text-rose-700]="child.weightGain < 0">
+                          &Delta;BB: {{ child.weightGain >= 0 ? '+' : '' }}{{ child.weightGain }} kg
+                        </div>
+                      } @else {
+                        <div class="text-slate-400">&Delta;BB: -</div>
+                      }
+                      @if (child.heightGain !== null && child.heightGain !== undefined) {
+                        <div [class.text-emerald-700]="child.heightGain >= 0" [class.text-rose-700]="child.heightGain < 0">
+                          &Delta;TB: {{ child.heightGain >= 0 ? '+' : '' }}{{ child.heightGain }} cm
+                        </div>
+                      } @else {
+                        <div class="text-slate-400">&Delta;TB: -</div>
+                      }
+                    </td>
+                  }
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="10" class="py-8 text-center text-slate-400 text-xs border border-slate-300">
+                    Tidak ada balita yang sesuai dengan filter atau kata kunci pencarian.
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
   }
 </div>

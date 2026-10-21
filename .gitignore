@@ -43,6 +43,12 @@ __screenshots__/
 .DS_Store
 Thumbs.db
 
+# Local test data & exported spreadsheets in root
+/*.xlsx
+/*.xls
+/*.csv
+/konfigurasi_join_excel_*.json
+
 # AI Agents & Skills
 .agents/
 agent/

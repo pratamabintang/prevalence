@@ -7,7 +7,7 @@ import { RouterLink } from '@angular/router';
   imports: [RouterLink],
   template: `
     <div class="border-b border-[#6D8BC0]/20 bg-gradient-to-r from-white via-[#F8FAFD] to-white" [class.sticky]="sticky()" [class.top-0]="sticky()" [class.z-30]="sticky()">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4">
+      <div class="w-full px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4">
         <!-- BRANDING & BREADCRUMB / TITLE -->
         <div class="flex items-center gap-3 min-w-0">
           @if (backRoute()) {

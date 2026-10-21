@@ -97,6 +97,8 @@ export interface StuntingQuarterInputConfig {
   denominatorCol?: string;
   sumCol?: string;
   meanCol?: string;
+  actualValue?: number | null;
+  countValue?: number | null;
 }
 
 export interface StuntingSubCategoryConfig {
@@ -137,6 +139,7 @@ export interface AggregatedEvaluationOptions {
   activeQuarter?: 1 | 2 | 3 | 4;
   quarterWeight?: number;
   toleranceThresholdPercent?: number;
+  calculationDataSource?: 'summary_row' | 'all_rows' | 'aggregated_rows';
 }
 
 export interface StuntingEvaluationOptions {
@@ -818,29 +821,78 @@ export class StuntingEvaluationEngine {
           4: { quarter: 4, expectedAchievement: null, actualAchievement: null, gap: null, sumNumerator: null, sumDenominator: null, hasData: false },
         };
 
+        const hasExplicitQuarterConfigs =
+          !!sub.quarterColumns &&
+          Object.values(sub.quarterColumns).some(
+            (qc) =>
+              !!qc &&
+              (!!qc.sumCol ||
+                !!qc.meanCol ||
+                !!qc.numeratorCol ||
+                (qc.actualValue !== undefined && qc.actualValue !== null) ||
+                (qc.countValue !== undefined && qc.countValue !== null)),
+          );
+
         for (const k of [1, 2, 3, 4] as const) {
-          // Resolve columns: check quarterColumns first, fallback to sub-level config
-          const sumCol = sub.quarterColumns?.[k]?.sumCol || sub.sumCol;
-          let meanCol = sub.quarterColumns?.[k]?.meanCol || sub.meanCol;
-          let numCol = sub.quarterColumns?.[k]?.numeratorCol;
-          if (!meanCol && !numCol && (!sub.quarterColumns || Object.keys(sub.quarterColumns).length === 0) && k === q) {
-            meanCol = sub.meanCol || sub.numeratorCol;
-            numCol = sub.numeratorCol;
-          } else if (!meanCol) {
+          const qConfig = sub.quarterColumns?.[k];
+          const isQuarterConfigured =
+            !!qConfig &&
+            (!!qConfig.sumCol ||
+              !!qConfig.meanCol ||
+              !!qConfig.numeratorCol ||
+              (qConfig.actualValue !== undefined && qConfig.actualValue !== null) ||
+              (qConfig.countValue !== undefined && qConfig.countValue !== null));
+
+          const qWeight = options.quarterWeight && k === q ? options.quarterWeight : this.DEFAULT_WEIGHTS[k];
+          const exp = this.calculateExpectedAchievement(targetCurrent, k, null, qWeight);
+
+          // If explicit quarter configs are used, skip unconfigured quarters completely
+          if (hasExplicitQuarterConfigs && !isQuarterConfigured) {
+            quarters[k] = {
+              quarter: k,
+              expectedAchievement: exp,
+              actualAchievement: null,
+              gap: null,
+              sumNumerator: null,
+              sumDenominator: null,
+              hasData: false,
+            };
+            continue;
+          }
+
+          // If legacy single-quarter config is used, ONLY evaluate active quarter q
+          if (!hasExplicitQuarterConfigs && k !== q) {
+            quarters[k] = {
+              quarter: k,
+              expectedAchievement: exp,
+              actualAchievement: null,
+              gap: null,
+              sumNumerator: null,
+              sumDenominator: null,
+              hasData: false,
+            };
+            continue;
+          }
+
+          const sumCol = qConfig?.sumCol || (k === q ? sub.sumCol : undefined);
+          let meanCol = qConfig?.meanCol || qConfig?.numeratorCol || (k === q ? (sub.meanCol || sub.numeratorCol) : undefined);
+          let numCol = qConfig?.numeratorCol || (k === q ? sub.numeratorCol : undefined);
+          if (!meanCol && numCol) {
             meanCol = numCol;
           }
 
-          const denCol = sub.quarterColumns?.[k]?.denominatorCol || sub.denominatorCol;
-          const qWeight = options.quarterWeight && k === q ? options.quarterWeight : this.DEFAULT_WEIGHTS[k];
-          const exp = this.calculateExpectedAchievement(targetCurrent, k, null, qWeight);
+          const denCol = qConfig?.denominatorCol || sub.denominatorCol;
+          const directActualVal = qConfig?.actualValue !== undefined ? qConfig.actualValue : (k === q ? sub.actualValue : undefined);
+          const directCountVal = qConfig?.countValue !== undefined ? qConfig.countValue : (k === q ? sub.countValue : undefined);
 
           let act: number | null = null;
           let sumNum: number | null = null;
           let sumDen: number | null = null;
 
-          if (sub.actualValue !== undefined && sub.actualValue !== null && k === q) {
-            act = sub.actualValue;
-            sumNum = sub.countValue ?? null;
+          const isSummaryMode = options.calculationDataSource === 'summary_row' || joinedRows.length <= 1;
+          if (isSummaryMode && directActualVal !== undefined && directActualVal !== null) {
+            act = directActualVal;
+            sumNum = directCountVal ?? null;
           } else {
             // 1. Calculate sumNum (Jumlah Triwulan Ini / SUM)
             const targetSumCol = denCol ? (numCol || sumCol) : (sumCol || (calcMode === 'absolute' ? (meanCol || numCol) : undefined));
@@ -852,8 +904,8 @@ export class StuntingEvaluationEngine {
                 sumNum = this.sumColumnValues(joinedRows, targetSumCol);
               }
             }
-            if (sumNum === null && sub.countValue !== undefined && sub.countValue !== null) {
-              sumNum = sub.countValue;
+            if (sumNum === null && directCountVal !== undefined && directCountVal !== null) {
+              sumNum = directCountVal;
             }
 
             // 2. Calculate act (Capaian Triwulan Ini / MEAN %)
@@ -870,7 +922,7 @@ export class StuntingEvaluationEngine {
                 const directVal = joinedRows[0][targetMeanCol];
                 act = IndicatorEvaluator.parseSmartNumber(directVal);
                 if (sumNum === null) {
-                  sumNum = sub.countValue ?? (typeof directVal === 'number' && directVal > 100 ? directVal : null);
+                  sumNum = directCountVal ?? (typeof directVal === 'number' && directVal > 100 ? directVal : null);
                 }
               } else if (joinedRows.length > 0) {
                 if (targetMeanCol && calcMode !== 'absolute') {

@@ -4,9 +4,11 @@ import {
   ColumnInfo,
   ExcelEngine,
   HeaderGridCell,
+  StyledExportSpec,
   SummaryRowSpec,
 } from '../../shared/excel';
 import { RegionNormalizer } from '../domain/region-normalizer';
+import { ExcelResilientMatcher } from './excel-resilient-matcher';
 import {
   CapaianSummary,
   ColumnConfig,
@@ -14,6 +16,40 @@ import {
   ColumnTargetConfig,
   IndicatorEvaluator,
 } from '../evaluation/indicator-evaluator';
+
+export interface JoinPresetSheetInput {
+  sheetName: string;
+  headerStartRow?: number;
+  headerEndRow?: number;
+  dataStartRow?: number;
+  joinColumn?: string;
+  variables: string[];
+}
+
+export interface JoinPresetExecutionSpec {
+  sheets: JoinPresetSheetInput[];
+  joinBy?: string;
+  stripKabupaten?: boolean;
+  outputHeaderFormat?: 'full' | 'concat';
+  includeSheetPrefix?: boolean;
+  customColumnNames?: Record<string, string>;
+  columnTargets?: Record<string, ColumnTargetConfig>;
+  columnConfigs?: Record<string, ColumnConfig>;
+  sumColumns?: Record<string, boolean>;
+  avgColumns?: Record<string, boolean>;
+  enableJumlah?: boolean;
+  enableAverage?: boolean;
+  enableTarget?: boolean;
+}
+
+export interface JoinedDatasetResult {
+  rows: Record<string, unknown>[];
+  columns: string[];
+  keyCol: string;
+  summaryRow: Record<string, unknown> | null;
+  targetRow: Record<string, unknown> | null;
+  totalRow: Record<string, unknown> | null;
+}
 
 export interface JoinSheetInput {
   name: string;
@@ -352,9 +388,9 @@ export class ExcelJoinEngine {
   }
 
   /**
-   * Menghasilkan buku kerja Excel ber-styling lengkap dengan baris ringkasan dan unduh.
+   * Menyusun StyledExportSpec lengkap dari data hasil penggabungan tabel.
    */
-  static exportJoinedWorkbook(spec: JoinExportSpec): void {
+  static buildJoinedStyledSpec(spec: JoinExportSpec): StyledExportSpec | null {
     const {
       fileName = `Hasil_Join_Excel_${new Date().toISOString().slice(0, 10)}.xlsx`,
       sheetName = 'Hasil Join',
@@ -374,7 +410,7 @@ export class ExcelJoinEngine {
     } = spec;
 
     if (resultRows.length === 0 || resultColumns.length === 0) {
-      return;
+      return null;
     }
 
     const isConcat = outputHeaderFormat === 'concat';
@@ -559,7 +595,7 @@ export class ExcelJoinEngine {
       enableCapaian,
     );
 
-    ExcelEngine.exportStyledTable({
+    return {
       fileName,
       sheetName,
       columns: excelCols,
@@ -642,6 +678,287 @@ export class ExcelJoinEngine {
           numFmt,
         };
       },
+    };
+  }
+
+  /**
+   * Menghasilkan WorkBook Excel ber-styling lengkap dari hasil penggabungan tabel (tanpa memicu unduh file).
+   */
+  static buildJoinedWorkbook(spec: JoinExportSpec): XLSX.WorkBook | null {
+    const styledSpec = this.buildJoinedStyledSpec(spec);
+    if (!styledSpec) return null;
+    return ExcelEngine.buildStyledWorkbook(styledSpec);
+  }
+
+  /**
+   * Mengonversi hasil penggabungan tabel ber-styling menjadi ArrayBuffer biner.
+   */
+  static buildJoinedBuffer(spec: JoinExportSpec): ArrayBuffer | null {
+    const styledSpec = this.buildJoinedStyledSpec(spec);
+    if (!styledSpec) return null;
+    const workbook = ExcelEngine.buildStyledWorkbook(styledSpec);
+    return ExcelEngine.writeWorkbookToBuffer(workbook);
+  }
+
+  /**
+   * Menghasilkan buku kerja Excel ber-styling lengkap dengan baris ringkasan dan unduh.
+   */
+  static exportJoinedWorkbook(spec: JoinExportSpec): void {
+    const styledSpec = this.buildJoinedStyledSpec(spec);
+    if (!styledSpec) return;
+    ExcelEngine.exportStyledTable(styledSpec);
+  }
+
+  /**
+   * Mengeksekusi left join pada workbook menggunakan konfigurasi preset secara otomatis,
+   * menerapkan kustomisasi nama kolom (customColumnNames), dan menghasilkan baris ringkasan
+   * (Jumlah / totalRow, Rata-rata / summaryRow, Target / targetRow).
+   */
+  static executeJoinFromPreset(
+    workbook: XLSX.WorkBook,
+    preset: JoinPresetExecutionSpec,
+  ): JoinedDatasetResult {
+    if (!workbook || !preset || !Array.isArray(preset.sheets) || preset.sheets.length === 0) {
+      return {
+        rows: [],
+        columns: [],
+        keyCol: 'Kabupaten/Kota',
+        summaryRow: null,
+        targetRow: null,
+        totalRow: null,
+      };
+    }
+
+    const availableSheetNames = [...workbook.SheetNames];
+    const matchedSheetMap = ExcelResilientMatcher.matchSheets(
+      availableSheetNames,
+      preset.sheets,
+    );
+
+    const selectedSheets: JoinSheetInput[] = [];
+
+    for (const ps of preset.sheets) {
+      const matchedName = availableSheetNames.find(
+        (name) => matchedSheetMap.get(name) === ps,
+      );
+      if (!matchedName) continue;
+
+      const ws = workbook.Sheets[matchedName];
+      if (!ws) continue;
+
+      const struct = ExcelEngine.detectSheetStructure(ws);
+      const hStart = ps.headerStartRow ?? struct.headerStartRow;
+      const hEnd = ps.headerEndRow ?? struct.headerEndRow;
+      const dStart = ps.dataStartRow ?? struct.dataStartRow;
+
+      const cols = ExcelEngine.extractSheetColumns(ws, hStart, hEnd);
+      const selectedVars: string[] = [];
+
+      if (ps.variables && ps.variables.length > 0) {
+        for (const pv of ps.variables) {
+          const m = ExcelResilientMatcher.findMatchingHeader(pv, cols);
+          if (m) selectedVars.push(m);
+        }
+      }
+
+      const defaultJoin =
+        cols.find((c) => /kabupaten|kota|wilayah|puskesmas/i.test(c.header))?.header ||
+        cols[0]?.header ||
+        'Kabupaten/Kota';
+      let joinCol = defaultJoin;
+      if (ps.joinColumn) {
+        joinCol = ExcelResilientMatcher.findMatchingHeader(ps.joinColumn, cols) || ps.joinColumn;
+      } else if (preset.joinBy) {
+        joinCol = ExcelResilientMatcher.findMatchingHeader(preset.joinBy, cols) || defaultJoin;
+      }
+
+      selectedSheets.push({
+        name: matchedName,
+        columns: cols,
+        headers: cols.map((c) => c.header),
+        selected: true,
+        variables:
+          selectedVars.length > 0
+            ? selectedVars
+            : cols.map((c) => c.header).filter((h) => h !== joinCol),
+        joinColumn: joinCol,
+        dataStartRow: dStart,
+      });
+    }
+
+    if (selectedSheets.length === 0) {
+      return {
+        rows: [],
+        columns: [],
+        keyCol: 'Kabupaten/Kota',
+        summaryRow: null,
+        targetRow: null,
+        totalRow: null,
+      };
+    }
+
+    let rawRows: Record<string, unknown>[] = [];
+    let rawCols: string[] = [];
+
+    if (selectedSheets.length === 1) {
+      const single = selectedSheets[0];
+      const ws = workbook.Sheets[single.name];
+      rawRows = ExcelEngine.readSheetRows(ws, single.columns, single.dataStartRow);
+      rawCols = single.columns.map((c) => c.header);
+    } else {
+      const joinResult = this.executeJoin({
+        workbook,
+        selectedSheets,
+        joinBy: preset.joinBy || 'Kabupaten/Kota',
+        stripKabupaten: preset.stripKabupaten ?? true,
+        outputHeaderFormat: preset.outputHeaderFormat ?? 'full',
+        includeSheetPrefix: preset.includeSheetPrefix ?? false,
+      });
+      rawRows = joinResult.rows;
+      rawCols = joinResult.columns;
+    }
+
+    const rawKeyCol =
+      rawCols.find((c) => /kabupaten|kota|wilayah|puskesmas/i.test(c)) ||
+      rawCols[0] ||
+      'Kabupaten/Kota';
+
+    const resolveName = (col: string): string => {
+      if (preset.customColumnNames && preset.customColumnNames[col]) {
+        return preset.customColumnNames[col];
+      }
+      return col;
+    };
+
+    const finalKeyCol = resolveName(rawKeyCol);
+    const finalCols = rawCols.map((c) => resolveName(c));
+
+    const finalRows: Record<string, unknown>[] = rawRows.map((r, idx) => {
+      const rowObj: Record<string, unknown> = {
+        __id: String(r['__id'] ?? `row-${idx}`),
+      };
+      for (const col of rawCols) {
+        rowObj[resolveName(col)] = r[col];
+      }
+      if (
+        preset.stripKabupaten !== false &&
+        rowObj[finalKeyCol] &&
+        typeof rowObj[finalKeyCol] === 'string'
+      ) {
+        rowObj[finalKeyCol] = RegionNormalizer.cleanKabupatenPrefix(
+          rowObj[finalKeyCol] as string,
+        );
+      }
+      return rowObj;
     });
+
+    const regionRows: Record<string, unknown>[] = [];
+    let detectedSummaryRow: Record<string, unknown> | null = null;
+    let detectedTargetRow: Record<string, unknown> | null = null;
+    let detectedTotalRow: Record<string, unknown> | null = null;
+
+    for (const r of finalRows) {
+      const keyVal = String(r[finalKeyCol] ?? '').trim().toUpperCase();
+      if (!keyVal) continue;
+
+      if (keyVal.includes('TARGET')) {
+        detectedTargetRow = r;
+      } else if (
+        keyVal.includes('RATA') ||
+        keyVal.includes('AVERAGE') ||
+        keyVal.includes('JAWA TENGAH') ||
+        keyVal.includes('PROVINSI') ||
+        keyVal.startsWith('PROV')
+      ) {
+        detectedSummaryRow = r;
+      } else if (keyVal.includes('TOTAL') || keyVal.includes('JUMLAH')) {
+        detectedTotalRow = r;
+      } else {
+        regionRows.push(r);
+      }
+    }
+
+    // Bangun Total Row jika belum ada
+    if (!detectedTotalRow && (preset.enableJumlah !== false || preset.sumColumns)) {
+      const sumObj: Record<string, unknown> = {
+        __id: 'row-total-preset',
+        [finalKeyCol]: 'Jumlah',
+      };
+      let hasAnySum = false;
+      for (const col of rawCols) {
+        const finalC = resolveName(col);
+        if (finalC === finalKeyCol) continue;
+        const isSum =
+          preset.sumColumns?.[col] ??
+          preset.sumColumns?.[finalC] ??
+          (!finalC.includes('%') && /kasus|jumlah|rematri|bumil|balita|bayi/i.test(finalC));
+        if (isSum) {
+          const nums = regionRows
+            .map((r) => IndicatorEvaluator.parseSmartNumber(r[finalC]))
+            .filter((n): n is number => n !== null);
+          if (nums.length > 0) {
+            sumObj[finalC] = nums.reduce((a, b) => a + b, 0);
+            hasAnySum = true;
+          }
+        }
+      }
+      if (hasAnySum) detectedTotalRow = sumObj;
+    }
+
+    // Bangun Summary Row (Rata-rata) jika belum ada
+    if (!detectedSummaryRow && (preset.enableAverage !== false || preset.avgColumns)) {
+      const avgObj: Record<string, unknown> = {
+        __id: 'row-avg-preset',
+        [finalKeyCol]: 'Rata-rata',
+      };
+      let hasAnyAvg = false;
+      for (const col of rawCols) {
+        const finalC = resolveName(col);
+        if (finalC === finalKeyCol) continue;
+        const isAvg =
+          preset.avgColumns?.[col] ??
+          preset.avgColumns?.[finalC] ??
+          (finalC.includes('%') || /persen|cakupan/i.test(finalC));
+        if (isAvg) {
+          const nums = regionRows
+            .map((r) => IndicatorEvaluator.parseSmartNumber(r[finalC]))
+            .filter((n): n is number => n !== null);
+          if (nums.length > 0) {
+            const avg = nums.reduce((a, b) => a + b, 0) / nums.length;
+            avgObj[finalC] = Math.round(avg * 100) / 100;
+            hasAnyAvg = true;
+          }
+        }
+      }
+      if (hasAnyAvg) detectedSummaryRow = avgObj;
+    }
+
+    // Bangun Target Row jika belum ada
+    if (!detectedTargetRow && (preset.enableTarget !== false || preset.columnTargets)) {
+      const tgtObj: Record<string, unknown> = {
+        __id: 'row-target-preset',
+        [finalKeyCol]: 'Target Dinkes',
+      };
+      let hasAnyTgt = false;
+      for (const col of rawCols) {
+        const finalC = resolveName(col);
+        if (finalC === finalKeyCol) continue;
+        const tgt = preset.columnTargets?.[col] ?? preset.columnTargets?.[finalC];
+        if (tgt && tgt.enabled !== false && tgt.value !== null && tgt.value !== undefined) {
+          tgtObj[finalC] = tgt.operator ? `${tgt.operator} ${tgt.value}` : String(tgt.value);
+          hasAnyTgt = true;
+        }
+      }
+      if (hasAnyTgt) detectedTargetRow = tgtObj;
+    }
+
+    return {
+      rows: regionRows,
+      columns: finalCols,
+      keyCol: finalKeyCol,
+      summaryRow: detectedSummaryRow,
+      targetRow: detectedTargetRow,
+      totalRow: detectedTotalRow,
+    };
   }
 }

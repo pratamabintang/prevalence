@@ -1,6 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import * as XLSX from 'xlsx-js-style';
+import { environment } from '../../../environments/environment';
 import { HealthDataExchange } from '../../core/domain/health-data-exchange';
 import {
   ChartBarItem,
@@ -18,7 +19,6 @@ import {
 
 import {
   UiAlertComponent,
-  UiBadgeComponent,
   UiButtonComponent,
   UiPageHeaderComponent,
 } from '../../shared/ui';
@@ -41,6 +41,23 @@ export interface IndicatorChartGroup {
   stats: IndicatorStats;
 }
 
+export interface RegionChartGroup {
+  regionName: string;
+  layout: ChartLayoutResult;
+  stats: {
+    total: number;
+    totalTargeted: number;
+    validCount: number;
+    missingCount: number;
+    zeroCount: number;
+    achievedCount: number;
+    avgValue: number | null;
+    highest: { label: string; value: number } | null;
+    lowest: { label: string; value: number } | null;
+    targetValue: number | null;
+  };
+}
+
 @Component({
   selector: 'app-chart-visualizer',
   standalone: true,
@@ -48,13 +65,51 @@ export interface IndicatorChartGroup {
     FormsModule,
     UiPageHeaderComponent,
     UiButtonComponent,
-    UiBadgeComponent,
     UiAlertComponent,
   ],
   templateUrl: './chart-visualizer.component.html',
 })
 export class ChartVisualizerComponent {
   private healthDataExchange = inject(HealthDataExchange);
+
+  // Fitur Toolbar Actions (Konfigurasi Terakhir, Muat JSON, Simpan JSON) via Environment
+  enableToolbarActions = signal<boolean>(
+    Boolean(
+      (environment as { enableChartToolbarActions?: boolean; enableChartConfigActions?: boolean })
+        .enableChartToolbarActions ??
+      (environment as { enableChartToolbarActions?: boolean; enableChartConfigActions?: boolean })
+        .enableChartConfigActions ??
+      false
+    )
+  );
+
+  // Kontrol Tampilan Tombol Pengaturan via Environment
+  enableSettingsButton = signal<boolean>(
+    Boolean(
+      (
+        environment as {
+          enableChartSettings?: boolean;
+          enableChartSettingsButton?: boolean;
+          enableChartToolbarActions?: boolean;
+        }
+      ).enableChartSettings ??
+      (
+        environment as {
+          enableChartSettings?: boolean;
+          enableChartSettingsButton?: boolean;
+          enableChartToolbarActions?: boolean;
+        }
+      ).enableChartSettingsButton ??
+      (
+        environment as {
+          enableChartSettings?: boolean;
+          enableChartSettingsButton?: boolean;
+          enableChartToolbarActions?: boolean;
+        }
+      ).enableChartToolbarActions ??
+      false
+    )
+  );
 
   // Status & Panel
   dataSource = signal<'join' | 'upload' | 'empty'>('empty');
@@ -109,7 +164,7 @@ export class ChartVisualizerComponent {
 
   // Metadata & Konfigurasi Judul
   chartTitle = signal('Visualisasi Capaian Indikator Kesehatan');
-  chartSubtitle = signal('Grafik Batang Kelompok (Grouped Horizontal Bar Chart)');
+  chartSubtitle = signal('');
 
   // Kolom Data untuk Layout
   allColumns = signal<string[]>([]);
@@ -128,6 +183,19 @@ export class ChartVisualizerComponent {
   // Mode Tampilan: 'by-region' (Multi-Indikator per Daerah) vs 'by-indicator' (Per Kolom Indikator)
   viewMode = signal<'by-region' | 'by-indicator'>('by-region');
 
+  // Tata Letak Kolom Grafik pada Mode Per Wilayah (1, 2, atau 3 grafik per baris)
+  regionGridColumns = signal<1 | 2 | 3>(2);
+  regionColumns = signal<1 | 2>(2);
+
+  // Pengurutan Wilayah pada Mode Per Wilayah ('default' | 'desc' | 'asc')
+  regionSortMode = signal<'default' | 'desc' | 'asc'>('default');
+
+  // Tata Letak Kolom Grafik pada Mode Per Indikator (1, 2, atau 3 grafik per baris)
+  indicatorGridColumns = signal<1 | 2 | 3>(2);
+
+  // Ukuran Kanvas Grafik pada Mode Per Wilayah (Ukuran Penuh 'full')
+  regionChartWidth = signal<'compact' | 'medium' | 'full'>('full');
+
   // Pengurutan Wilayah pada Mode Per Indikator
   indicatorSortMode = signal<'default' | 'desc' | 'asc'>('default');
 
@@ -138,8 +206,65 @@ export class ChartVisualizerComponent {
     this.viewMode.set(mode);
   }
 
-  setIndicatorSortMode(mode: 'default' | 'desc' | 'asc'): void {
-    this.indicatorSortMode.set(mode);
+  setRegionColumns(cols: 1 | 2): void {
+    this.regionColumns.set(cols);
+    this.regionGridColumns.set(cols as 1 | 2);
+  }
+
+  setRegionGridColumns(cols: number | 1 | 2 | 3): void {
+    const valid = (cols === 1 || cols === 3 ? cols : 2) as 1 | 2 | 3;
+    this.regionGridColumns.set(valid);
+    this.regionColumns.set(valid === 1 ? 1 : 2);
+  }
+
+  setRegionSortMode(mode: string | 'default' | 'desc' | 'asc'): void {
+    this.regionSortMode.set(mode === 'desc' || mode === 'asc' ? mode : 'default');
+  }
+
+  setIndicatorGridColumns(cols: number | 1 | 2 | 3): void {
+    const valid = (cols === 1 || cols === 3 ? cols : 2) as 1 | 2 | 3;
+    this.indicatorGridColumns.set(valid);
+  }
+
+  setRegionChartWidth(width: 'compact' | 'medium' | 'full'): void {
+    this.regionChartWidth.set(width);
+  }
+
+  indicatorGridClass = computed(() => {
+    switch (this.indicatorGridColumns()) {
+      case 1:
+        return 'grid grid-cols-1 gap-6 max-w-4xl mx-auto';
+      case 2:
+        return 'grid grid-cols-1 lg:grid-cols-2 gap-6';
+      case 3:
+        return 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-5';
+    }
+  });
+
+  regionGridClass = computed(() => {
+    switch (this.regionGridColumns()) {
+      case 1:
+        return 'grid grid-cols-1 gap-6 max-w-4xl mx-auto';
+      case 2:
+        return 'grid grid-cols-1 lg:grid-cols-2 gap-6';
+      case 3:
+        return 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-5';
+    }
+  });
+
+  regionChartContainerClass = computed(() => {
+    switch (this.regionChartWidth()) {
+      case 'compact':
+        return 'max-w-4xl mx-auto';
+      case 'medium':
+        return 'max-w-6xl mx-auto';
+      case 'full':
+        return 'w-full';
+    }
+  });
+
+  setIndicatorSortMode(mode: string | 'default' | 'desc' | 'asc'): void {
+    this.indicatorSortMode.set(mode === 'desc' || mode === 'asc' ? mode : 'default');
   }
 
   setSelectedIndicatorFilter(key: string): void {
@@ -152,25 +277,97 @@ export class ChartVisualizerComponent {
   getIndicatorTarget(seriesKey: string): number | null {
     const specific = this.indicatorTargets()[seriesKey];
     if (specific !== undefined) {
-      return specific;
+      return specific !== null && specific >= 0 ? specific : null;
     }
-    return this.targetValue();
+    const globalTgt = this.targetValue();
+    return globalTgt !== null && globalTgt >= 0 ? globalTgt : null;
   }
 
   setIndicatorTarget(seriesKey: string, val: number | null): void {
+    const sanitized = val !== null && !isNaN(val) && val >= 0 ? val : null;
     this.indicatorTargets.update((curr) => ({
       ...curr,
-      [seriesKey]: val,
+      [seriesKey]: sanitized,
     }));
   }
 
-  onIndicatorTargetChange(seriesKey: string, rawVal: string): void {
+  onRegionTargetChange(rawVal: string, inputEl?: HTMLInputElement): void {
+    const trimmed = (rawVal ?? '').trim();
+    if (trimmed === '') {
+      this.targetValue.set(null);
+      return;
+    }
+    const num = Number(trimmed);
+    if (isNaN(num) || num < 0) {
+      this.targetValue.set(null);
+      if (inputEl) {
+        inputEl.value = '';
+      }
+    } else {
+      this.targetValue.set(num);
+    }
+  }
+
+  onIndicatorTargetChange(seriesKey: string, rawVal: string, inputEl?: HTMLInputElement): void {
     const trimmed = (rawVal ?? '').trim();
     if (trimmed === '') {
       this.setIndicatorTarget(seriesKey, null);
+      return;
+    }
+    const num = Number(trimmed);
+    if (isNaN(num) || num < 0) {
+      this.setIndicatorTarget(seriesKey, null);
+      if (inputEl) {
+        inputEl.value = '';
+      }
     } else {
-      const num = Number(trimmed);
-      this.setIndicatorTarget(seriesKey, isNaN(num) ? null : num);
+      this.setIndicatorTarget(seriesKey, num);
+    }
+  }
+
+  // Popover Pengaturan Target Indikator di Toolbar Per Wilayah
+  showTargetPopover = signal<boolean>(false);
+
+  toggleTargetPopover(): void {
+    this.showTargetPopover.update((v) => !v);
+  }
+
+  closeTargetPopover(): void {
+    this.showTargetPopover.set(false);
+  }
+
+  configuredTargetCount = computed<number>(() => {
+    const targets = this.indicatorTargets();
+    let count = 0;
+    for (const s of this.filteredChartSeries()) {
+      if (targets[s.key] !== undefined && targets[s.key] !== null && targets[s.key]! >= 0) {
+        count++;
+      }
+    }
+    return count;
+  });
+
+  clearAllIndicatorTargets(): void {
+    this.indicatorTargets.set({});
+    this.targetValue.set(null);
+  }
+
+  applyGlobalTargetToAll(rawVal: string): void {
+    const trimmed = (rawVal ?? '').trim();
+    if (trimmed === '') return;
+    const num = Number(trimmed);
+    if (isNaN(num) || num < 0) return;
+    const updated: Record<string, number | null> = {};
+    for (const s of this.seriesList()) {
+      updated[s.key] = num;
+    }
+    this.indicatorTargets.set(updated);
+    this.targetValue.set(num);
+  }
+
+  preventNegativeKey(event: KeyboardEvent): void {
+    if (event.key === '-' || event.key === 'Subtract') {
+      event.preventDefault();
     }
   }
 
@@ -218,7 +415,7 @@ export class ChartVisualizerComponent {
     this.dataSource.set(transferred.source);
     if (transferred.title) {
       this.chartTitle.set(transferred.title);
-      this.chartSubtitle.set(`Visualisasi data dari hasil join sheet`);
+      // this.chartSubtitle.set(`Visualisasi data dari hasil join sheet`);
     }
 
     this.allColumns.set(transferred.columns);
@@ -315,6 +512,18 @@ export class ChartVisualizerComponent {
     );
   }
 
+  hasJoinBridgeData = computed<boolean>(() => {
+    const transferred = this.healthDataExchange.chartData();
+    return Boolean(transferred && transferred.rows && transferred.rows.length > 0);
+  });
+
+  restoreJoinData(): void {
+    this.clearFile();
+    this.loadTransferredData();
+    this.resetChartFilters();
+    this.showSettings.set(false);
+  }
+
   // ============================================================
   // STEP 1 : FILE UPLOAD & MANAGEMENT
   // ============================================================
@@ -377,6 +586,9 @@ export class ChartVisualizerComponent {
     this.indicatorTargets.set({});
     this.targetValue.set(null);
     this.dataSource.set('empty');
+    this.showRegionFilterModal.set(false);
+    this.showIndicatorFilterModal.set(false);
+    this.resetChartFilters();
     this.showSettings.set(true);
   }
 
@@ -622,9 +834,8 @@ export class ChartVisualizerComponent {
   // STEP 3 : PILIH KOLOM KATEGORI (SUMBU Y) & SERI INDIKATOR (BATANG)
   // ============================================================
 
-  candidateSeriesColumns = computed<ColumnInfo[]>(() => {
+  allCandidateSeriesColumns = computed<ColumnInfo[]>(() => {
     const cat = this.categoryColumn();
-    const q = this.columnSearchQuery().toLowerCase().trim();
     let cols = this.sheetColumns();
     if (cols.length === 0 && this.allColumns().length > 0) {
       cols = this.allColumns().map((col, idx) => ({
@@ -635,15 +846,20 @@ export class ChartVisualizerComponent {
         layers: [col],
       }));
     }
-    const filtered = cols.filter(
+    return cols.filter(
       (c) =>
         c.header !== cat &&
         !c.header.startsWith('__') &&
         c.header !== 'No' &&
         c.header !== 'Capaian',
     );
-    if (!q) return filtered;
-    return filtered.filter(
+  });
+
+  candidateSeriesColumns = computed<ColumnInfo[]>(() => {
+    const q = this.columnSearchQuery().toLowerCase().trim();
+    const all = this.allCandidateSeriesColumns();
+    if (!q) return all;
+    return all.filter(
       (c) =>
         c.header.toLowerCase().includes(q) ||
         c.leafHeader.toLowerCase().includes(q),
@@ -717,7 +933,7 @@ export class ChartVisualizerComponent {
   }
 
   selectAllSeriesColumns(): void {
-    const candidateHeaders = this.candidateSeriesColumns().map((c) => c.header);
+    const candidateHeaders = this.allCandidateSeriesColumns().map((c) => c.header);
     this.selectedSeriesKeys.set(candidateHeaders);
     if (this.workbook && this.selectedSheet()) {
       const ws = this.workbook.Sheets[this.selectedSheet()];
@@ -755,7 +971,7 @@ export class ChartVisualizerComponent {
 
   selectNumericSeriesColumns(): void {
     const cat = this.categoryColumn();
-    const cols = this.candidateSeriesColumns();
+    const cols = this.allCandidateSeriesColumns();
 
     if (this.workbook && this.selectedSheet()) {
       const ws = this.workbook.Sheets[this.selectedSheet()];
@@ -847,6 +1063,9 @@ export class ChartVisualizerComponent {
     return available.filter((cat) => selected.includes(cat));
   });
 
+  // Alias untuk kompatibilitas
+  sortedCategories = computed<string[]>(() => this.visibleCategories());
+
   // Hapus baris tertentu dari visualisasi
   deleteRow(cat: string): void {
     this.availableCategories.update((list) => list.filter((c) => c !== cat));
@@ -857,25 +1076,174 @@ export class ChartVisualizerComponent {
     this.notificationMessage.set(`Baris "${cat}" berhasil dihapus dari visualisasi.`);
   }
 
-  // Pulihkan semua baris yang dihapus/disembunyikan
+  // Pulihkan semua baris yang disembunyikan
   restoreAllRows(): void {
-    const originals = this.originalDataRows();
-    const catCol = this.categoryColumn();
-    const cats = Array.from(
-      new Set(originals.map((r) => String(r[catCol] ?? '').trim()).filter(Boolean)),
-    );
-    this.dataRows.set([...originals]);
-    this.availableCategories.set(cats);
-    this.selectedCategories.set(cats);
-    this.notificationMessage.set(`Seluruh baris (${cats.length} baris) berhasil dipulihkan.`);
+    const cats = this.availableCategories();
+    this.selectedCategories.set([...cats]);
+    this.notificationMessage.set(`Seluruh baris (${cats.length} baris) berhasil ditampilkan kembali.`);
   }
 
-  // Mengecek apakah ada baris yang disembunyikan atau dihapus
-  hasHiddenOrDeletedRows = computed(() => {
-    const origCount = this.originalDataRows().length;
+  // Mengecek apakah ada baris yang disembunyikan
+  hasHiddenRows = computed(() => {
+    const availableCount = this.availableCategories().length;
     const activeCount = this.visibleCategories().length;
-    return origCount > 0 && activeCount < origCount;
+    return availableCount > 0 && activeCount < availableCount;
   });
+
+  hasHiddenOrDeletedRows = this.hasHiddenRows;
+
+  // ============================================================
+  // FILTER GRAFIK VISUALISASI (WILAYAH & INDIKATOR)
+  // ============================================================
+
+  // Pencarian teks live untuk wilayah pada grafik
+  chartRegionSearch = signal<string>('');
+
+  // Pilihan dropdown satu wilayah tertentu ('all' atau nama wilayah)
+  selectedRegionFilter = signal<string>('all');
+
+  // Modal Filter Wilayah (Checkbox)
+  showRegionFilterModal = signal<boolean>(false);
+  regionModalSearch = signal<string>('');
+
+  filteredModalCategories = computed<string[]>(() => {
+    const q = this.regionModalSearch().trim().toLowerCase();
+    const all = this.availableCategories();
+    if (!q) return all;
+    return all.filter((c) => c.toLowerCase().includes(q));
+  });
+
+  openRegionFilterModal(): void {
+    this.regionModalSearch.set('');
+    this.showRegionFilterModal.set(true);
+  }
+
+  closeRegionFilterModal(): void {
+    this.showRegionFilterModal.set(false);
+  }
+
+  // Modal Filter Indikator (Checkbox)
+  showIndicatorFilterModal = signal<boolean>(false);
+  indicatorModalSearch = signal<string>('');
+
+  filteredModalIndicators = computed<ColumnInfo[]>(() => {
+    const q = this.indicatorModalSearch().trim().toLowerCase();
+    const all = this.allCandidateSeriesColumns();
+    if (!q) return all;
+    return all.filter(
+      (c) =>
+        c.header.toLowerCase().includes(q) ||
+        c.leafHeader.toLowerCase().includes(q),
+    );
+  });
+
+  hasFilteredIndicators = computed<boolean>(() => {
+    const total = this.allCandidateSeriesColumns().length;
+    const selected = this.selectedSeriesKeys().length;
+    return total > 0 && selected < total;
+  });
+
+  openIndicatorFilterModal(): void {
+    this.indicatorModalSearch.set('');
+    this.showIndicatorFilterModal.set(true);
+  }
+
+  closeIndicatorFilterModal(): void {
+    this.showIndicatorFilterModal.set(false);
+  }
+
+  getIndicatorColor(header: string): string {
+    const existing = this.seriesList().find((s) => s.key === header);
+    if (existing) return existing.color;
+    const allCandidates = this.allCandidateSeriesColumns();
+    const idx = allCandidates.findIndex((c) => c.header === header);
+    return this.colorPalette[(idx >= 0 ? idx : 0) % this.colorPalette.length];
+  }
+
+  // Baris wilayah yang lolos filter pencarian dan pilihan wilayah
+  filteredChartCategories = computed<string[]>(() => {
+    let cats = this.visibleCategories();
+    const region = this.selectedRegionFilter();
+    if (region !== 'all') {
+      cats = cats.filter((c) => c === region);
+    }
+    const q = this.chartRegionSearch().trim().toLowerCase();
+    if (q) {
+      cats = cats.filter((c) => c.toLowerCase().includes(q));
+    }
+    const sortMode = this.regionSortMode();
+    if (sortMode === 'desc' || sortMode === 'asc') {
+      const rows = this.dataRows();
+      const catCol = this.categoryColumn();
+      const series = this.seriesList();
+      const rowMap = new Map<string, ChartDataRow>();
+      for (const r of rows) {
+        const key = String(r[catCol] ?? '').trim().toLowerCase();
+        if (key) rowMap.set(key, r);
+      }
+      const avgMap = new Map<string, number | null>();
+      for (const cat of cats) {
+        const r = rowMap.get(cat.trim().toLowerCase());
+        let sum = 0;
+        let count = 0;
+        for (const s of series) {
+          const val = r ? IndicatorEvaluator.parseSmartNumber(r[s.key]) : null;
+          if (val !== null) {
+            sum += val;
+            count++;
+          }
+        }
+        avgMap.set(cat, count > 0 ? sum / count : null);
+      }
+      cats = [...cats].sort((a, b) => {
+        const valA = avgMap.get(a) ?? null;
+        const valB = avgMap.get(b) ?? null;
+        if (valA === null && valB === null) return 0;
+        if (valA === null) return 1;
+        if (valB === null) return -1;
+        return sortMode === 'desc' ? valB - valA : valA - valB;
+      });
+    }
+    return cats;
+  });
+
+  // Seri indikator yang lolos filter indikator (untuk mode per wilayah)
+  filteredChartSeries = computed<ChartSeriesConfig[]>(() => {
+    const all = this.seriesList();
+    const filter = this.selectedIndicatorFilter();
+    if (filter === 'all') return all;
+    const filtered = all.filter((s) => s.key === filter);
+    return filtered.length > 0 ? filtered : all;
+  });
+
+  // Status apakah ada filter grafik yang sedang aktif
+  isChartFilterActive = computed<boolean>(() => {
+    return (
+      this.selectedRegionFilter() !== 'all' ||
+      Boolean(this.chartRegionSearch().trim()) ||
+      this.selectedIndicatorFilter() !== 'all' ||
+      this.hasHiddenRows() ||
+      this.hasFilteredIndicators()
+    );
+  });
+
+  // Reset semua filter grafik (pencarian, dropdown wilayah, dropdown indikator, baris disembunyikan)
+  resetChartFilters(): void {
+    this.selectedRegionFilter.set('all');
+    this.chartRegionSearch.set('');
+    this.selectedIndicatorFilter.set('all');
+    this.restoreAllRows();
+    this.selectAllSeriesColumns();
+  }
+
+  // Toggle filter indikator (fokus pada satu indikator atau kembali ke semua)
+  toggleIndicatorFilter(key: string): void {
+    if (this.selectedIndicatorFilter() === key) {
+      this.selectedIndicatorFilter.set('all');
+    } else {
+      this.selectedIndicatorFilter.set(key);
+    }
+  }
 
   // ============================================================
   // TOOLTIP INTERAKTIF
@@ -886,22 +1254,27 @@ export class ChartVisualizerComponent {
     bar: ChartBarItem,
     categoryName: string,
     targetOverride?: number | null,
+    indicatorLabelOverride?: string,
   ): void {
     let status: 'achieved' | 'unachieved' | 'none' = 'none';
     let diff: number | null = null;
     const target =
       targetOverride !== undefined
         ? targetOverride
-        : this.getIndicatorTarget(bar.seriesKey);
+        : (bar.targetVal !== undefined && bar.targetVal !== null
+            ? bar.targetVal
+            : this.getIndicatorTarget(bar.seriesKey));
 
     if (target !== null && bar.numericVal !== null) {
       diff = Math.round((bar.numericVal - target) * 10) / 10;
       status = bar.numericVal >= target ? 'achieved' : 'unachieved';
     }
 
+    const seriesLabel = indicatorLabelOverride || bar.seriesLabel;
+
     this.hoveredBar.set({
       categoryName,
-      seriesLabel: bar.seriesLabel,
+      seriesLabel,
       color: bar.color,
       displayLabel: bar.displayLabel,
       numericVal: bar.numericVal,
@@ -961,7 +1334,6 @@ export class ChartVisualizerComponent {
     const availableCats = this.availableCategories();
     const selectedCats = this.selectedCategories();
 
-    const deletedRows = allOrigCats.filter((c) => !availableCats.includes(c));
     const hiddenRows = availableCats.filter((c) => !selectedCats.includes(c));
 
     const preset: ChartConfigurationPreset = {
@@ -978,8 +1350,10 @@ export class ChartVisualizerComponent {
       chartTitle: this.chartTitle(),
       chartSubtitle: this.chartSubtitle(),
       hiddenRows,
-      deletedRows,
       viewMode: this.viewMode(),
+      regionColumns: this.regionColumns(),
+      regionGridColumns: this.regionGridColumns(),
+      regionSortMode: this.regionSortMode(),
       indicatorTargets: { ...this.indicatorTargets() },
     };
 
@@ -1048,6 +1422,15 @@ export class ChartVisualizerComponent {
     if (preset.viewMode) {
       this.viewMode.set(preset.viewMode);
     }
+    if (preset.regionColumns) {
+      this.regionColumns.set(preset.regionColumns);
+    }
+    if (preset.regionGridColumns) {
+      this.regionGridColumns.set(preset.regionGridColumns);
+    }
+    if (preset.regionSortMode) {
+      this.regionSortMode.set(preset.regionSortMode);
+    }
 
     if (preset.indicatorTargets) {
       this.indicatorTargets.set({ ...preset.indicatorTargets });
@@ -1103,17 +1486,11 @@ export class ChartVisualizerComponent {
           this.viewMode.set(preset.viewMode);
         }
 
-        if (preset.deletedRows && Array.isArray(preset.deletedRows) && preset.deletedRows.length > 0) {
-          const toDel = new Set(preset.deletedRows);
-          this.availableCategories.update((list) => list.filter((c) => !toDel.has(c)));
-          this.selectedCategories.update((list) => list.filter((c) => !toDel.has(c)));
-          this.dataRows.update((rows) =>
-            rows.filter((r) => !toDel.has(String(r[this.categoryColumn()] ?? '').trim())),
-          );
-        }
-
-        if (preset.hiddenRows && Array.isArray(preset.hiddenRows) && preset.hiddenRows.length > 0) {
-          const toHide = new Set(preset.hiddenRows);
+        const toHide = new Set([
+          ...(preset.hiddenRows || []),
+          ...(preset.deletedRows || []),
+        ]);
+        if (toHide.size > 0) {
           this.selectedCategories.update((curr) => curr.filter((c) => !toHide.has(c)));
         }
 
@@ -1205,18 +1582,21 @@ export class ChartVisualizerComponent {
     if (preset.viewMode) {
       this.viewMode.set(preset.viewMode);
     }
-
-    if (preset.deletedRows && Array.isArray(preset.deletedRows) && preset.deletedRows.length > 0) {
-      const toDel = new Set(preset.deletedRows);
-      this.availableCategories.update((list) => list.filter((c) => !toDel.has(c)));
-      this.selectedCategories.update((list) => list.filter((c) => !toDel.has(c)));
-      this.dataRows.update((rows) =>
-        rows.filter((r) => !toDel.has(String(r[matchedCat] ?? '').trim())),
-      );
+    if (preset.regionColumns) {
+      this.regionColumns.set(preset.regionColumns);
+    }
+    if (preset.regionGridColumns) {
+      this.regionGridColumns.set(preset.regionGridColumns);
+    }
+    if (preset.regionSortMode) {
+      this.regionSortMode.set(preset.regionSortMode);
     }
 
-    if (preset.hiddenRows && Array.isArray(preset.hiddenRows) && preset.hiddenRows.length > 0) {
-      const toHide = new Set(preset.hiddenRows);
+    const toHide = new Set([
+      ...(preset.hiddenRows || []),
+      ...(preset.deletedRows || []),
+    ]);
+    if (toHide.size > 0) {
       this.selectedCategories.update((curr) => curr.filter((c) => !toHide.has(c)));
     }
 
@@ -1259,7 +1639,7 @@ export class ChartVisualizerComponent {
   }
 
   selectPercentageSeriesColumns(): void {
-    const cols = this.candidateSeriesColumns();
+    const cols = this.allCandidateSeriesColumns();
     const pctCols = cols
       .filter((c) => this.isPercentageColumn(c.header))
       .map((c) => c.header);
@@ -1388,10 +1768,16 @@ export class ChartVisualizerComponent {
   // Data tabel bersih terfilter untuk membuat grafik bawaan Excel (Alt+F1 / Insert Chart)
   // ============================================================
 
-  buildExcelWorkbook(): XLSX.WorkBook {
+  buildExcelWorkbook(singleSeriesKey?: string): XLSX.WorkBook {
     const catCol = this.categoryColumn();
-    const series = this.seriesList();
-    const cats = this.visibleCategories();
+    let series = this.seriesList();
+    if (singleSeriesKey) {
+      const found = series.find((s) => s.key === singleSeriesKey);
+      if (found) {
+        series = [found];
+      }
+    }
+    const cats = this.filteredChartCategories();
     const rows = this.dataRows();
 
     // Pemetaan Data Berdasarkan Label Baris
@@ -1405,190 +1791,142 @@ export class ChartVisualizerComponent {
 
     const wb = XLSX.utils.book_new();
 
-    // MODE PER INDIKATOR: Sheet terpisah sebanyak indikator yang digunakan,
-    // masing-masing sheet hanya memiliki 2 kolom (Kolom Y dan Indikator)
-    if (this.viewMode() === 'by-indicator') {
-      const usedSheetNames = new Set<string>();
+    // Setiap indikator memiliki sheet terpisah di dalam berkas Excel (.xlsx)
+    const usedSheetNames = new Set<string>();
 
-      for (let sIdx = 0; sIdx < series.length; sIdx++) {
-        const s = series[sIdx];
-        const headerRow = [catCol, s.label];
-        const aoaData: (string | number | null)[][] = [headerRow];
+    for (let sIdx = 0; sIdx < series.length; sIdx++) {
+      const s = series[sIdx];
+      const headerRow = [catCol, s.label];
+      const aoaData: (string | number | null)[][] = [headerRow];
 
-        for (const cat of cats) {
-          const rowObj = rowMap.get(cat);
-          const rawVal = rowObj ? rowObj[s.key] : null;
-          const num = IndicatorEvaluator.parseSmartNumber(rawVal);
-          aoaData.push([cat, num !== null ? num : '']);
-        }
-
-        // Sertakan baris Target di bagian bawah indikator
-        const targetVal = this.getIndicatorTarget(s.key);
-        const targetDisplay = targetVal !== null ? `>= ${targetVal}` : '-';
-        aoaData.push(['Target', targetDisplay]);
-
-        const ws = XLSX.utils.aoa_to_sheet(aoaData);
-
-        // Styling Header dengan xlsx-js-style
-        const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:B1');
-        for (let c = range.s.c; c <= range.e.c; c++) {
-          const addr = XLSX.utils.encode_cell({ r: 0, c });
-          if (ws[addr]) {
-            ws[addr].s = {
-              fill: { fgColor: { rgb: '2563EB' } }, // Biru Dinkes
-              font: { name: 'Calibri', sz: 11, bold: true, color: { rgb: 'FFFFFF' } },
-              alignment: { horizontal: c === 0 ? 'left' : 'center', vertical: 'center' },
-            };
-          }
-        }
-
-        // Styling Baris Target di bagian paling bawah indikator
-        const targetRowIdx = aoaData.length - 1;
-        for (let c = 0; c < 2; c++) {
-          const addr = XLSX.utils.encode_cell({ r: targetRowIdx, c });
-          if (ws[addr]) {
-            ws[addr].s = {
-              fill: { fgColor: { rgb: 'EEF2FF' } }, // Soft Indigo / Lavender
-              font: { name: 'Calibri', sz: 10, bold: true, color: { rgb: '3730A3' } },
-              alignment: { horizontal: c === 0 ? 'left' : 'center', vertical: 'center' },
-              border: {
-                top: { style: 'thin', color: { rgb: 'C7D2FE' } },
-                bottom: { style: 'thin', color: { rgb: 'C7D2FE' } },
-              },
-            };
-          }
-        }
-
-        // Lebar kolom otomatis
-        const colWidths = headerRow.map((h, idx) => {
-          let maxLen = h.length;
-          for (const r of aoaData.slice(1)) {
-            const valStr = String(r[idx] ?? '');
-            if (valStr.length > maxLen) maxLen = valStr.length;
-          }
-          return { wch: Math.max(maxLen + 4, 14) };
-        });
-        ws['!cols'] = colWidths;
-
-        // Sanitasi nama sheet Excel (maks 31 karakter, hindari karakter ilegal Excel)
-        let baseName = s.label.replace(/[\\/?*[\]:]/g, '_').trim() || `Indikator ${sIdx + 1}`;
-        baseName = baseName.slice(0, 31);
-        let sheetName = baseName;
-        let counter = 2;
-        while (usedSheetNames.has(sheetName.toLowerCase())) {
-          const suffix = ` (${counter})`;
-          sheetName = `${baseName.slice(0, 31 - suffix.length)}${suffix}`;
-          counter++;
-        }
-        usedSheetNames.add(sheetName.toLowerCase());
-
-        XLSX.utils.book_append_sheet(wb, ws, sheetName);
-      }
-
-      return wb;
-    }
-
-    // MODE PER WILAYAH: 1 sheet tunggal menggabungkan seluruh seri indikator
-    const headerRow = [catCol, ...series.map((s) => s.label)];
-    const aoaData: (string | number | null)[][] = [headerRow];
-
-    for (const cat of cats) {
-      const rowObj = rowMap.get(cat);
-      const rowValues: (string | number | null)[] = [cat];
-
-      for (const s of series) {
+      for (const cat of cats) {
+        const rowObj = rowMap.get(cat);
         const rawVal = rowObj ? rowObj[s.key] : null;
         const num = IndicatorEvaluator.parseSmartNumber(rawVal);
-        rowValues.push(num !== null ? num : '');
+        aoaData.push([cat, num !== null ? num : '']);
       }
 
-      aoaData.push(rowValues);
+      // Sertakan baris Target di bagian bawah indikator
+      const targetVal = this.getIndicatorTarget(s.key);
+      const targetDisplay = targetVal !== null ? `>= ${targetVal}` : '-';
+      aoaData.push(['Target', targetDisplay]);
+
+      const ws = XLSX.utils.aoa_to_sheet(aoaData);
+
+      // Styling Header dengan xlsx-js-style
+      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:B1');
+      for (let c = range.s.c; c <= range.e.c; c++) {
+        const addr = XLSX.utils.encode_cell({ r: 0, c });
+        if (ws[addr]) {
+          ws[addr].s = {
+            fill: { fgColor: { rgb: '2563EB' } }, // Biru Dinkes
+            font: { name: 'Calibri', sz: 11, bold: true, color: { rgb: 'FFFFFF' } },
+            alignment: { horizontal: c === 0 ? 'left' : 'center', vertical: 'center' },
+          };
+        }
+      }
+
+      // Styling Baris Target di bagian paling bawah indikator
+      const targetRowIdx = aoaData.length - 1;
+      for (let c = 0; c < 2; c++) {
+        const addr = XLSX.utils.encode_cell({ r: targetRowIdx, c });
+        if (ws[addr]) {
+          ws[addr].s = {
+            fill: { fgColor: { rgb: 'EEF2FF' } }, // Soft Indigo / Lavender
+            font: { name: 'Calibri', sz: 10, bold: true, color: { rgb: '3730A3' } },
+            alignment: { horizontal: c === 0 ? 'left' : 'center', vertical: 'center' },
+            border: {
+              top: { style: 'thin', color: { rgb: 'C7D2FE' } },
+              bottom: { style: 'thin', color: { rgb: 'C7D2FE' } },
+            },
+          };
+        }
+      }
+
+      // Lebar kolom otomatis
+      const colWidths = headerRow.map((h, idx) => {
+        let maxLen = h.length;
+        for (const r of aoaData.slice(1)) {
+          const valStr = String(r[idx] ?? '');
+          if (valStr.length > maxLen) maxLen = valStr.length;
+        }
+        return { wch: Math.max(maxLen + 4, 14) };
+      });
+      ws['!cols'] = colWidths;
+
+      // Sanitasi nama sheet Excel (maks 31 karakter, hindari karakter ilegal Excel)
+      let baseName = s.label.replace(/[\\/?*[\]:]/g, '_').trim() || `Indikator ${sIdx + 1}`;
+      baseName = baseName.slice(0, 31);
+      let sheetName = baseName;
+      let counter = 2;
+      while (usedSheetNames.has(sheetName.toLowerCase())) {
+        const suffix = ` (${counter})`;
+        sheetName = `${baseName.slice(0, 31 - suffix.length)}${suffix}`;
+        counter++;
+      }
+      usedSheetNames.add(sheetName.toLowerCase());
+
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
     }
-
-    // Sertakan baris Target di bagian bawah seluruh kolom indikator
-    const targetValues: (string | number | null)[] = ['Target'];
-    for (const s of series) {
-      const tgt = this.getIndicatorTarget(s.key);
-      if (tgt !== null) {
-        targetValues.push(`>= ${tgt}`);
-      } else {
-        targetValues.push('-');
-      }
-    }
-    aoaData.push(targetValues);
-
-    const ws = XLSX.utils.aoa_to_sheet(aoaData);
-
-    // Styling Header dengan xlsx-js-style
-    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
-    for (let c = range.s.c; c <= range.e.c; c++) {
-      const addr = XLSX.utils.encode_cell({ r: 0, c });
-      if (ws[addr]) {
-        ws[addr].s = {
-          fill: { fgColor: { rgb: '2563EB' } }, // Biru Dinkes
-          font: { name: 'Calibri', sz: 11, bold: true, color: { rgb: 'FFFFFF' } },
-          alignment: { horizontal: c === 0 ? 'left' : 'center', vertical: 'center' },
-        };
-      }
-    }
-
-    // Styling Baris Target di bagian paling bawah
-    const targetRowIdx = aoaData.length - 1;
-    for (let c = 0; c < headerRow.length; c++) {
-      const addr = XLSX.utils.encode_cell({ r: targetRowIdx, c });
-      if (ws[addr]) {
-        ws[addr].s = {
-          fill: { fgColor: { rgb: 'EEF2FF' } }, // Soft Indigo / Lavender
-          font: { name: 'Calibri', sz: 10, bold: true, color: { rgb: '3730A3' } },
-          alignment: { horizontal: c === 0 ? 'left' : 'center', vertical: 'center' },
-          border: {
-            top: { style: 'thin', color: { rgb: 'C7D2FE' } },
-            bottom: { style: 'thin', color: { rgb: 'C7D2FE' } },
-          },
-        };
-      }
-    }
-
-    // Lebar kolom otomatis
-    const colWidths = headerRow.map((h, idx) => {
-      let maxLen = h.length;
-      for (const r of aoaData.slice(1)) {
-        const valStr = String(r[idx] ?? '');
-        if (valStr.length > maxLen) maxLen = valStr.length;
-      }
-      return { wch: Math.max(maxLen + 4, 14) };
-    });
-    ws['!cols'] = colWidths;
-
-    const sheetTitle = (this.selectedSheet() || 'Data Visualisasi').slice(0, 31);
-    XLSX.utils.book_append_sheet(wb, ws, sheetTitle);
 
     return wb;
   }
 
-  exportExcel(): void {
-    const series = this.seriesList();
-    const cats = this.visibleCategories();
+  exportExcel(singleSeriesKey?: string): void {
+    let series = this.seriesList();
+    if (singleSeriesKey) {
+      series = series.filter((s) => s.key === singleSeriesKey);
+    }
+    const cats = this.filteredChartCategories();
 
     if (cats.length === 0 || series.length === 0) {
       this.notificationMessage.set('Tidak ada baris atau kolom indikator yang dipilih untuk diekspor.');
       return;
     }
 
-    const wb = this.buildExcelWorkbook();
+    const wb = this.buildExcelWorkbook(singleSeriesKey);
 
-    if (this.viewMode() === 'by-indicator') {
-      const fileName = `${this.slugify(this.chartTitle()) || 'data-grafik-indikator'}.xlsx`;
-      XLSX.writeFile(wb, fileName);
-      this.notificationMessage.set(
-        `Berkas "${fileName}" dengan ${series.length} sheet terpisah per indikator berhasil diunduh.`,
-      );
+    if (singleSeriesKey) {
+      const targetSeries = series[0];
+      const fileName = `${this.slugify(targetSeries.label) || 'data-indikator'}.xlsx`;
+      ExcelEngine.writeWorkbook(wb, fileName);
+      this.notificationMessage.set(`Berkas "${fileName}" untuk indikator "${targetSeries.label}" berhasil diunduh.`);
       return;
     }
 
     const fileName = `${this.slugify(this.chartTitle()) || 'data-grafik-dinkes'}.xlsx`;
-    XLSX.writeFile(wb, fileName);
-    this.notificationMessage.set(`Berkas "${fileName}" berhasil diunduh. Buka di Excel dan tekan Alt+F1 untuk membuat grafik asli bawaan Excel.`);
+    ExcelEngine.writeWorkbook(wb, fileName);
+    this.notificationMessage.set(
+      `Berkas "${fileName}" dengan ${series.length} sheet terpisah per indikator berhasil diunduh.`,
+    );
+  }
+
+  exportRegionExcel(regionName: string): void {
+    const catCol = this.categoryColumn();
+    const series = this.filteredChartSeries();
+    const rows = this.dataRows();
+    const r = rows.find(
+      (row) => String(row[catCol] ?? '').trim().toLowerCase() === regionName.trim().toLowerCase(),
+    );
+
+    const wb = XLSX.utils.book_new();
+    const headerRow = ['Indikator', 'Capaian', 'Target'];
+    const aoaData: (string | number | null)[][] = [headerRow];
+
+    for (const s of series) {
+      const raw = r ? r[s.key] : null;
+      const num = IndicatorEvaluator.parseSmartNumber(raw);
+      const target = this.getIndicatorTarget(s.key) ?? this.targetValue();
+      aoaData.push([s.label, num !== null ? num : '', target !== null ? `>= ${target}` : '-']);
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(aoaData);
+    ws['!cols'] = [{ wch: 35 }, { wch: 15 }, { wch: 15 }];
+    const safeSheetName = regionName.replace(/[\\/?*[\]:]/g, '_').slice(0, 31) || 'Wilayah';
+    XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
+    const fileName = `${this.slugify(regionName) || 'data-wilayah'}.xlsx`;
+    ExcelEngine.writeWorkbook(wb, fileName);
+    this.notificationMessage.set(`Berkas Excel untuk wilayah "${regionName}" berhasil diunduh.`);
   }
 
   private slugify(text: string): string {
@@ -1603,14 +1941,145 @@ export class ChartVisualizerComponent {
   // ============================================================
 
   layout = computed<ChartLayoutResult>(() => {
+    const cols = this.regionColumns();
     return ChartLayoutEngine.computeLayout({
       categoryColumn: this.categoryColumn(),
-      categories: this.visibleCategories(),
-      series: this.seriesList(),
+      categories: this.filteredChartCategories(),
+      series: this.filteredChartSeries(),
       rows: this.dataRows(),
       targetValue: this.targetValue(),
-      width: 960,
-      margin: { top: 75, right: 95, bottom: 58, left: 200 },
+      columns: cols,
+      width: cols === 2 ? 1280 : 960,
+      margin:
+        cols === 2
+          ? { top: 75, right: 20, bottom: 58, left: 20 }
+          : { top: 75, right: 95, bottom: 58, left: 200 },
+    });
+  });
+
+  // ============================================================
+  // PER-REGION (PER-WILAYAH) COMPARISON LAYOUTS
+  // Menghasilkan kelompok grafik terpisah untuk setiap wilayah yang dipilih
+  // ============================================================
+
+  regionLayouts = computed<RegionChartGroup[]>(() => {
+    const rawCats = this.filteredChartCategories();
+    const series = this.filteredChartSeries();
+    const rows = this.dataRows();
+    const catCol = this.categoryColumn();
+    const sortMode = this.regionSortMode();
+
+    const rowMap = new Map<string, ChartDataRow>();
+    for (const r of rows) {
+      const key = String(r[catCol] ?? '').trim().toLowerCase();
+      if (key) {
+        rowMap.set(key, r);
+      }
+    }
+
+    const statsMap = new Map<string, RegionChartGroup['stats']>();
+
+    for (const catName of rawCats) {
+      const r = rowMap.get(catName.trim().toLowerCase());
+      const target = this.targetValue();
+
+      let validCount = 0;
+      let missingCount = 0;
+      let zeroCount = 0;
+      let achievedCount = 0;
+      let totalTargeted = 0;
+      let sum = 0;
+      let highest: { label: string; value: number } | null = null;
+      let lowest: { label: string; value: number } | null = null;
+
+      for (const s of series) {
+        const raw = r ? r[s.key] : null;
+        const num = IndicatorEvaluator.parseSmartNumber(raw);
+        const indTarget = this.getIndicatorTarget(s.key);
+
+        if (indTarget !== null) {
+          totalTargeted++;
+        }
+
+        if (num === null) {
+          missingCount++;
+        } else {
+          validCount++;
+          sum += num;
+          if (num === 0) zeroCount++;
+          if (indTarget !== null && num >= indTarget) achievedCount++;
+
+          if (highest === null || num > highest.value) {
+            highest = { label: s.label, value: num };
+          }
+          if (lowest === null || num < lowest.value) {
+            lowest = { label: s.label, value: num };
+          }
+        }
+      }
+
+      const avgValue = validCount > 0 ? Math.round((sum / validCount) * 10) / 10 : null;
+
+      statsMap.set(catName, {
+        total: series.length,
+        totalTargeted,
+        validCount,
+        missingCount,
+        zeroCount,
+        achievedCount,
+        avgValue,
+        highest,
+        lowest,
+        targetValue: target,
+      });
+    }
+
+    let cats = [...rawCats];
+
+    if (sortMode === 'desc' || sortMode === 'asc') {
+      cats.sort((a, b) => {
+        const valA = statsMap.get(a)?.avgValue ?? null;
+        const valB = statsMap.get(b)?.avgValue ?? null;
+        if (valA === null && valB === null) return 0;
+        if (valA === null) return 1;
+        if (valB === null) return -1;
+        return sortMode === 'desc' ? valB - valA : valA - valB;
+      });
+    }
+
+    return cats.map((catName) => {
+      const r = rowMap.get(catName.trim().toLowerCase());
+      const stats = statsMap.get(catName)!;
+
+      const indicatorRows = series.map((s) => ({
+        __indicator: s.label,
+        __value: r ? r[s.key] : null,
+      }));
+
+      const categoryColors: Record<string, string> = {};
+      const categoryTargets: Record<string, number | null> = {};
+      for (const s of series) {
+        categoryColors[s.label] = s.color;
+        categoryTargets[s.label] = this.getIndicatorTarget(s.key);
+      }
+
+      const layout = ChartLayoutEngine.computeLayout({
+        categoryColumn: '__indicator',
+        categories: series.map((s) => s.label),
+        series: [{ key: '__value', label: 'Capaian', color: '#525AFF' }],
+        rows: indicatorRows,
+        categoryColors,
+        categoryTargets,
+        width: 960,
+        rowHeight: 38,
+        margin: { top: 60, right: 95, bottom: 58, left: 200 },
+      });
+
+      return {
+        regionName: catName,
+        layout,
+        stats,
+      };
     });
   });
 
@@ -1622,7 +2091,7 @@ export class ChartVisualizerComponent {
   indicatorLayouts = computed<IndicatorChartGroup[]>(() => {
     const series = this.seriesList();
     const catCol = this.categoryColumn();
-    const rawCats = this.visibleCategories();
+    const rawCats = this.filteredChartCategories();
     const rows = this.dataRows();
     const sortMode = this.indicatorSortMode();
 

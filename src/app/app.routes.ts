@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { environment } from '../environments/environment';
 
 export const routes: Routes = [
   {
@@ -27,6 +28,7 @@ export const routes: Routes = [
   },
   {
     path: 'stunting-dashboard',
+    canMatch: [() => environment.enableStuntingDashboard],
     loadComponent: () =>
       import('./features/stunting-dashboard/stunting-dashboard.component').then(
         (m) => m.StuntingDashboardComponent,

@@ -1,8 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
+import * as XLSX from 'xlsx';
 import { StuntingMonitoringComponent } from './stunting-monitoring.component';
 import { HealthDataExchange } from '../../core/domain/health-data-exchange';
+import { GasStorageService } from '../../core/storage/gas-storage.service';
 import { StuntingExcelExporter } from '../../core/stunting/stunting-excel-exporter';
 import {
   StuntingPipelinePreset,
@@ -27,6 +29,9 @@ describe('StuntingMonitoringComponent', () => {
     fixture = TestBed.createComponent(StuntingMonitoringComponent);
     component = fixture.componentInstance;
     healthDataExchange = TestBed.inject(HealthDataExchange);
+    const gas = TestBed.inject(GasStorageService);
+    vi.spyOn(gas, 'listPeriods').mockResolvedValue({ success: false, periods: [] });
+    vi.spyOn(gas, 'loadPeriod').mockResolvedValue({ success: false, hasData: false });
     fixture.detectChanges();
   });
 
@@ -777,11 +782,11 @@ describe('StuntingMonitoringComponent', () => {
       component.togglePreviewExpanded();
       expect(component.previewExpanded()).toBe(false);
 
-      expect(component.previewWrapText()).toBe(false);
-      component.togglePreviewWrapText();
       expect(component.previewWrapText()).toBe(true);
       component.togglePreviewWrapText();
       expect(component.previewWrapText()).toBe(false);
+      component.togglePreviewWrapText();
+      expect(component.previewWrapText()).toBe(true);
     });
 
     it('should load transferred data from HealthDataExchange upon init', () => {
@@ -896,6 +901,524 @@ describe('StuntingMonitoringComponent', () => {
       expect(text).toContain('1,483,925');
       expect(text).toContain('93.64%');
       expect(text).toContain('On Track');
+    });
+
+    it('should automatically detect Hasil Join Excel structure, separate Jumlah, Rata-rata, and Target rows, and auto-populate all standard indicators', () => {
+      // Build mock worksheet matching Hasil_Join_Excel_2026-10-15.xlsx
+      const ws: any = {
+        '!ref': 'A1:D39',
+        A1: { v: 'No' },
+        B1: { v: 'Kabupaten/Kota' },
+        C1: { v: 'Rematri  Konsumsi TTD' },
+        D1: { v: '% Konsumsi TTD' },
+      };
+
+      // 35 districts (rows 2 to 36)
+      for (let i = 1; i <= 35; i++) {
+        const row = i + 1;
+        ws[`A${row}`] = { v: i };
+        ws[`B${row}`] = { v: `KABUPATEN WILAYAH ${i}` };
+        ws[`C${row}`] = { v: 1000 * i };
+        ws[`D${row}`] = { v: 70 + (i % 25) };
+      }
+
+      // Row 37: Jumlah
+      ws['A37'] = { v: '-' };
+      ws['B37'] = { v: 'Jumlah' };
+      ws['C37'] = { v: 1483925 };
+      ws['D37'] = { v: '-' };
+
+      // Row 38: Rata-rata
+      ws['A38'] = { v: '-' };
+      ws['B38'] = { v: 'Rata-rata' };
+      ws['C38'] = { v: '-' };
+      ws['D38'] = { v: 94.57 };
+
+      // Row 39: Target
+      ws['A39'] = { v: '-' };
+      ws['B39'] = { v: 'Target' };
+      ws['C39'] = { v: '-' };
+      ws['D39'] = { v: '>= 67' };
+
+      const mockWb: any = {
+        SheetNames: ['Hasil Join'],
+        Sheets: {
+          'Hasil Join': ws,
+        },
+      };
+
+      component.workbook = mockWb;
+      component.file.set(new File([], 'Hasil_Join_Excel_2026-10-15.xlsx'));
+      component.selectPrimarySheet('Hasil Join');
+
+      // Verify format detection
+      expect(component.isHasilJoinFormat()).toBe(true);
+      expect(component.primaryKeyCol()).toBe('Kabupaten/Kota');
+      expect(component.joinedRows().length).toBe(38); // 35 districts + Jumlah + Rata-rata + Target
+
+      // Verify separation of rows
+      expect(component.totalRowData()).not.toBeNull();
+      expect(component.totalRowData()!['Kabupaten/Kota']).toBe('Jumlah');
+      expect(component.summaryRowData()).not.toBeNull();
+      expect(component.summaryRowData()!['Kabupaten/Kota']).toBe('Rata-rata');
+      expect(component.targetRowData()).not.toBeNull();
+      expect(component.targetRowData()!['Kabupaten/Kota']).toBe('Target');
+
+      // Active region rows must be exactly the 35 districts
+      expect(component.activeRegionRows().length).toBe(35);
+      expect(component.calculationDataSource()).toBe('summary_row');
+      expect(component.validJoinedRows().length).toBe(1); // summary row mode evaluates summary row directly
+
+      // Verify auto-populated indicator
+      const cat1 = component.categories().find((c) => c.id === 'cat-1')!;
+      const sub = cat1.subCategories[0];
+      expect(sub).toBeDefined();
+      expect(sub.name).toContain('TTD');
+      expect(sub.actualValue).toBe(94.57); // from Rata-rata
+      expect(sub.countValue).toBe(1483925); // from Jumlah
+      expect(sub.targetCurrentYear).toBe(67); // cleaned from '>= 67'
+
+      // Verify exports include all 35 active districts
+      const exportSpy = vi.spyOn(StuntingExcelExporter, 'exportJoinedData').mockReturnValue('Hasil_Export.xlsx');
+      exportSpy.mockClear();
+      component.exportJoinedData();
+      expect(exportSpy).toHaveBeenCalledTimes(1);
+      expect(exportSpy.mock.calls[0][0].rows.length).toBe(35);
+
+      const reportSpy = vi.spyOn(StuntingExcelExporter, 'exportMonitoringReport').mockReturnValue('Report_Export.xlsx');
+      reportSpy.mockClear();
+      component.exportExcel();
+      expect(reportSpy).toHaveBeenCalledTimes(1);
+      expect(reportSpy.mock.calls[0][0].validJoinedRows!.length).toBe(35);
+    });
+
+    it('should allow selecting columns per specific Triwulan (TW 1 - TW 4) and support copying/clearing configurations', () => {
+      component.categories.set([
+        {
+          id: 'cat-test',
+          name: 'Intervensi Rematri',
+          subCategories: [
+            {
+              id: 'sub-test',
+              name: 'Rematri Skrining',
+              numeratorCol: '',
+              dataCol: '',
+              targetCurrentYear: 80,
+              calculationMode: 'percentage',
+            },
+          ],
+        },
+      ]);
+
+      const catId = 'cat-test';
+      const subId = 'sub-test';
+      const sub = () => component.categories()[0].subCategories[0];
+
+      // Initially, no quarter config
+      expect(component.hasQuarterConfig(sub(), 1)).toBe(false);
+      expect(component.hasQuarterConfig(sub(), 2)).toBe(false);
+
+      // 1. Map columns for TW 1
+      component.onQuarterSumColChange(catId, subId, 1, 'TW1_Kasus');
+      component.onQuarterMeanColChange(catId, subId, 1, 'TW1_Persen');
+
+      expect(component.hasQuarterConfig(sub(), 1)).toBe(true);
+      expect(component.getQuarterSumCol(sub(), 1)).toBe('TW1_Kasus');
+      expect(component.getQuarterMeanCol(sub(), 1)).toBe('TW1_Persen');
+
+      // TW 2, 3, 4 should still be unconfigured
+      expect(component.hasQuarterConfig(sub(), 2)).toBe(false);
+      expect(component.hasQuarterConfig(sub(), 3)).toBe(false);
+      expect(component.hasQuarterConfig(sub(), 4)).toBe(false);
+
+      // 2. Map columns for TW 2
+      component.onQuarterSumColChange(catId, subId, 2, 'TW2_Kasus');
+      component.onQuarterMeanColChange(catId, subId, 2, 'TW2_Persen');
+
+      expect(component.hasQuarterConfig(sub(), 2)).toBe(true);
+      expect(component.getQuarterSumCol(sub(), 2)).toBe('TW2_Kasus');
+      expect(component.getQuarterMeanCol(sub(), 2)).toBe('TW2_Persen');
+
+      // 3. Test copyQuarterToAll: copy TW 1 to all quarters
+      component.copyQuarterToAll(catId, subId, 1);
+      for (const q of [1, 2, 3, 4] as const) {
+        expect(component.hasQuarterConfig(sub(), q)).toBe(true);
+        expect(component.getQuarterSumCol(sub(), q)).toBe('TW1_Kasus');
+        expect(component.getQuarterMeanCol(sub(), q)).toBe('TW1_Persen');
+      }
+
+      // 4. Test clearQuarterConfig: clear TW 4
+      component.clearQuarterConfig(catId, subId, 4);
+      expect(component.hasQuarterConfig(sub(), 4)).toBe(false);
+      expect(component.getQuarterSumCol(sub(), 4)).toBe('');
+      expect(component.getQuarterMeanCol(sub(), 4)).toBe('');
+      expect(component.hasQuarterConfig(sub(), 1)).toBe(true);
+
+      // 5. Test setAllSubActiveQuarter
+      component.setAllSubActiveQuarter(3);
+      expect(component.activeQuarter()).toBe(3);
+      expect(component.getSubActiveQuarter(subId)).toBe(3);
+    });
+  });
+
+  describe('Multi-Quarter Cloud and Incomplete Data Handling', () => {
+    let gasStorageService: GasStorageService;
+
+    beforeEach(() => {
+      gasStorageService = TestBed.inject(GasStorageService);
+    });
+
+    it('should fetch period slots from GasStorageService on init if configured and update period slots', async () => {
+      vi.spyOn(gasStorageService, 'isConfigured').mockReturnValue(true);
+      vi.spyOn(gasStorageService, 'listPeriods').mockResolvedValue({
+        success: true,
+        periods: [
+          { year: 2026, quarter: 'TW2', hasRaw: true, hasResult: true, hasConfig: true },
+          { year: 2026, quarter: 'TW3', hasRaw: true, hasResult: true, hasConfig: true },
+          { year: 2025, quarter: 'TW1', hasRaw: true, hasResult: true, hasConfig: true },
+        ],
+      });
+
+      await component.fetchPeriodSlots();
+
+      expect(component.periodSlots().length).toBe(3);
+      expect(component.isQuarterAvailableInCloud(2026, 'TW2')).toBe(true);
+      expect(component.isQuarterAvailableInCloud(2026, 'TW1')).toBe(false);
+      expect(component.selectedQuarterSlots()['TW2']).toBe(true);
+      expect(component.selectedQuarterSlots()['TW3']).toBe(true);
+      expect(component.selectedQuarterSlots()['TW1']).toBe(false);
+    });
+
+    it('should update quarter slots selection when selectedYear changes', () => {
+      component.periodSlots.set([
+        { year: 2026, quarter: 'TW2', hasRaw: true, hasResult: true, hasConfig: true },
+        { year: 2025, quarter: 'TW1', hasRaw: true, hasResult: true, hasConfig: true },
+      ]);
+
+      component.onYearChange(2025);
+      expect(component.selectedYear()).toBe(2025);
+      expect(component.selectedQuarterSlots()['TW1']).toBe(true);
+      expect(component.selectedQuarterSlots()['TW2']).toBe(false);
+
+      component.onYearChange(2026);
+      expect(component.selectedYear()).toBe(2026);
+      expect(component.selectedQuarterSlots()['TW1']).toBe(false);
+      expect(component.selectedQuarterSlots()['TW2']).toBe(true);
+    });
+
+    it('should allow toggling quarter selection and attaching/removing local file per quarter slot', () => {
+      component.selectedQuarterSlots.set({ TW1: false, TW2: false, TW3: false, TW4: false });
+      component.toggleQuarterSlot('TW1');
+      expect(component.selectedQuarterSlots()['TW1']).toBe(true);
+
+      const fakeFile = new File(['mock content'], 'tw1_substitute.xlsx');
+      const fakeEvent = {
+        target: {
+          files: [fakeFile],
+          value: '',
+        },
+      } as unknown as Event;
+
+      component.onQuarterLocalFileSelected('TW1', fakeEvent);
+      expect(component.quarterLocalFiles()['TW1']).toBe(fakeFile);
+      expect(component.selectedQuarterSlots()['TW1']).toBe(true);
+
+      component.removeQuarterLocalFile('TW1');
+      expect(component.quarterLocalFiles()['TW1']).toBeUndefined();
+    });
+
+    it('should handle loading multi-quarter data from GAS when TW1 is missing (e.g. only TW2 and TW3 available)', async () => {
+      const q2Data = [
+        { 'Kabupaten/Kota': 'KABUPATEN BANYUMAS', '% Konsumsi TTD': 70, 'Rematri  Konsumsi TTD': 100 },
+        { 'Kabupaten/Kota': 'KABUPATEN CILACAP', '% Konsumsi TTD': 75, 'Rematri  Konsumsi TTD': 120 },
+        { 'Kabupaten/Kota': 'PROVINSI JAWA TENGAH', '% Konsumsi TTD': 72.5, 'Rematri  Konsumsi TTD': 220 },
+        { 'Kabupaten/Kota': 'TARGET', '% Konsumsi TTD': 67 },
+      ];
+      const q3Data = [
+        { 'Kabupaten/Kota': 'KABUPATEN BANYUMAS', '% Konsumsi TTD': 80, 'Rematri  Konsumsi TTD': 110 },
+        { 'Kabupaten/Kota': 'KABUPATEN CILACAP', '% Konsumsi TTD': 85, 'Rematri  Konsumsi TTD': 130 },
+        { 'Kabupaten/Kota': 'PROVINSI JAWA TENGAH', '% Konsumsi TTD': 82.5, 'Rematri  Konsumsi TTD': 240 },
+        { 'Kabupaten/Kota': 'TARGET', '% Konsumsi TTD': 67 },
+      ];
+
+      const ws2 = XLSX.utils.json_to_sheet(q2Data);
+      const wb2 = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb2, ws2, 'Hasil Join');
+      const buffer2 = XLSX.write(wb2, { type: 'array', bookType: 'xlsx' });
+
+      const ws3 = XLSX.utils.json_to_sheet(q3Data);
+      const wb3 = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb3, ws3, 'Hasil Join');
+      const buffer3 = XLSX.write(wb3, { type: 'array', bookType: 'xlsx' });
+
+      component.periodSlots.set([
+        { year: 2026, quarter: 'TW2', hasRaw: true, hasResult: true, hasConfig: true },
+        { year: 2026, quarter: 'TW3', hasRaw: true, hasResult: true, hasConfig: true },
+      ]);
+      component.selectedYear.set(2026);
+      component.selectedQuarterSlots.set({ TW1: false, TW2: true, TW3: true, TW4: false });
+
+      vi.spyOn(gasStorageService, 'loadPeriod').mockImplementation(async (year: number, quarter: string) => {
+        if (quarter === 'TW2') {
+          return { success: true, hasData: true, rawExcelBuffer: buffer2, fileName: '2026_TW2.xlsx' };
+        }
+        if (quarter === 'TW3') {
+          return { success: true, hasData: true, rawExcelBuffer: buffer3, fileName: '2026_TW3.xlsx' };
+        }
+        return { success: false, hasData: false };
+      });
+
+      await component.loadMultiQuarterFromCloud();
+
+      expect(component.isMultiQuarterCloudMode()).toBe(true);
+      expect(component.activeRegionRows().length).toBe(2);
+      expect(component.cloudLoadNotice()).toContain('TW 1');
+      expect(component.cloudLoadNotice()).toContain('belum disertakan');
+
+      // Check availableQuarters
+      const res = component.evaluationResult();
+      expect(res).not.toBeNull();
+      expect(res!.availableQuarters).toEqual([2, 3]);
+      expect(component.activeQuarter()).toBe(3);
+
+      // Verify row data for standard indicator Remaja putri mengonsumsi TTD
+      const indRow = res!.rows.find((r) => r.name.includes('TTD'));
+      expect(indRow).toBeDefined();
+      expect(indRow!.no).toBe('2');
+      expect(indRow!.category).toContain('Intervensi untuk remaja putri dan ibu hamil');
+      expect(indRow!.targetPrevYear).toBe(65);
+      expect(indRow!.actualPrevYear).toBe(89.34);
+      expect(indRow!.quarters[1].hasData).toBe(false);
+      expect(indRow!.quarters[1].actualAchievement).toBeNull();
+      expect(indRow!.quarters[2].hasData).toBe(true);
+      expect(indRow!.quarters[2].actualAchievement).toBe(72.5);
+      expect(indRow!.quarters[3].hasData).toBe(true);
+      expect(indRow!.quarters[3].actualAchievement).toBe(82.5);
+    });
+
+    it('should support merging local file for missing TW1 with cloud quarters for TW2', async () => {
+      const q1Data = [
+        { 'Kabupaten/Kota': 'KABUPATEN BANYUMAS', '% Konsumsi TTD': 65, 'Rematri  Konsumsi TTD': 90 },
+        { 'Kabupaten/Kota': 'PROVINSI JAWA TENGAH', '% Konsumsi TTD': 65, 'Rematri  Konsumsi TTD': 90 },
+        { 'Kabupaten/Kota': 'TARGET', '% Konsumsi TTD': 67 },
+      ];
+      const q2Data = [
+        { 'Kabupaten/Kota': 'KABUPATEN BANYUMAS', '% Konsumsi TTD': 72, 'Rematri  Konsumsi TTD': 100 },
+        { 'Kabupaten/Kota': 'PROVINSI JAWA TENGAH', '% Konsumsi TTD': 72, 'Rematri  Konsumsi TTD': 100 },
+        { 'Kabupaten/Kota': 'TARGET', '% Konsumsi TTD': 67 },
+      ];
+
+      const ws1 = XLSX.utils.json_to_sheet(q1Data);
+      const wb1 = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb1, ws1, 'Hasil Join');
+      const buffer1 = XLSX.write(wb1, { type: 'array', bookType: 'xlsx' });
+
+      const ws2 = XLSX.utils.json_to_sheet(q2Data);
+      const wb2 = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb2, ws2, 'Hasil Join');
+      const buffer2 = XLSX.write(wb2, { type: 'array', bookType: 'xlsx' });
+
+      const localFileTW1 = new File([buffer1], 'manual_TW1.xlsx');
+      component.quarterLocalFiles.set({ TW1: localFileTW1 });
+
+      component.periodSlots.set([
+        { year: 2026, quarter: 'TW2', hasRaw: true, hasResult: true, hasConfig: true },
+      ]);
+      component.selectedYear.set(2026);
+      component.selectedQuarterSlots.set({ TW1: true, TW2: true, TW3: false, TW4: false });
+
+      vi.spyOn(gasStorageService, 'loadPeriod').mockImplementation(async (year: number, quarter: string) => {
+        if (quarter === 'TW2') {
+          return { success: true, hasData: true, rawExcelBuffer: buffer2, fileName: '2026_TW2.xlsx' };
+        }
+        return { success: false, hasData: false };
+      });
+
+      await component.loadMultiQuarterFromCloud();
+
+      expect(component.isMultiQuarterCloudMode()).toBe(true);
+      const res = component.evaluationResult();
+      expect(res).not.toBeNull();
+      expect(res!.availableQuarters).toEqual([1, 2]);
+      expect(component.activeQuarter()).toBe(2);
+
+      const indRow = res!.rows.find((r) => r.name.includes('TTD'));
+      expect(indRow).toBeDefined();
+      expect(indRow!.no).toBe('2');
+      expect(indRow!.targetPrevYear).toBe(65);
+      expect(indRow!.actualPrevYear).toBe(89.34);
+      expect(indRow!.quarters[1].hasData).toBe(true);
+      expect(indRow!.quarters[1].actualAchievement).toBe(65);
+      expect(indRow!.quarters[2].hasData).toBe(true);
+      expect(indRow!.quarters[2].actualAchievement).toBe(72);
+    });
+
+    it('membawa konfigurasi preset dari Google Drive saat memuat data multi-triwulan dan mengaitkan kategori otomatis', async () => {
+      const q1Data = [
+        { 'Kabupaten/Kota': 'KABUPATEN BANYUMAS', '% Skrining Anemia': 80, 'Rematri Skrining Anemia': 200, '% ANC 6x': 75, 'Ibu Hamil ANC 6x': 150 },
+        { 'Kabupaten/Kota': 'KABUPATEN CILACAP', '% Skrining Anemia': 85, 'Rematri Skrining Anemia': 220, '% ANC 6x': 78, 'Ibu Hamil ANC 6x': 160 },
+        { 'Kabupaten/Kota': 'Rata-rata', '% Skrining Anemia': 82.5, 'Rematri Skrining Anemia': 420, '% ANC 6x': 76.5, 'Ibu Hamil ANC 6x': 310 },
+      ];
+
+      const ws1 = XLSX.utils.json_to_sheet(q1Data);
+      const wb1 = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb1, ws1, 'Hasil Join');
+      const buffer1 = XLSX.write(wb1, { type: 'array', bookType: 'xlsx' });
+
+      component.periodSlots.set([
+        { year: 2026, quarter: 'TW1', hasRaw: true, hasResult: true, hasConfig: true },
+      ]);
+      component.selectedYear.set(2026);
+      component.selectedQuarterSlots.set({ TW1: true, TW2: false, TW3: false, TW4: false });
+
+      const driveConfig = {
+        columnTargets: {
+          '% Skrining Anemia': { enabled: true, operator: '>=', value: 77 },
+          '% ANC 6x': { enabled: true, operator: '>=', value: 60 },
+        },
+      };
+
+      vi.spyOn(gasStorageService, 'loadPeriod').mockResolvedValue({
+        success: true,
+        hasData: true,
+        resultExcelBuffer: buffer1,
+        fileName: 'joined-result.xlsx',
+        config: driveConfig,
+      });
+
+      await component.loadMultiQuarterFromCloud();
+
+      expect(component.isMultiQuarterCloudMode()).toBe(true);
+      expect(component.joinedRows().length).toBeGreaterThan(0);
+
+      // Kategori harus langsung terisi otomatis
+      expect(component.categories().length).toBeGreaterThan(0);
+      const cat1 = component.categories().find((c) => (c.name || '').toLowerCase().includes('sebelum kelahiran') || (c.name || '').toLowerCase().includes('remaja'));
+      expect(cat1).toBeDefined();
+
+      const anemiaSub = cat1!.subCategories.find((s) => (s.name || '').toLowerCase().includes('anemia') || (s.name || '').toLowerCase().includes('skrining'));
+      expect(anemiaSub).toBeDefined();
+      expect(anemiaSub!.targetCurrentYear).toBe(77);
+
+      const ancSub = cat1!.subCategories.find((s) => (s.name || '').toLowerCase().includes('anc'));
+      expect(ancSub).toBeDefined();
+      expect(ancSub!.targetCurrentYear).toBe(60);
+    });
+
+    it('menjalankan executeJoinFromPreset ketika berkas mentah multi-sheet dimuat bersama konfigurasi', async () => {
+      // Buat workbook multi-sheet sintesis
+      const wb = XLSX.utils.book_new();
+      const wsRemaja = XLSX.utils.aoa_to_sheet([
+        ['No', 'Kabupaten/Kota', 'Persentase remaja putri skrining anemia - % (3)'],
+        [1, 'KABUPATEN BANYUMAS', 88.5],
+        [2, 'KABUPATEN CILACAP', 91.2],
+      ]);
+      XLSX.utils.book_append_sheet(wb, wsRemaja, 'remaja');
+
+      const wsBumil = XLSX.utils.aoa_to_sheet([
+        ['No', 'Kabupaten/Kota', 'Laporan Pemeriksaan ANC - % K6'],
+        [1, 'KABUPATEN BANYUMAS', 65.0],
+        [2, 'KABUPATEN CILACAP', 70.0],
+      ]);
+      XLSX.utils.book_append_sheet(wb, wsBumil, 'BUMIL');
+
+      const rawBuffer = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+
+      component.periodSlots.set([
+        { year: 2026, quarter: 'TW1', hasRaw: true, hasResult: false, hasConfig: true },
+      ]);
+      component.selectedYear.set(2026);
+      component.selectedQuarterSlots.set({ TW1: true, TW2: false, TW3: false, TW4: false });
+
+      const presetConfig = {
+        sheets: [
+          { sheetName: 'remaja', joinColumn: 'Kabupaten/Kota', variables: ['Persentase remaja putri skrining anemia - % (3)'] },
+          { sheetName: 'BUMIL', joinColumn: 'Kabupaten/Kota', variables: ['Laporan Pemeriksaan ANC - % K6'] },
+        ],
+        joinBy: 'Kabupaten/Kota',
+        customColumnNames: {
+          'Persentase remaja putri skrining anemia - % (3)': '% Skrining Anemia',
+          'Laporan Pemeriksaan ANC - % K6': '% ANC 6x',
+        },
+        columnTargets: {
+          '% Skrining Anemia': { enabled: true, operator: '>=', value: 77 },
+          '% ANC 6x': { enabled: true, operator: '>=', value: 60 },
+        },
+      };
+
+      vi.spyOn(gasStorageService, 'loadPeriod').mockResolvedValue({
+        success: true,
+        hasData: true,
+        rawExcelBuffer: rawBuffer,
+        fileName: 'raw-data.xlsx',
+        config: presetConfig,
+      });
+
+      await component.loadMultiQuarterFromCloud();
+
+      expect(component.isMultiQuarterCloudMode()).toBe(true);
+      expect(component.joinedColumns()).toContain('% Skrining Anemia');
+      expect(component.joinedColumns()).toContain('% ANC 6x');
+      expect(component.activeRegionRows().length).toBe(2);
+
+      const cat1 = component.categories().find((c) => (c.name || '').toLowerCase().includes('sebelum kelahiran') || (c.name || '').toLowerCase().includes('remaja'));
+      expect(cat1).toBeDefined();
+      const anemiaSub = cat1!.subCategories.find((s) => (s.name || '').toLowerCase().includes('anemia') || (s.name || '').toLowerCase().includes('skrining'));
+      expect(anemiaSub).toBeDefined();
+      expect(anemiaSub!.targetCurrentYear).toBe(77);
+    });
+
+    it('berhasil memuat indikator dari data saat hanya memilih 1 triwulan (misal TW2)', async () => {
+      const q2Data = [
+        { 'Kabupaten/Kota': 'KABUPATEN BANYUMAS', '% Konsumsi TTD': 72.5, 'Rematri  Konsumsi TTD': 100 },
+        { 'Kabupaten/Kota': 'KABUPATEN CILACAP', '% Konsumsi TTD': 78.0, 'Rematri  Konsumsi TTD': 110 },
+        { 'Kabupaten/Kota': 'PROVINSI JAWA TENGAH', '% Konsumsi TTD': 75.0, 'Rematri  Konsumsi TTD': 210 },
+        { 'Kabupaten/Kota': 'TARGET', '% Konsumsi TTD': 67 },
+      ];
+
+      const ws = XLSX.utils.json_to_sheet(q2Data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Hasil Join');
+      const buffer = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+
+      component.periodSlots.set([
+        { year: 2026, quarter: 'TW2', hasRaw: true, hasResult: true, hasConfig: true },
+      ]);
+      component.selectedYear.set(2026);
+      component.selectedQuarterSlots.set({ TW1: false, TW2: true, TW3: false, TW4: false });
+
+      vi.spyOn(gasStorageService, 'loadPeriod').mockImplementation(async (year: number, quarter: string) => {
+        if (quarter === 'TW2') {
+          return { success: true, hasData: true, rawExcelBuffer: buffer, fileName: '2026_TW2.xlsx' };
+        }
+        return { success: false, hasData: false };
+      });
+
+      await component.loadMultiQuarterFromCloud();
+
+      expect(component.isMultiQuarterCloudMode()).toBe(true);
+      expect(component.activeQuarter()).toBe(2);
+      expect(component.canProceedToStep3()).toBe(true);
+
+      const res = component.evaluationResult();
+      expect(res).not.toBeNull();
+      expect(res!.availableQuarters).toEqual([2]);
+
+      const ttdRow = res!.rows.find((r) => r.name.includes('TTD'));
+      expect(ttdRow).toBeDefined();
+      expect(ttdRow!.quarters[2].hasData).toBe(true);
+      expect(ttdRow!.quarters[2].actualAchievement).toBe(75.0);
+      expect(ttdRow!.quarters[1].hasData).toBe(false);
+
+      // Verify clicking autoPopulateIndicatorsFromData again works seamlessly in single quarter mode
+      component.autoPopulateIndicatorsFromData();
+      expect(component.canProceedToStep3()).toBe(true);
+      const cat1 = component.categories().find((c) => (c.name || '').includes('sebelum kelahiran') || (c.name || '').includes('remaja'));
+      expect(cat1).toBeDefined();
+      const ttdSub = cat1!.subCategories.find((s) => (s.name || '').includes('TTD'));
+      expect(ttdSub).toBeDefined();
+      expect(ttdSub!.quarterColumns?.[2]).toBeDefined();
+      expect(ttdSub!.quarterColumns?.[2]?.meanCol).toBe('% Konsumsi TTD');
     });
   });
 });

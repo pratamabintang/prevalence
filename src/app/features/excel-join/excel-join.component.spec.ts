@@ -3,7 +3,7 @@ import { provideRouter, Router } from '@angular/router';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { ExcelJoinComponent, SheetInfo } from './excel-join.component';
 import { ExcelJoinStore, ExcelJoinStoredState } from './excel-join-store';
-import { PresetStore } from './preset-store';
+import { PresetStore, JoinConfigurationPreset } from './preset-store';
 import * as XLSX from 'xlsx-js-style';
 import { environment } from '../../../environments/environment';
 import { GasStorageService } from '../../core/storage/gas-storage.service';
@@ -14,8 +14,12 @@ describe('ExcelJoinComponent', () => {
   let fixture: ComponentFixture<ExcelJoinComponent>;
 
   beforeEach(async () => {
-    localStorage.clear();
-    sessionStorage.clear();
+    if (typeof localStorage !== 'undefined') {
+      localStorage.clear();
+    }
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.clear();
+    }
     await TestBed.configureTestingModule({
       imports: [ExcelJoinComponent],
       providers: [provideRouter([])],
@@ -327,6 +331,16 @@ describe('ExcelJoinComponent', () => {
       expect(component.showColumnSettings()).toBe(true);
       component.toggleColumnSettings();
       expect(component.showColumnSettings()).toBe(false);
+    });
+
+    it('should control visibility of toolbar actions via enableToolbarActions signal initialized from environment', () => {
+      expect(component.enableToolbarActions()).toBe(false);
+
+      component.enableToolbarActions.set(true);
+      expect(component.enableToolbarActions()).toBe(true);
+
+      component.enableToolbarActions.set(false);
+      expect(component.enableToolbarActions()).toBe(false);
     });
 
     it('should have valid DEFAULT_JOIN_CONFIG with all 5 sheets and 50% target configs', async () => {
@@ -776,6 +790,131 @@ describe('ExcelJoinComponent', () => {
       expect(component.sheets().map((s) => s.name)).toEqual(['UnrelatedSheet']);
       expect(component.selectedSheets()).toEqual([]);
       expect(component.showSettings()).toBe(true);
+    });
+
+    it('should automatically apply DEFAULT_JOIN_CONFIG as template when a raw excel matching standard sheets is uploaded fresh', async () => {
+      component.clearFile();
+      component.preservedPreset = null;
+      component.pendingPreset = null;
+      component.enableToolbarActions.set(false);
+
+      // Create workbook with standard template sheets BUMIL and remaja matching DEFAULT_JOIN_CONFIG
+      const wb = XLSX.utils.book_new();
+      const wsBumil = XLSX.utils.aoa_to_sheet([
+        [],
+        [],
+        ['Kabupaten/Kota', 'Laporan Pemeriksaan ANC - % K6'],
+        [],
+        [],
+        [],
+        ['3301 - KAB. CILACAP', 88],
+      ]);
+      const wsRemaja = XLSX.utils.aoa_to_sheet([
+        [],
+        [],
+        ['Kabupaten/Kota', 'Persentase remaja putri skrining anemia - % (3)'],
+        [],
+        [],
+        [],
+        ['3301 - KAB. CILACAP', 77],
+      ]);
+      XLSX.utils.book_append_sheet(wb, wsBumil, 'BUMIL');
+      XLSX.utils.book_append_sheet(wb, wsRemaja, 'remaja');
+      const u8 = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as Uint8Array;
+      const rawFile = new File([u8 as BlobPart], 'Raw_Data_Dinkes.xlsx', {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+
+      const mockEvent = {
+        target: {
+          files: [rawFile],
+          value: '',
+        },
+      } as unknown as Event;
+
+      await component.onFileSelected(mockEvent);
+
+      expect(component.file()).toBeTruthy();
+      expect(component.showSettings()).toBe(false);
+      expect(component.resultRows().length).toBe(1);
+      expect(component.resultRows()[0]['Kabupaten/Kota']).toBeTruthy();
+    });
+
+    it('should always fetch latest template configuration from Google Drive on file import', async () => {
+      component.clearFile();
+      component.preservedPreset = null;
+      component.pendingPreset = null;
+      component.enableToolbarActions.set(false);
+
+      const customDriveConfig: JoinConfigurationPreset = {
+        version: '1.0',
+        name: 'Custom Template dari Drive',
+        savedAt: '2026-10-20T10:00:00Z',
+        joinBy: 'Kabupaten/Kota',
+        stripKabupaten: true,
+        includeSheetPrefix: false,
+        enableJumlah: true,
+        sumColumns: { 'Indikator Khusus Drive': true },
+        sheets: [
+          {
+            sheetName: 'DataDrive1',
+            headerStartRow: 1,
+            headerEndRow: 1,
+            dataStartRow: 2,
+            joinColumn: 'Kabupaten/Kota',
+            variables: ['Indikator Khusus Drive'],
+          },
+          {
+            sheetName: 'DataDrive2',
+            headerStartRow: 1,
+            headerEndRow: 1,
+            dataStartRow: 2,
+            joinColumn: 'Kabupaten/Kota',
+            variables: ['Indikator Kedua Drive'],
+          },
+        ],
+      };
+
+      vi.spyOn(component.gasStorageService, 'isConfigured').mockReturnValue(true);
+      const loadTemplateSpy = vi.spyOn(component.gasStorageService, 'loadTemplateConfig').mockResolvedValue({
+        success: true,
+        hasConfig: true,
+        config: customDriveConfig,
+        fileName: 'template-config.json',
+      });
+
+      const wb = XLSX.utils.book_new();
+      const ws1 = XLSX.utils.aoa_to_sheet([
+        ['Kabupaten/Kota', 'Indikator Khusus Drive'],
+        ['3301 - KAB. CILACAP', 95],
+      ]);
+      const ws2 = XLSX.utils.aoa_to_sheet([
+        ['Kabupaten/Kota', 'Indikator Kedua Drive'],
+        ['3301 - KAB. CILACAP', 80],
+      ]);
+      XLSX.utils.book_append_sheet(wb, ws1, 'DataDrive1');
+      XLSX.utils.book_append_sheet(wb, ws2, 'DataDrive2');
+      const u8 = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as Uint8Array;
+      const rawFile = new File([u8 as BlobPart], 'Data_Raw_Terbaru.xlsx', {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+
+      const mockEvent = {
+        target: {
+          files: [rawFile],
+          value: '',
+        },
+      } as unknown as Event;
+
+      await component.onFileSelected(mockEvent);
+
+      expect(loadTemplateSpy).toHaveBeenCalledTimes(1);
+      expect(component.activePresetName()).toBe('Custom Template dari Drive');
+      expect(component.selectedSheets().map((s) => s.name)).toEqual(['DataDrive1', 'DataDrive2']);
+      expect(component.enableJumlah()).toBe(true);
+      expect(component.sumColumns()['Indikator Khusus Drive']).toBe(true);
+      expect(component.resultRows().length).toBe(1);
+      expect(component.resultRows()[0]['Indikator Khusus Drive']).toBe(95);
     });
   });
 
@@ -1469,6 +1608,216 @@ describe('ExcelJoinComponent', () => {
           columnTargets: undefined,
         }),
       );
+    });
+  });
+
+  describe('Multi-Quarter Google Drive Storage Integration', () => {
+    it('fetchPeriodSlots harus memuat daftar periode dan memperbarui availableYears', async () => {
+      vi.spyOn(component.gasStorageService, 'isConfigured').mockReturnValue(true);
+      const mockPeriods = [
+        {
+          year: 2026,
+          quarter: 'TW1' as const,
+          hasRaw: true,
+          hasResult: true,
+          hasConfig: true,
+          rawFileName: 'raw-data.xlsx',
+          resultFileName: 'joined-result.xlsx',
+          updatedAt: '2026-03-31T00:00:00Z',
+          fileSize: 2048,
+        },
+        {
+          year: 2025,
+          quarter: 'TW4' as const,
+          hasRaw: true,
+          hasResult: false,
+          hasConfig: true,
+          rawFileName: 'raw-data.xlsx',
+          resultFileName: 'joined-result.xlsx',
+          updatedAt: '2025-12-31T00:00:00Z',
+          fileSize: 1024,
+        },
+      ];
+      vi.spyOn(component.gasStorageService, 'listPeriods').mockResolvedValue({
+        success: true,
+        periods: mockPeriods,
+      });
+
+      await component.fetchPeriodSlots();
+
+      expect(component.periodSlots()).toEqual(mockPeriods);
+      expect(component.isQuarterAvailable(2026, 'TW1')).toBe(true);
+      expect(component.isQuarterAvailable(2026, 'TW2')).toBe(false);
+      expect(component.getQuarterInfo(2026, 'TW1')?.fileSize).toBe(2048);
+      expect(component.availableYears()).toContain(2026);
+      expect(component.availableYears()).toContain(2025);
+    });
+
+    it('selectYear dan selectQuarter memperbarui signal yang dipilih', () => {
+      component.selectYear(2025);
+      expect(component.selectedYear()).toBe(2025);
+
+      component.selectQuarter('TW3');
+      expect(component.selectedQuarter()).toBe('TW3');
+    });
+
+    it('openSavePeriodConfirm membuka modal jika GAS siap dan ada data', () => {
+      vi.spyOn(component.gasStorageService, 'isConfigured').mockReturnValue(true);
+      component.file.set(new File(['content'], 'test.xlsx'));
+
+      component.openSavePeriodConfirm();
+      expect(component.showSavePeriodConfirm()).toBe(true);
+
+      component.closeSavePeriodConfirm();
+      expect(component.showSavePeriodConfirm()).toBe(false);
+    });
+
+    it('openSavePeriodConfirm menampilkan peringatan jika GAS belum dikonfigurasi', () => {
+      vi.spyOn(component.gasStorageService, 'isConfigured').mockReturnValue(false);
+      component.file.set(new File(['content'], 'test.xlsx'));
+
+      component.openSavePeriodConfirm();
+      expect(component.showSavePeriodConfirm()).toBe(false);
+      expect(component.configNotification()?.type).toBe('warning');
+    });
+
+    it('loadSelectedPeriod memuat data dan mengaktifkan label periode', async () => {
+      component.isProcessing.set(false);
+      component.selectedYear.set(2026);
+      component.selectedQuarter.set('TW1');
+
+      // Create a minimal valid xlsx buffer
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet([['KABUPATEN', 'IND1'], ['Banyuwangi', 10]]);
+      XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+      const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+
+      vi.spyOn(component.gasStorageService, 'loadPeriod').mockResolvedValue({
+        success: true,
+        hasData: true,
+        year: 2026,
+        quarter: 'TW1',
+        rawExcelBuffer: buf,
+        config: { name: 'Preset TW1 2026', sheets: [] },
+        resultExcelAvailable: true,
+        updatedAt: '2026-03-31T00:00:00Z',
+      });
+
+      await component.loadSelectedPeriod();
+
+      expect(component.activePeriodLabel()).toBe('2026 TW1');
+      expect(component.file()).toBeTruthy();
+      expect(component.configNotification()?.type).toBe('success');
+      expect(component.isLoadingPeriod()).toBe(false);
+    });
+
+    it('loadSelectedPeriod mengaktifkan animasi loading (isLoadingPeriod = true) selama proses', async () => {
+      component.selectedYear.set(2026);
+      component.selectedQuarter.set('TW1');
+
+      let loadingDuringCall = false;
+      vi.spyOn(component.gasStorageService, 'loadPeriod').mockImplementation(async () => {
+        loadingDuringCall = component.isLoadingPeriod();
+        return {
+          success: true,
+          hasData: false,
+          message: 'Kosong',
+        };
+      });
+
+      const promise = component.loadSelectedPeriod();
+      await promise;
+
+      expect(loadingDuringCall).toBe(true);
+      expect(component.isLoadingPeriod()).toBe(false);
+    });
+
+    it('loadSelectedPeriod memberi tahu jika data periode belum tersedia di Google Drive', async () => {
+      component.isProcessing.set(false);
+      component.selectedYear.set(2026);
+      component.selectedQuarter.set('TW4');
+
+      vi.spyOn(component.gasStorageService, 'loadPeriod').mockResolvedValue({
+        success: true,
+        hasData: false,
+        message: 'Belum ada data untuk periode 2026 TW4',
+      });
+
+      await component.loadSelectedPeriod();
+
+      expect(component.configNotification()?.type).toBe('info');
+      expect(component.configNotification()?.message).toContain('2026 TW4');
+    });
+
+    it('confirmSavePeriodToCloud mengunggah raw dan result buffer ke GAS', async () => {
+      component.selectedYear.set(2026);
+      component.selectedQuarter.set('TW2');
+      const dummyFile = new File(['raw-excel'], 'raw.xlsx');
+      component.file.set(dummyFile);
+      component.resultRows.set([{ 'Kabupaten/Kota': 'Banyuwangi', 'Cakupan': 80 }]);
+      component.resultColumns.set(['Kabupaten/Kota', 'Cakupan']);
+      component.resultColumnsMeta.set([
+        { key: 'Kabupaten/Kota', layers: ['Kabupaten/Kota'] },
+        { key: 'Cakupan', layers: ['Cakupan'] },
+      ]);
+
+      let savedPayload: any = null;
+      vi.spyOn(component.gasStorageService, 'savePeriod').mockImplementation(async (payload) => {
+        savedPayload = payload;
+        return { success: true, message: 'Periode berhasil disimpan' };
+      });
+      vi.spyOn(component.gasStorageService, 'listPeriods').mockResolvedValue({
+        success: true,
+        periods: [],
+      });
+
+      await component.confirmSavePeriodToCloud();
+
+      expect(savedPayload).toBeTruthy();
+      expect(savedPayload.year).toBe(2026);
+      expect(savedPayload.quarter).toBe('TW2');
+      expect(savedPayload.rawExcelBuffer).toBeInstanceOf(ArrayBuffer);
+      expect(savedPayload.resultExcelBuffer).toBeInstanceOf(ArrayBuffer);
+      expect(component.activePeriodLabel()).toBe('2026 TW2');
+      expect(component.showSavePeriodConfirm()).toBe(false);
+      expect(component.configNotification()?.type).toBe('success');
+    });
+
+    it('availableYears mencakup 5 tahun ke belakang dari tahun saat ini', () => {
+      const cur = new Date().getFullYear();
+      const expected = [cur, cur - 1, cur - 2, cur - 3, cur - 4, cur - 5];
+      for (const y of expected) {
+        expect(component.availableYears()).toContain(y);
+      }
+    });
+
+    it('getSavedPeriods dan getYearQuarterCount menghitung slot tersimpan dengan akurat', () => {
+      component.periodSlots.set([
+        { year: 2026, quarter: 'TW1', hasRaw: true, hasResult: true, hasConfig: true },
+        { year: 2026, quarter: 'TW2', hasRaw: true, hasResult: false, hasConfig: true },
+        { year: 2025, quarter: 'TW3', hasRaw: false, hasResult: true, hasConfig: false },
+        { year: 2024, quarter: 'TW1', hasRaw: false, hasResult: false, hasConfig: false },
+      ]);
+
+      expect(component.getSavedPeriods()).toHaveLength(3);
+      expect(component.getYearQuarterCount(2026)).toBe(2);
+      expect(component.getYearQuarterCount(2025)).toBe(1);
+      expect(component.getYearQuarterCount(2024)).toBe(0);
+    });
+
+    it('loadPeriodDirect dan openSavePeriodDirect mengarahkan periode yang dituju', async () => {
+      const loadSpy = vi.spyOn(component, 'loadSelectedPeriod').mockResolvedValue();
+      const openSpy = vi.spyOn(component, 'openSavePeriodConfirm');
+
+      await component.loadPeriodDirect(2024, 'TW3');
+      expect(component.selectedYear()).toBe(2024);
+      expect(component.selectedQuarter()).toBe('TW3');
+      expect(loadSpy).toHaveBeenCalled();
+
+      component.openSavePeriodDirect(2023, 'TW2');
+      expect(component.selectedYear()).toBe(2023);
+      expect(component.selectedQuarter()).toBe('TW2');
+      expect(openSpy).toHaveBeenCalled();
     });
   });
 });

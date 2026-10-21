@@ -632,6 +632,28 @@ export class ExcelEngine {
   }
 
   /**
+   * Menghasilkan WorkBook Excel ber-styling lengkap dengan header bertingkat, merges, borders, dan styling sel.
+   */
+  static buildStyledWorkbook(spec: StyledExportSpec): XLSX.WorkBook {
+    const worksheet = this.buildStyledWorksheet(spec);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, spec.sheetName || 'Sheet1');
+    return workbook;
+  }
+
+  /**
+   * Mengonversi WorkBook Excel menjadi biner ArrayBuffer dalam memori (tanpa memicu unduh file).
+   */
+  static writeWorkbookToBuffer(workbook: XLSX.WorkBook): ArrayBuffer {
+    const output = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    if (output instanceof ArrayBuffer) {
+      return output;
+    }
+    const u8 = output as Uint8Array;
+    return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
+  }
+
+  /**
    * Mengekspor tabel ke file Excel (.xlsx) dengan header bertingkat, merges sel, borders, dan styling lengkap.
    */
   static exportStyledTable(spec: StyledExportSpec): void {
@@ -639,10 +661,8 @@ export class ExcelEngine {
       return;
     }
 
-    const worksheet = this.buildStyledWorksheet(spec);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, spec.sheetName || 'Sheet1');
-    XLSX.writeFile(workbook, spec.fileName);
+    const workbook = this.buildStyledWorkbook(spec);
+    this.writeWorkbook(workbook, spec.fileName);
   }
 
   /**

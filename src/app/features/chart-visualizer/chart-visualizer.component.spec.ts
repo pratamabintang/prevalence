@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx-js-style';
 import { ChartVisualizerComponent } from './chart-visualizer.component';
 import { HealthDataExchange } from '../../core/domain/health-data-exchange';
 import { ChartBarItem } from '../../core/chart/chart-layout-engine';
-import { ColumnInfo } from '../../shared/excel';
+import { ColumnInfo, ExcelEngine } from '../../shared/excel';
 import {
   ChartConfigurationPreset,
   ChartPresetStore,
@@ -16,6 +16,8 @@ describe('ChartVisualizerComponent', () => {
   let fixture: ComponentFixture<ChartVisualizerComponent>;
 
   beforeEach(async () => {
+    vi.spyOn(ExcelEngine, 'writeWorkbook').mockImplementation(() => {});
+
     await TestBed.configureTestingModule({
       imports: [ChartVisualizerComponent],
       providers: [provideRouter([])],
@@ -24,6 +26,10 @@ describe('ChartVisualizerComponent', () => {
     fixture = TestBed.createComponent(ChartVisualizerComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   function populateTestData() {
@@ -96,7 +102,7 @@ describe('ChartVisualizerComponent', () => {
     expect(component.selectedCategories().length).toBe(component.availableCategories().length);
   });
 
-  it('should support hiding and deleting rows, and restoring original rows', () => {
+  it('should support hiding and restoring rows', () => {
     populateTestData();
 
     // 1. Initial state has 5 categories in original order
@@ -110,9 +116,9 @@ describe('ChartVisualizerComponent', () => {
     expect(component.visibleCategories()).not.toContain('Kota Magelang');
     expect(component.hasHiddenOrDeletedRows()).toBe(true);
 
-    // 3. Delete row
-    component.deleteRow('Kab. Wonosobo');
-    expect(component.availableCategories()).not.toContain('Kab. Wonosobo');
+    // 3. Hide another row
+    component.toggleCategory('Kab. Wonosobo');
+    expect(component.visibleCategories().length).toBe(3);
     expect(component.visibleCategories()).not.toContain('Kab. Wonosobo');
 
     // 4. Restore all rows
@@ -120,6 +126,7 @@ describe('ChartVisualizerComponent', () => {
     expect(component.visibleCategories().length).toBe(5);
     expect(component.visibleCategories()).toContain('Kota Magelang');
     expect(component.visibleCategories()).toContain('Kab. Wonosobo');
+    expect(component.hasHiddenOrDeletedRows()).toBe(false);
   });
 
   it('should export clean data to Excel workbook', () => {
@@ -244,6 +251,52 @@ describe('ChartVisualizerComponent', () => {
   });
 
   describe('Configuration Preset Management (Reproducibility)', () => {
+    it('should hide Konfigurasi Terakhir, Muat JSON, and Simpan JSON buttons when enableToolbarActions is false', () => {
+      component.enableToolbarActions.set(false);
+      component.hasSavedConfig.set(true);
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.textContent).not.toContain('Konfigurasi Terakhir');
+      expect(el.textContent).not.toContain('Muat (.json)');
+      expect(el.textContent).not.toContain('Simpan (.json)');
+      expect(el.querySelector('input[type="file"][accept=".json"]')).toBeNull();
+    });
+
+    it('should show Konfigurasi Terakhir, Muat JSON, and Simpan JSON buttons when enableToolbarActions is true', () => {
+      component.enableToolbarActions.set(true);
+      component.hasSavedConfig.set(true);
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.textContent).toContain('Konfigurasi Terakhir');
+      expect(el.textContent).toContain('Muat (.json)');
+      expect(el.textContent).toContain('Simpan (.json)');
+      expect(el.querySelector('input[type="file"][accept=".json"]')).not.toBeNull();
+    });
+
+    it('should hide Pengaturan button when enableSettingsButton is false', () => {
+      component.enableSettingsButton.set(false);
+      component.enableToolbarActions.set(false);
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.textContent).not.toContain('Pengaturan');
+      expect(el.querySelector('div[actions]')).toBeNull();
+    });
+
+    it('should show Pengaturan button when enableSettingsButton is true', () => {
+      component.enableSettingsButton.set(true);
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.textContent).toContain('Pengaturan');
+      const settingsBtn = Array.from(el.querySelectorAll('button')).find((b) =>
+        b.textContent?.includes('Pengaturan')
+      );
+      expect(settingsBtn).toBeTruthy();
+    });
+
     it('should warn when exporting configuration without sheet or series selected', () => {
       component.exportConfiguration();
       expect(component.configNotification()?.type).toBe('warning');
@@ -255,9 +308,9 @@ describe('ChartVisualizerComponent', () => {
       component.selectedSheet.set('Rekap Triwulan');
       component.targetValue.set(85);
 
-      // Sembunyikan 'Kota Magelang' dan hapus 'Kab. Wonosobo'
+      // Sembunyikan 'Kota Magelang' dan 'Kab. Wonosobo'
       component.toggleCategory('Kota Magelang');
-      component.deleteRow('Kab. Wonosobo');
+      component.toggleCategory('Kab. Wonosobo');
 
       component.exportConfiguration();
 
@@ -271,7 +324,7 @@ describe('ChartVisualizerComponent', () => {
       expect(saved?.seriesKeys).toEqual(['tw1', 'tw2', 'tw3', 'tw4']);
       expect(saved?.targetValue).toBe(85);
       expect(saved?.hiddenRows).toContain('Kota Magelang');
-      expect(saved?.deletedRows).toContain('Kab. Wonosobo');
+      expect(saved?.hiddenRows).toContain('Kab. Wonosobo');
     });
 
     it('should apply configuration to active workbook with matching sheet and headers', () => {
@@ -322,8 +375,9 @@ describe('ChartVisualizerComponent', () => {
       expect(component.selectedSeriesKeys()).toEqual(['Triwulan 1', 'Triwulan 2']);
       expect(component.targetValue()).toBe(80);
       expect(component.chartTitle()).toBe('Grafik Capaian TW3');
-      // 'Cilacap' sudah dihapus sesuai deletedRows
-      expect(component.availableCategories()).not.toContain('Cilacap');
+      // 'Cilacap' disembunyikan sesuai deletedRows preset
+      expect(component.visibleCategories()).not.toContain('Cilacap');
+      expect(component.availableCategories()).toContain('Cilacap');
       expect(component.availableCategories()).toContain('Banyumas');
     });
 
@@ -600,6 +654,55 @@ describe('ChartVisualizerComponent', () => {
       expect(component.filteredIndicatorLayouts().length).toBe(4);
     });
 
+    it('should support unified live filtering by wilayah and indicator for both view modes', () => {
+      // 1. Initially all categories and series are visible
+      expect(component.isChartFilterActive()).toBe(false);
+      expect(component.filteredChartCategories().length).toBe(5);
+      expect(component.filteredChartSeries().length).toBe(4);
+
+      // 2. Filter by search text (Wilayah)
+      component.chartRegionSearch.set('Wonosobo');
+      expect(component.isChartFilterActive()).toBe(true);
+      expect(component.filteredChartCategories()).toEqual(['Kab. Wonosobo']);
+      expect(component.layout().categoryGroups.map((g) => g.categoryName)).toEqual(['Kab. Wonosobo']);
+      expect(component.indicatorLayouts()[0].layout.categoryGroups.map((g) => g.categoryName)).toEqual(['Kab. Wonosobo']);
+
+      // 3. Clear search text
+      component.chartRegionSearch.set('');
+      expect(component.filteredChartCategories().length).toBe(5);
+
+      // 4. Filter by dropdown region
+      component.selectedRegionFilter.set('Kota Magelang');
+      expect(component.isChartFilterActive()).toBe(true);
+      expect(component.filteredChartCategories()).toEqual(['Kota Magelang']);
+
+      // 5. Filter indicator using toggleIndicatorFilter
+      component.toggleIndicatorFilter('tw1');
+      expect(component.selectedIndicatorFilter()).toBe('tw1');
+      expect(component.filteredChartSeries().map((s) => s.key)).toEqual(['tw1']);
+      expect(component.filteredIndicatorLayouts().length).toBe(1);
+
+      // Toggle again should reset indicator to 'all'
+      component.toggleIndicatorFilter('tw1');
+      expect(component.selectedIndicatorFilter()).toBe('all');
+      expect(component.filteredChartSeries().length).toBe(4);
+      expect(component.filteredIndicatorLayouts().length).toBe(4);
+
+      // 6. resetChartFilters should restore everything
+      component.chartRegionSearch.set('test');
+      component.selectedRegionFilter.set('Kota Magelang');
+      component.selectedIndicatorFilter.set('tw3');
+      expect(component.isChartFilterActive()).toBe(true);
+
+      component.resetChartFilters();
+      expect(component.isChartFilterActive()).toBe(false);
+      expect(component.chartRegionSearch()).toBe('');
+      expect(component.selectedRegionFilter()).toBe('all');
+      expect(component.selectedIndicatorFilter()).toBe('all');
+      expect(component.filteredChartCategories().length).toBe(5);
+      expect(component.filteredChartSeries().length).toBe(4);
+    });
+
     it('should save and load viewMode in configuration preset', () => {
       component.selectedSheet.set('Rekap Data');
       component.setViewMode('by-indicator');
@@ -651,7 +754,7 @@ describe('ChartVisualizerComponent', () => {
       expect(tw3.stats.targetValue).toBe(80);
     });
 
-    it('should handle onIndicatorTargetChange properly for empty string, 0, and numeric inputs', () => {
+    it('should handle onIndicatorTargetChange properly for empty string, 0, and numeric inputs, and reject negative values', () => {
       component.onIndicatorTargetChange('tw1', '75');
       expect(component.getIndicatorTarget('tw1')).toBe(75);
 
@@ -663,6 +766,34 @@ describe('ChartVisualizerComponent', () => {
 
       component.onIndicatorTargetChange('tw1', 'abc');
       expect(component.getIndicatorTarget('tw1')).toBeNull();
+
+      // Negative values rejected
+      component.onIndicatorTargetChange('tw1', '-10');
+      expect(component.getIndicatorTarget('tw1')).toBeNull();
+
+      component.setIndicatorTarget('tw1', -5);
+      expect(component.getIndicatorTarget('tw1')).toBeNull();
+    });
+
+    it('should handle onRegionTargetChange and reject negative values', () => {
+      component.onRegionTargetChange('80');
+      expect(component.targetValue()).toBe(80);
+
+      component.onRegionTargetChange('0');
+      expect(component.targetValue()).toBe(0);
+
+      component.onRegionTargetChange('  ');
+      expect(component.targetValue()).toBeNull();
+
+      component.onRegionTargetChange('-25');
+      expect(component.targetValue()).toBeNull();
+
+      // preventNegativeKey prevents minus key
+      const event = new KeyboardEvent('keydown', { key: '-' });
+      let prevented = false;
+      event.preventDefault = () => { prevented = true; };
+      component.preventNegativeKey(event);
+      expect(prevented).toBe(true);
     });
 
     it('should persist and restore separate indicatorTargets in configuration presets', () => {
@@ -758,25 +889,26 @@ describe('ChartVisualizerComponent', () => {
       expect(component.notificationMessage()).toContain('4 sheet terpisah');
     });
 
-    it('should build single sheet workbook with all columns in by-region mode', () => {
+    it('should build multi-sheet workbook with separate sheet per indicator in by-region mode', () => {
       populateTestData();
       component.setViewMode('by-region');
 
       const wb = component.buildExcelWorkbook();
 
       expect(wb).not.toBeNull();
-      expect(wb.SheetNames.length).toBe(1);
+      expect(wb.SheetNames.length).toBe(4);
+      expect(wb.SheetNames).toEqual(['Triwulan 1', 'Triwulan 2', 'Triwulan 3', 'Triwulan 4']);
 
       const ws = wb.Sheets[wb.SheetNames[0]];
       const data: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
       expect(data.length).toBe(7); // 1 header + 5 rows + 1 target row
-      expect(data[0]).toEqual(['Wilayah', 'Triwulan 1', 'Triwulan 2', 'Triwulan 3', 'Triwulan 4']);
-      expect(data[1]).toEqual(['Kab. Magelang', 72.4, 78.2, 84.5, 91]);
-      expect(data[6]).toEqual(['Target', '-', '-', '-', '-']);
+      expect(data[0]).toEqual(['Wilayah', 'Triwulan 1']);
+      expect(data[1]).toEqual(['Kab. Magelang', 72.4]);
+      expect(data[6]).toEqual(['Target', '-']);
 
       // Calling exportExcel should run without throwing and set notification
       expect(() => component.exportExcel()).not.toThrow();
-      expect(component.notificationMessage()).toContain('berhasil diunduh');
+      expect(component.notificationMessage()).toContain('4 sheet terpisah');
     });
 
     it('should sanitize sheet names and handle duplicates when exporting by-indicator', () => {
@@ -795,7 +927,7 @@ describe('ChartVisualizerComponent', () => {
       expect(wb.SheetNames[1]).toContain('(2)');
     });
 
-    it('should render Garis Target input and export buttons at chart level in by-region mode', () => {
+    it('should render Target Indikator button and export buttons at chart level in by-region mode', () => {
       populateTestData();
       component.dataSource.set('join');
       component.setViewMode('by-region');
@@ -803,10 +935,10 @@ describe('ChartVisualizerComponent', () => {
 
       const compiled = fixture.nativeElement as HTMLElement;
       // In by-region mode:
-      // Verify that Garis Target is present inside the chart legend/action bar
+      // Verify that Target Indikator button is present inside the chart legend/action bar
       const chartActions = compiled.querySelector('.border-t.border-slate-100');
       expect(chartActions).toBeTruthy();
-      expect(chartActions?.textContent).toContain('Garis Target:');
+      expect(chartActions?.textContent).toContain('Target Indikator');
 
       // Main header toolbar has Excel (.xlsx) button
       const excelBtn = compiled.querySelector('button[title*="Unduh data bersih"]');
@@ -1004,6 +1136,409 @@ describe('ChartVisualizerComponent', () => {
       expect(component.selectedSeriesKeys()).toEqual(['% Cakupan Imunisasi', '% Pemberian ASI']);
 
       exchange.clearChartData();
+    });
+
+    it('should support switching indicator grid columns between 1, 2, and 3 columns', () => {
+      // Default is 2 columns for side-by-side display
+      expect(component.indicatorGridColumns()).toBe(2);
+      expect(component.indicatorGridClass()).toContain('lg:grid-cols-2');
+
+      // Switch to 1 column (full width with max-w-4xl constraint)
+      component.setIndicatorGridColumns(1);
+      expect(component.indicatorGridColumns()).toBe(1);
+      expect(component.indicatorGridClass()).toContain('grid-cols-1');
+      expect(component.indicatorGridClass()).toContain('max-w-4xl');
+
+      // Switch to 3 columns
+      component.setIndicatorGridColumns(3);
+      expect(component.indicatorGridColumns()).toBe(3);
+      expect(component.indicatorGridClass()).toContain('xl:grid-cols-3');
+    });
+
+    it('should default region chart width to full width', () => {
+      // Default is full width for region chart visualization
+      expect(component.regionChartWidth()).toBe('full');
+      expect(component.regionChartContainerClass()).toBe('w-full');
+
+      // Can switch to compact
+      component.setRegionChartWidth('compact');
+      expect(component.regionChartWidth()).toBe('compact');
+      expect(component.regionChartContainerClass()).toBe('max-w-4xl mx-auto');
+
+      // Can switch to medium
+      component.setRegionChartWidth('medium');
+      expect(component.regionChartWidth()).toBe('medium');
+      expect(component.regionChartContainerClass()).toBe('max-w-6xl mx-auto');
+    });
+
+    it('should support switching region columns between 1 and 2 daerah per baris', () => {
+      // Default is 2 daerah per baris as requested
+      expect(component.regionColumns()).toBe(2);
+
+      component.setRegionColumns(1);
+      expect(component.regionColumns()).toBe(1);
+
+      component.setRegionColumns(2);
+      expect(component.regionColumns()).toBe(2);
+    });
+
+    it('should compute distinct comparison layouts and stats for each selected region in by-region mode', () => {
+      populateTestData();
+      component.dataSource.set('join');
+      component.setViewMode('by-region');
+      fixture.detectChanges();
+
+      const layouts = component.regionLayouts();
+      expect(layouts.length).toBe(5);
+
+      const magelang = layouts.find((l) => l.regionName === 'Kab. Magelang');
+      expect(magelang).toBeDefined();
+      expect(magelang!.stats.total).toBe(4);
+      expect(magelang!.stats.validCount).toBe(4);
+      expect(magelang!.stats.avgValue).toBe(81.5);
+      expect(magelang!.stats.highest?.label).toBe('Triwulan 4');
+      expect(magelang!.stats.lowest?.label).toBe('Triwulan 1');
+      expect(magelang!.layout.categoryGroups.length).toBe(4); // 4 indicators
+    });
+
+    it('should support sorting region cards by average value descending and ascending', () => {
+      populateTestData();
+      component.dataSource.set('join');
+      component.setViewMode('by-region');
+      fixture.detectChanges();
+
+      // Kota Magelang avg: 87.4, Kab. Magelang avg: 81.5
+      component.setRegionSortMode('desc');
+      let layouts = component.regionLayouts();
+      expect(layouts[0].regionName).toBe('Kota Magelang');
+
+      component.setRegionSortMode('asc');
+      layouts = component.regionLayouts();
+      expect(layouts[layouts.length - 1].regionName).toBe('Kota Magelang');
+
+      component.setRegionSortMode('default');
+      layouts = component.regionLayouts();
+      expect(layouts[0].regionName).toBe('Kab. Magelang');
+    });
+
+    it('should support switching region grid columns between 1, 2, and 3 columns', () => {
+      expect(component.regionGridColumns()).toBe(2);
+      expect(component.regionGridClass()).toContain('lg:grid-cols-2');
+
+      component.setRegionGridColumns(1);
+      expect(component.regionGridColumns()).toBe(1);
+      expect(component.regionGridClass()).toContain('grid-cols-1');
+      expect(component.regionGridClass()).toContain('max-w-4xl');
+
+      component.setRegionGridColumns(3);
+      expect(component.regionGridColumns()).toBe(3);
+      expect(component.regionGridClass()).toContain('xl:grid-cols-3');
+    });
+
+    it('should export single region excel file properly', () => {
+      populateTestData();
+      component.dataSource.set('join');
+      fixture.detectChanges();
+
+      expect(() => component.exportRegionExcel('Kab. Magelang')).not.toThrow();
+    });
+
+    it('should compute individual indicator targets, pins, and achievement stats per region in by-region mode', () => {
+      populateTestData();
+      component.dataSource.set('join');
+      component.setViewMode('by-region');
+
+      // Set individual targets per indicator
+      component.setIndicatorTarget('tw1', 70);
+      component.setIndicatorTarget('tw2', 80);
+      component.setIndicatorTarget('tw3', 85);
+      component.setIndicatorTarget('tw4', 90);
+
+      fixture.detectChanges();
+
+      const layouts = component.regionLayouts();
+      expect(layouts.length).toBe(5);
+
+      // Kab. Magelang: tw1=72.4 (>=70: ✓), tw2=78.2 (<80: ✗), tw3=84.5 (<85: ✗), tw4=91.0 (>=90: ✓)
+      const kabMagelang = layouts.find((l) => l.regionName === 'Kab. Magelang');
+      expect(kabMagelang).toBeTruthy();
+      expect(kabMagelang!.stats.totalTargeted).toBe(4);
+      expect(kabMagelang!.stats.achievedCount).toBe(2);
+
+      // Verify each row in Kab. Magelang layout has its specific targetVal and targetX
+      const groups = kabMagelang!.layout.categoryGroups;
+      expect(groups.length).toBe(4); // 4 indicators
+
+      // Group 0: Triwulan 1
+      const bar0 = groups[0].bars[0];
+      expect(bar0.targetVal).toBe(70);
+      expect(bar0.isAchieved).toBe(true);
+      expect(bar0.targetX).toBeDefined();
+
+      // Group 1: Triwulan 2
+      const bar1 = groups[1].bars[0];
+      expect(bar1.targetVal).toBe(80);
+      expect(bar1.isAchieved).toBe(false);
+      expect(bar1.targetX).toBeDefined();
+
+      // Verify global targetLineX is null (no single misleading vertical line)
+      expect(kabMagelang!.layout.targetLineX).toBeNull();
+    });
+
+    it('should toggle Target Indikator popover and allow batch target application and reset', () => {
+      populateTestData();
+      component.dataSource.set('join');
+      component.setViewMode('by-region');
+
+      expect(component.showTargetPopover()).toBe(false);
+      component.toggleTargetPopover();
+      expect(component.showTargetPopover()).toBe(true);
+
+      component.applyGlobalTargetToAll('75');
+      expect(component.getIndicatorTarget('tw1')).toBe(75);
+      expect(component.getIndicatorTarget('tw2')).toBe(75);
+      expect(component.getIndicatorTarget('tw3')).toBe(75);
+      expect(component.getIndicatorTarget('tw4')).toBe(75);
+      expect(component.configuredTargetCount()).toBe(4);
+
+      component.clearAllIndicatorTargets();
+      expect(component.indicatorTargets()['tw1']).toBeUndefined();
+      expect(component.configuredTargetCount()).toBe(0);
+
+      component.closeTargetPopover();
+      expect(component.showTargetPopover()).toBe(false);
+    });
+
+    it('should support Urutan Wilayah and Grafik per Baris select options in by-region mode', () => {
+      populateTestData();
+      component.dataSource.set('join');
+      component.setViewMode('by-region');
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const sortSelect = compiled.querySelector('#regionSortModeSelect') as HTMLSelectElement;
+      const gridSelect = compiled.querySelector('#regionGridSelect, #regionGridColumnsSelect') as HTMLSelectElement;
+
+      expect(sortSelect).toBeTruthy();
+      expect(gridSelect).toBeTruthy();
+
+      // Verify initial selected state displays correct text and value without interaction
+      expect(gridSelect.value).toBe('2');
+      expect(gridSelect.selectedOptions[0]?.text).toBe('2 Kolom / Baris');
+      expect(sortSelect.value).toBe('default');
+      expect(sortSelect.selectedOptions[0]?.text).toBe('Sesuai Urutan Data (Asli)');
+
+      // Change sort mode via method & verify select reflects value
+      component.setRegionSortMode('desc');
+      fixture.detectChanges();
+      expect(component.regionSortMode()).toBe('desc');
+      expect(sortSelect.value).toBe('desc');
+
+      component.setRegionSortMode('asc');
+      fixture.detectChanges();
+      expect(component.regionSortMode()).toBe('asc');
+      expect(sortSelect.value).toBe('asc');
+
+      // Change grid columns via method & verify select reflects value
+      component.setRegionGridColumns(3);
+      fixture.detectChanges();
+      expect(component.regionGridColumns()).toBe(3);
+      expect(gridSelect.value).toBe('3');
+
+      // Verify grid container receives 3-column classes
+      const gridContainer = compiled.querySelector(`.${component.regionGridClass().split(' ')[0]}`);
+      expect(component.regionGridClass()).toContain('lg:grid-cols-3');
+      expect(component.regionGridClass()).toContain('xl:grid-cols-3');
+
+      component.setRegionGridColumns(1);
+      fixture.detectChanges();
+      expect(component.regionGridColumns()).toBe(1);
+      expect(gridSelect.value).toBe('1');
+    });
+
+    it('should render region cards in DOM with individual indicator target pins and badges in by-region mode', () => {
+      populateTestData();
+      component.dataSource.set('join');
+      component.setViewMode('by-region');
+
+      // Set different targets for indicators
+      component.setIndicatorTarget('tw1', 70);
+      component.setIndicatorTarget('tw2', 80);
+
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+
+      // 1. Verify region cards are rendered (one SVG per region)
+      const regionSvgs = compiled.querySelectorAll('svg[id^="regionChartSvg-"]');
+      expect(regionSvgs.length).toBe(5);
+
+      // 2. Verify target pin markers exist on bars with targets
+      const targetPins = compiled.querySelectorAll('.target-pin');
+      expect(targetPins.length).toBeGreaterThan(0);
+
+      // 3. Verify target value annotations appear in bar text (e.g. "(T: 70)")
+      expect(compiled.textContent).toContain('(T: 70)');
+      expect(compiled.textContent).toContain('(T: 80)');
+
+      // 4. Verify target annotations are rendered in card content
+      expect(compiled.textContent).toContain('T: 70');
+      expect(compiled.textContent).toContain('T: 80');
+
+      // 5. Verify 3-column layout applies to card container
+      component.setRegionGridColumns(3);
+      fixture.detectChanges();
+      const cardGrid = compiled.querySelector(`div[class*="grid-cols"]`);
+      expect(cardGrid).toBeTruthy();
+      expect(cardGrid?.className).toContain('xl:grid-cols-3');
+      expect(cardGrid?.className).toContain('lg:grid-cols-3');
+
+      // 6. Verify Seri Indikator legend is removed from by-region toolbar
+      expect(compiled.textContent).not.toContain('Seri Indikator:');
+    });
+
+    it('should not display Seri Indikator quick jump tabs in by-indicator mode', () => {
+      populateTestData();
+      component.dataSource.set('join');
+      component.setViewMode('by-indicator');
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).not.toContain('Seri Indikator:');
+      // Should not contain the quick jump "Semua Indikator" pill button
+      const allIndicatorsBtn = Array.from(compiled.querySelectorAll('button')).find(
+        (b) => b.textContent?.trim().startsWith('Semua Indikator')
+      );
+      expect(allIndicatorsBtn).toBeUndefined();
+    });
+
+    it('should support Urutan Wilayah and Grafik per Baris select options in by-indicator mode', () => {
+      populateTestData();
+      component.dataSource.set('join');
+      component.setViewMode('by-indicator');
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const sortSelect = compiled.querySelector('#indicatorSortModeSelect') as HTMLSelectElement;
+      const gridSelect = compiled.querySelector('#indicatorGridSelect, #indicatorGridColumnsSelect') as HTMLSelectElement;
+
+      expect(sortSelect).toBeTruthy();
+      expect(gridSelect).toBeTruthy();
+
+      // Verify initial selected state displays correct text and value without interaction
+      expect(gridSelect.value).toBe('2');
+      expect(gridSelect.selectedOptions[0]?.text).toBe('2 Grafik / Baris');
+      expect(sortSelect.value).toBe('default');
+      expect(sortSelect.selectedOptions[0]?.text).toBe('Sesuai Urutan Data (Asli)');
+
+      component.setIndicatorSortMode('desc');
+      fixture.detectChanges();
+      expect(component.indicatorSortMode()).toBe('desc');
+      expect(sortSelect.value).toBe('desc');
+
+      component.setIndicatorGridColumns(3);
+      fixture.detectChanges();
+      expect(component.indicatorGridColumns()).toBe(3);
+      expect(gridSelect.value).toBe('3');
+    });
+
+    it('should open, search, manage checkboxes, and close Region Filter Modal', () => {
+      populateTestData();
+      component.dataSource.set('join');
+      fixture.detectChanges();
+
+      expect(component.showRegionFilterModal()).toBe(false);
+
+      // Open Region modal
+      component.openRegionFilterModal();
+      fixture.detectChanges();
+      expect(component.showRegionFilterModal()).toBe(true);
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('Filter Wilayah Visualisasi');
+
+      // Test search filtering inside modal
+      component.regionModalSearch.set('Wonosobo');
+      expect(component.filteredModalCategories()).toContain('Kab. Wonosobo');
+      expect(component.filteredModalCategories()).not.toContain('Kab. Magelang');
+
+      component.regionModalSearch.set('');
+      expect(component.filteredModalCategories().length).toBe(component.availableCategories().length);
+
+      // Test deselecting and re-selecting a region
+      expect(component.isCategorySelected('Kab. Wonosobo')).toBe(true);
+      component.toggleCategory('Kab. Wonosobo');
+      expect(component.isCategorySelected('Kab. Wonosobo')).toBe(false);
+
+      component.toggleCategory('Kab. Wonosobo');
+      expect(component.isCategorySelected('Kab. Wonosobo')).toBe(true);
+
+      // Close modal
+      component.closeRegionFilterModal();
+      fixture.detectChanges();
+      expect(component.showRegionFilterModal()).toBe(false);
+    });
+
+    it('should open, search, manage checkboxes, and close Indicator Filter Modal', () => {
+      populateTestData();
+      component.dataSource.set('join');
+      fixture.detectChanges();
+
+      expect(component.showIndicatorFilterModal()).toBe(false);
+
+      // Open Indicator modal
+      component.openIndicatorFilterModal();
+      fixture.detectChanges();
+      expect(component.showIndicatorFilterModal()).toBe(true);
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('Filter Indikator Visualisasi');
+
+      // Test search filtering
+      component.indicatorModalSearch.set('tw1');
+      expect(component.filteredModalIndicators().some((i) => i.header === 'tw1')).toBe(true);
+
+      component.indicatorModalSearch.set('');
+      expect(component.filteredModalIndicators().length).toBe(component.allCandidateSeriesColumns().length);
+
+      // Toggle series column
+      expect(component.selectedSeriesKeys()).toContain('tw1');
+      component.toggleSeriesColumn('tw1');
+      expect(component.selectedSeriesKeys()).not.toContain('tw1');
+
+      component.toggleSeriesColumn('tw1');
+      expect(component.selectedSeriesKeys()).toContain('tw1');
+
+      // Close modal
+      component.closeIndicatorFilterModal();
+      fixture.detectChanges();
+      expect(component.showIndicatorFilterModal()).toBe(false);
+    });
+
+    it('should reset all filters including modal-selected indicators and regions when resetChartFilters is clicked', () => {
+      populateTestData();
+      component.dataSource.set('join');
+      fixture.detectChanges();
+
+      // Filter one region and one indicator
+      component.toggleCategory('Kota Semarang');
+      component.toggleSeriesColumn('tw1');
+      component.chartRegionSearch.set('Cilacap');
+      component.selectedIndicatorFilter.set('tw2');
+      fixture.detectChanges();
+
+      expect(component.isChartFilterActive()).toBe(true);
+
+      // Reset filters
+      component.resetChartFilters();
+      fixture.detectChanges();
+
+      expect(component.chartRegionSearch()).toBe('');
+      expect(component.selectedRegionFilter()).toBe('all');
+      expect(component.selectedIndicatorFilter()).toBe('all');
+      expect(component.selectedCategories().length).toBe(component.availableCategories().length);
+      expect(component.selectedSeriesKeys().length).toBe(component.allCandidateSeriesColumns().length);
+      expect(component.isChartFilterActive()).toBe(false);
     });
   });
 });

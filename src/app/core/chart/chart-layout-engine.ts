@@ -23,13 +23,28 @@ export interface ChartBarItem {
   y: number;
   width: number;
   height: number;
+  targetVal?: number | null;
+  targetX?: number | null;
+  isAchieved?: boolean | null;
 }
 
 export interface ChartCategoryGroup {
   categoryName: string;
+  colIndex: number;
+  rowIdx: number;
+  plotX: number;
+  plotWidth: number;
   y: number;
   height: number;
   bars: ChartBarItem[];
+}
+
+export interface ChartColumnLayout {
+  colIndex: number;
+  plotX: number;
+  plotWidth: number;
+  ticks: ChartGridTick[];
+  targetLineX?: number | null;
 }
 
 export interface ChartGridTick {
@@ -47,6 +62,9 @@ export interface ChartLayoutSpec {
   width?: number;
   rowHeight?: number;
   margin?: { top: number; right: number; bottom: number; left: number };
+  columns?: number;
+  categoryColors?: Record<string, string>;
+  categoryTargets?: Record<string, number | null>;
 }
 
 export interface ChartLayoutResult {
@@ -61,26 +79,27 @@ export interface ChartLayoutResult {
   ticks: ChartGridTick[];
   categoryGroups: ChartCategoryGroup[];
   targetLineX?: number | null;
+  targetLines?: number[];
+  columns: number;
+  columnLayouts: ChartColumnLayout[];
+  dividerX?: number | null;
+  hasCategoryTargets?: boolean;
 }
 
 /**
  * ChartLayoutEngine: Modul murni (pure) untuk menghitung koordinat layout matematika
- * pada Grouped Horizontal Bar Chart.
+ * pada Grouped Horizontal Bar Chart (mendukung 1 kolom atau 2 kolom daerah berdampingan).
  */
 export class ChartLayoutEngine {
   static computeLayout(spec: ChartLayoutSpec): ChartLayoutResult {
-    const width = spec.width || 850;
-    const margin = spec.margin || { top: 40, right: 90, bottom: 40, left: 190 };
+    const numColumns = spec.columns === 2 ? 2 : 1;
     const seriesCount = Math.max(1, spec.series.length);
     const calculatedRowHeight = spec.rowHeight || Math.max(54, seriesCount * 20 + 20);
 
     const categoryCount = spec.categories.length;
-    const plotWidth = Math.max(100, width - margin.left - margin.right);
-    const plotHeight = Math.max(60, categoryCount * calculatedRowHeight);
-    const viewBoxHeight = margin.top + margin.bottom + plotHeight;
-    const viewBoxWidth = width;
+    const rowCount = numColumns === 2 ? Math.max(1, Math.ceil(categoryCount / 2)) : categoryCount;
 
-    // 1. Ekstraksi semua nilai numerik untuk menentukan skala maksimum
+    // 1. Ekstraksi semua nilai numerik untuk menentukan skala maksimum bersama
     let maxVal = 0;
     const rowMap = new Map<string, ChartDataRow>();
     for (const r of spec.rows) {
@@ -107,6 +126,14 @@ export class ChartLayoutEngine {
       maxVal = spec.targetValue;
     }
 
+    if (spec.categoryTargets) {
+      for (const tgt of Object.values(spec.categoryTargets)) {
+        if (tgt !== undefined && tgt !== null && tgt > maxVal) {
+          maxVal = tgt;
+        }
+      }
+    }
+
     if (maxVal <= 0) {
       maxVal = 100;
     } else {
@@ -114,26 +141,146 @@ export class ChartLayoutEngine {
       maxVal = this.computeNiceMax(maxVal);
     }
 
-    // 2. Generate Ticks pada sumbu X
     const tickCount = 5;
-    const ticks: ChartGridTick[] = [];
-    for (let i = 0; i <= tickCount; i++) {
-      const val = (maxVal / tickCount) * i;
-      const x = margin.left + (plotWidth / tickCount) * i;
-      const roundedVal = Math.round(val * 10) / 10;
-      ticks.push({
-        value: roundedVal,
-        x,
-        label: roundedVal.toLocaleString('id-ID'),
+
+    // 2. Geometri Kolom (1 Kolom Penuh atau 2 Kolom Berdampingan)
+    const hasCategoryTargets = Boolean(
+      spec.categoryTargets && Object.keys(spec.categoryTargets).length > 0,
+    );
+    let viewBoxWidth = spec.width || (numColumns === 2 ? 1280 : 850);
+    const margin =
+      spec.margin ||
+      (numColumns === 2
+        ? { top: 75, right: 20, bottom: 58, left: 20 }
+        : { top: 40, right: 90, bottom: 40, left: 190 });
+
+    const plotHeight = Math.max(60, rowCount * calculatedRowHeight);
+    const viewBoxHeight = margin.top + margin.bottom + plotHeight;
+
+    const columnLayouts: ChartColumnLayout[] = [];
+    let dividerX: number | null = null;
+    let mainPlotX = margin.left;
+    let mainPlotWidth = 100;
+
+    if (numColumns === 2) {
+      const availableWidth = Math.max(400, viewBoxWidth - margin.left - margin.right);
+      const labelWidth = 175;
+      const valuePadding = 60;
+      const columnGap = 24;
+
+      // 2 * (labelWidth + colPlotWidth + valuePadding) + columnGap <= availableWidth
+      const fixedHorizontal = 2 * (labelWidth + valuePadding) + columnGap;
+      const colPlotWidth = Math.max(100, Math.floor((availableWidth - fixedHorizontal) / 2));
+      mainPlotWidth = colPlotWidth;
+
+      // Kolom 0 (Kiri)
+      const col0LabelX = margin.left;
+      const col0PlotX = col0LabelX + labelWidth;
+      const col0EndX = col0PlotX + colPlotWidth;
+      const col0TotalEnd = col0EndX + valuePadding;
+      mainPlotX = col0PlotX;
+
+      dividerX = col0TotalEnd + Math.floor(columnGap / 2);
+
+      // Kolom 1 (Kanan)
+      const col1LabelX = col0TotalEnd + columnGap;
+      const col1PlotX = col1LabelX + labelWidth;
+
+      // Ticks Kolom 0
+      const col0Ticks: ChartGridTick[] = [];
+      for (let i = 0; i <= tickCount; i++) {
+        const val = (maxVal / tickCount) * i;
+        const x = col0PlotX + (colPlotWidth / tickCount) * i;
+        const roundedVal = Math.round(val * 10) / 10;
+        col0Ticks.push({
+          value: roundedVal,
+          x,
+          label: roundedVal.toLocaleString('id-ID'),
+        });
+      }
+
+      // Ticks Kolom 1
+      const col1Ticks: ChartGridTick[] = [];
+      for (let i = 0; i <= tickCount; i++) {
+        const val = (maxVal / tickCount) * i;
+        const x = col1PlotX + (colPlotWidth / tickCount) * i;
+        const roundedVal = Math.round(val * 10) / 10;
+        col1Ticks.push({
+          value: roundedVal,
+          x,
+          label: roundedVal.toLocaleString('id-ID'),
+        });
+      }
+
+      let col0TargetX: number | null = null;
+      let col1TargetX: number | null = null;
+      if (!hasCategoryTargets && spec.targetValue !== undefined && spec.targetValue !== null) {
+        const clampedVal = Math.max(0, spec.targetValue);
+        col0TargetX = col0PlotX + (clampedVal / maxVal) * colPlotWidth;
+        col1TargetX = col1PlotX + (clampedVal / maxVal) * colPlotWidth;
+      }
+
+      columnLayouts.push(
+        {
+          colIndex: 0,
+          plotX: col0PlotX,
+          plotWidth: colPlotWidth,
+          ticks: col0Ticks,
+          targetLineX: col0TargetX,
+        },
+        {
+          colIndex: 1,
+          plotX: col1PlotX,
+          plotWidth: colPlotWidth,
+          ticks: col1Ticks,
+          targetLineX: col1TargetX,
+        },
+      );
+    } else {
+      // 1 Kolom Penuh
+      mainPlotWidth = Math.max(100, viewBoxWidth - margin.left - margin.right);
+      mainPlotX = margin.left;
+
+      const singleTicks: ChartGridTick[] = [];
+      for (let i = 0; i <= tickCount; i++) {
+        const val = (maxVal / tickCount) * i;
+        const x = margin.left + (mainPlotWidth / tickCount) * i;
+        const roundedVal = Math.round(val * 10) / 10;
+        singleTicks.push({
+          value: roundedVal,
+          x,
+          label: roundedVal.toLocaleString('id-ID'),
+        });
+      }
+
+      let targetX: number | null = null;
+      if (!hasCategoryTargets && spec.targetValue !== undefined && spec.targetValue !== null) {
+        const clampedVal = Math.max(0, spec.targetValue);
+        targetX = margin.left + (clampedVal / maxVal) * mainPlotWidth;
+      }
+
+      columnLayouts.push({
+        colIndex: 0,
+        plotX: margin.left,
+        plotWidth: mainPlotWidth,
+        ticks: singleTicks,
+        targetLineX: targetX,
       });
     }
 
-    // 3. Hitung Garis Target
-    let targetLineX: number | null = null;
-    if (spec.targetValue !== undefined && spec.targetValue !== null) {
-      const clampedVal = Math.max(0, spec.targetValue);
-      targetLineX = margin.left + (clampedVal / maxVal) * plotWidth;
+    // 3. Gabungan Ticks dan Target Lines
+    const allTicks: ChartGridTick[] = [];
+    for (const c of columnLayouts) {
+      allTicks.push(...c.ticks);
     }
+
+    const targetLines: number[] = [];
+    for (const c of columnLayouts) {
+      if (c.targetLineX !== null && c.targetLineX !== undefined) {
+        targetLines.push(c.targetLineX);
+      }
+    }
+    const targetLineX = columnLayouts[0]?.targetLineX ?? null;
 
     // 4. Hitung Geometri Kelompok Batang per Kategori Wilayah
     const barSpacing = 3;
@@ -149,7 +296,14 @@ export class ChartLayoutEngine {
     for (let cIdx = 0; cIdx < spec.categories.length; cIdx++) {
       const catName = spec.categories[cIdx];
       const r = rowMap.get(catName.trim().toLowerCase());
-      const groupY = margin.top + cIdx * calculatedRowHeight;
+
+      const colIdx = numColumns === 2 ? cIdx % 2 : 0;
+      const rowIdx = numColumns === 2 ? Math.floor(cIdx / 2) : cIdx;
+      const groupY = margin.top + rowIdx * calculatedRowHeight;
+
+      const colLayout = columnLayouts[colIdx];
+      const groupPlotX = colLayout.plotX;
+      const groupPlotWidth = colLayout.plotWidth;
 
       const bars: ChartBarItem[] = [];
 
@@ -179,28 +333,66 @@ export class ChartLayoutEngine {
           } else {
             numericVal = parsed;
             displayLabel = parsed.toLocaleString('id-ID');
-            barWidth = Math.max(0, (parsed / maxVal) * plotWidth);
+            barWidth = Math.max(0, (parsed / maxVal) * groupPlotWidth);
+          }
+        }
+
+        let targetVal: number | null = null;
+        let targetX: number | null = null;
+        let isAchieved: boolean | null = null;
+
+        if (spec.categoryTargets) {
+          if (spec.categoryTargets[catName] !== undefined) {
+            targetVal = spec.categoryTargets[catName];
+          } else {
+            const lowerCat = catName.trim().toLowerCase();
+            const matchedKey = Object.keys(spec.categoryTargets).find(
+              (k) => k.trim().toLowerCase() === lowerCat,
+            );
+            if (matchedKey && spec.categoryTargets[matchedKey] !== undefined) {
+              targetVal = spec.categoryTargets[matchedKey];
+            }
+          }
+          if (targetVal !== null && targetVal !== undefined && targetVal < 0) {
+            targetVal = null;
+          }
+        } else if (spec.targetValue !== undefined && spec.targetValue !== null && spec.targetValue >= 0) {
+          targetVal = spec.targetValue;
+        }
+
+        if (targetVal !== null && targetVal !== undefined) {
+          const clampedVal = Math.max(0, targetVal);
+          targetX = groupPlotX + (clampedVal / maxVal) * groupPlotWidth;
+          if (numericVal !== null) {
+            isAchieved = numericVal >= targetVal;
           }
         }
 
         bars.push({
           seriesKey: s.key,
           seriesLabel: s.label,
-          color: s.color,
+          color: spec.categoryColors?.[catName] || s.color,
           rawVal: raw,
           numericVal,
           displayLabel,
           isZero,
           isMissing,
-          x: margin.left,
+          x: groupPlotX,
           y: barY,
           width: barWidth,
           height: barHeight,
+          targetVal,
+          targetX,
+          isAchieved,
         });
       }
 
       categoryGroups.push({
         categoryName: catName,
+        colIndex: colIdx,
+        rowIdx,
+        plotX: groupPlotX,
+        plotWidth: groupPlotWidth,
         y: groupY,
         height: calculatedRowHeight,
         bars,
@@ -210,15 +402,20 @@ export class ChartLayoutEngine {
     return {
       viewBoxWidth,
       viewBoxHeight,
-      plotX: margin.left,
+      plotX: mainPlotX,
       plotY: margin.top,
-      plotWidth,
+      plotWidth: mainPlotWidth,
       plotHeight,
       minValue: 0,
       maxValue: maxVal,
-      ticks,
+      ticks: allTicks,
       categoryGroups,
       targetLineX,
+      targetLines,
+      columns: numColumns,
+      columnLayouts,
+      dividerX,
+      hasCategoryTargets,
     };
   }
 

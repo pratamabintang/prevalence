@@ -18,6 +18,9 @@ export interface ChartConfigurationPreset {
   hiddenRows?: string[];
   deletedRows?: string[];
   viewMode?: 'by-region' | 'by-indicator';
+  regionColumns?: 1 | 2;
+  regionGridColumns?: 1 | 2 | 3;
+  regionSortMode?: 'default' | 'desc' | 'asc';
   indicatorTargets?: Record<string, number | null>;
 }
 

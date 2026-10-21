@@ -217,5 +217,29 @@ describe('ExcelJoinEngine (Deep Module)', () => {
       expect(exportSpy).not.toHaveBeenCalled();
       exportSpy.mockRestore();
     });
+
+    it('buildJoinedBuffer mengembalikan ArrayBuffer valid jika ada data', () => {
+      const buffer = ExcelJoinEngine.buildJoinedBuffer({
+        resultRows: [{ 'Kabupaten/Kota': 'Banyuwangi', 'Sasaran': 100 }],
+        resultColumns: ['Kabupaten/Kota', 'Sasaran'],
+        resultColumnsMeta: [
+          { key: 'Kabupaten/Kota', layers: ['Kabupaten/Kota'] },
+          { key: 'Sasaran', layers: ['Sasaran'] },
+        ],
+      });
+
+      expect(buffer).toBeInstanceOf(ArrayBuffer);
+      expect(buffer!.byteLength).toBeGreaterThan(0);
+    });
+
+    it('buildJoinedBuffer mengembalikan null jika data kosong', () => {
+      const buffer = ExcelJoinEngine.buildJoinedBuffer({
+        resultRows: [],
+        resultColumns: [],
+        resultColumnsMeta: [],
+      });
+
+      expect(buffer).toBeNull();
+    });
   });
 });

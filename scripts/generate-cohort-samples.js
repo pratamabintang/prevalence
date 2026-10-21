@@ -92,10 +92,6 @@ function createStyledExcelFile(data, filePath, sheetName) {
 const rootDir = path.resolve(__dirname, '..');
 const publicDir = path.join(rootDir, 'public', 'data');
 
-// Simpan ke root folder untuk drag & drop langsung oleh user
-createStyledExcelFile(datasetPeriode1, path.join(rootDir, 'Data_Balita_Stunting_Periode_1.xlsx'), 'Stunting_Periode_1');
-createStyledExcelFile(datasetPeriode2, path.join(rootDir, 'Data_Balita_Stunting_Periode_2.xlsx'), 'Stunting_Periode_2');
-
-// Simpan juga ke public/data untuk tombol "Muat Data Contoh"
+// Simpan ke public/data untuk tombol "Muat Data Contoh"
 createStyledExcelFile(datasetPeriode1, path.join(publicDir, 'sample-stunting-periode-1.xlsx'), 'Stunting_Periode_1');
 createStyledExcelFile(datasetPeriode2, path.join(publicDir, 'sample-stunting-periode-2.xlsx'), 'Stunting_Periode_2');

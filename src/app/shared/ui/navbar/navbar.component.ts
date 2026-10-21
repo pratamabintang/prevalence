@@ -1,5 +1,6 @@
-import { Component } from '@angular/core';
+import { Component, computed, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
+import { environment } from '../../../../environments/environment';
 
 export interface NavItem {
   id: number;
@@ -18,7 +19,7 @@ export interface NavItem {
       <!-- TOP COLOR ACCENT RIBBON -->
       <div class="h-1 w-full bg-gradient-to-r from-[#8FD9FB] via-[#4AB5B5] via-[#6D8BC0] to-[#525AFF]"></div>
 
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="w-full px-4 sm:px-6 lg:px-8">
         <div class="relative flex h-14 sm:h-16 items-center justify-between gap-2">
           <!-- BRANDING & LOGO (LEFT) -->
           <a
@@ -46,7 +47,7 @@ export interface NavItem {
             class="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center justify-center gap-1 lg:gap-1.5"
             aria-label="Navigasi Modul"
           >
-            @for (nav of navItems; track nav.route) {
+            @for (nav of navItems(); track nav.route) {
               <a
                 [routerLink]="nav.route"
                 [routerLinkActiveOptions]="nav.exact ? { exact: true } : { exact: false }"
@@ -67,7 +68,7 @@ export interface NavItem {
           class="flex md:hidden items-center justify-center gap-1 py-2 border-t border-slate-100 overflow-x-auto"
           aria-label="Navigasi Modul Mobile"
         >
-          @for (nav of navItems; track nav.route) {
+          @for (nav of navItems(); track nav.route) {
             <a
               [routerLink]="nav.route"
               [routerLinkActiveOptions]="nav.exact ? { exact: true } : { exact: false }"
@@ -84,12 +85,23 @@ export interface NavItem {
   `,
 })
 export class AppNavbarComponent {
-  readonly navItems: NavItem[] = [
+  readonly enableStuntingDashboard = signal(environment.enableStuntingDashboard);
+
+  readonly allNavItems: NavItem[] = [
     { id: 1, label: 'Excel Join', shortLabel: 'Excel Join', route: '/', exact: true },
     { id: 2, label: 'Visualisasi Grafik', shortLabel: 'Grafik', route: '/chart', exact: false },
     { id: 3, label: 'Pemantauan Stunting', shortLabel: 'Monitoring', route: '/stunting-monitoring', exact: false },
-    { id: 4, label: 'Dashboard Stunting', shortLabel: 'Dashboard', route: '/stunting-dashboard', exact: false },
-    { id: 5, label: 'Kohort Stunting', shortLabel: 'Kohort', route: '/stunting-cohort', exact: false },
+    { id: 4, label: 'Kohort Stunting', shortLabel: 'Kohort', route: '/stunting-cohort', exact: false },
+    { id: 5, label: 'Dashboard Stunting', shortLabel: 'Dashboard', route: '/stunting-dashboard', exact: false },
   ];
-}
 
+  readonly navItems = computed<NavItem[]>(() => {
+    const isEnabled = this.enableStuntingDashboard();
+    return this.allNavItems
+      .filter((nav) => nav.route !== '/stunting-dashboard' || isEnabled)
+      .map((item, index) => ({
+        ...item,
+        id: index + 1,
+      }));
+  });
+}

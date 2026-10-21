@@ -13,7 +13,11 @@ import {
   IndicatorEvaluator,
   TargetOperator,
 } from '../../core/evaluation/indicator-evaluator';
-import { GasStorageService } from '../../core/storage/gas-storage.service';
+import {
+  GasPeriodItem,
+  GasStorageService,
+  QuarterSlot,
+} from '../../core/storage/gas-storage.service';
 import {
   ColumnHeaderMeta,
   ColumnInfo,
@@ -27,6 +31,7 @@ import {
 } from './preset-store';
 import { DEFAULT_JOIN_CONFIG } from './default-join-config';
 import { ExcelJoinStore, ExcelJoinStoredState } from './excel-join-store';
+import { environment } from '../../../environments/environment';
 
 export type {
   ColumnConfig,
@@ -82,6 +87,15 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
 
   // Kontrol Tampilan Settings (Tombol Gerigi) & Status Default Data
   showSettings = signal<boolean>(false);
+  readonly enableToolbarActions = signal<boolean>(
+    Boolean(
+      (environment as { enableExcelJoinToolbarActions?: boolean; enableExcelJoinConfigActions?: boolean })
+        .enableExcelJoinToolbarActions ??
+      (environment as { enableExcelJoinToolbarActions?: boolean; enableExcelJoinConfigActions?: boolean })
+        .enableExcelJoinConfigActions ??
+      false
+    )
+  );
   isDefaultData = signal<boolean>(false);
   isCloudDefault = signal<boolean>(false);
 
@@ -90,14 +104,44 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   showSaveDefaultConfirm = signal<boolean>(false);
   showResetDefaultConfirm = signal<boolean>(false);
 
+  // Manajemen Partisi Periode Lintas Triwulan (Google Drive) - 5 Tahun ke Belakang
+  currentYear = new Date().getFullYear();
+  availableYears = signal<number[]>(
+    Array.from({ length: 6 }, (_, i) => this.currentYear - i)
+  );
+  selectedYear = signal<number>(this.currentYear);
+  selectedQuarter = signal<QuarterSlot>('TW1');
+  periodSlots = signal<GasPeriodItem[]>([]);
+  isLoadingPeriods = signal<boolean>(false);
+  isLoadingPeriod = signal<boolean>(false);
+  isSavingPeriod = signal<boolean>(false);
+  showSavePeriodConfirm = signal<boolean>(false);
+  activePeriodLabel = signal<string | null>(null);
+
+  readonly quarterOptions: {
+    value: QuarterSlot;
+    label: string;
+    periodText: string;
+    months: string;
+  }[] = [
+    { value: 'TW1', label: 'TW 1', periodText: 'Triwulan 1', months: 'Januari - Maret' },
+    { value: 'TW2', label: 'TW 2', periodText: 'Triwulan 2', months: 'April - Juni' },
+    { value: 'TW3', label: 'TW 3', periodText: 'Triwulan 3', months: 'Juli - September' },
+    { value: 'TW4', label: 'TW 4', periodText: 'Oktober - Desember', months: 'Oktober - Desember' },
+  ];
+
   async ngOnInit(): Promise<void> {
+    if (this.gasStorageService.isConfigured()) {
+      void this.fetchPeriodSlots();
+    }
     if (this.excelJoinStore.hasState()) {
       const restored = await this.restoreStateFromStore();
       if (restored) {
         return;
       }
     }
-    await this.loadDefaultDataAndConfig();
+    // Tidak auto-load default data agar pengguna dapat memilih dan memuat
+    // periode triwulan tertentu dari Google Drive secara eksplisit atau mengunggah berkas baru.
   }
 
   ngOnDestroy(): void {
@@ -152,6 +196,14 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   async restoreStateFromStore(): Promise<boolean> {
     const state = this.excelJoinStore.getState();
     if (!state) {
+      return false;
+    }
+
+    // Jika data yang tersimpan di sesi browser adalah data default template lama,
+    // bersihkan sesi tersebut agar halaman tampil bersih dan pengguna dapat memilih periode
+    // triwulan atau mengunggah berkas secara eksplisit.
+    if (state.isDefaultData) {
+      this.excelJoinStore.clearState();
       return false;
     }
 
@@ -623,26 +675,49 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // 1. Simpan konfigurasi aktif sebelum reset
-    // Prioritas: pendingPreset (unggah file json), konfigurasi aktif saat ini, atau preservedPreset (dari clearFile)
-    const presetToApply =
-      this.pendingPreset ||
-      (this.selectedSheets().length > 0
-        ? this.getCurrentPreset(this.activePresetName() || undefined)
-        : null) ||
-      this.preservedPreset;
+    this.isProcessing.set(true);
+    this.errorMessage.set('');
+    this.configNotification.set(null);
 
-    const presetNameToApply =
-      this.activePresetName() ||
-      this.preservedPresetName ||
-      (this.isCloudDefault() ? 'Default Google Drive' : 'Konfigurasi Aktif');
+    // Ambil ulang template konfigurasi terbaru dari Google Drive setiap kali import Excel baru
+    let presetToApply: JoinConfigurationPreset | null = null;
+    let presetNameToApply: string = '';
+
+    if (this.pendingPreset) {
+      presetToApply = this.pendingPreset;
+      presetNameToApply = this.pendingPreset.name || 'Konfigurasi Impor';
+    } else if (this.gasStorageService.isConfigured()) {
+      try {
+        const driveRes = await this.gasStorageService.loadTemplateConfig();
+        if (driveRes.success && driveRes.hasConfig && driveRes.config) {
+          presetToApply = driveRes.config as JoinConfigurationPreset;
+          presetNameToApply = presetToApply.name || 'Template Google Drive';
+        }
+      } catch (err) {
+        console.warn('Gagal memuat template konfigurasi dari Google Drive, menggunakan template bawaan:', err);
+      }
+    }
+
+    if (!presetToApply) {
+      presetToApply =
+        (this.selectedSheets().length > 0
+          ? this.getCurrentPreset(this.activePresetName() || undefined)
+          : null) ||
+        this.preservedPreset ||
+        DEFAULT_JOIN_CONFIG;
+
+      presetNameToApply =
+        this.activePresetName() ||
+        this.preservedPresetName ||
+        (this.isCloudDefault() ? 'Default Google Drive' : (DEFAULT_JOIN_CONFIG.name || 'Template Standar Dinkes'));
+    }
 
     this.reset();
 
     this.isDefaultData.set(false);
     this.isCloudDefault.set(false);
+    this.activePeriodLabel.set(null);
     this.file.set(file);
-    this.isProcessing.set(true);
 
     try {
       const buffer = await file.arrayBuffer();
@@ -659,14 +734,15 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
         );
 
         if (matchedSheetMap.size > 0) {
-          // Ada sheet yang cocok! Terapkan konfigurasi aktif ke file baru
+          // Ada sheet yang cocok! Terapkan konfigurasi aktif / template ke file baru
           this.pendingPreset = null;
           this.preservedPreset = null;
           this.preservedPresetName = null;
           this.applyConfiguration(presetToApply, presetNameToApply);
 
-          // Jika data hasil join berhasil diekstrak, tutup panel pengaturan agar user langsung melihat preview tabel data baru
-          if (this.resultRows().length > 0) {
+          // Jika pengaturan dinonaktifkan via env atau data hasil join berhasil diekstrak,
+          // tutup panel pengaturan agar user langsung fokus ke preview tabel hasil join
+          if (!this.enableToolbarActions() || this.resultRows().length > 0) {
             this.showSettings.set(false);
           } else {
             this.showSettings.set(true);
@@ -679,8 +755,8 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
           this.preservedPresetName = null;
           this.showSettings.set(true);
           this.configNotification.set({
-            type: 'info',
-            message: `File "${file.name}" berhasil dimuat. Sheet pada file baru berbeda dengan konfigurasi sebelumnya, silakan pilih sheet dan variabel.`,
+            type: 'warning',
+            message: `File "${file.name}" berhasil dimuat, namun nama sheet tidak cocok dengan template konfigurasi standar Dinkes.`,
           });
           this.saveCurrentStateToStore();
           return;
@@ -1807,6 +1883,229 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       this.errorMessage.set(`Gagal menyimpan default ke Google Drive: ${msg}`);
     } finally {
       this.isSavingDefault.set(false);
+    }
+  }
+
+  // ============================================================
+  // GOOGLE DRIVE: MANAJEMEN PERIODE LINTAS TRIWULAN
+  // ============================================================
+
+  async fetchPeriodSlots(): Promise<void> {
+    if (!this.gasStorageService.isConfigured()) return;
+    this.isLoadingPeriods.set(true);
+    try {
+      const res = await this.gasStorageService.listPeriods();
+      if (res.success && res.periods) {
+        this.periodSlots.set(res.periods);
+        const yearSet = new Set(this.availableYears());
+        for (const p of res.periods) {
+          if (p.year) yearSet.add(p.year);
+        }
+        this.availableYears.set(Array.from(yearSet).sort((a, b) => b - a));
+      }
+    } catch (e) {
+      console.warn('Gagal memuat daftar periode Google Drive:', e);
+    } finally {
+      this.isLoadingPeriods.set(false);
+    }
+  }
+
+  isQuarterAvailable(year: number, quarter: QuarterSlot): boolean {
+    return this.periodSlots().some(
+      (p) => p.year === year && p.quarter === quarter && (p.hasRaw || p.hasResult)
+    );
+  }
+
+  getQuarterInfo(year: number, quarter: QuarterSlot): GasPeriodItem | undefined {
+    return this.periodSlots().find((p) => p.year === year && p.quarter === quarter);
+  }
+
+  getSavedPeriods(): GasPeriodItem[] {
+    return this.periodSlots().filter((p) => p.hasRaw || p.hasResult);
+  }
+
+  getYearQuarterCount(year: number): number {
+    return this.periodSlots().filter(
+      (p) => p.year === year && (p.hasRaw || p.hasResult)
+    ).length;
+  }
+
+  async loadPeriodDirect(year: number, quarter: QuarterSlot): Promise<void> {
+    this.selectedYear.set(year);
+    this.selectedQuarter.set(quarter);
+    await this.loadSelectedPeriod();
+  }
+
+  openSavePeriodDirect(year: number, quarter: QuarterSlot): void {
+    this.selectedYear.set(year);
+    this.selectedQuarter.set(quarter);
+    this.openSavePeriodConfirm();
+  }
+
+  selectYear(year: number): void {
+    this.selectedYear.set(year);
+  }
+
+  selectQuarter(quarter: QuarterSlot): void {
+    this.selectedQuarter.set(quarter);
+  }
+
+  async loadSelectedPeriod(): Promise<void> {
+    if (this.isProcessing() || this.isLoadingPeriod()) return;
+    this.isLoadingPeriod.set(true);
+    this.isProcessing.set(true);
+    const yr = this.selectedYear();
+    const qr = this.selectedQuarter();
+
+    try {
+      const res = await this.gasStorageService.loadPeriod(yr, qr);
+      if (!res.success) {
+        this.configNotification.set({
+          type: 'warning',
+          message: res.error || `Gagal memuat data periode ${yr} ${qr} dari Google Drive.`,
+        });
+        return;
+      }
+
+      if (!res.hasData || !res.rawExcelBuffer) {
+        this.configNotification.set({
+          type: 'info',
+          message: res.message || `Belum ada data tersimpan untuk periode ${yr} ${qr} di Google Drive.`,
+        });
+        return;
+      }
+
+      this.activePeriodLabel.set(`${yr} ${qr}`);
+      const fileName = res.fileName || `${yr}_${qr}_raw-data.xlsx`;
+      const defaultFile = new File([res.rawExcelBuffer], fileName, {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      this.file.set(defaultFile);
+      this.workbook = ExcelEngine.readWorkbook(res.rawExcelBuffer);
+      this.loadSheets();
+
+      if (res.config && typeof res.config === 'object') {
+        const preset = res.config as JoinConfigurationPreset;
+        this.applyConfiguration(preset, preset.name || `Drive ${yr} ${qr}`);
+      } else if (this.canPreview()) {
+        this.preview();
+      }
+      this.isCloudDefault.set(false);
+      this.isDefaultData.set(false);
+      this.configNotification.set({
+        type: 'success',
+        message: `Berhasil memuat data periode ${yr} ${qr} dari Google Drive (${res.resultExcelAvailable ? 'termasuk arsip hasil join' : 'data mentah'}).`,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.errorMessage.set(`Gagal memuat periode ${yr} ${qr}: ${msg}`);
+    } finally {
+      this.isLoadingPeriod.set(false);
+      this.isProcessing.set(false);
+    }
+  }
+
+  openSavePeriodConfirm(): void {
+    if (!this.gasStorageService.isConfigured()) {
+      this.configNotification.set({
+        type: 'warning',
+        message: 'URL Google Apps Script belum dikonfigurasi di repositori utama.',
+      });
+      return;
+    }
+
+    if (!this.file() && !this.workbook && this.resultRows().length === 0) {
+      this.configNotification.set({
+        type: 'warning',
+        message: 'Tidak ada data file atau hasil penggabungan aktif untuk disimpan.',
+      });
+      return;
+    }
+
+    this.showSavePeriodConfirm.set(true);
+  }
+
+  closeSavePeriodConfirm(): void {
+    this.showSavePeriodConfirm.set(false);
+  }
+
+  async confirmSavePeriodToCloud(): Promise<void> {
+    if (!this.file() && !this.workbook && this.resultRows().length === 0) {
+      this.showSavePeriodConfirm.set(false);
+      return;
+    }
+
+    try {
+      this.isSavingPeriod.set(true);
+
+      let rawBuffer: ArrayBuffer | null = null;
+      if (this.file() && this.file()!.size > 0) {
+        rawBuffer = await this.file()!.arrayBuffer();
+      } else if (this.workbook) {
+        const raw = XLSX.write(this.workbook, { bookType: 'xlsx', type: 'array' });
+        const u8 = new Uint8Array(raw);
+        rawBuffer = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
+      }
+
+      if (!rawBuffer || rawBuffer.byteLength === 0) {
+        this.errorMessage.set('Tidak ada data file mentah Excel yang valid untuk disimpan.');
+        this.isSavingPeriod.set(false);
+        this.showSavePeriodConfirm.set(false);
+        return;
+      }
+
+      let resultBuffer: ArrayBuffer | undefined = undefined;
+      if (this.resultRows().length > 0 && this.resultColumns().length > 0) {
+        const joinedBuf = ExcelJoinEngine.buildJoinedBuffer({
+          resultRows: this.resultRows(),
+          resultColumns: this.resultColumns(),
+          resultColumnsMeta: this.resultColumnsMeta(),
+          customColumnNames: this.customColumnNames(),
+          outputHeaderFormat: this.outputHeaderFormat(),
+          columnConfigs: this.columnConfigs(),
+          enableJumlah: this.enableJumlah(),
+          sumColumns: this.sumColumns(),
+          enableAverage: this.enableAverage(),
+          avgColumns: this.avgColumns(),
+          enableTarget: this.enableTarget(),
+          columnTargets: this.columnTargets(),
+          enableCapaian: this.enableCapaian(),
+        });
+        if (joinedBuf) {
+          resultBuffer = joinedBuf;
+        }
+      }
+
+      const preset = this.getCurrentPreset(`Drive ${this.selectedYear()} ${this.selectedQuarter()}`);
+      const res = await this.gasStorageService.savePeriod({
+        year: this.selectedYear(),
+        quarter: this.selectedQuarter(),
+        rawExcelBuffer: rawBuffer,
+        resultExcelBuffer: resultBuffer,
+        config: preset,
+      });
+
+      if (res.success) {
+        this.activePeriodLabel.set(`${this.selectedYear()} ${this.selectedQuarter()}`);
+        this.showSavePeriodConfirm.set(false);
+        await this.fetchPeriodSlots();
+        this.configNotification.set({
+          type: 'success',
+          message:
+            res.message ||
+            `Data periode ${this.selectedYear()} ${this.selectedQuarter()} (Data Mentah & Hasil Join) berhasil disimpan ke Google Drive.`,
+        });
+      } else {
+        this.configNotification.set({
+          type: 'warning',
+          message: res.error || 'Gagal menyimpan periode ke Google Drive.',
+        });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.errorMessage.set(`Gagal menyimpan periode ke Google Drive: ${msg}`);
+    } finally {
+      this.isSavingPeriod.set(false);
     }
   }
 
