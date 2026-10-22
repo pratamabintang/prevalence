@@ -16,7 +16,6 @@ import {
 import { ColumnInfo, ExcelEngine } from '../../shared/excel';
 import { StuntingExcelExporter } from '../../core/stunting/stunting-excel-exporter';
 import { StuntingWorkflowEngine } from '../../core/stunting/stunting-workflow-engine';
-import * as XLSX from 'xlsx';
 import { ExcelJoinEngine } from '../../core/excel/excel-join-engine';
 import { DinkesSpreadsheetParser } from '../../core/excel/dinkes-spreadsheet-parser';
 import { DEFAULT_JOIN_CONFIG } from '../excel-join/default-join-config';

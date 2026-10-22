@@ -1,7 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import * as XLSX from 'xlsx-js-style';
 import { environment } from '../../../environments/environment';
 import { HealthDataExchange } from '../../core/domain/health-data-exchange';
 import {
@@ -28,7 +27,14 @@ import {
   IndicatorStuntingExplanation,
 } from '../../core/chart/indicator-stunting-knowledge';
 import { IndicatorEvaluator } from '../../core/evaluation/indicator-evaluator';
-import { ColumnInfo, ExcelEngine } from '../../shared/excel';
+import {
+  ColumnInfo,
+  ExcelEngine,
+  ExcelWorkbook,
+  ExcelWorkbookAdapter,
+  ExcelWorkSheet,
+  TabularSheetSpec,
+} from '../../shared/excel';
 import { ChartConfigurationPreset, ChartPresetStore } from './chart-preset-store';
 
 import { UiAlertComponent, UiButtonComponent, UiPageHeaderComponent } from '../../shared/ui';
@@ -150,7 +156,7 @@ export class ChartVisualizerComponent {
   // WORKBOOK & INLINE STEP CONFIGURATION (FLOW FITUR JOIN)
   // ============================================================
   file = signal<File | null>(null);
-  workbook: XLSX.WorkBook | null = null;
+  workbook: ExcelWorkbook | null = null;
   sheetNames = signal<string[]>([]);
   selectedSheet = signal<string>('');
   isProcessing = signal(false);
@@ -478,7 +484,7 @@ export class ChartVisualizerComponent {
 
     const mappedCols: ColumnInfo[] = transferred.columns.map((col, idx) => ({
       colIndex: idx,
-      colLetter: XLSX.utils.encode_col(idx),
+      colLetter: ExcelWorkbookAdapter.encodeCol(idx),
       header: col,
       leafHeader: col,
       layers: [col],
@@ -668,7 +674,7 @@ export class ChartVisualizerComponent {
   }
 
   refreshSheetColumnsAndData(
-    worksheet: XLSX.WorkSheet,
+    worksheet: ExcelWorkSheet,
     startRow: number,
     endRow: number,
     dataStart: number,
@@ -749,7 +755,7 @@ export class ChartVisualizerComponent {
   }
 
   rebuildChartData(
-    worksheet: XLSX.WorkSheet,
+    worksheet: ExcelWorkSheet,
     cols: ColumnInfo[],
     catCol: string,
     seriesKeys: string[],
@@ -893,7 +899,7 @@ export class ChartVisualizerComponent {
     if (cols.length === 0 && this.allColumns().length > 0) {
       cols = this.allColumns().map((col, idx) => ({
         colIndex: idx,
-        colLetter: XLSX.utils.encode_col(idx),
+        colLetter: ExcelWorkbookAdapter.encodeCol(idx),
         header: col,
         leafHeader: col,
         layers: [col],
@@ -1501,7 +1507,7 @@ export class ChartVisualizerComponent {
         const allCols = this.allColumns();
         const colInfos: ColumnInfo[] = allCols.map((h, idx) => ({
           colIndex: idx,
-          colLetter: XLSX.utils.encode_col(idx),
+          colLetter: ExcelWorkbookAdapter.encodeCol(idx),
           header: h,
           leafHeader: h,
           layers: [h],
@@ -1828,7 +1834,7 @@ export class ChartVisualizerComponent {
   // Data tabel bersih terfilter untuk membuat grafik bawaan Excel (Alt+F1 / Insert Chart)
   // ============================================================
 
-  buildExcelWorkbook(singleSeriesKey?: string): XLSX.WorkBook {
+  buildExcelWorkbook(singleSeriesKey?: string): ExcelWorkbook {
     const catCol = this.categoryColumn();
     let series = this.seriesList();
     if (singleSeriesKey) {
@@ -1849,15 +1855,12 @@ export class ChartVisualizerComponent {
       }
     }
 
-    const wb = XLSX.utils.book_new();
-
-    // Setiap indikator memiliki sheet terpisah di dalam berkas Excel (.xlsx)
-    const usedSheetNames = new Set<string>();
+    const tabularSheets: TabularSheetSpec[] = [];
 
     for (let sIdx = 0; sIdx < series.length; sIdx++) {
       const s = series[sIdx];
       const headerRow = [catCol, s.label];
-      const aoaData: (string | number | null)[][] = [headerRow];
+      const aoaData: (string | number | boolean | null | undefined)[][] = [];
 
       for (const cat of cats) {
         const rowObj = rowMap.get(cat);
@@ -1871,65 +1874,46 @@ export class ChartVisualizerComponent {
       const targetDisplay = targetVal !== null ? `>= ${targetVal}` : '-';
       aoaData.push(['Target', targetDisplay]);
 
-      const ws = XLSX.utils.aoa_to_sheet(aoaData);
-
-      // Styling Header dengan xlsx-js-style
-      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:B1');
-      for (let c = range.s.c; c <= range.e.c; c++) {
-        const addr = XLSX.utils.encode_cell({ r: 0, c });
-        if (ws[addr]) {
-          ws[addr].s = {
-            fill: { fgColor: { rgb: '2563EB' } }, // Biru Dinkes
-            font: { name: 'Calibri', sz: 11, bold: true, color: { rgb: 'FFFFFF' } },
-            alignment: { horizontal: c === 0 ? 'left' : 'center', vertical: 'center' },
-          };
-        }
-      }
-
-      // Styling Baris Target di bagian paling bawah indikator
-      const targetRowIdx = aoaData.length - 1;
-      for (let c = 0; c < 2; c++) {
-        const addr = XLSX.utils.encode_cell({ r: targetRowIdx, c });
-        if (ws[addr]) {
-          ws[addr].s = {
-            fill: { fgColor: { rgb: 'EEF2FF' } }, // Soft Indigo / Lavender
-            font: { name: 'Calibri', sz: 10, bold: true, color: { rgb: '3730A3' } },
-            alignment: { horizontal: c === 0 ? 'left' : 'center', vertical: 'center' },
-            border: {
-              top: { style: 'thin', color: { rgb: 'C7D2FE' } },
-              bottom: { style: 'thin', color: { rgb: 'C7D2FE' } },
-            },
-          };
-        }
-      }
-
       // Lebar kolom otomatis
       const colWidths = headerRow.map((h, idx) => {
         let maxLen = h.length;
-        for (const r of aoaData.slice(1)) {
+        for (const r of aoaData) {
           const valStr = String(r[idx] ?? '');
           if (valStr.length > maxLen) maxLen = valStr.length;
         }
-        return { wch: Math.max(maxLen + 4, 14) };
+        return Math.max(maxLen + 4, 14);
       });
-      ws['!cols'] = colWidths;
 
-      // Sanitasi nama sheet Excel (maks 31 karakter, hindari karakter ilegal Excel)
-      let baseName = s.label.replace(/[\\/?*[\]:]/g, '_').trim() || `Indikator ${sIdx + 1}`;
-      baseName = baseName.slice(0, 31);
-      let sheetName = baseName;
-      let counter = 2;
-      while (usedSheetNames.has(sheetName.toLowerCase())) {
-        const suffix = ` (${counter})`;
-        sheetName = `${baseName.slice(0, 31 - suffix.length)}${suffix}`;
-        counter++;
-      }
-      usedSheetNames.add(sheetName.toLowerCase());
+      const targetRowIdx = aoaData.length; // index in table (accounting for header row at 0)
 
-      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      tabularSheets.push({
+        name: s.label.trim() || `Indikator ${sIdx + 1}`,
+        headers: headerRow,
+        rows: aoaData,
+        colWidths,
+        headerStyle: {
+          fill: { fgColor: { rgb: '2563EB' } }, // Biru Dinkes
+          font: { name: 'Calibri', sz: 11, bold: true, color: { rgb: 'FFFFFF' } },
+          alignment: { horizontal: 'center', vertical: 'center' },
+        },
+        highlightRowIndices: [
+          {
+            index: targetRowIdx,
+            style: {
+              fill: { fgColor: { rgb: 'EEF2FF' } }, // Soft Indigo / Lavender
+              font: { name: 'Calibri', sz: 10, bold: true, color: { rgb: '3730A3' } },
+              alignment: { horizontal: 'center', vertical: 'center' },
+              border: {
+                top: { style: 'thin', color: { rgb: 'C7D2FE' } },
+                bottom: { style: 'thin', color: { rgb: 'C7D2FE' } },
+              },
+            },
+          },
+        ],
+      });
     }
 
-    return wb;
+    return ExcelWorkbookAdapter.createTabularWorkbook(tabularSheets);
   }
 
   exportExcel(singleSeriesKey?: string): void {
@@ -1951,7 +1935,7 @@ export class ChartVisualizerComponent {
     if (singleSeriesKey) {
       const targetSeries = series[0];
       const fileName = `${this.slugify(targetSeries.label) || 'data-indikator'}.xlsx`;
-      ExcelEngine.writeWorkbook(wb, fileName);
+      ExcelWorkbookAdapter.writeWorkbook(wb, fileName);
       this.notificationMessage.set(
         `Berkas "${fileName}" untuk indikator "${targetSeries.label}" berhasil diunduh.`,
       );
@@ -1959,7 +1943,7 @@ export class ChartVisualizerComponent {
     }
 
     const fileName = `${this.slugify(this.chartTitle()) || 'data-grafik-dinkes'}.xlsx`;
-    ExcelEngine.writeWorkbook(wb, fileName);
+    ExcelWorkbookAdapter.writeWorkbook(wb, fileName);
     this.notificationMessage.set(
       `Berkas "${fileName}" dengan ${series.length} sheet terpisah per indikator berhasil diunduh.`,
     );
@@ -1976,9 +1960,8 @@ export class ChartVisualizerComponent {
           .toLowerCase() === regionName.trim().toLowerCase(),
     );
 
-    const wb = XLSX.utils.book_new();
     const headerRow = ['Indikator', 'Capaian', 'Target'];
-    const aoaData: (string | number | null)[][] = [headerRow];
+    const aoaData: (string | number | boolean | null | undefined)[][] = [];
 
     for (const s of series) {
       const raw = r ? r[s.key] : null;
@@ -1987,12 +1970,17 @@ export class ChartVisualizerComponent {
       aoaData.push([s.label, num !== null ? num : '', target !== null ? `>= ${target}` : '-']);
     }
 
-    const ws = XLSX.utils.aoa_to_sheet(aoaData);
-    ws['!cols'] = [{ wch: 35 }, { wch: 15 }, { wch: 15 }];
     const safeSheetName = regionName.replace(/[\\/?*[\]:]/g, '_').slice(0, 31) || 'Wilayah';
-    XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
+    const wb = ExcelWorkbookAdapter.createTabularWorkbook([
+      {
+        name: safeSheetName,
+        headers: headerRow,
+        rows: aoaData,
+        colWidths: [35, 15, 15],
+      },
+    ]);
     const fileName = `${this.slugify(regionName) || 'data-wilayah'}.xlsx`;
-    ExcelEngine.writeWorkbook(wb, fileName);
+    ExcelWorkbookAdapter.writeWorkbook(wb, fileName);
     this.notificationMessage.set(`Berkas Excel untuk wilayah "${regionName}" berhasil diunduh.`);
   }
 

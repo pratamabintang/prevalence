@@ -1,5 +1,4 @@
-import * as XLSX from 'xlsx-js-style';
-import { ColumnHeaderMeta, ColumnInfo, ExcelEngine } from '../../shared/excel';
+import { ColumnHeaderMeta, ColumnInfo, ExcelEngine, ExcelWorkbook, ExcelWorkbookAdapter } from '../../shared/excel';
 import { RegionNormalizer } from '../domain/region-normalizer';
 import {
   ColumnConfig,
@@ -29,12 +28,12 @@ export interface ParsedDinkesDataset {
   columnTargets: Record<string, ColumnTargetConfig>;
   sums: Record<string, boolean>;
   averages: Record<string, boolean>;
-  rawWorkbook: XLSX.WorkBook;
+  rawWorkbook: ExcelWorkbook;
 }
 
 /**
  * DinkesSpreadsheetParser: Modul dalam (Deep Module) untuk ingesti terpadu buku kerja Dinkes.
- * Mampu menerima ArrayBuffer maupun XLSX.WorkBook dan otomatis mengidentifikasi apakah
+ * Mampu menerima ArrayBuffer maupun ExcelWorkbook dan otomatis mengidentifikasi apakah
  * berkas berupa lembar hasil penggabungan jadi (pre-joined) atau berkas mentah multi-sheet.
  */
 export class DinkesSpreadsheetParser {
@@ -43,7 +42,7 @@ export class DinkesSpreadsheetParser {
    * Hanya memeriksa ringkasan baris jika workbook memiliki tepat 1 sheet untuk mencegah
    * salah deteksi sheet mentah multi-sheet yang memiliki baris Jumlah.
    */
-  static detectPreJoinedSheet(workbook: XLSX.WorkBook): string | null {
+  static detectPreJoinedSheet(workbook: ExcelWorkbook): string | null {
     if (!workbook || !workbook.SheetNames || workbook.SheetNames.length === 0) {
       return null;
     }
@@ -69,7 +68,7 @@ export class DinkesSpreadsheetParser {
       const name = workbook.SheetNames[0];
       const ws = workbook.Sheets[name];
       if (!ws) return null;
-      const rawData = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1 });
+      const rawData = ExcelWorkbookAdapter.readSheetAsGrid(ws);
       if (!rawData || rawData.length < 10) return null;
 
       const headerIdx = rawData.findIndex(
@@ -147,17 +146,17 @@ export class DinkesSpreadsheetParser {
    * Parsing terpadu buku kerja Excel Dinkes (baik ArrayBuffer maupun WorkBook).
    */
   static parse(
-    input: XLSX.WorkBook | ArrayBuffer | Uint8Array | ArrayBufferLike,
+    input: ExcelWorkbook | ArrayBuffer | Uint8Array | ArrayBufferLike,
     options?: ParseDinkesOptions,
   ): ParsedDinkesDataset {
-    let workbook: XLSX.WorkBook;
+    let workbook: ExcelWorkbook;
     if (input instanceof ArrayBuffer) {
       workbook = ExcelEngine.readWorkbook(input);
     } else if (input instanceof Uint8Array) {
       const copy = new Uint8Array(input);
       workbook = ExcelEngine.readWorkbook(copy.buffer as ArrayBuffer);
     } else if (input && typeof input === 'object' && 'SheetNames' in input && 'Sheets' in input) {
-      workbook = input as XLSX.WorkBook;
+      workbook = input as ExcelWorkbook;
     } else {
       workbook = ExcelEngine.readWorkbook(input as unknown as ArrayBuffer);
     }
@@ -188,13 +187,13 @@ export class DinkesSpreadsheetParser {
    * Ekstraksi lembar kerja hasil penggabungan standar (pre-joined).
    */
   private static extractPreJoinedSheet(
-    workbook: XLSX.WorkBook,
+    workbook: ExcelWorkbook,
     sheetName: string,
     stripKabupaten: boolean,
     options?: ParseDinkesOptions,
   ): ParsedDinkesDataset {
     const ws = workbook.Sheets[sheetName];
-    const rawData = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1 });
+    const rawData = ExcelWorkbookAdapter.readSheetAsGrid(ws);
 
     let headerRowIdx = rawData.findIndex(
       (r) =>
@@ -431,7 +430,7 @@ export class DinkesSpreadsheetParser {
    * Eksekusi penggabungan otomatis untuk berkas mentah multi-sheet standar Dinkes.
    */
   private static executeRawMultiSheetJoin(
-    workbook: XLSX.WorkBook,
+    workbook: ExcelWorkbook,
     preset: JoinPresetExecutionSpec,
     stripKabupaten: boolean,
   ): ParsedDinkesDataset {
@@ -516,7 +515,7 @@ export class DinkesSpreadsheetParser {
     };
   }
 
-  private static createGenericDataset(workbook: XLSX.WorkBook): ParsedDinkesDataset {
+  private static createGenericDataset(workbook: ExcelWorkbook): ParsedDinkesDataset {
     const sheetName = workbook.SheetNames[0] || 'Sheet1';
     return {
       sourceType: 'generic',

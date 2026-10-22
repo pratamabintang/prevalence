@@ -14,6 +14,14 @@ Aturan domain penghapusan prefiks "Kabupaten", "Kab.", atau "Kab" dengan tetap m
 _Avoid_: String clean, regex strip, pembersihan teks
 
 ### Pengolahan & Penggabungan Data
+**Adapter Buku Kerja Excel (Excel Workbook Adapter)**:
+Modul batas (*boundary adapter*) Tier-1 yang mengisolasi pustaka eksternal SheetJS (`xlsx`, `xlsx-js-style`), menyediakan operasi pembacaan, pembuatan, penataan gaya (*styling*), dan serialisasi biner tanpa membocorkan tipe atau fungsi SheetJS ke modul domain maupun komponen antarmuka pengguna.
+_Avoid_: SheetJS helper, utilitas xlsx langsung, library wrapper bocor
+
+**Arsitektur Pemrosesan Spreadsheet 2-Tingkat (2-Tier Spreadsheet Processing Architecture)**:
+Pola rancangan pemisahan batas di mana Tingkat 1 (Adapter Buku Kerja) bertugas mengelola manipulasi sel dan berkas biner mentah, sedangkan Tingkat 2 (Parser Spreadsheet Dinkes & Mesin Penggabung) bertugas mengenali struktur domain kesehatan, mengekstrak baris target/ringkasan, dan memvalidasi dataset tanpa menyentuh koordinat sel fisik.
+_Avoid_: Skrip baca excel campur aduk, pengolahan langsung di komponen
+
 **Ingesti Buku Kerja Dinkes (Dinkes Workbook Ingestion)**:
 Modul domain terpadu yang memproses dan menormalkan buku kerja Excel Dinkes (baik dalam format mentah multi-sheet yang perlu di-join maupun format hasil penggabungan standar yang sudah terformat) menjadi representasi dataset yang konsisten di balik satu antarmuka tunggal.
 _Avoid_: File loader, helper baca excel, parser manual

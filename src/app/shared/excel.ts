@@ -1,5 +1,18 @@
 import * as XLSX from 'xlsx-js-style';
 
+export type ExcelWorkbook = XLSX.WorkBook;
+export type ExcelWorkSheet = XLSX.WorkSheet;
+export type ExcelRange = XLSX.Range;
+
+export interface TabularSheetSpec {
+  name: string;
+  headers: string[];
+  rows: (string | number | boolean | null | undefined)[][];
+  colWidths?: number[];
+  headerStyle?: CellStyle;
+  highlightRowIndices?: { index: number; style: CellStyle }[];
+}
+
 export interface ColumnInfo {
   colIndex: number;
   colLetter?: string;
@@ -29,6 +42,7 @@ export interface SheetStructure {
 
 export interface CellStyle {
   font?: {
+    name?: string;
     bold?: boolean;
     color?: { rgb: string };
     sz?: number;
@@ -681,6 +695,132 @@ export class ExcelEngine {
   }
 
   /**
+   * Mengonversi indeks numerik kolom menjadi huruf kolom Excel (misal: 0 -> 'A', 25 -> 'Z', 26 -> 'AA').
+   */
+  static encodeCol(colIndex: number): string {
+    return XLSX.utils.encode_col(colIndex);
+  }
+
+  /**
+   * Mengurai referensi rentang Excel (misal: 'A1:C10') menjadi objek Range SheetJS.
+   */
+  static decodeRange(rangeRef: string): XLSX.Range {
+    return XLSX.utils.decode_range(rangeRef);
+  }
+
+  /**
+   * Mengonversi koordinat baris dan kolom menjadi alamat sel Excel (misal: {r: 0, c: 0} -> 'A1').
+   */
+  static encodeCell(cell: { r: number; c: number }): string {
+    return XLSX.utils.encode_cell(cell);
+  }
+
+  /**
+   * Alias untuk writeWorkbookToBuffer.
+   */
+  static writeToBuffer(workbook: XLSX.WorkBook): ArrayBuffer {
+    return this.writeWorkbookToBuffer(workbook);
+  }
+
+  /**
+   * Membaca worksheet menjadi matriks grid 2D array baris x kolom (Array of Arrays) tanpa melewatkan baris kosong.
+   */
+  static readSheetAsGrid(worksheet: XLSX.WorkSheet): unknown[][] {
+    if (!worksheet || !worksheet['!ref']) {
+      return [];
+    }
+    const range = XLSX.utils.decode_range(worksheet['!ref']);
+    const grid: unknown[][] = [];
+    for (let r = range.s.r; r <= range.e.r; r++) {
+      const row: unknown[] = [];
+      for (let c = range.s.c; c <= range.e.c; c++) {
+        const addr = XLSX.utils.encode_cell({ r, c });
+        const cell = worksheet[addr];
+        row.push(cell?.v !== undefined ? cell.v : null);
+      }
+      grid.push(row);
+    }
+    return grid;
+  }
+
+  /**
+   * Membuat WorkBook terformat dengan styling header dan lebar kolom dinamis.
+   */
+  static createTabularWorkbook(sheets: TabularSheetSpec[]): XLSX.WorkBook {
+    const workbook = XLSX.utils.book_new();
+    const defaultHeaderStyle: CellStyle = {
+      font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+      fill: { fgColor: { rgb: '0284C7' } }, // Sky 600
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+      border: {
+        top: { style: 'thin', color: { rgb: 'E2E8F0' } },
+        bottom: { style: 'thin', color: { rgb: 'E2E8F0' } },
+        left: { style: 'thin', color: { rgb: 'E2E8F0' } },
+        right: { style: 'thin', color: { rgb: 'E2E8F0' } },
+      },
+    };
+
+    const usedSheetNames = new Set<string>();
+
+    for (const spec of sheets) {
+      const aoaData: (string | number | boolean | null | undefined)[][] = [
+        spec.headers,
+        ...spec.rows,
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(aoaData);
+
+      if (spec.colWidths && spec.colWidths.length > 0) {
+        ws['!cols'] = spec.colWidths.map((w) => ({ wch: w }));
+      }
+
+      // Apply Header styling
+      const hStyle = spec.headerStyle || defaultHeaderStyle;
+      for (let c = 0; c < spec.headers.length; c++) {
+        const addr = XLSX.utils.encode_cell({ r: 0, c });
+        if (ws[addr]) {
+          ws[addr].s = hStyle;
+        }
+      }
+
+      // Apply row highlights if any
+      if (spec.highlightRowIndices) {
+        for (const hr of spec.highlightRowIndices) {
+          const r = hr.index;
+          for (let c = 0; c < spec.headers.length; c++) {
+            const addr = XLSX.utils.encode_cell({ r, c });
+            if (ws[addr]) {
+              ws[addr].s = hr.style;
+            }
+          }
+        }
+      }
+
+      let baseName = spec.name.replace(/[\\/?*[\]:]/g, '_').trim() || 'Sheet';
+      baseName = baseName.slice(0, 31);
+      let safeName = baseName;
+      let counter = 2;
+      while (usedSheetNames.has(safeName.toLowerCase())) {
+        const suffix = ` (${counter})`;
+        safeName = `${baseName.slice(0, 31 - suffix.length)}${suffix}`;
+        counter++;
+      }
+      usedSheetNames.add(safeName.toLowerCase());
+
+      XLSX.utils.book_append_sheet(workbook, ws, safeName);
+    }
+
+    return workbook;
+  }
+
+  /**
+   * Mengekspor kumpulan lembar tabel tabular ke berkas Excel (.xlsx).
+   */
+  static exportTabularSheets(fileName: string, sheets: TabularSheetSpec[]): void {
+    const workbook = this.createTabularWorkbook(sheets);
+    this.writeWorkbook(workbook, fileName);
+  }
+
+  /**
    * Menyimpan workbook ke file disk / download browser.
    */
   static writeWorkbook(workbook: XLSX.WorkBook, fileName: string): void {
@@ -691,3 +831,10 @@ export class ExcelEngine {
     return value.trim().toLowerCase().replace(/\s+/g, '_');
   }
 }
+
+/**
+ * ExcelWorkbookAdapter: Nama kanonikal untuk modul adapter buku kerja Excel Tier-1.
+ * ExcelEngine dipertahankan sebagai alias untuk menjaga kompatibilitas ke belakang (backwards compatibility).
+ */
+export const ExcelWorkbookAdapter = ExcelEngine;
+export type ExcelWorkbookAdapter = ExcelEngine;

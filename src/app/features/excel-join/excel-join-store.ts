@@ -1,10 +1,9 @@
 import { Injectable } from '@angular/core';
-import * as XLSX from 'xlsx-js-style';
 import {
   ColumnConfig,
   ColumnTargetConfig,
 } from '../../core/evaluation/indicator-evaluator';
-import { ColumnHeaderMeta } from '../../shared/excel';
+import { ColumnHeaderMeta, ExcelWorkbook, ExcelWorkbookAdapter } from '../../shared/excel';
 import { ResultRow, SheetInfo } from './excel-join.component';
 
 export interface ExcelJoinStoredState {
@@ -57,7 +56,7 @@ export class ExcelJoinStore {
   static readonly STORAGE_KEY = 'dinkes_excel_join_session_state';
 
   private inMemoryState: ExcelJoinStoredState | null = null;
-  private inMemoryWorkbook: XLSX.WorkBook | null = null;
+  private inMemoryWorkbook: ExcelWorkbook | null = null;
   private inMemoryFile: File | null = null;
 
   constructor() {
@@ -76,7 +75,7 @@ export class ExcelJoinStore {
    */
   saveState(
     state: ExcelJoinStoredState,
-    workbook?: XLSX.WorkBook | null,
+    workbook?: ExcelWorkbook | null,
     file?: File | null,
   ): void {
     this.inMemoryState = state;
@@ -128,7 +127,7 @@ export class ExcelJoinStore {
   /**
    * Mengambil referensi workbook SheetJS yang tersimpan di memori sesi.
    */
-  getWorkbook(): XLSX.WorkBook | null {
+  getWorkbook(): ExcelWorkbook | null {
     if (this.inMemoryWorkbook) {
       return this.inMemoryWorkbook;
     }
@@ -142,7 +141,7 @@ export class ExcelJoinStore {
         for (let i = 0; i < len; i++) {
           bytes[i] = binary.charCodeAt(i);
         }
-        this.inMemoryWorkbook = XLSX.read(bytes.buffer, { type: 'array', raw: true });
+        this.inMemoryWorkbook = ExcelWorkbookAdapter.readWorkbook(bytes.buffer);
         return this.inMemoryWorkbook;
       } catch (e) {
         console.warn('Gagal merekonstruksi workbook dari base64 sessionStorage:', e);
@@ -164,10 +163,9 @@ export class ExcelJoinStore {
     // Buat File nyata dari inMemoryWorkbook jika inMemoryFile kosong
     if (this.inMemoryWorkbook) {
       try {
-        const u8 = XLSX.write(this.inMemoryWorkbook, { bookType: 'xlsx', type: 'array' }) as Uint8Array;
-        const cleanBytes = new Uint8Array(u8);
+        const rawBuffer = ExcelWorkbookAdapter.writeToBuffer(this.inMemoryWorkbook);
         this.inMemoryFile = new File(
-          [cleanBytes],
+          [rawBuffer],
           this.inMemoryState?.fileInfo?.name || 'default-join-data.xlsx',
           { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
         );

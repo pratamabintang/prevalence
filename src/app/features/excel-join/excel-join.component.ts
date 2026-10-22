@@ -9,7 +9,6 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import * as XLSX from 'xlsx-js-style';
 import { HealthDataExchange } from '../../core/domain/health-data-exchange';
 import { RegionNormalizer } from '../../core/domain/region-normalizer';
 import { ExcelJoinEngine } from '../../core/excel/excel-join-engine';
@@ -28,7 +27,14 @@ import {
   QuarterSlot,
 } from '../../core/storage/gas-storage.service';
 import { PeriodPartitionWorkspace } from '../../core/storage/period-partition-workspace';
-import { ColumnHeaderMeta, ColumnInfo, ExcelEngine, HeaderGridCell } from '../../shared/excel';
+import {
+  ColumnHeaderMeta,
+  ColumnInfo,
+  ExcelEngine,
+  ExcelWorkbook,
+  ExcelWorkbookAdapter,
+  HeaderGridCell,
+} from '../../shared/excel';
 import { JoinConfigurationPreset, PresetStore, SheetConfigPreset } from './preset-store';
 import { DEFAULT_JOIN_CONFIG } from './default-join-config';
 import { ExcelJoinStore, ExcelJoinStoredState } from './excel-join-store';
@@ -76,7 +82,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   periodPartitionWorkspace = inject(PeriodPartitionWorkspace);
 
   file = signal<File | null>(null);
-  workbook: XLSX.WorkBook | null = null;
+  workbook: ExcelWorkbook | null = null;
 
   // Kontrol Tampilan Settings (Tombol Gerigi) & Status Default Data
   showSettings = signal<boolean>(false);
@@ -817,7 +823,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
    * Mendeteksi apakah workbook adalah berkas hasil join Dinkes yang sudah terformat
    * mendelegasikan ke modul dalam DinkesSpreadsheetParser.
    */
-  detectHasilJoinSheet(workbook: XLSX.WorkBook): string | null {
+  detectHasilJoinSheet(workbook: ExcelWorkbook): string | null {
     return DinkesSpreadsheetParser.detectPreJoinedSheet(workbook);
   }
 
@@ -825,7 +831,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
    * Mengekstrak sheet yang sudah berformat Hasil Join secara langsung
    * menggunakan modul dalam DinkesSpreadsheetParser.
    */
-  loadPreJoinedHasilJoinSheet(workbook: XLSX.WorkBook, sheetName: string, fileName: string): void {
+  loadPreJoinedHasilJoinSheet(workbook: ExcelWorkbook, sheetName: string, fileName: string): void {
     const parsed = DinkesSpreadsheetParser.parse(workbook, {
       stripKabupaten: this.stripKabupaten(),
     });
@@ -861,7 +867,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     // Update sheet list agar konsisten dengan preset & sheet view
     const sheetCols: ColumnInfo[] = parsed.columns.map((c, idx) => ({
       colIndex: idx,
-      colLetter: XLSX.utils.encode_col(idx),
+      colLetter: ExcelWorkbookAdapter.encodeCol(idx),
       header: c,
       leafHeader: c,
       layers: [c],
@@ -1983,9 +1989,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       if (this.file() && this.file()!.size > 0) {
         buffer = await this.file()!.arrayBuffer();
       } else if (this.workbook) {
-        const raw = XLSX.write(this.workbook, { bookType: 'xlsx', type: 'array' });
-        const u8 = new Uint8Array(raw);
-        buffer = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
+        buffer = ExcelWorkbookAdapter.writeToBuffer(this.workbook);
       }
 
       if (!buffer || buffer.byteLength === 0) {
@@ -2184,9 +2188,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       if (this.file() && this.file()!.size > 0) {
         rawBuffer = await this.file()!.arrayBuffer();
       } else if (this.workbook) {
-        const raw = XLSX.write(this.workbook, { bookType: 'xlsx', type: 'array' });
-        const u8 = new Uint8Array(raw);
-        rawBuffer = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
+        rawBuffer = ExcelWorkbookAdapter.writeToBuffer(this.workbook);
       }
 
       if (!rawBuffer || rawBuffer.byteLength === 0) {
