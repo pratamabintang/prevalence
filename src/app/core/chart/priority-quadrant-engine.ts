@@ -1,6 +1,6 @@
 import { IndicatorEvaluator } from '../evaluation/indicator-evaluator';
 
-export type QuadrantThresholdMode = 'median' | 'target' | 'custom';
+export type QuadrantThresholdMode = 'median' | 'mean' | 'mode' | 'custom';
 
 export interface QuadrantDistrictItem {
   category: string;
@@ -49,6 +49,8 @@ export interface PriorityQuadrantResult {
   meanY: number;
   medianX: number;
   medianY: number;
+  modeX: number;
+  modeY: number;
 }
 
 export interface ClassifyQuadrantsOptions {
@@ -162,6 +164,61 @@ export class PriorityQuadrantEngine {
   }
 
   /**
+   * Menghitung nilai modus dari array angka.
+   * Dihitung berdasarkan frekuensi kemunculan nilai (dibulatkan ke 1 desimal).
+   * Jika semua nilai unik, dicari frekuensi berbasis integer terdekat atau rata-rata modus.
+   */
+  static calculateMode(values: number[]): number {
+    if (values.length === 0) return 50;
+    if (values.length === 1) return Math.round(values[0] * 10) / 10;
+
+    // 1. Frekuensi berbasis 1 angka di belakang koma
+    const freq1 = new Map<number, number>();
+    for (const v of values) {
+      const rounded = Math.round(v * 10) / 10;
+      freq1.set(rounded, (freq1.get(rounded) ?? 0) + 1);
+    }
+
+    let maxCount = 0;
+    let modeVal = values[0];
+    for (const [val, count] of freq1.entries()) {
+      if (count > maxCount) {
+        maxCount = count;
+        modeVal = val;
+      }
+    }
+
+    if (maxCount > 1) {
+      return Math.round(modeVal * 10) / 10;
+    }
+
+    // 2. Jika seluruh nilai 1 desimal unik, kelompokkan berbasis bilangan bulat terdekat
+    const freqInt = new Map<number, number>();
+    for (const v of values) {
+      const roundedInt = Math.round(v);
+      freqInt.set(roundedInt, (freqInt.get(roundedInt) ?? 0) + 1);
+    }
+
+    let maxIntCount = 0;
+    let modeIntVal = Math.round(values[0]);
+    for (const [val, count] of freqInt.entries()) {
+      if (count > maxIntCount) {
+        maxIntCount = count;
+        modeIntVal = val;
+      }
+    }
+
+    if (maxIntCount > 1) {
+      const matched = values.filter((v) => Math.round(v) === modeIntVal);
+      const avg = matched.reduce((a, b) => a + b, 0) / matched.length;
+      return Math.round(avg * 10) / 10;
+    }
+
+    // 3. Fallback jika semua unik: gunakan median
+    return this.calculateMedian(values);
+  }
+
+  /**
    * Klasifikasi 4-Kuadran Kebijakan Dinkes untuk seluruh daerah
    */
   static classifyQuadrants(options: ClassifyQuadrantsOptions): PriorityQuadrantResult {
@@ -231,17 +288,26 @@ export class PriorityQuadrantEngine {
     const meanY = Math.round((allY.reduce((a, b) => a + b, 0) / n) * 10) / 10;
     const medianX = this.calculateMedian(allX);
     const medianY = this.calculateMedian(allY);
+    const modeX = this.calculateMode(allX);
+    const modeY = this.calculateMode(allY);
 
     // Tentukan threshold berdasarkan mode
     let thresholdX = medianX;
     let thresholdY = medianY;
 
-    if (thresholdMode === 'target') {
-      thresholdX = 80;
-      thresholdY = 80;
+    if (thresholdMode === 'mean') {
+      thresholdX = meanX;
+      thresholdY = meanY;
+    } else if (thresholdMode === 'mode') {
+      thresholdX = modeX;
+      thresholdY = modeY;
     } else if (thresholdMode === 'custom') {
       thresholdX = customThresholdX ?? 50;
       thresholdY = customThresholdY ?? 50;
+    } else {
+      // default 'median'
+      thresholdX = medianX;
+      thresholdY = medianY;
     }
 
     const spanX = maxX > minX ? maxX - minX : 1;
@@ -366,6 +432,8 @@ export class PriorityQuadrantEngine {
       meanY,
       medianX,
       medianY,
+      modeX,
+      modeY,
     };
   }
 }

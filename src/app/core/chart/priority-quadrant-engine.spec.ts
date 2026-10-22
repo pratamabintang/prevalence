@@ -108,4 +108,39 @@ describe('PriorityQuadrantEngine', () => {
     expect(result.districts[0].xVal).toBe(75);
     expect(result.districts[0].yVal).toBe(82);
   });
+
+  it('supports mean and mode threshold modes calculated dynamically', () => {
+    const meanResult = PriorityQuadrantEngine.classifyQuadrants({
+      rows: dummyRows,
+      categoryColumn: 'Kabupaten/Kota',
+      seriesList,
+      metricX: 'composite_hulu',
+      metricY: 'composite_hilir',
+      thresholdMode: 'mean',
+    });
+
+    // Hulu scores: 70, 37.5, 75, 27.5 -> sum = 210, mean = 210 / 4 = 52.5
+    expect(meanResult.thresholdX).toBe(52.5);
+    expect(meanResult.thresholdMode).toBe('mean');
+
+    const modeResult = PriorityQuadrantEngine.classifyQuadrants({
+      rows: dummyRows,
+      categoryColumn: 'Kabupaten/Kota',
+      seriesList,
+      metricX: 'composite_hulu',
+      metricY: 'composite_hilir',
+      thresholdMode: 'mode',
+    });
+
+    expect(modeResult.thresholdX).toBeDefined();
+    expect(modeResult.thresholdMode).toBe('mode');
+    expect(modeResult.modeX).toBeDefined();
+    expect(modeResult.modeY).toBeDefined();
+  });
+
+  it('correctly calculates mode for recurring or clustered values', () => {
+    expect(PriorityQuadrantEngine.calculateMode([50, 60, 60, 70])).toBe(60);
+    expect(PriorityQuadrantEngine.calculateMode([45.2, 45.2, 80.1])).toBe(45.2);
+    expect(PriorityQuadrantEngine.calculateMode([])).toBe(50);
+  });
 });

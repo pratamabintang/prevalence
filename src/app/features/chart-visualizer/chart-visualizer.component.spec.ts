@@ -1803,21 +1803,25 @@ describe('ChartVisualizerComponent', () => {
       expect(qsl.yCross).toBeGreaterThan(40);
     });
 
-    it('should switch quadrant metrics and threshold mode', () => {
+    it('should switch quadrant threshold mode between median, mean, and mode', () => {
       populateTestData();
       fixture.detectChanges();
 
-      component.setQuadrantMetricX('tw1');
-      component.setQuadrantMetricY('tw4');
-      component.setQuadrantThresholdMode('target');
+      component.setQuadrantThresholdMode('mean');
       fixture.detectChanges();
 
-      const quad = component.priorityQuadrantResult();
-      expect(quad?.metricXKey).toBe('tw1');
-      expect(quad?.metricYKey).toBe('tw4');
-      expect(quad?.thresholdMode).toBe('target');
-      expect(quad?.thresholdX).toBe(80);
-      expect(quad?.thresholdY).toBe(80);
+      let quad = component.priorityQuadrantResult();
+      expect(quad?.thresholdMode).toBe('mean');
+      expect(quad?.thresholdX).toBe(quad?.meanX);
+      expect(quad?.thresholdY).toBe(quad?.meanY);
+
+      component.setQuadrantThresholdMode('mode');
+      fixture.detectChanges();
+
+      quad = component.priorityQuadrantResult();
+      expect(quad?.thresholdMode).toBe('mode');
+      expect(quad?.thresholdX).toBe(quad?.modeX);
+      expect(quad?.thresholdY).toBe(quad?.modeY);
     });
 
     it('should filter quadrant districts based on selectedQuadrantFilter', () => {
