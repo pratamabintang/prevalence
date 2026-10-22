@@ -24,6 +24,7 @@ import {
   GasStorageService,
   QuarterSlot,
 } from '../../core/storage/gas-storage.service';
+import { PeriodPartitionWorkspace } from '../../core/storage/period-partition-workspace';
 import {
   AnyStuntingPreset,
   StuntingConfigurationPreset,
@@ -81,6 +82,7 @@ export class StuntingMonitoringComponent implements OnInit {
   private router = inject(Router);
   private healthDataExchange = inject(HealthDataExchange);
   gasStorageService = inject(GasStorageService);
+  periodPartitionWorkspace = inject(PeriodPartitionWorkspace);
 
   async ngOnInit(): Promise<void> {
     this.loadTransferredData();
@@ -468,23 +470,13 @@ export class StuntingMonitoringComponent implements OnInit {
     if (this.isLoadingPeriods()) return;
     this.isLoadingPeriods.set(true);
     try {
-      const res = await this.gasStorageService.listPeriods();
-      if (res.success && Array.isArray(res.periods)) {
-        this.periodSlots.set(res.periods);
-        const yearsFromPeriods = Array.from(new Set(res.periods.map((p) => p.year))).sort(
-          (a, b) => b - a,
-        );
-        if (yearsFromPeriods.length > 0) {
-          const mergedYears = Array.from(
-            new Set([...yearsFromPeriods, ...this.availableYears()]),
-          ).sort((a, b) => b - a);
-          this.availableYears.set(mergedYears);
-          if (!res.periods.some((p) => p.year === this.selectedYear())) {
-            this.selectedYear.set(yearsFromPeriods[0]);
-          }
-        }
-        this.updateQuarterSlotsSelectionForYear(this.selectedYear());
+      const periods = await this.periodPartitionWorkspace.refreshPeriods();
+      this.periodSlots.set(periods);
+      this.availableYears.set(this.periodPartitionWorkspace.availableYears());
+      if (!this.periodPartitionWorkspace.availableYears().includes(this.selectedYear())) {
+        this.selectedYear.set(this.periodPartitionWorkspace.availableYears()[0]);
       }
+      this.updateQuarterSlotsSelectionForYear(this.selectedYear());
     } catch (err) {
       console.warn('Gagal memuat daftar periode GAS:', err);
     } finally {
@@ -523,13 +515,18 @@ export class StuntingMonitoringComponent implements OnInit {
   }
 
   isQuarterAvailableInCloud(year: number, quarter: QuarterSlot): boolean {
-    return this.periodSlots().some(
-      (p) => p.year === year && p.quarter === quarter && (p.hasRaw || p.hasResult),
+    return (
+      this.periodSlots().some(
+        (p) => p.year === year && p.quarter === quarter && (p.hasRaw || p.hasResult),
+      ) || this.periodPartitionWorkspace.isQuarterAvailable(year, quarter)
     );
   }
 
   getQuarterCloudInfo(year: number, quarter: QuarterSlot): GasPeriodItem | undefined {
-    return this.periodSlots().find((p) => p.year === year && p.quarter === quarter);
+    return (
+      this.periodSlots().find((p) => p.year === year && p.quarter === quarter) ||
+      this.periodPartitionWorkspace.getQuarterSlotItem(year, quarter)
+    );
   }
 
   toggleQuarterSlot(slot: QuarterSlot): void {
@@ -585,75 +582,30 @@ export class StuntingMonitoringComponent implements OnInit {
         return;
       }
 
-      const loadedQuarters: LoadedQuarterItem[] = [];
       const year = this.selectedYear();
+      const selectedSlotValues = selectedSlots.map((s) => s.value);
+      const resolution = await this.periodPartitionWorkspace.loadMultiQuarters(
+        year,
+        selectedSlotValues,
+        this.quarterLocalFiles(),
+        { prefer: 'result' },
+      );
 
-      for (const slotItem of selectedSlots) {
-        const slot = slotItem.value;
-        const qNum = slotItem.qNum;
-        const localFile = this.quarterLocalFiles()[slot];
-
-        if (localFile) {
-          try {
-            const buffer = await localFile.arrayBuffer();
-            // Cek apakah ada konfigurasi slot di cloud untuk membantu join berkas lokal jika perlu
-            let slotConfig: unknown = undefined;
-            if (this.isQuarterAvailableInCloud(year, slot)) {
-              try {
-                const cloudSlot = await this.gasStorageService.loadPeriod(year, slot, {
-                  preferResult: true,
-                });
-                if (cloudSlot.config) slotConfig = cloudSlot.config;
-              } catch {
-                // ignore
-              }
-            }
-            const extracted = this.extractDatasetFromBuffer(buffer, slotConfig);
-            if (extracted.rows.length > 0 || extracted.summaryRow) {
-              loadedQuarters.push({
-                quarter: qNum,
-                slot,
-                source: 'local',
-                fileName: localFile.name,
-                rows: extracted.rows,
-                columns: extracted.columns,
-                keyCol: extracted.keyCol,
-                summaryRow: extracted.summaryRow,
-                targetRow: extracted.targetRow,
-                totalRow: extracted.totalRow,
-              });
-            }
-          } catch (err) {
-            console.warn(`Gagal membaca berkas lokal untuk ${slot}:`, err);
-          }
-        } else if (this.isQuarterAvailableInCloud(year, slot)) {
-          try {
-            const res = await this.gasStorageService.loadPeriod(year, slot, { preferResult: true });
-            if (res.success && res.hasData) {
-              const buffer = res.resultExcelBuffer || res.rawExcelBuffer;
-              if (buffer) {
-                const extracted = this.extractDatasetFromBuffer(buffer, res.config);
-                if (extracted.rows.length > 0 || extracted.summaryRow) {
-                  loadedQuarters.push({
-                    quarter: qNum,
-                    slot,
-                    source: 'cloud',
-                    fileName: res.fileName || `${year}_${slot}_data.xlsx`,
-                    rows: extracted.rows,
-                    columns: extracted.columns,
-                    keyCol: extracted.keyCol,
-                    summaryRow: extracted.summaryRow,
-                    targetRow: extracted.targetRow,
-                    totalRow: extracted.totalRow,
-                  });
-                }
-              }
-            }
-          } catch (err) {
-            console.warn(`Gagal mengunduh periode ${year} ${slot} dari Google Drive:`, err);
-          }
-        }
-      }
+      const loadedQuarters: LoadedQuarterItem[] = resolution.loadedQuarters.map((q) => {
+        const slotOpt = this.quarterOptions.find((opt) => opt.value === q.quarter)!;
+        return {
+          quarter: slotOpt.qNum,
+          slot: q.quarter,
+          source: q.source,
+          fileName: q.fileName,
+          rows: q.dataset.regionRows,
+          columns: q.dataset.columns,
+          keyCol: q.dataset.keyCol,
+          summaryRow: q.dataset.summaryRow || null,
+          targetRow: q.dataset.targetRow || null,
+          totalRow: q.dataset.totalRow || null,
+        };
+      });
 
       if (loadedQuarters.length === 0) {
         this.notificationMessage.set(

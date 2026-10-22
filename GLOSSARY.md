@@ -106,6 +106,10 @@ Akumulasi penjumlahan (`SUM`) dari kolom sasaran riil populasi di tingkat wilaya
 _Avoid_: Kolom target riil, sum bawah
 
 ### Penyimpanan & Persistensi Eksternal
+**Ruang Kerja Partisi Periode (Period Partition Workspace)**:
+Modul domain terpusat yang mengoordinasikan pemilihan tahun anggaran dan triwulan, pemindaian ketersediaan slot partisi Google Drive, pengunduhan dan penggabungan berkas multi-triwulan (lintas cloud dan berkas lokal), serta pemetaan otomatis ke dalam dataset terpadu Dinkes di balik satu antarmuka reaktif tunggal.
+_Avoid_: GAS helper, file manager komponen, quarter loader lepas
+
 **Penyimpanan Eksternal Google Apps Script**:
 Layanan backend berbasis Google Apps Script Web App yang terhubung ke Google Drive untuk menyimpan dan memuat file Excel biner (`.xlsx`) dan konfigurasi join (`.json`) secara terpusat di cloud tanpa membutuhkan server database terpisah.
 _Avoid_: Database server, local storage eksternal, backend API server

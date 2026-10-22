@@ -27,6 +27,7 @@ import {
   GasStorageService,
   QuarterSlot,
 } from '../../core/storage/gas-storage.service';
+import { PeriodPartitionWorkspace } from '../../core/storage/period-partition-workspace';
 import { ColumnHeaderMeta, ColumnInfo, ExcelEngine, HeaderGridCell } from '../../shared/excel';
 import { JoinConfigurationPreset, PresetStore, SheetConfigPreset } from './preset-store';
 import { DEFAULT_JOIN_CONFIG } from './default-join-config';
@@ -72,6 +73,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   private healthDataExchange = inject(HealthDataExchange);
   gasStorageService = inject(GasStorageService);
   excelJoinStore = inject(ExcelJoinStore);
+  periodPartitionWorkspace = inject(PeriodPartitionWorkspace);
 
   file = signal<File | null>(null);
   workbook: XLSX.WorkBook | null = null;
@@ -2029,15 +2031,9 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     if (!this.gasStorageService.isConfigured()) return;
     this.isLoadingPeriods.set(true);
     try {
-      const res = await this.gasStorageService.listPeriods();
-      if (res.success && res.periods) {
-        this.periodSlots.set(res.periods);
-        const yearSet = new Set(this.availableYears());
-        for (const p of res.periods) {
-          if (p.year) yearSet.add(p.year);
-        }
-        this.availableYears.set(Array.from(yearSet).sort((a, b) => b - a));
-      }
+      const periods = await this.periodPartitionWorkspace.refreshPeriods();
+      this.periodSlots.set(periods);
+      this.availableYears.set(this.periodPartitionWorkspace.availableYears());
     } catch (e) {
       console.warn('Gagal memuat daftar periode Google Drive:', e);
     } finally {
@@ -2225,7 +2221,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       const preset = this.getCurrentPreset(
         `Drive ${this.selectedYear()} ${this.selectedQuarter()}`,
       );
-      const res = await this.gasStorageService.savePeriod({
+      const res = await this.periodPartitionWorkspace.savePeriodPartition({
         year: this.selectedYear(),
         quarter: this.selectedQuarter(),
         rawExcelBuffer: rawBuffer,
