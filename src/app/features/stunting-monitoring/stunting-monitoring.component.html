@@ -1473,17 +1473,6 @@
                 >
                   Perlu Percepatan ({{ perluPercepatanCount() }})
                 </button>
-                <button
-                  type="button"
-                  (click)="setFilter('perlu_perhatian')"
-                  class="px-2.5 py-1 text-xs rounded transition-colors"
-                  [class.bg-amber-600]="activeFilter() === 'perlu_perhatian'"
-                  [class.text-white]="activeFilter() === 'perlu_perhatian'"
-                  [class.bg-amber-50]="activeFilter() !== 'perlu_perhatian'"
-                  [class.text-amber-700]="activeFilter() !== 'perlu_perhatian'"
-                >
-                  Perhatian ({{ perluPerhatianCount() }})
-                </button>
               </div>
 
               <div class="relative w-64">
@@ -1595,10 +1584,6 @@
                             @if (row.status === 'on_track') {
                               <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                                 On Track
-                              </span>
-                            } @else if (row.status === 'perlu_perhatian') {
-                              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                                Perhatian
                               </span>
                             } @else if (row.status === 'perlu_percepatan') {
                               <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">

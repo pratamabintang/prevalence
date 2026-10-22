@@ -170,7 +170,7 @@ describe('StuntingMonitoringComponent', () => {
             numeratorCol: 'Remaja Dapat TTD',
             denominatorCol: 'Sasaran Remaja',
             calculationMode: 'percentage',
-            targetCurrentYear: 85,
+            targetCurrentYear: 80,
             targetPrevYear: 80,
             actualPrevYear: 80,
             polarity: 'positive',
@@ -204,19 +204,19 @@ describe('StuntingMonitoringComponent', () => {
     expect(res?.rows.length).toBe(2);
 
     // Indikator 1: Remaja TTD
-    // Capaian = 84%, Target 2026 = 85%, Expected TW1 = 21.25%, Gap = +62.75% -> On Track
+    // Capaian = 84%, Target 2026 = 80%, Expected TW1 = 80%, Gap = +4% -> On Track
     const row1 = res!.rows[0];
     expect(row1.activeActual).toBe(84);
-    expect(row1.activeExpected).toBe(21.25);
-    expect(row1.activeGap).toBe(62.75);
+    expect(row1.activeExpected).toBe(80);
+    expect(row1.activeGap).toBe(4);
     expect(row1.status).toBe('on_track');
 
     // Indikator 2: Balita Gizi Kurang
-    // Capaian = 160 / 1000 = 16%, Target 2026 = 90%, Expected TW1 = 22.5%, Gap = -6.5% -> Perlu Percepatan
+    // Capaian = 160 / 1000 = 16%, Target 2026 = 90%, Expected TW1 = 90%, Gap = -74% -> Perlu Percepatan
     const row2 = res!.rows[1];
     expect(row2.activeActual).toBe(16);
-    expect(row2.activeExpected).toBe(22.5);
-    expect(row2.activeGap).toBe(-6.5);
+    expect(row2.activeExpected).toBe(90);
+    expect(row2.activeGap).toBe(-74);
     expect(row2.status).toBe('perlu_percepatan');
 
     // Priority acceleration list should contain row 2
@@ -247,12 +247,12 @@ describe('StuntingMonitoringComponent', () => {
       },
     ]);
 
-    component.setActiveQuarter(2); // TW 2: Expected = 50% * 90 = 45%
+    component.setActiveQuarter(2); // TW 2: Expected = 100% * 90 = 90
     const res = component.evaluationResult();
     expect(res?.activeQuarter).toBe(2);
-    expect(res?.rows[0].activeExpected).toBe(45);
+    expect(res?.rows[0].activeExpected).toBe(90);
     expect(res?.rows[0].activeActual).toBe(16);
-    expect(res?.rows[0].activeGap).toBe(-29);
+    expect(res?.rows[0].activeGap).toBe(-74);
     expect(res?.rows[0].status).toBe('perlu_percepatan');
   });
 
@@ -269,7 +269,7 @@ describe('StuntingMonitoringComponent', () => {
             name: 'Remaja TTD',
             numeratorCol: 'Remaja Dapat TTD',
             denominatorCol: 'Sasaran Remaja',
-            targetCurrentYear: 85,
+            targetCurrentYear: 80,
             targetPrevYear: 80,
             actualPrevYear: 80,
           },

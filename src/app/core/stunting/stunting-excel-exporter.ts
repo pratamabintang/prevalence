@@ -105,12 +105,6 @@ export class StuntingExcelExporter {
               font: { color: { rgb: '065F46' }, bold: true },
             };
           }
-          if (s === 'Perlu Perhatian') {
-            return {
-              fill: { fgColor: { rgb: 'FEF3C7' } },
-              font: { color: { rgb: '92400E' }, bold: true },
-            };
-          }
           if (s === 'Perlu Percepatan') {
             return {
               fill: { fgColor: { rgb: 'FFE4E6' } },
@@ -222,8 +216,6 @@ export class StuntingExcelExporter {
     switch (status) {
       case 'on_track':
         return 'On Track';
-      case 'perlu_perhatian':
-        return 'Perlu Perhatian';
       case 'perlu_percepatan':
         return 'Perlu Percepatan';
       default:

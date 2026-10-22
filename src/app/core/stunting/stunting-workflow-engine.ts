@@ -210,10 +210,7 @@ export class StuntingWorkflowEngine {
       this.evaluationResult()?.rows.filter((r) => r.status === 'perlu_percepatan').length ?? 0,
   );
 
-  readonly perluPerhatianCount = computed<number>(
-    () =>
-      this.evaluationResult()?.rows.filter((r) => r.status === 'perlu_perhatian').length ?? 0,
-  );
+  readonly perluPerhatianCount = computed<number>(() => 0);
 
   constructor() {
     this.loadStandardCategories();

@@ -1818,7 +1818,6 @@ export class StuntingMonitoringComponent implements OnInit {
 
           if (filter === 'all') return true;
           if (filter === 'on_track') return r.status === 'on_track';
-          if (filter === 'perlu_perhatian') return r.status === 'perlu_perhatian';
           if (filter === 'perlu_percepatan') return r.status === 'perlu_percepatan';
           if (filter === 'belum_dinilai') return r.status === 'belum_dinilai';
           if (filter === 'target_tercapai') return r.isTargetReached;

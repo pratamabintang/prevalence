@@ -7,7 +7,6 @@ export type StuntingLifecycleCategory =
 
 export type StuntingPerformanceStatus =
   | 'on_track' // On Track
-  | 'perlu_perhatian' // Perlu Perhatian
   | 'perlu_percepatan' // Perlu Percepatan
   | 'belum_dinilai'; // Belum Dapat Dinilai
 
@@ -192,15 +191,15 @@ export interface StuntingEvaluationResult {
 export class StuntingEvaluationEngine {
   private static readonly DEFAULT_TOLERANCE = -5.0; // Deviasi batas toleransi selisih capaian
   private static readonly DEFAULT_WEIGHTS = {
-    1: 0.25,
-    2: 0.5,
-    3: 0.75,
+    1: 1.0,
+    2: 1.0,
+    3: 1.0,
     4: 1.0,
   };
 
   /**
    * Menghitung capaian yang diharapkan (Expected Achievement) per triwulan.
-   * Mengutamakan target khusus triwulan jika ada; jika tidak, menggunakan distribusi proporsional waktu.
+   * Mengutamakan target khusus triwulan jika ada; jika tidak, selalu menggunakan target 100%.
    */
   static calculateExpectedAchievement(
     annualTarget: number | null,
@@ -277,28 +276,16 @@ export class StuntingEvaluationEngine {
       };
     }
 
-    // 2. Capaian di bawah expected:
+    // 2. Capaian di bawah target -> Perlu Percepatan
+    const reasonParts: string[] = [`Capaian di bawah target periode (Gap: ${gap})`];
     const isTrendingDown = yoyChange !== null && (polarity === 'negative' ? yoyChange > 0 : yoyChange < 0);
-
-    // Jika gap < toleranceThreshold ATAU tren YoY menurun saat gap negatif -> Perlu Percepatan
-    if (gap < toleranceThreshold || isTrendingDown) {
-      const reasonParts: string[] = [];
-      if (gap < toleranceThreshold) {
-        reasonParts.push(`Capaian tertinggal cukup jauh dari target periode (Gap: ${gap})`);
-      }
-      if (isTrendingDown) {
-        reasonParts.push(`tren capaian mengalami penurunan dibandingkan periode sebelumnya (${yoyChange})`);
-      }
-      return {
-        status: 'perlu_percepatan',
-        reason: reasonParts.join(' serta ') || `Capaian di bawah target periode (Gap: ${gap})`,
-      };
+    if (isTrendingDown) {
+      reasonParts.push(`tren capaian mengalami penurunan dibandingkan periode sebelumnya (${yoyChange})`);
     }
 
-    // Jika masih dalam batas toleransi (dan tren tidak menurun) -> Perlu Perhatian
     return {
-      status: 'perlu_perhatian',
-      reason: `Capaian sedikit di bawah target periode (Gap: ${gap}), namun masih dalam batas toleransi`,
+      status: 'perlu_percepatan',
+      reason: reasonParts.join(' serta '),
     };
   }
 
@@ -1069,7 +1056,6 @@ export class StuntingEvaluationEngine {
 
     for (const r of evaluatedRows) {
       if (r.status === 'on_track') onTrackCount++;
-      else if (r.status === 'perlu_perhatian') perluPerhatianCount++;
       else if (r.status === 'perlu_percepatan') perluPercepatanCount++;
       else if (r.status === 'belum_dinilai') belumDinilaiCount++;
 

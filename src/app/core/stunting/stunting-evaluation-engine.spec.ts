@@ -14,7 +14,7 @@ describe('StuntingEvaluationEngine', () => {
       targetPrevYear: '80%',
       actualPrevYear: '20%', // Baseline perbandingan TW1 tahun lalu
       targetCurrentYear: '85%',
-      tw1Actual: '22%', // Expected TW1 = 25% * 85% = 21.25%, Gap = +0.75% -> On Track
+      tw1Actual: '86%', // Expected TW1 = 25% * 85% = 21.25%, Gap = +0.75% -> On Track
       tw2Actual: '45%', // Expected TW2 = 50% * 85% = 42.5%, Gap = +2.5% -> On Track
       tw3Actual: '65%', // Expected TW3 = 75% * 85% = 63.75%, Gap = +1.25% -> On Track
     },
@@ -25,9 +25,9 @@ describe('StuntingEvaluationEngine', () => {
       targetPrevYear: 80,
       actualPrevYear: 16, // Baseline perbandingan TW1 tahun lalu
       targetCurrentYear: 80,
-      tw1Actual: 18, // Expected TW1 = 20, Gap = -2 -> Perlu Perhatian (toleransi -5, tren naik dari 16)
+      tw1Actual: 75, // Expected TW1 = 20, Gap = -2 -> Perlu Perhatian (toleransi -5, tren naik dari 16)
       tw2Actual: 36, // Expected TW2 = 40, Gap = -4 -> Perlu Perhatian
-      tw3Actual: 50, // Expected TW3 = 60, Gap = -10 -> Perlu Percepatan (< -5)
+      tw3Actual: 70, // Expected TW3 = 60, Gap = -10 -> Perlu Percepatan (< -5)
     },
     {
       category: 'Intervensi untuk balita (setelah kelahiran)',
@@ -68,15 +68,15 @@ describe('StuntingEvaluationEngine', () => {
     },
   ];
 
-  it('should calculate proportional expected achievement when specific quarter target is absent', () => {
+  it('should calculate 100% expected achievement for all quarters when specific quarter target is absent', () => {
     const expectedTw1 = StuntingEvaluationEngine.calculateExpectedAchievement(80, 1, null);
     const expectedTw2 = StuntingEvaluationEngine.calculateExpectedAchievement(80, 2, null);
     const expectedTw3 = StuntingEvaluationEngine.calculateExpectedAchievement(80, 3, null);
     const expectedTw4 = StuntingEvaluationEngine.calculateExpectedAchievement(80, 4, null);
 
-    expect(expectedTw1).toBe(20); // 25% of 80
-    expect(expectedTw2).toBe(40); // 50% of 80
-    expect(expectedTw3).toBe(60); // 75% of 80
+    expect(expectedTw1).toBe(80); // 100% of 80
+    expect(expectedTw2).toBe(80); // 100% of 80
+    expect(expectedTw3).toBe(80); // 100% of 80
     expect(expectedTw4).toBe(80); // 100% of 80
   });
 
@@ -108,7 +108,7 @@ describe('StuntingEvaluationEngine', () => {
     expect(StuntingEvaluationEngine.calculateYoYChange(80, null)).toBeNull();
   });
 
-  it('should classify 4-tier status accurately according to gap, tolerance, and trend', () => {
+  it('should classify status accurately according to gap and trend', () => {
     // 1. Missing data -> belum_dinilai
     const sMissing = StuntingEvaluationEngine.evaluateStatus(null, 20, 5, -5, 'positive');
     expect(sMissing.status).toBe('belum_dinilai');
@@ -117,9 +117,9 @@ describe('StuntingEvaluationEngine', () => {
     const sOnTrack = StuntingEvaluationEngine.evaluateStatus(22, 20, 2, -5, 'positive');
     expect(sOnTrack.status).toBe('on_track');
 
-    // 3. Gap between -5 and 0 with positive YoY trend -> perlu_perhatian
+    // 3. Gap < 0 -> perlu_percepatan
     const sAttention = StuntingEvaluationEngine.evaluateStatus(18, 20, 2, -5, 'positive');
-    expect(sAttention.status).toBe('perlu_perhatian');
+    expect(sAttention.status).toBe('perlu_percepatan');
 
     // 4. Gap < -5 -> perlu_percepatan
     const sAccelerateGap = StuntingEvaluationEngine.evaluateStatus(12, 20, 1, -5, 'positive');
@@ -139,8 +139,8 @@ describe('StuntingEvaluationEngine', () => {
     const patA = StuntingEvaluationEngine.classifyPattern(45, 85, 40, 'on_track', 'positive');
     expect(patA).toBe('meningkat_on_track');
 
-    // B: Meningkat tetapi Belum On Track (YoY +2 > 0 and perlu_perhatian)
-    const patB = StuntingEvaluationEngine.classifyPattern(38, 80, 36, 'perlu_perhatian', 'positive');
+    // B: Meningkat tetapi Belum On Track (YoY +2 > 0 and perlu_percepatan)
+    const patB = StuntingEvaluationEngine.classifyPattern(38, 80, 36, 'perlu_percepatan', 'positive');
     expect(patB).toBe('meningkat_belum_on_track');
 
     // C: Menurun tetapi Masih On Track (YoY -2 < 0 and on_track)
@@ -161,25 +161,25 @@ describe('StuntingEvaluationEngine', () => {
     expect(result.rows.length).toBe(5);
     expect(result.activeQuarter).toBe(1);
 
-    // Row 1: Remaja putri -> Expected TW1: 21.25%, Actual: 22%, Gap: +0.75 -> on_track
+    // Row 1: Remaja putri -> Expected TW1: 85%, Actual: 86%, Gap: +1.0 -> on_track
     const row1 = result.rows[0];
-    expect(row1.activeActual).toBe(22);
-    expect(row1.activeExpected).toBeCloseTo(21.25, 2);
-    expect(row1.activeGap).toBeCloseTo(0.75, 2);
+    expect(row1.activeActual).toBe(86);
+    expect(row1.activeExpected).toBe(85);
+    expect(row1.activeGap).toBe(1);
     expect(row1.status).toBe('on_track');
 
-    // Row 2: Ibu hamil KEK -> Expected TW1: 20, Actual: 18, Gap: -2 -> perlu_perhatian
+    // Row 2: Ibu hamil KEK -> Expected TW1: 80, Actual: 75, Gap: -5 -> perlu_percepatan
     const row2 = result.rows[1];
-    expect(row2.activeActual).toBe(18);
-    expect(row2.activeExpected).toBe(20);
-    expect(row2.activeGap).toBe(-2);
-    expect(row2.status).toBe('perlu_perhatian');
+    expect(row2.activeActual).toBe(75);
+    expect(row2.activeExpected).toBe(80);
+    expect(row2.activeGap).toBe(-5);
+    expect(row2.status).toBe('perlu_percepatan');
 
-    // Row 3: Balita gizi kurang -> Expected TW1: 22.5, Actual: 15, Gap: -7.5 -> perlu_percepatan
+    // Row 3: Balita gizi kurang -> Expected TW1: 90, Actual: 15, Gap: -75 -> perlu_percepatan
     const row3 = result.rows[2];
     expect(row3.activeActual).toBe(15);
-    expect(row3.activeExpected).toBe(22.5);
-    expect(row3.activeGap).toBe(-7.5);
+    expect(row3.activeExpected).toBe(90);
+    expect(row3.activeGap).toBe(-75);
     expect(row3.status).toBe('perlu_percepatan');
 
     // Row 4: Balita wasting (negative polarity) -> Expected TW1: 6.0, Actual: 5.8, Gap: 6.0 - 5.8 = +0.2 -> on_track
@@ -196,14 +196,13 @@ describe('StuntingEvaluationEngine', () => {
     // KPI Summary
     expect(result.summary.totalIndicators).toBe(5);
     expect(result.summary.onTrackCount).toBe(2); // row 1 & row 4
-    expect(result.summary.perluPerhatianCount).toBe(1); // row 2
-    expect(result.summary.perluPercepatanCount).toBe(1); // row 3
+    expect(result.summary.perluPercepatanCount).toBe(2); // row 2 & row 3
     expect(result.summary.belumDinilaiCount).toBe(1); // row 5
 
     // Acceleration List: harus terurut dari gap terburuk ke terkecil
     expect(result.accelerationList.length).toBeGreaterThan(0);
     expect(result.accelerationList[0].name).toBe('Balita gizi kurang mendapat makanan tambahan (MT)');
-    expect(result.accelerationList[0].activeGap).toBe(-7.5);
+    expect(result.accelerationList[0].activeGap).toBe(-75);
 
     // Lifecycle Grouping: 3 grup
     expect(result.groupedRows.length).toBe(3);
@@ -217,7 +216,7 @@ describe('StuntingEvaluationEngine', () => {
 
   it('should dynamically re-evaluate when active quarter changes', () => {
     // Evaluasi TW 3:
-    // Row 2 (Ibu hamil KEK): Actual TW3 = 50, Expected TW3 = 60, Gap = -10 -> berubah jadi perlu_percepatan!
+    // Row 2 (Ibu hamil KEK): Actual TW3 = 70, Expected TW3 = 80, Gap = -10 -> perlu_percepatan
     const resultTw3 = StuntingEvaluationEngine.evaluateDataset(sampleIndicators, {
       activeQuarter: 3,
       toleranceThresholdPercent: -5,
@@ -225,11 +224,11 @@ describe('StuntingEvaluationEngine', () => {
 
     const row2Tw3 = resultTw3.rows[1];
     expect(row2Tw3.activeQuarter).toBe(3);
-    expect(row2Tw3.activeExpected).toBe(60);
-    expect(row2Tw3.activeActual).toBe(50);
+    expect(row2Tw3.activeExpected).toBe(80);
+    expect(row2Tw3.activeActual).toBe(70);
     expect(row2Tw3.activeGap).toBe(-10);
     expect(row2Tw3.status).toBe('perlu_percepatan');
-    expect(resultTw3.summary.perluPercepatanCount).toBe(2); // row 2 and row 3
+    expect(resultTw3.summary.perluPercepatanCount).toBe(4);
   });
 
   it('should sum column values correctly across joined rows', () => {
@@ -315,28 +314,28 @@ describe('StuntingEvaluationEngine', () => {
     // Sasaran total = 1000 + 2000 + 1000 = 4000
     // Realisasi total = 820 + 1700 + 840 = 3360
     // Capaian (%) = (3360 / 4000) * 100 = 84%
-    // Target 2026 = 85%, Expected TW1 = 25% * 85% = 21.25%
-    // Gap = 84 - 21.25 = +62.75% -> On Track!
+    // Target 2026 = 85%, Expected TW1 = 85% (100% target)
+    // Gap = 84 - 85 = -1% -> Perlu Percepatan
     const row1 = result.rows[0];
     expect(row1.sumDenominator).toBe(4000);
     expect(row1.sumNumerator).toBe(3360);
     expect(row1.activeActual).toBe(84);
-    expect(row1.activeExpected).toBe(21.25);
-    expect(row1.activeGap).toBe(62.75);
-    expect(row1.status).toBe('on_track');
+    expect(row1.activeExpected).toBe(85);
+    expect(row1.activeGap).toBe(-1);
+    expect(row1.status).toBe('perlu_percepatan');
 
     // Indikator 2: Balita gizi kurang
     // Sasaran total = 500 + 500 + 1000 = 2000
     // Realisasi total = 90 + 80 + 180 = 350
     // Capaian (%) = (350 / 2000) * 100 = 17.5%
-    // Target 2026 = 90%, Expected TW1 = 25% * 90% = 22.5%
-    // Gap = 17.5 - 22.5 = -5% (pada batas toleransi -5%)
+    // Target 2026 = 90%, Expected TW1 = 90% (100% target)
+    // Gap = 17.5 - 90 = -72.5% -> Perlu Percepatan
     const row2 = result.rows[1];
     expect(row2.sumDenominator).toBe(2000);
     expect(row2.sumNumerator).toBe(350);
     expect(row2.activeActual).toBe(17.5);
-    expect(row2.activeExpected).toBe(22.5);
-    expect(row2.activeGap).toBe(-5);
+    expect(row2.activeExpected).toBe(90);
+    expect(row2.activeGap).toBe(-72.5);
   });
 
   it('should support multi-quarter columns (TW1-TW4) with Jumlah (sumNumerator) and availableQuarters detection', () => {
@@ -626,20 +625,20 @@ describe('StuntingEvaluationEngine', () => {
 
     expect(result.rows.length).toBe(2);
 
-    // Indikator 1: Positif, Realisasi = 93.64%, Target TW3 = 75% * 67 = 50.25%, Gap = +43.39% -> on_track
+    // Indikator 1: Positif, Realisasi = 93.64%, Target TW3 = 67 (100%), Gap = +26.64% -> on_track
     const row1 = result.rows[0];
     expect(row1.activeActual).toBe(93.64);
-    expect(row1.activeExpected).toBe(50.25);
-    expect(row1.activeGap).toBe(43.39);
+    expect(row1.activeExpected).toBe(67);
+    expect(row1.activeGap).toBe(26.64);
     expect(row1.status).toBe('on_track');
     expect(row1.quarters[3].sumNumerator).toBe(1483925);
     expect(row1.quarters[3].sumDenominator).toBeNull(); // Tidak ada denominator
 
-    // Indikator 2: Negatif (Kasus Anemia), Realisasi = 15.21%, Target = 23%, Expected TW3 = 75% * 23 = 17.25%
-    // Gap = 17.25 - 15.21 = +2.04% -> on_track (karena lebih rendah dari target kasus)
+    // Indikator 2: Negatif (Kasus Anemia), Realisasi = 15.21%, Target = 23%, Expected TW3 = 23 (100%)
+    // Gap = 23 - 15.21 = +7.79% -> on_track (karena lebih rendah dari target kasus)
     const row2 = result.rows[1];
     expect(row2.activeActual).toBe(15.21);
-    expect(row2.activeGap).toBe(2.04);
+    expect(row2.activeGap).toBe(7.79);
     expect(row2.status).toBe('on_track');
     expect(row2.quarters[3].sumNumerator).toBe(88202);
     expect(row2.quarters[3].sumDenominator).toBeNull();
