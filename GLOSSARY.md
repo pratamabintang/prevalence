@@ -134,6 +134,14 @@ Akumulasi penjumlahan (`SUM`) dari kolom sasaran riil populasi di tingkat wilaya
 _Avoid_: Kolom target riil, sum bawah
 
 ### Penyimpanan & Persistensi Eksternal
+**Ruang Kerja Konfigurasi (Configuration Workspace)**:
+Modul domain terpusat untuk mengelola siklus hidup persistensi konfigurasi preset Dinkes (penggabungan Excel, pemantauan stunting, dan visualisasi grafik). Menyediakan validasi skema JSON, persistensi media lokal (`localStorage` / memori), penamaan berkas unduh otomatis, serta memisahkan persistensi dari algoritma pencocokan fuzzy kolom spreadsheet (`ExcelResilientMatcher`).
+_Avoid_: Preset helper terpisah, static pass-through store, wrapper konfigurasi redundan
+
+**Preset Konfigurasi Dinkes (Dinkes Configuration Preset)**:
+Struktur data JSON terstandarisasi yang merekam metadata pemetaan sheet, aturan join, target evaluasi indikator, atau pengaturan tata letak grafik agar alur kerja pengolahan data dapat dipulihkan atau dibagikan secara instan tanpa konfigurasi ulang manual.
+_Avoid_: File config mentah, objek JSON acak
+
 **Ruang Kerja Partisi Periode (Period Partition Workspace)**:
 Modul domain terpusat yang mengoordinasikan pemilihan tahun anggaran dan triwulan, pemindaian ketersediaan slot partisi Google Drive, pengunduhan dan penggabungan berkas multi-triwulan (lintas cloud dan berkas lokal), serta pemetaan otomatis ke dalam dataset terpadu Dinkes di balik satu antarmuka reaktif tunggal.
 _Avoid_: GAS helper, file manager komponen, quarter loader lepas
