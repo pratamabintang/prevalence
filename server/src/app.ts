@@ -2,6 +2,7 @@ import express, { Express } from 'express';
 import cors from 'cors';
 import { healthRouter } from './routes/health';
 import { districtsRouter } from './routes/districts';
+import { configsRouter } from './routes/configs';
 
 export function createApp(): Express {
   const app = express();
@@ -14,6 +15,7 @@ export function createApp(): Express {
   // API Routes
   app.use('/api', healthRouter);
   app.use('/api', districtsRouter);
+  app.use('/api', configsRouter);
 
   return app;
 }

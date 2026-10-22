@@ -108,4 +108,66 @@ describe('BackendStorageService (Seam 2 Frontend Client)', () => {
       expect(res.error).toContain('Network error');
     });
   });
+
+  describe('getConfig() & saveConfig()', () => {
+    it('harus memuat konfigurasi preset yang tersimpan di server', async () => {
+      const mockConfig = { viewMode: 'by-indicator' };
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          success: true,
+          hasConfig: true,
+          config: mockConfig,
+          updatedAt: '2026-10-22T06:00:00Z',
+        }),
+      } as unknown as Response);
+
+      const res = await service.getConfig('chart');
+
+      expect(res.success).toBe(true);
+      expect(res.hasConfig).toBe(true);
+      expect(res.config).toEqual(mockConfig);
+    });
+
+    it('harus menangani respon 404/empty dengan hasConfig false', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          success: true,
+          hasConfig: false,
+          config: null,
+        }),
+      } as unknown as Response);
+
+      const res = await service.getConfig('join');
+
+      expect(res.success).toBe(true);
+      expect(res.hasConfig).toBe(false);
+      expect(res.config).toBeNull();
+    });
+
+    it('harus menyimpan konfigurasi preset ke server melalui PUT', async () => {
+      const payload = { test: 123 };
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          success: true,
+          message: 'Saved',
+          updatedAt: '2026-10-22T06:00:00Z',
+        }),
+      } as unknown as Response);
+
+      const res = await service.saveConfig('join', payload);
+
+      expect(res.success).toBe(true);
+      expect(res.message).toBe('Saved');
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        '/api/configs/join',
+        expect.objectContaining({
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        })
+      );
+    });
+  });
 });

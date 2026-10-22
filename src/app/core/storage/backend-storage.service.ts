@@ -26,6 +26,23 @@ export interface BackendDistrictsResult {
   error?: string;
 }
 
+export type StorageConfigType = 'join' | 'chart' | 'stunting';
+
+export interface BackendConfigLoadResult {
+  success: boolean;
+  hasConfig: boolean;
+  config?: unknown;
+  updatedAt?: string;
+  error?: string;
+}
+
+export interface BackendConfigSaveResult {
+  success: boolean;
+  message?: string;
+  updatedAt?: string;
+  error?: string;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -141,6 +158,85 @@ export class BackendStorageService {
         count: 0,
         data: [],
         error: err instanceof Error ? err.message : 'Gagal mengambil data wilayah.',
+      };
+    }
+  }
+
+  /**
+   * Mengambil konfigurasi preset terpusat dari server SQLite.
+   */
+  async getConfig(type: StorageConfigType): Promise<BackendConfigLoadResult> {
+    const baseUrl = this.getBaseUrl();
+    if (!baseUrl) {
+      return { success: false, hasConfig: false, error: 'Backend API URL belum dikonfigurasi.' };
+    }
+
+    try {
+      const response = await fetch(`${baseUrl}/configs/${type}`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+      });
+
+      if (!response.ok) {
+        return {
+          success: false,
+          hasConfig: false,
+          error: `Server mengembalikan status HTTP ${response.status}`,
+        };
+      }
+
+      const json = await response.json();
+      return {
+        success: !!json.success,
+        hasConfig: !!json.hasConfig,
+        config: json.config,
+        updatedAt: json.updatedAt,
+      };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        hasConfig: false,
+        error: err instanceof Error ? err.message : 'Gagal memuat konfigurasi preset.',
+      };
+    }
+  }
+
+  /**
+   * Menyimpan konfigurasi preset terpusat ke server SQLite.
+   */
+  async saveConfig(type: StorageConfigType, config: unknown): Promise<BackendConfigSaveResult> {
+    const baseUrl = this.getBaseUrl();
+    if (!baseUrl) {
+      return { success: false, error: 'Backend API URL belum dikonfigurasi.' };
+    }
+
+    try {
+      const response = await fetch(`${baseUrl}/configs/${type}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(config),
+      });
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: `Server mengembalikan status HTTP ${response.status}`,
+        };
+      }
+
+      const json = await response.json();
+      return {
+        success: !!json.success,
+        message: json.message,
+        updatedAt: json.updatedAt,
+      };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Gagal menyimpan konfigurasi preset.',
       };
     }
   }
