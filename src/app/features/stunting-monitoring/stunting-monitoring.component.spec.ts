@@ -883,8 +883,8 @@ describe('StuntingMonitoringComponent', () => {
       expect(tableEl).toBeTruthy();
       const text = tableEl.textContent || '';
 
-      // Standard headers matching Format Analisas Intervensi Spesifik
-      expect(text).toContain('Pengkategorian');
+      // Standard headers matching Format Analisas Intervensi Spesifik (without redundant Pengkategorian column)
+      expect(text).not.toContain('Pengkategorian');
       expect(text).toContain('No');
       expect(text).toContain('Intervensi Percepatan Penurunan Stunting');
       expect(text).toContain('Target Tahun Lalu');

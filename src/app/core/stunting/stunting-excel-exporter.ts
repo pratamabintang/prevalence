@@ -92,6 +92,11 @@ export class StuntingExcelExporter {
       columns: columnsRekap,
       dataRows: exportRows,
       cellStyler: (_row, colKey, val) => {
+        if (colKey === 'Kategori') {
+          return {
+            alignment: { vertical: 'center', horizontal: 'left', wrapText: true },
+          };
+        }
         if (colKey === 'Status') {
           const s = String(val);
           if (s === 'On Track') {
@@ -120,6 +125,36 @@ export class StuntingExcelExporter {
         return undefined;
       },
     });
+
+    // Merge consecutive identical Category cells in column A (index 0)
+    const merges: any[] = wsRekap['!merges'] || [];
+    let startRow = 2; // Data rows start at index 2 (after 2-row multi-layer header)
+    let currentCategory = exportRows.length > 0 ? exportRows[0]['Kategori'] : null;
+    let count = 0;
+
+    for (let i = 0; i < exportRows.length; i++) {
+      const cat = exportRows[i]['Kategori'];
+      if (cat === currentCategory) {
+        count++;
+      } else {
+        if (count > 1) {
+          merges.push({
+            s: { r: startRow, c: 0 },
+            e: { r: startRow + count - 1, c: 0 },
+          });
+        }
+        startRow = startRow + count;
+        currentCategory = cat;
+        count = 1;
+      }
+    }
+    if (count > 1) {
+      merges.push({
+        s: { r: startRow, c: 0 },
+        e: { r: startRow + count - 1, c: 0 },
+      });
+    }
+    wsRekap['!merges'] = merges;
 
     if (validJoinedRows.length > 0) {
       const columnsWilayah: ColumnHeaderMeta[] = [];

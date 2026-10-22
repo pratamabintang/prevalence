@@ -119,4 +119,33 @@ describe('StuntingExcelExporter', () => {
     expect(spec.columns[1]).toEqual({ key: 'Remaja', layers: ['Variabel / Indikator', 'Remaja'] });
     expect(spec.dataRows).toBe(rows);
   });
+
+  it('should vertically merge consecutive identical category cells in column A', () => {
+    const multiSheetSpy = vi
+      .spyOn(ExcelEngine, 'exportMultiSheetTable')
+      .mockImplementation(() => {});
+
+    const multiRowsEvaluation = {
+      ...mockEvaluation,
+      rows: [
+        { ...mockEvaluation.rows[0], id: 'sub-1', category: 'Intervensi Remaja' },
+        { ...mockEvaluation.rows[0], id: 'sub-2', category: 'Intervensi Remaja' },
+        { ...mockEvaluation.rows[0], id: 'sub-3', category: 'Intervensi Ibu Hamil' },
+      ],
+    } as unknown as StuntingEvaluationResult;
+
+    StuntingExcelExporter.exportMonitoringReport({
+      evaluationResult: multiRowsEvaluation,
+      availableQuarters: [1],
+    });
+
+    const ws = multiSheetSpy.mock.calls[0][1][0].worksheet;
+    expect(ws['!merges']).toBeDefined();
+    // Header depth is 2 (rows 0 and 1). Data rows start at row 2.
+    // 'Intervensi Remaja' spans rows 2-3 in column 0.
+    const categoryMerge = ws['!merges']!.find(
+      (m: any) => m.s.c === 0 && m.s.r === 2 && m.e.r === 3,
+    );
+    expect(categoryMerge).toBeDefined();
+  });
 });

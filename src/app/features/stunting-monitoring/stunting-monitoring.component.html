@@ -1523,7 +1523,6 @@
               <table class="w-full text-xs text-left">
                 <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200 sticky top-0 z-10 shadow-xs">
                   <tr>
-                    <th rowspan="2" class="px-3.5 py-2.5 text-left bg-slate-100 border-b border-slate-200 w-64">Pengkategorian</th>
                     <th rowspan="2" class="px-3 py-2.5 text-center w-12 bg-slate-100 border-b border-slate-200">No</th>
                     <th rowspan="2" class="px-3.5 py-2.5 text-left min-w-[280px] bg-slate-100 border-b border-slate-200">
                       Intervensi Percepatan Penurunan Stunting
@@ -1565,7 +1564,7 @@
                       class="bg-slate-100/70 font-semibold text-slate-800 cursor-pointer hover:bg-slate-100 transition-colors"
                       (click)="toggleCategoryCollapse(group.categoryName)"
                     >
-                      <td [attr.colspan]="7 + (displayedQuarters().length * 2)" class="px-3.5 py-2">
+                      <td [attr.colspan]="6 + (displayedQuarters().length * 2)" class="px-3.5 py-2">
                         <span class="mr-1.5 text-slate-500 font-mono">{{ collapsedCategories()[group.categoryName] ? '+' : '-' }}</span>
                         <span>{{ group.categoryName }}</span>
                         <span class="ml-2 font-normal text-slate-500 text-[11px]">({{ group.rows.length }} indikator)</span>
@@ -1575,9 +1574,6 @@
                     @if (!collapsedCategories()[group.categoryName]) {
                       @for (row of group.rows; track row.id) {
                         <tr class="hover:bg-slate-50 transition-colors">
-                          <td class="px-3.5 py-2 text-slate-600 text-xs font-medium border-r border-slate-100 bg-slate-50/40">
-                            {{ group.categoryName }}
-                          </td>
                           <td class="px-3 py-2 text-center text-slate-700 font-mono font-bold text-xs">{{ row.no }}</td>
                           <td class="px-3.5 py-2 font-medium text-slate-900 text-xs">
                             <div class="flex items-center gap-1.5">
