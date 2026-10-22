@@ -23,6 +23,8 @@ const upload = multer({
   },
 });
 
+import { Database as DatabaseType } from 'better-sqlite3';
+
 const ALLOWED_QUARTERS = ['TW1', 'TW2', 'TW3', 'TW4'] as const;
 type QuarterType = (typeof ALLOWED_QUARTERS)[number];
 
@@ -32,6 +34,45 @@ function isValidQuarter(q: string): q is QuarterType {
 
 function calculateSha256(buffer: Buffer): string {
   return crypto.createHash('sha256').update(buffer).digest('hex');
+}
+
+/**
+ * Normalisasi nama wilayah sesuai aturan Toleransi Daerah (GLOSSARY.md):
+ * Menghapus awalan "Kabupaten", "Kab.", atau "Kab" tetapi mempertahankan "Kota".
+ */
+export function normalizeDistrictName(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/^kab(?:\.|upaten)?\s+/i, '')
+    .replace(/\s+/g, ' ');
+}
+
+function savePeriodFile(
+  db: DatabaseType,
+  periodId: number,
+  periodDir: string,
+  fileType: 'raw' | 'result',
+  file: Express.Multer.File,
+  defaultFileName: string,
+  diskFileName: string,
+  now: string,
+): void {
+  const safeName = file.originalname || defaultFileName;
+  const diskPath = path.join(periodDir, diskFileName);
+  fs.writeFileSync(diskPath, file.buffer);
+
+  const checksum = calculateSha256(file.buffer);
+  db.prepare(`
+    INSERT INTO period_files (period_id, file_type, file_name, file_path, file_size, checksum, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(period_id, file_type) DO UPDATE SET
+      file_name = excluded.file_name,
+      file_path = excluded.file_path,
+      file_size = excluded.file_size,
+      checksum = excluded.checksum,
+      created_at = excluded.created_at
+  `).run(periodId, fileType, safeName, diskPath, file.size, checksum, now);
 }
 
 // GET /api/periods - Daftar seluruh periode
@@ -44,6 +85,7 @@ periodsRouter.get('/periods', (_req: Request, res: Response) => {
         p.year,
         p.quarter,
         p.status,
+        p.config_json,
         p.updated_at,
         MAX(CASE WHEN pf.file_type = 'raw' THEN 1 ELSE 0 END) AS hasRaw,
         MAX(CASE WHEN pf.file_type = 'result' THEN 1 ELSE 0 END) AS hasResult,
@@ -52,13 +94,14 @@ periodsRouter.get('/periods', (_req: Request, res: Response) => {
         SUM(pf.file_size) AS totalFileSize
       FROM periods p
       LEFT JOIN period_files pf ON p.id = pf.period_id
-      GROUP BY p.id, p.year, p.quarter, p.status, p.updated_at
+      GROUP BY p.id, p.year, p.quarter, p.status, p.config_json, p.updated_at
       ORDER BY p.year DESC, p.quarter DESC
     `).all() as Array<{
       id: number;
       year: number;
       quarter: string;
       status: string;
+      config_json: string | null;
       updated_at: string;
       hasRaw: number;
       hasResult: number;
@@ -75,6 +118,7 @@ periodsRouter.get('/periods', (_req: Request, res: Response) => {
       updatedAt: r.updated_at,
       hasRaw: r.hasRaw === 1,
       hasResult: r.hasResult === 1,
+      hasConfig: Boolean(r.config_json),
       rawFileName: r.rawFileName || undefined,
       resultFileName: r.resultFileName || undefined,
       fileSize: r.totalFileSize || 0,
@@ -107,8 +151,15 @@ periodsRouter.get('/periods/:year/:quarter', (req: Request, res: Response) => {
   try {
     const db = getDb();
     const period = db
-      .prepare('SELECT id, year, quarter, status, updated_at FROM periods WHERE year = ? AND quarter = ?')
-      .get(year, quarter) as { id: number; year: number; quarter: string; status: string; updated_at: string } | undefined;
+      .prepare('SELECT id, year, quarter, status, config_json, updated_at FROM periods WHERE year = ? AND quarter = ?')
+      .get(year, quarter) as {
+        id: number;
+        year: number;
+        quarter: string;
+        status: string;
+        config_json: string | null;
+        updated_at: string;
+      } | undefined;
 
     if (!period) {
       return res.json({
@@ -156,6 +207,15 @@ periodsRouter.get('/periods/:year/:quarter', (req: Request, res: Response) => {
     const hasRaw = files.some((f) => f.file_type === 'raw');
     const hasResult = files.some((f) => f.file_type === 'result');
 
+    let parsedConfig: unknown = undefined;
+    if (period.config_json) {
+      try {
+        parsedConfig = JSON.parse(period.config_json);
+      } catch {
+        parsedConfig = undefined;
+      }
+    }
+
     return res.json({
       success: true,
       hasData: true,
@@ -166,6 +226,7 @@ periodsRouter.get('/periods/:year/:quarter', (req: Request, res: Response) => {
       hasRaw,
       hasResult,
       files,
+      config: parsedConfig,
       observationsCount: obsRows.length,
       observations: obsRows,
     });
@@ -266,15 +327,22 @@ periodsRouter.post(
 
       const now = new Date().toISOString();
 
+      const rawConfig = req.body?.config ?? req.body?.configJson;
+      let serializedConfig: string | null = null;
+      if (rawConfig !== undefined && rawConfig !== null && rawConfig !== '') {
+        serializedConfig = typeof rawConfig === 'string' ? rawConfig : JSON.stringify(rawConfig);
+      }
+
       // Transaksi atomik database
       const saveTransaction = db.transaction(() => {
         // 1. Upsert Periode
         db.prepare(`
-          INSERT INTO periods (year, quarter, status, updated_at)
-          VALUES (?, ?, 'active', ?)
+          INSERT INTO periods (year, quarter, status, config_json, updated_at)
+          VALUES (?, ?, 'active', ?, ?)
           ON CONFLICT(year, quarter) DO UPDATE SET
+            config_json = COALESCE(excluded.config_json, periods.config_json),
             updated_at = excluded.updated_at
-        `).run(year, quarter, now);
+        `).run(year, quarter, serializedConfig, now);
 
         const periodRow = db
           .prepare('SELECT id FROM periods WHERE year = ? AND quarter = ?')
@@ -283,40 +351,30 @@ periodsRouter.post(
 
         // 2. Simpan Raw File jika ada
         if (rawFile) {
-          const safeName = rawFile.originalname || `raw-data-${year}-${quarter}.xlsx`;
-          const diskPath = path.join(periodDir, 'raw-data.xlsx');
-          fs.writeFileSync(diskPath, rawFile.buffer);
-
-          const checksum = calculateSha256(rawFile.buffer);
-          db.prepare(`
-            INSERT INTO period_files (period_id, file_type, file_name, file_path, file_size, checksum, created_at)
-            VALUES (?, 'raw', ?, ?, ?, ?, ?)
-            ON CONFLICT(period_id, file_type) DO UPDATE SET
-              file_name = excluded.file_name,
-              file_path = excluded.file_path,
-              file_size = excluded.file_size,
-              checksum = excluded.checksum,
-              created_at = excluded.created_at
-          `).run(periodId, safeName, diskPath, rawFile.size, checksum, now);
+          savePeriodFile(
+            db,
+            periodId,
+            periodDir,
+            'raw',
+            rawFile,
+            `raw-data-${year}-${quarter}.xlsx`,
+            'raw-data.xlsx',
+            now,
+          );
         }
 
         // 3. Simpan Result File jika ada
         if (resultFile) {
-          const safeName = resultFile.originalname || `joined-result-${year}-${quarter}.xlsx`;
-          const diskPath = path.join(periodDir, 'joined-result.xlsx');
-          fs.writeFileSync(diskPath, resultFile.buffer);
-
-          const checksum = calculateSha256(resultFile.buffer);
-          db.prepare(`
-            INSERT INTO period_files (period_id, file_type, file_name, file_path, file_size, checksum, created_at)
-            VALUES (?, 'result', ?, ?, ?, ?, ?)
-            ON CONFLICT(period_id, file_type) DO UPDATE SET
-              file_name = excluded.file_name,
-              file_path = excluded.file_path,
-              file_size = excluded.file_size,
-              checksum = excluded.checksum,
-              created_at = excluded.created_at
-          `).run(periodId, safeName, diskPath, resultFile.size, checksum, now);
+          savePeriodFile(
+            db,
+            periodId,
+            periodDir,
+            'result',
+            resultFile,
+            `joined-result-${year}-${quarter}.xlsx`,
+            'joined-result.xlsx',
+            now,
+          );
         }
 
         // 4. Ingesti baris observasi jika disediakan dalam body
@@ -337,7 +395,7 @@ periodsRouter.post(
           }
 
           if (Array.isArray(obsList) && obsList.length > 0) {
-            // Ambil peta seluruh wilayah untuk pemadanan id
+            // Ambil peta seluruh wilayah untuk pemadanan id (termasuk Toleransi Daerah)
             const districtMap = new Map<string, number>();
             const districts = db.prepare('SELECT id, code, name FROM districts').all() as Array<{
               id: number;
@@ -347,6 +405,7 @@ periodsRouter.post(
             districts.forEach((d) => {
               districtMap.set(d.code, d.id);
               districtMap.set(d.name.toLowerCase().trim(), d.id);
+              districtMap.set(normalizeDistrictName(d.name), d.id);
             });
 
             const insertObs = db.prepare(`
@@ -360,7 +419,9 @@ periodsRouter.post(
             for (const item of obsList) {
               const dId =
                 (item.districtCode && districtMap.get(item.districtCode)) ||
-                (item.districtName && districtMap.get(item.districtName.toLowerCase().trim()));
+                (item.districtName &&
+                  (districtMap.get(item.districtName.toLowerCase().trim()) ||
+                    districtMap.get(normalizeDistrictName(item.districtName))));
 
               if (dId && item.indicatorKey) {
                 insertObs.run(

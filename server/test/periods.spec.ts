@@ -49,17 +49,19 @@ describe('Backend API: Quarterly Period Storage & Archive (Seam 1)', () => {
     expect(res.body.success).toBe(false);
   });
 
-  it('POST /api/periods/2026/TW1 - harus berhasil menyimpan file biner dan observasi ke SQLite', async () => {
+  it('POST /api/periods/2026/TW1 - harus berhasil menyimpan file biner, config JSON, dan observasi (termasuk Toleransi Daerah) ke SQLite', async () => {
     const dummyBuffer = Buffer.from('PK...fake excel binary stream for tw1');
     const mockObservations = JSON.stringify([
-      { districtCode: '3301', indicatorKey: 'stunting_prev', numericValue: 12.4, displayText: '12.4%' },
+      { districtName: 'Cilacap', indicatorKey: 'stunting_prev', numericValue: 12.4, displayText: '12.4%' },
       { districtCode: '3374', indicatorKey: 'stunting_prev', numericValue: 8.1, displayText: '8.1%' },
     ]);
+    const mockConfig = JSON.stringify({ joinBy: 'Kabupaten/Kota', sheets: [] });
 
     const res = await request(app)
       .post('/api/periods/2026/TW1')
       .attach('rawFile', dummyBuffer, 'input_tw1.xlsx')
-      .field('observations', mockObservations);
+      .field('observations', mockObservations)
+      .field('config', mockConfig);
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -81,13 +83,15 @@ describe('Backend API: Quarterly Period Storage & Archive (Seam 1)', () => {
     expect(p.quarter).toBe('TW1');
     expect(p.hasRaw).toBe(true);
     expect(p.hasResult).toBe(false);
+    expect(p.hasConfig).toBe(true);
   });
 
-  it('GET /api/periods/2026/TW1 - harus mengembalikan detail berkas dan observasi tersimpan', async () => {
+  it('GET /api/periods/2026/TW1 - harus mengembalikan detail berkas, config, dan observasi tersimpan', async () => {
     const res = await request(app).get('/api/periods/2026/TW1');
 
     expect(res.status).toBe(200);
     expect(res.body.hasData).toBe(true);
+    expect(res.body.config).toEqual({ joinBy: 'Kabupaten/Kota', sheets: [] });
     expect(res.body.observationsCount).toBe(2);
     expect(res.body.observations.length).toBe(2);
 

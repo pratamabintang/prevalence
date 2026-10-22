@@ -44,25 +44,58 @@ export const CENTRAL_JAVA_DISTRICTS: DistrictSeed[] = [
   { code: '3376', name: 'Kota Tegal', type: 'KOTA' },
 ];
 
+export interface IndicatorTargetSeed {
+  indicator_key: string;
+  target_value: number;
+  standard_text: string;
+}
+
+export const STANDARD_INDICATOR_TARGETS: IndicatorTargetSeed[] = [
+  { indicator_key: 'Stunting %', target_value: 14.0, standard_text: 'RPJMN Target < 14%' },
+  { indicator_key: 'Wasting %', target_value: 7.0, standard_text: 'RPJMN Target < 7%' },
+  { indicator_key: 'ASI Eksklusif %', target_value: 80.0, standard_text: 'Renstra Kemenkes >= 80%' },
+  { indicator_key: 'D/S %', target_value: 85.0, standard_text: 'Partisipasi Posyandu >= 85%' },
+  { indicator_key: 'K4 %', target_value: 95.0, standard_text: 'Kunjungan Antenatal >= 95%' },
+  { indicator_key: 'Imunisasi Dasar Lengkap %', target_value: 90.0, standard_text: 'IDL Nasional >= 90%' },
+];
+
 /**
- * Melakukan inisialisasi awal master 35 Kabupaten/Kota Jawa Tengah jika belum ada.
+ * Melakukan inisialisasi awal master 35 Kabupaten/Kota Jawa Tengah dan target indikator standar jika belum ada.
  */
 export function seedDistricts(db: DatabaseType): void {
   const countRow = db.prepare('SELECT COUNT(*) as cnt FROM districts').get() as { cnt: number };
-  if (countRow && countRow.cnt >= 35) {
-    return;
+  if (!countRow || countRow.cnt < 35) {
+    const insert = db.prepare(`
+      INSERT OR IGNORE INTO districts (code, name, type)
+      VALUES (@code, @name, @type)
+    `);
+
+    const runSeed = db.transaction((districts: DistrictSeed[]) => {
+      for (const d of districts) {
+        insert.run(d);
+      }
+    });
+
+    runSeed(CENTRAL_JAVA_DISTRICTS);
   }
 
-  const insert = db.prepare(`
-    INSERT OR IGNORE INTO districts (code, name, type)
-    VALUES (@code, @name, @type)
+  seedIndicatorTargets(db);
+}
+
+/**
+ * Melakukan seeding target acuan operasional indikator kesehatan standar.
+ */
+export function seedIndicatorTargets(db: DatabaseType): void {
+  const insertTarget = db.prepare(`
+    INSERT OR IGNORE INTO indicator_targets (indicator_key, target_value, standard_text)
+    VALUES (@indicator_key, @target_value, @standard_text)
   `);
 
-  const runSeed = db.transaction((districts: DistrictSeed[]) => {
-    for (const d of districts) {
-      insert.run(d);
+  const runTargetSeed = db.transaction((targets: IndicatorTargetSeed[]) => {
+    for (const t of targets) {
+      insertTarget.run(t);
     }
   });
 
-  runSeed(CENTRAL_JAVA_DISTRICTS);
+  runTargetSeed(STANDARD_INDICATOR_TARGETS);
 }

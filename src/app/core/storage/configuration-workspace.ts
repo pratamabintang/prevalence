@@ -11,6 +11,7 @@ import {
   GenericPresetStore,
   StorageAdapter,
 } from './preset-store';
+import { BackendStorageService, StorageConfigType } from './backend-storage.service';
 
 // ==========================================
 // 1. Join Configuration Preset Interfaces
@@ -141,18 +142,22 @@ export interface ChartConfigurationPreset {
 export interface ConfigurationWorkspaceOptions {
   storage?: StorageAdapter;
   downloader?: FileDownloadAdapter;
+  backendStorage?: BackendStorageService;
 }
 
 /**
  * ConfigurationWorkspace: Modul terpadu untuk persistensi, deserialisasi, dan validasi skema
- * konfigurasi preset Dinkes (Join Excel, Pemantauan Stunting, Visualisasi Grafik).
+ * konfigurasi preset Dinkes (Join Excel, Pemantauan Stunting, Visualisasi Grafik)
+ * dengan sinkronisasi server SQLite dan fallback lokal.
  */
 export class ConfigurationWorkspace {
   readonly excelJoin: GenericPresetStore<JoinConfigurationPreset>;
   readonly stunting: GenericPresetStore<AnyStuntingPreset>;
   readonly chart: GenericPresetStore<ChartConfigurationPreset>;
+  private readonly backendStorage?: BackendStorageService;
 
   constructor(options?: ConfigurationWorkspaceOptions) {
+    this.backendStorage = options?.backendStorage;
     this.excelJoin = new GenericPresetStore<JoinConfigurationPreset>({
       storageKey: 'dinkes_excel_join_config_last',
       defaultFileNamePrefix: 'konfigurasi_join_excel',
@@ -221,6 +226,51 @@ export class ConfigurationWorkspace {
         return parsed;
       },
     });
+  }
+
+  private getStoreByType(type: StorageConfigType): GenericPresetStore<any> {
+    switch (type) {
+      case 'join':
+        return this.excelJoin;
+      case 'stunting':
+        return this.stunting;
+      case 'chart':
+        return this.chart;
+    }
+  }
+
+  /**
+   * Memuat konfigurasi preset dari server SQLite (utama) dan menyimpannya ke cache lokal.
+   * Jika server tidak terjangkau atau belum memiliki konfigurasi, beralih anggun (fallback) ke preset lokal.
+   */
+  async syncFromServer<T = unknown>(type: StorageConfigType): Promise<T | null> {
+    const store = this.getStoreByType(type);
+    if (this.backendStorage?.isConfigured()) {
+      const res = await this.backendStorage.getConfig(type);
+      if (res.success && res.hasConfig && res.config) {
+        try {
+          store.savePreset(res.config, false);
+          return res.config as T;
+        } catch {
+          // Abaikan jika skema dari server tidak valid, jatuh ke lokal
+        }
+      }
+    }
+    return store.loadLastPreset() as T | null;
+  }
+
+  /**
+   * Menyimpan konfigurasi preset ke lokal sekaligus menyinkronkan ke server SQLite jika aktif.
+   */
+  async saveToServer<T>(type: StorageConfigType, preset: T, downloadAsFile = false): Promise<boolean> {
+    const store = this.getStoreByType(type);
+    store.savePreset(preset, downloadAsFile);
+
+    if (this.backendStorage?.isConfigured()) {
+      const res = await this.backendStorage.saveConfig(type, preset);
+      return res.success;
+    }
+    return false;
   }
 
   // ==========================================

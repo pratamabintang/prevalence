@@ -67,17 +67,22 @@ describe('Backend API: Multi-Year Indicator Analytics Query (Seam 1)', () => {
     expect(res.body.scope).toBe('province');
     expect(res.body.series.length).toBe(3);
 
-    // 2025 TW3: Cilacap (14.5) + Semarang (10.0) -> Avg = 12.25
+    // 2025 TW3: Cilacap (14.5) + Semarang (10.0) -> Avg = 12.25, Median = 12.25
     const tw3 = res.body.series.find((p: { year: number; quarter: string }) => p.year === 2025 && p.quarter === 'TW3');
     expect(tw3).toBeDefined();
     expect(tw3.count).toBe(2);
     expect(tw3.avgValue).toBe(12.25);
+    expect(tw3.averageValue).toBe(12.25);
+    expect(tw3.medianValue).toBe(12.25);
     expect(tw3.minValue).toBe(10.0);
     expect(tw3.maxValue).toBe(14.5);
+    expect(tw3.totalTargeted).toBe(2);
+    expect(typeof tw3.achievedCount).toBe('number');
 
     // 2026 TW1: Cilacap (12.4) + Semarang (8.1) -> Avg = 10.25
     const tw1 = res.body.series.find((p: { year: number; quarter: string }) => p.year === 2026 && p.quarter === 'TW1');
     expect(tw1.avgValue).toBe(10.25);
+    expect(tw1.medianValue).toBe(10.25);
   });
 
   it('GET /api/analytics/trends - harus mengembalikan deret waktu spesifik untuk satu kabupaten/kota', async () => {

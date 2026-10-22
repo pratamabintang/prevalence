@@ -51,6 +51,7 @@ export interface BackendPeriodItem {
   quarter: QuarterSlot;
   hasRaw: boolean;
   hasResult: boolean;
+  hasConfig?: boolean;
   rawFileName?: string;
   resultFileName?: string;
   fileSize?: number;
@@ -108,8 +109,12 @@ export interface BackendTrendPoint {
   quarter: string;
   count: number;
   avgValue: number | null;
+  averageValue?: number | null;
+  medianValue?: number | null;
   minValue: number | null;
   maxValue: number | null;
+  achievedCount?: number;
+  totalTargeted?: number;
   districtCode?: string;
   districtName?: string;
   displayText?: string;
@@ -142,10 +147,11 @@ export class BackendStorageService {
 
   /**
    * Mengambil basis URL API backend yang aktif.
+   * Mengembalikan string kosong jika environment.backendApiUrl disetel ke "" secara eksplisit.
    */
   getBaseUrl(): string {
     const raw = (environment as unknown as { backendApiUrl?: string }).backendApiUrl;
-    if (typeof raw === 'string' && raw.trim().length > 0) {
+    if (typeof raw === 'string') {
       return raw.trim().replace(/\/+$/, '');
     }
     return '/api';
@@ -159,289 +165,206 @@ export class BackendStorageService {
   }
 
   /**
-   * Melakukan pemeriksaan status server (Health Check) ke endpoint /api/health.
+   * Helper internal terpadu untuk eksekusi HTTP JSON dengan penanganan status seragam.
    */
-  async pingServer(): Promise<BackendPingResult> {
+  private async requestJson<T = any>(
+    endpoint: string,
+    init?: RequestInit,
+    fallbackErrorMsg = 'Gagal menghubungi server backend.',
+  ): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
     const baseUrl = this.getBaseUrl();
     if (!baseUrl) {
-      this.isConnected.set(false);
-      return { success: false, error: 'Backend API URL belum dikonfigurasi.' };
+      return { ok: false, error: 'Backend API URL belum dikonfigurasi.' };
     }
 
     try {
-      const response = await fetch(`${baseUrl}/health`, {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
+      const response = await fetch(`${baseUrl}${endpoint}`, {
+        ...init,
+        headers: {
+          Accept: 'application/json',
+          ...(init?.headers || {}),
+        },
       });
 
       if (!response.ok) {
-        this.isConnected.set(false);
         return {
-          success: false,
+          ok: false,
           error: `Server mengembalikan status HTTP ${response.status}`,
         };
       }
 
-      const json = await response.json();
-      const isOk = json.status === 'ok';
-      this.isConnected.set(isOk);
-      this.lastPingTime.set(new Date().toISOString());
-
-      return {
-        success: isOk,
-        status: json.status,
-        walMode: json.walMode,
-        journalMode: json.journalMode,
-        uptime: json.uptime,
-        timestamp: json.timestamp,
-        database: json.database,
-      };
+      const data = (await response.json()) as T;
+      return { ok: true, data };
     } catch (err: unknown) {
-      this.isConnected.set(false);
       return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Koneksi ke backend server gagal.',
+        ok: false,
+        error: err instanceof Error ? err.message : fallbackErrorMsg,
       };
     }
+  }
+
+  /**
+   * Melakukan pemeriksaan status server (Health Check) ke endpoint /api/health.
+   */
+  async pingServer(): Promise<BackendPingResult> {
+    const res = await this.requestJson('/health', { method: 'GET' }, 'Koneksi ke backend server gagal.');
+    if (!res.ok) {
+      this.isConnected.set(false);
+      return { success: false, error: res.error };
+    }
+
+    const json = res.data;
+    const isOk = json.status === 'ok';
+    this.isConnected.set(isOk);
+    this.lastPingTime.set(new Date().toISOString());
+
+    return {
+      success: isOk,
+      status: json.status,
+      walMode: json.walMode,
+      journalMode: json.journalMode,
+      uptime: json.uptime,
+      timestamp: json.timestamp,
+      database: json.database,
+    };
   }
 
   /**
    * Mengambil daftar master 35 Kabupaten/Kota Jawa Tengah dari SQLite.
    */
   async getDistricts(): Promise<BackendDistrictsResult> {
-    const baseUrl = this.getBaseUrl();
-    if (!baseUrl) {
-      return { success: false, count: 0, data: [], error: 'Backend API URL belum dikonfigurasi.' };
+    const res = await this.requestJson('/districts', { method: 'GET' }, 'Gagal mengambil data wilayah.');
+    if (!res.ok) {
+      return { success: false, count: 0, data: [], error: res.error };
     }
 
-    try {
-      const response = await fetch(`${baseUrl}/districts`, {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
-      });
-
-      if (!response.ok) {
-        return {
-          success: false,
-          count: 0,
-          data: [],
-          error: `Server mengembalikan status HTTP ${response.status}`,
-        };
-      }
-
-      const json = await response.json();
-      return {
-        success: !!json.success,
-        count: json.count || (json.data ? json.data.length : 0),
-        data: json.data || [],
-      };
-    } catch (err: unknown) {
-      return {
-        success: false,
-        count: 0,
-        data: [],
-        error: err instanceof Error ? err.message : 'Gagal mengambil data wilayah.',
-      };
-    }
+    const json = res.data;
+    return {
+      success: !!json.success,
+      count: json.count || (json.data ? json.data.length : 0),
+      data: json.data || [],
+    };
   }
 
   /**
    * Mengambil konfigurasi preset terpusat dari server SQLite.
    */
   async getConfig(type: StorageConfigType): Promise<BackendConfigLoadResult> {
-    const baseUrl = this.getBaseUrl();
-    if (!baseUrl) {
-      return { success: false, hasConfig: false, error: 'Backend API URL belum dikonfigurasi.' };
+    const res = await this.requestJson(`/configs/${type}`, { method: 'GET' }, 'Gagal memuat konfigurasi preset.');
+    if (!res.ok) {
+      return { success: false, hasConfig: false, error: res.error };
     }
 
-    try {
-      const response = await fetch(`${baseUrl}/configs/${type}`, {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
-      });
-
-      if (!response.ok) {
-        return {
-          success: false,
-          hasConfig: false,
-          error: `Server mengembalikan status HTTP ${response.status}`,
-        };
-      }
-
-      const json = await response.json();
-      return {
-        success: !!json.success,
-        hasConfig: !!json.hasConfig,
-        config: json.config,
-        updatedAt: json.updatedAt,
-      };
-    } catch (err: unknown) {
-      return {
-        success: false,
-        hasConfig: false,
-        error: err instanceof Error ? err.message : 'Gagal memuat konfigurasi preset.',
-      };
-    }
+    const json = res.data;
+    return {
+      success: !!json.success,
+      hasConfig: !!json.hasConfig,
+      config: json.config,
+      updatedAt: json.updatedAt,
+    };
   }
 
   /**
    * Menyimpan konfigurasi preset terpusat ke server SQLite.
    */
   async saveConfig(type: StorageConfigType, config: unknown): Promise<BackendConfigSaveResult> {
-    const baseUrl = this.getBaseUrl();
-    if (!baseUrl) {
-      return { success: false, error: 'Backend API URL belum dikonfigurasi.' };
-    }
-
-    try {
-      const response = await fetch(`${baseUrl}/configs/${type}`, {
+    const res = await this.requestJson(
+      `/configs/${type}`,
+      {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config),
-      });
-
-      if (!response.ok) {
-        return {
-          success: false,
-          error: `Server mengembalikan status HTTP ${response.status}`,
-        };
-      }
-
-      const json = await response.json();
-      return {
-        success: !!json.success,
-        message: json.message,
-        updatedAt: json.updatedAt,
-      };
-    } catch (err: unknown) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Gagal menyimpan konfigurasi preset.',
-      };
+      },
+      'Gagal menyimpan konfigurasi preset.',
+    );
+    if (!res.ok) {
+      return { success: false, error: res.error };
     }
+
+    const json = res.data;
+    return {
+      success: !!json.success,
+      message: json.message,
+      updatedAt: json.updatedAt,
+    };
   }
 
   /**
    * Mengambil daftar seluruh periode yang telah tersimpan di server.
    */
   async listPeriods(): Promise<BackendPeriodListResult> {
-    const baseUrl = this.getBaseUrl();
-    if (!baseUrl) {
-      return { success: false, periods: [], error: 'Backend API URL belum dikonfigurasi.' };
+    const res = await this.requestJson('/periods', { method: 'GET' }, 'Gagal mengambil daftar periode.');
+    if (!res.ok) {
+      return { success: false, periods: [], error: res.error };
     }
 
-    try {
-      const response = await fetch(`${baseUrl}/periods`, {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
-      });
-
-      if (!response.ok) {
-        return {
-          success: false,
-          periods: [],
-          error: `Server mengembalikan status HTTP ${response.status}`,
-        };
-      }
-
-      const json = await response.json();
-      return {
-        success: !!json.success,
-        periods: (json.periods || []) as BackendPeriodItem[],
-      };
-    } catch (err: unknown) {
-      return {
-        success: false,
-        periods: [],
-        error: err instanceof Error ? err.message : 'Gagal mengambil daftar periode.',
-      };
-    }
+    const json = res.data;
+    return {
+      success: !!json.success,
+      periods: (json.periods || []) as BackendPeriodItem[],
+    };
   }
 
   /**
    * Memuat detail periode beserta berkas biner dan baris observasi.
    */
   async loadPeriod(year: number, quarter: QuarterSlot): Promise<BackendPeriodLoadResult> {
-    const baseUrl = this.getBaseUrl();
-    if (!baseUrl) {
-      return { success: false, hasData: false, error: 'Backend API URL belum dikonfigurasi.' };
+    const res = await this.requestJson(`/periods/${year}/${quarter}`, { method: 'GET' }, 'Gagal memuat rincian periode.');
+    if (!res.ok) {
+      return { success: false, hasData: false, error: res.error };
     }
 
-    try {
-      const metaRes = await fetch(`${baseUrl}/periods/${year}/${quarter}`, {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
-      });
-
-      if (!metaRes.ok) {
-        return {
-          success: false,
-          hasData: false,
-          error: `Server mengembalikan status HTTP ${metaRes.status}`,
-        };
-      }
-
-      const meta = await metaRes.json();
-      if (!meta.hasData) {
-        return {
-          success: true,
-          hasData: false,
-          year,
-          quarter,
-          message: meta.message || 'Periode belum memiliki data.',
-        };
-      }
-
-      let rawExcelBuffer: ArrayBuffer | undefined = undefined;
-      let resultExcelBuffer: ArrayBuffer | undefined = undefined;
-
-      // Unduh berkas fisik biner jika tersedia
-      if (meta.hasRaw) {
-        try {
-          const rawBlob = await this.downloadPeriodFile(year, quarter, 'raw');
-          if (rawBlob) {
-            rawExcelBuffer = await rawBlob.arrayBuffer();
-          }
-        } catch {
-          // Abaikan jika berkas fisik gagal diunduh
-        }
-      }
-
-      if (meta.hasResult) {
-        try {
-          const resBlob = await this.downloadPeriodFile(year, quarter, 'result');
-          if (resBlob) {
-            resultExcelBuffer = await resBlob.arrayBuffer();
-          }
-        } catch {
-          // Abaikan
-        }
-      }
-
+    const meta = res.data;
+    if (!meta.hasData) {
       return {
         success: true,
-        hasData: true,
-        year: meta.year,
-        quarter: meta.quarter,
-        status: meta.status,
-        updatedAt: meta.updatedAt,
-        hasRaw: meta.hasRaw,
-        hasResult: meta.hasResult,
-        rawExcelBuffer,
-        resultExcelBuffer,
-        observationsCount: meta.observationsCount,
-        observations: meta.observations,
-      };
-    } catch (err: unknown) {
-      return {
-        success: false,
         hasData: false,
-        error: err instanceof Error ? err.message : 'Gagal memuat rincian periode.',
+        year,
+        quarter,
+        message: meta.message || 'Periode belum memiliki data.',
       };
     }
+
+    let rawExcelBuffer: ArrayBuffer | undefined = undefined;
+    let resultExcelBuffer: ArrayBuffer | undefined = undefined;
+
+    if (meta.hasRaw) {
+      try {
+        const rawBlob = await this.downloadPeriodFile(year, quarter, 'raw');
+        if (rawBlob) {
+          rawExcelBuffer = await rawBlob.arrayBuffer();
+        }
+      } catch {
+        // Abaikan jika berkas fisik gagal diunduh
+      }
+    }
+
+    if (meta.hasResult) {
+      try {
+        const resBlob = await this.downloadPeriodFile(year, quarter, 'result');
+        if (resBlob) {
+          resultExcelBuffer = await resBlob.arrayBuffer();
+        }
+      } catch {
+        // Abaikan
+      }
+    }
+
+    return {
+      success: true,
+      hasData: true,
+      year: meta.year,
+      quarter: meta.quarter,
+      status: meta.status,
+      updatedAt: meta.updatedAt,
+      hasRaw: meta.hasRaw,
+      hasResult: meta.hasResult,
+      rawExcelBuffer,
+      resultExcelBuffer,
+      config: meta.config,
+      observationsCount: meta.observationsCount,
+      observations: meta.observations,
+    };
   }
 
   /**
@@ -472,97 +395,71 @@ export class BackendStorageService {
    * Menyimpan partisi periode (berkas fisik & observasi) ke server melalui multipart/form-data.
    */
   async savePeriod(payload: BackendPeriodSavePayload): Promise<BackendPeriodSaveResult> {
-    const baseUrl = this.getBaseUrl();
-    if (!baseUrl) {
-      return { success: false, error: 'Backend API URL belum dikonfigurasi.' };
+    const formData = new FormData();
+
+    if (payload.rawExcelBuffer) {
+      const rawBlob = new Blob([payload.rawExcelBuffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      formData.append(
+        'rawFile',
+        rawBlob,
+        payload.rawFileName || `raw-data-${payload.year}-${payload.quarter}.xlsx`
+      );
     }
 
-    try {
-      const formData = new FormData();
+    if (payload.resultExcelBuffer) {
+      const resultBlob = new Blob([payload.resultExcelBuffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      formData.append(
+        'resultFile',
+        resultBlob,
+        payload.resultFileName || `joined-result-${payload.year}-${payload.quarter}.xlsx`
+      );
+    }
 
-      if (payload.rawExcelBuffer) {
-        const rawBlob = new Blob([payload.rawExcelBuffer], {
-          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        });
-        formData.append(
-          'rawFile',
-          rawBlob,
-          payload.rawFileName || `raw-data-${payload.year}-${payload.quarter}.xlsx`
-        );
-      }
+    if (payload.config) {
+      formData.append('config', JSON.stringify(payload.config));
+    }
 
-      if (payload.resultExcelBuffer) {
-        const resultBlob = new Blob([payload.resultExcelBuffer], {
-          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        });
-        formData.append(
-          'resultFile',
-          resultBlob,
-          payload.resultFileName || `joined-result-${payload.year}-${payload.quarter}.xlsx`
-        );
-      }
+    if (payload.observations && Array.isArray(payload.observations)) {
+      formData.append('observations', JSON.stringify(payload.observations));
+    }
 
-      if (payload.config) {
-        formData.append('config', JSON.stringify(payload.config));
-      }
-
-      if (payload.observations && Array.isArray(payload.observations)) {
-        formData.append('observations', JSON.stringify(payload.observations));
-      }
-
-      const response = await fetch(`${baseUrl}/periods/${payload.year}/${payload.quarter}`, {
+    const res = await this.requestJson(
+      `/periods/${payload.year}/${payload.quarter}`,
+      {
         method: 'POST',
         body: formData,
-      });
+      },
+      'Gagal menyimpan periode ke server.',
+    );
 
-      if (!response.ok) {
-        return {
-          success: false,
-          error: `Server mengembalikan status HTTP ${response.status}`,
-        };
-      }
-
-      const json = await response.json();
-      return {
-        success: !!json.success,
-        message: json.message,
-        periodId: json.periodId,
-        year: json.year,
-        quarter: json.quarter,
-        updatedAt: json.updatedAt,
-      };
-    } catch (err: unknown) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Gagal menyimpan periode ke server.',
-      };
+    if (!res.ok) {
+      return { success: false, error: res.error };
     }
+
+    const json = res.data;
+    return {
+      success: !!json.success,
+      message: json.message,
+      periodId: json.periodId,
+      year: json.year,
+      quarter: json.quarter,
+      updatedAt: json.updatedAt,
+    };
   }
 
   /**
    * Mengambil daftar seluruh indikator kesehatan yang tersedia dalam database.
    */
   async getAvailableIndicators(): Promise<string[]> {
-    const baseUrl = this.getBaseUrl();
-    if (!baseUrl) {
+    const res = await this.requestJson('/analytics/indicators', { method: 'GET' });
+    if (!res.ok) {
       return [];
     }
-
-    try {
-      const response = await fetch(`${baseUrl}/analytics/indicators`, {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
-      });
-
-      if (!response.ok) {
-        return [];
-      }
-
-      const json = await response.json();
-      return Array.isArray(json.indicators) ? json.indicators : [];
-    } catch {
-      return [];
-    }
+    return Array.isArray(res.data.indicators) ? res.data.indicators : [];
   }
 
   /**
@@ -572,60 +469,38 @@ export class BackendStorageService {
     indicatorKey: string,
     districtCode?: string
   ): Promise<BackendTrendsResult> {
-    const baseUrl = this.getBaseUrl();
-    if (!baseUrl) {
+    const params = new URLSearchParams();
+    params.set('indicator', indicatorKey);
+    if (districtCode) {
+      params.set('district', districtCode);
+    }
+
+    const res = await this.requestJson(
+      `/analytics/trends?${params.toString()}`,
+      { method: 'GET' },
+      'Gagal mengeksekusi kueri tren.',
+    );
+
+    if (!res.ok) {
       return {
         success: false,
         indicator: indicatorKey,
         scope: districtCode ? 'district' : 'province',
         totalPeriods: 0,
         series: [],
-        error: 'Backend API URL belum dikonfigurasi.',
+        error: res.error,
       };
     }
 
-    try {
-      const params = new URLSearchParams();
-      params.set('indicator', indicatorKey);
-      if (districtCode) {
-        params.set('district', districtCode);
-      }
-
-      const response = await fetch(`${baseUrl}/analytics/trends?${params.toString()}`, {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
-      });
-
-      if (!response.ok) {
-        return {
-          success: false,
-          indicator: indicatorKey,
-          scope: districtCode ? 'district' : 'province',
-          totalPeriods: 0,
-          series: [],
-          error: `Server mengembalikan status HTTP ${response.status}`,
-        };
-      }
-
-      const json = await response.json();
-      return {
-        success: !!json.success,
-        indicator: json.indicator || indicatorKey,
-        scope: json.scope || (districtCode ? 'district' : 'province'),
-        districtCode: json.districtCode,
-        districtName: json.districtName,
-        totalPeriods: json.totalPeriods || (json.series ? json.series.length : 0),
-        series: (json.series || []) as BackendTrendPoint[],
-      };
-    } catch (err: unknown) {
-      return {
-        success: false,
-        indicator: indicatorKey,
-        scope: districtCode ? 'district' : 'province',
-        totalPeriods: 0,
-        series: [],
-        error: err instanceof Error ? err.message : 'Gagal mengeksekusi kueri tren.',
-      };
-    }
+    const json = res.data;
+    return {
+      success: !!json.success,
+      indicator: json.indicator || indicatorKey,
+      scope: json.scope || (districtCode ? 'district' : 'province'),
+      districtCode: json.districtCode,
+      districtName: json.districtName,
+      totalPeriods: json.totalPeriods || (json.series ? json.series.length : 0),
+      series: (json.series || []) as BackendTrendPoint[],
+    };
   }
 }

@@ -20,6 +20,7 @@ export function migrateSchema(db: DatabaseType): void {
       year INTEGER NOT NULL,
       quarter TEXT NOT NULL CHECK(quarter IN ('TW1', 'TW2', 'TW3', 'TW4')),
       status TEXT DEFAULT 'active' CHECK(status IN ('active', 'archived', 'draft')),
+      config_json TEXT,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(year, quarter)
     );
