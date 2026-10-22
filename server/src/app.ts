@@ -3,6 +3,7 @@ import cors from 'cors';
 import { healthRouter } from './routes/health';
 import { districtsRouter } from './routes/districts';
 import { configsRouter } from './routes/configs';
+import { periodsRouter } from './routes/periods';
 
 export function createApp(): Express {
   const app = express();
@@ -16,6 +17,7 @@ export function createApp(): Express {
   app.use('/api', healthRouter);
   app.use('/api', districtsRouter);
   app.use('/api', configsRouter);
+  app.use('/api', periodsRouter);
 
   return app;
 }

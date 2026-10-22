@@ -170,4 +170,88 @@ describe('BackendStorageService (Seam 2 Frontend Client)', () => {
       );
     });
   });
+
+  describe('listPeriods(), loadPeriod() & savePeriod()', () => {
+    it('harus memanggil /api/periods dan mengembalikan daftar periode', async () => {
+      const mockPeriods = [
+        { year: 2026, quarter: 'TW1', hasRaw: true, hasResult: false, fileSize: 1024 },
+      ];
+
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          success: true,
+          periods: mockPeriods,
+        }),
+      } as unknown as Response);
+
+      const res = await service.listPeriods();
+
+      expect(res.success).toBe(true);
+      expect(res.periods.length).toBe(1);
+      expect(res.periods[0].quarter).toBe('TW1');
+    });
+
+    it('harus memuat detail periode dan mengunduh berkas biner jika hasRaw true', async () => {
+      const mockMeta = {
+        hasData: true,
+        year: 2026,
+        quarter: 'TW1',
+        hasRaw: true,
+        hasResult: false,
+        observationsCount: 35,
+      };
+
+      const dummyBinary = new Uint8Array([1, 2, 3]).buffer;
+
+      globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/download/raw')) {
+          return Promise.resolve({
+            ok: true,
+            blob: async () => new Blob([dummyBinary]),
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockMeta,
+        });
+      });
+
+      const res = await service.loadPeriod(2026, 'TW1');
+
+      expect(res.success).toBe(true);
+      expect(res.hasData).toBe(true);
+      expect(res.rawExcelBuffer).toBeDefined();
+    });
+
+    it('harus mengirim multipart form data saat savePeriod dipanggil', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          success: true,
+          message: 'Saved',
+          periodId: 1,
+          year: 2026,
+          quarter: 'TW1',
+        }),
+      } as unknown as Response);
+
+      const res = await service.savePeriod({
+        year: 2026,
+        quarter: 'TW1',
+        rawExcelBuffer: new Uint8Array([1, 2, 3]).buffer,
+        observations: [{ districtCode: '3301', indicatorKey: 'stunting', numericValue: 10 }],
+      });
+
+      expect(res.success).toBe(true);
+      expect(res.periodId).toBe(1);
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        '/api/periods/2026/TW1',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.any(FormData),
+        })
+      );
+    });
+  });
 });

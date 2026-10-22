@@ -1,6 +1,8 @@
 import { Injectable, signal } from '@angular/core';
 import { environment } from '../../../environments/environment';
 
+export type QuarterSlot = 'TW1' | 'TW2' | 'TW3' | 'TW4';
+
 export interface BackendPingResult {
   success: boolean;
   status?: string;
@@ -39,6 +41,64 @@ export interface BackendConfigLoadResult {
 export interface BackendConfigSaveResult {
   success: boolean;
   message?: string;
+  updatedAt?: string;
+  error?: string;
+}
+
+export interface BackendPeriodItem {
+  id?: number;
+  year: number;
+  quarter: QuarterSlot;
+  hasRaw: boolean;
+  hasResult: boolean;
+  rawFileName?: string;
+  resultFileName?: string;
+  fileSize?: number;
+  updatedAt?: string;
+}
+
+export interface BackendPeriodListResult {
+  success: boolean;
+  periods: BackendPeriodItem[];
+  message?: string;
+  error?: string;
+}
+
+export interface BackendPeriodLoadResult {
+  success: boolean;
+  hasData: boolean;
+  year?: number;
+  quarter?: QuarterSlot;
+  status?: string;
+  updatedAt?: string;
+  hasRaw?: boolean;
+  hasResult?: boolean;
+  rawExcelBuffer?: ArrayBuffer;
+  resultExcelBuffer?: ArrayBuffer;
+  config?: unknown;
+  observationsCount?: number;
+  observations?: unknown[];
+  message?: string;
+  error?: string;
+}
+
+export interface BackendPeriodSavePayload {
+  year: number;
+  quarter: QuarterSlot;
+  rawExcelBuffer?: ArrayBuffer;
+  resultExcelBuffer?: ArrayBuffer;
+  rawFileName?: string;
+  resultFileName?: string;
+  config?: unknown;
+  observations?: unknown[];
+}
+
+export interface BackendPeriodSaveResult {
+  success: boolean;
+  message?: string;
+  periodId?: number;
+  year?: number;
+  quarter?: QuarterSlot;
   updatedAt?: string;
   error?: string;
 }
@@ -237,6 +297,221 @@ export class BackendStorageService {
       return {
         success: false,
         error: err instanceof Error ? err.message : 'Gagal menyimpan konfigurasi preset.',
+      };
+    }
+  }
+
+  /**
+   * Mengambil daftar seluruh periode yang telah tersimpan di server.
+   */
+  async listPeriods(): Promise<BackendPeriodListResult> {
+    const baseUrl = this.getBaseUrl();
+    if (!baseUrl) {
+      return { success: false, periods: [], error: 'Backend API URL belum dikonfigurasi.' };
+    }
+
+    try {
+      const response = await fetch(`${baseUrl}/periods`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+      });
+
+      if (!response.ok) {
+        return {
+          success: false,
+          periods: [],
+          error: `Server mengembalikan status HTTP ${response.status}`,
+        };
+      }
+
+      const json = await response.json();
+      return {
+        success: !!json.success,
+        periods: (json.periods || []) as BackendPeriodItem[],
+      };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        periods: [],
+        error: err instanceof Error ? err.message : 'Gagal mengambil daftar periode.',
+      };
+    }
+  }
+
+  /**
+   * Memuat detail periode beserta berkas biner dan baris observasi.
+   */
+  async loadPeriod(year: number, quarter: QuarterSlot): Promise<BackendPeriodLoadResult> {
+    const baseUrl = this.getBaseUrl();
+    if (!baseUrl) {
+      return { success: false, hasData: false, error: 'Backend API URL belum dikonfigurasi.' };
+    }
+
+    try {
+      const metaRes = await fetch(`${baseUrl}/periods/${year}/${quarter}`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+      });
+
+      if (!metaRes.ok) {
+        return {
+          success: false,
+          hasData: false,
+          error: `Server mengembalikan status HTTP ${metaRes.status}`,
+        };
+      }
+
+      const meta = await metaRes.json();
+      if (!meta.hasData) {
+        return {
+          success: true,
+          hasData: false,
+          year,
+          quarter,
+          message: meta.message || 'Periode belum memiliki data.',
+        };
+      }
+
+      let rawExcelBuffer: ArrayBuffer | undefined = undefined;
+      let resultExcelBuffer: ArrayBuffer | undefined = undefined;
+
+      // Unduh berkas fisik biner jika tersedia
+      if (meta.hasRaw) {
+        try {
+          const rawBlob = await this.downloadPeriodFile(year, quarter, 'raw');
+          if (rawBlob) {
+            rawExcelBuffer = await rawBlob.arrayBuffer();
+          }
+        } catch {
+          // Abaikan jika berkas fisik gagal diunduh
+        }
+      }
+
+      if (meta.hasResult) {
+        try {
+          const resBlob = await this.downloadPeriodFile(year, quarter, 'result');
+          if (resBlob) {
+            resultExcelBuffer = await resBlob.arrayBuffer();
+          }
+        } catch {
+          // Abaikan
+        }
+      }
+
+      return {
+        success: true,
+        hasData: true,
+        year: meta.year,
+        quarter: meta.quarter,
+        status: meta.status,
+        updatedAt: meta.updatedAt,
+        hasRaw: meta.hasRaw,
+        hasResult: meta.hasResult,
+        rawExcelBuffer,
+        resultExcelBuffer,
+        observationsCount: meta.observationsCount,
+        observations: meta.observations,
+      };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        hasData: false,
+        error: err instanceof Error ? err.message : 'Gagal memuat rincian periode.',
+      };
+    }
+  }
+
+  /**
+   * Mengunduh berkas fisik Excel biner langsung dari server.
+   */
+  async downloadPeriodFile(
+    year: number,
+    quarter: QuarterSlot,
+    type: 'raw' | 'result'
+  ): Promise<Blob | null> {
+    const baseUrl = this.getBaseUrl();
+    if (!baseUrl) {
+      return null;
+    }
+
+    const response = await fetch(`${baseUrl}/periods/${year}/${quarter}/download/${type}`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return await response.blob();
+  }
+
+  /**
+   * Menyimpan partisi periode (berkas fisik & observasi) ke server melalui multipart/form-data.
+   */
+  async savePeriod(payload: BackendPeriodSavePayload): Promise<BackendPeriodSaveResult> {
+    const baseUrl = this.getBaseUrl();
+    if (!baseUrl) {
+      return { success: false, error: 'Backend API URL belum dikonfigurasi.' };
+    }
+
+    try {
+      const formData = new FormData();
+
+      if (payload.rawExcelBuffer) {
+        const rawBlob = new Blob([payload.rawExcelBuffer], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        });
+        formData.append(
+          'rawFile',
+          rawBlob,
+          payload.rawFileName || `raw-data-${payload.year}-${payload.quarter}.xlsx`
+        );
+      }
+
+      if (payload.resultExcelBuffer) {
+        const resultBlob = new Blob([payload.resultExcelBuffer], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        });
+        formData.append(
+          'resultFile',
+          resultBlob,
+          payload.resultFileName || `joined-result-${payload.year}-${payload.quarter}.xlsx`
+        );
+      }
+
+      if (payload.config) {
+        formData.append('config', JSON.stringify(payload.config));
+      }
+
+      if (payload.observations && Array.isArray(payload.observations)) {
+        formData.append('observations', JSON.stringify(payload.observations));
+      }
+
+      const response = await fetch(`${baseUrl}/periods/${payload.year}/${payload.quarter}`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: `Server mengembalikan status HTTP ${response.status}`,
+        };
+      }
+
+      const json = await response.json();
+      return {
+        success: !!json.success,
+        message: json.message,
+        periodId: json.periodId,
+        year: json.year,
+        quarter: json.quarter,
+        updatedAt: json.updatedAt,
+      };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Gagal menyimpan periode ke server.',
       };
     }
   }
