@@ -4149,14 +4149,17 @@
                             {{ item.yVal.toFixed(1) }}%
                           </td>
                           <td
-                            class="whitespace-nowrap border border-slate-300 px-4 py-2.5 text-center bg-white"
+                            class="whitespace-nowrap border border-slate-300 px-4 py-2.5 text-center font-bold text-xs transition-colors"
+                            [class.bg-emerald-100]="item.quadrant === 1"
+                            [class.text-emerald-900]="item.quadrant === 1"
+                            [class.bg-amber-100]="item.quadrant === 2"
+                            [class.text-amber-900]="item.quadrant === 2"
+                            [class.bg-indigo-100]="item.quadrant === 3"
+                            [class.text-indigo-900]="item.quadrant === 3"
+                            [class.bg-rose-100]="item.quadrant === 4"
+                            [class.text-rose-900]="item.quadrant === 4"
                           >
-                            <span
-                              class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border"
-                              [class]="item.quadrantBadgeClass"
-                            >
-                              {{ item.quadrantTitle }}
-                            </span>
+                            {{ item.quadrantTitle }}
                           </td>
                           <td
                             class="border border-slate-300 px-4 py-2.5 text-left text-slate-700 bg-white leading-relaxed"
