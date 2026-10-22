@@ -25,6 +25,19 @@ import {
   HeatmapColorPalette,
 } from '../../core/chart/district-heatmap-engine';
 import {
+  IndicatorCorrelationEngine,
+  CorrelationMatrixResult,
+  CorrelationCell,
+  ScatterRegressionResult,
+  ScatterPoint,
+} from '../../core/chart/indicator-correlation-engine';
+import {
+  PriorityQuadrantEngine,
+  PriorityQuadrantResult,
+  QuadrantDistrictItem,
+  QuadrantThresholdMode,
+} from '../../core/chart/priority-quadrant-engine';
+import {
   IndicatorStuntingKnowledge,
   IndicatorStuntingExplanation,
 } from '../../core/chart/indicator-stunting-knowledge';
@@ -168,8 +181,8 @@ export class ChartVisualizerComponent {
   originalDataRows = signal<ChartDataRow[]>([]);
   targetValue = signal<number | null>(null);
 
-  // Mode Tampilan: 'by-region' (Multi-Indikator per Daerah) vs 'by-indicator' (Per Kolom Indikator) vs 'by-map' (Peta Heatmap)
-  viewMode = signal<'by-region' | 'by-indicator' | 'by-map'>('by-region');
+  // Mode Tampilan: 'by-region' (Multi-Indikator per Daerah) vs 'by-indicator' (Per Kolom Indikator) vs 'by-map' (Peta Heatmap) vs 'by-correlation' (Matriks Korelasi) vs 'by-quadrant' (Kuadran Prioritas)
+  viewMode = signal<'by-region' | 'by-indicator' | 'by-map' | 'by-correlation' | 'by-quadrant'>('by-region');
 
   // ============================================================
   // MODE PETA HEATMAP (SPASIAL JAWA TENGAH)
@@ -241,7 +254,172 @@ export class ChartVisualizerComponent {
   // Filter Tab Indikator pada Mode Per Indikator ('all' atau key seri tertentu)
   selectedIndicatorFilter = signal<string>('all');
 
-  setViewMode(mode: 'by-region' | 'by-indicator' | 'by-map'): void {
+  // ============================================================
+  // MODE 4: MATRIKS KORELASI INDIKATOR (CORRELOGRAM & SCATTER)
+  // ============================================================
+  selectedCorrelationCell = signal<CorrelationCell | null>(null);
+  hoveredScatterPoint = signal<ScatterPoint | null>(null);
+
+  correlationMatrixResult = computed<CorrelationMatrixResult | null>(() => {
+    const rows = this.dataRows();
+    const series = this.seriesList();
+    if (rows.length === 0 || series.length === 0) return null;
+    return IndicatorCorrelationEngine.calculateCorrelationMatrix(rows, series);
+  });
+
+  selectedScatterRegression = computed<ScatterRegressionResult | null>(() => {
+    const rows = this.dataRows();
+    const catCol = this.categoryColumn();
+    const cell = this.selectedCorrelationCell();
+    const series = this.seriesList();
+    if (rows.length === 0 || series.length < 2) return null;
+
+    let s1 = series[0];
+    let s2 = series[1];
+    if (cell) {
+      const match1 = series.find((s) => s.key === cell.key1);
+      const match2 = series.find((s) => s.key === cell.key2);
+      if (match1 && match2) {
+        s1 = match1;
+        s2 = match2;
+      }
+    }
+
+    return IndicatorCorrelationEngine.calculateScatterRegression(rows, catCol, s1, s2);
+  });
+
+  selectCorrelationPair(key1: string, key2: string): void {
+    const mat = this.correlationMatrixResult();
+    if (!mat) return;
+    for (const row of mat.matrix) {
+      for (const cell of row) {
+        if (
+          (cell.key1 === key1 && cell.key2 === key2) ||
+          (cell.key1 === key2 && cell.key2 === key1)
+        ) {
+          this.selectedCorrelationCell.set(cell);
+          return;
+        }
+      }
+    }
+  }
+
+  setHoveredScatterPoint(pt: ScatterPoint | null): void {
+    this.hoveredScatterPoint.set(pt);
+  }
+
+  // ============================================================
+  // MODE 5: KUADRAN PRIORITAS (4-QUADRANT POLICY MATRIX)
+  // ============================================================
+  quadrantMetricX = signal<string>('composite_hulu');
+  quadrantMetricY = signal<string>('composite_hilir');
+  quadrantThresholdMode = signal<QuadrantThresholdMode>('median');
+  quadrantCustomThreshX = signal<number>(50);
+  quadrantCustomThreshY = signal<number>(50);
+  hoveredQuadrantDistrict = signal<QuadrantDistrictItem | null>(null);
+  selectedQuadrantFilter = signal<1 | 2 | 3 | 4 | 'all'>('all');
+
+  priorityQuadrantResult = computed<PriorityQuadrantResult | null>(() => {
+    const rows = this.dataRows();
+    const series = this.seriesList();
+    const catCol = this.categoryColumn();
+    if (rows.length === 0 || series.length === 0) return null;
+
+    return PriorityQuadrantEngine.classifyQuadrants({
+      rows,
+      categoryColumn: catCol,
+      seriesList: series,
+      metricX: this.quadrantMetricX(),
+      metricY: this.quadrantMetricY(),
+      thresholdMode: this.quadrantThresholdMode(),
+      customThresholdX: this.quadrantCustomThreshX(),
+      customThresholdY: this.quadrantCustomThreshY(),
+    });
+  });
+
+  filteredQuadrantDistricts = computed<QuadrantDistrictItem[]>(() => {
+    const res = this.priorityQuadrantResult();
+    if (!res) return [];
+    const filter = this.selectedQuadrantFilter();
+    if (filter === 'all') return res.districts;
+    return res.districts.filter((d) => d.quadrant === filter);
+  });
+
+  quadrantCrosshairs = computed(() => {
+    const res = this.priorityQuadrantResult();
+    if (!res) return { xPercent: 50, yPercent: 50 };
+    const spanX = res.maxX > res.minX ? res.maxX - res.minX : 1;
+    const spanY = res.maxY > res.minY ? res.maxY - res.minY : 1;
+    const xPct = Math.max(5, Math.min(95, ((res.thresholdX - res.minX) / spanX) * 100));
+    const yPct = Math.max(5, Math.min(95, ((res.thresholdY - res.minY) / spanY) * 100));
+    return { xPercent: xPct, yPercent: yPct };
+  });
+
+  quadrantSvgLayout = computed(() => {
+    const cross = this.quadrantCrosshairs();
+    const xCross = Math.round((60 + (cross.xPercent / 100) * 600) * 10) / 10;
+    const yCross = Math.round((40 + (1 - cross.yPercent / 100) * 380) * 10) / 10;
+    return {
+      xCross,
+      yCross,
+      q2Width: Math.max(0, xCross - 60),
+      q2Height: Math.max(0, yCross - 40),
+      q1Width: Math.max(0, 660 - xCross),
+      q1Height: Math.max(0, yCross - 40),
+      q4Width: Math.max(0, xCross - 60),
+      q4Height: Math.max(0, 420 - yCross),
+      q3Width: Math.max(0, 660 - xCross),
+      q3Height: Math.max(0, 420 - yCross),
+    };
+  });
+
+  scatterSvgLayout = computed(() => {
+    const reg = this.selectedScatterRegression();
+    if (!reg) return null;
+    const y1 = reg.slope * reg.minX + reg.intercept;
+    const y2 = reg.slope * reg.maxX + reg.intercept;
+    const spanY = reg.maxY > reg.minY ? reg.maxY - reg.minY : 1;
+    const normY1 = Math.max(0, Math.min(1, (y1 - reg.minY) / spanY));
+    const normY2 = Math.max(0, Math.min(1, (y2 - reg.minY) / spanY));
+    return {
+      x1: 60,
+      y1: Math.round((30 + (1 - normY1) * 330) * 10) / 10,
+      x2: 670,
+      y2: Math.round((30 + (1 - normY2) * 330) * 10) / 10,
+    };
+  });
+
+  setQuadrantMetricX(metric: string): void {
+    this.quadrantMetricX.set(metric);
+  }
+
+  setQuadrantMetricY(metric: string): void {
+    this.quadrantMetricY.set(metric);
+  }
+
+  setQuadrantThresholdMode(mode: QuadrantThresholdMode): void {
+    this.quadrantThresholdMode.set(mode);
+  }
+
+  setQuadrantCustomThreshX(val: number): void {
+    this.quadrantCustomThreshX.set(val);
+  }
+
+  setQuadrantCustomThreshY(val: number): void {
+    this.quadrantCustomThreshY.set(val);
+  }
+
+  setQuadrantFilter(filter: 1 | 2 | 3 | 4 | 'all'): void {
+    this.selectedQuadrantFilter.set(filter);
+  }
+
+  setHoveredQuadrantDistrict(d: QuadrantDistrictItem | null): void {
+    this.hoveredQuadrantDistrict.set(d);
+  }
+
+  setViewMode(
+    mode: 'by-region' | 'by-indicator' | 'by-map' | 'by-correlation' | 'by-quadrant',
+  ): void {
     this.viewMode.set(mode);
   }
 

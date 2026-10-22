@@ -1736,4 +1736,129 @@ describe('ChartVisualizerComponent', () => {
       expect(component.isChartFilterActive()).toBe(false);
     });
   });
+
+  describe('Mode 4 & Mode 5: Matriks Korelasi & Kuadran Prioritas', () => {
+    it('should switch viewMode to by-correlation and by-quadrant', () => {
+      populateTestData();
+      component.setViewMode('by-correlation');
+      expect(component.viewMode()).toBe('by-correlation');
+
+      component.setViewMode('by-quadrant');
+      expect(component.viewMode()).toBe('by-quadrant');
+    });
+
+    it('should compute correlationMatrixResult and selectedScatterRegression when data is available', () => {
+      populateTestData();
+      fixture.detectChanges();
+
+      const mat = component.correlationMatrixResult();
+      expect(mat).not.toBeNull();
+      expect(mat?.series.length).toBe(4);
+      expect(mat?.matrix.length).toBe(4);
+
+      const scatter = component.selectedScatterRegression();
+      expect(scatter).not.toBeNull();
+      expect(scatter?.points.length).toBeGreaterThan(0);
+      expect(scatter?.formula).toContain('y =');
+
+      const svgLayout = component.scatterSvgLayout();
+      expect(svgLayout).not.toBeNull();
+      expect(svgLayout?.x1).toBe(60);
+      expect(svgLayout?.x2).toBe(670);
+    });
+
+    it('should allow selecting a correlation pair to update selectedCorrelationCell', () => {
+      populateTestData();
+      fixture.detectChanges();
+
+      component.selectCorrelationPair('tw1', 'tw3');
+      const cell = component.selectedCorrelationCell();
+      expect(cell).not.toBeNull();
+      expect(
+        (cell?.key1 === 'tw1' && cell?.key2 === 'tw3') ||
+          (cell?.key1 === 'tw3' && cell?.key2 === 'tw1'),
+      ).toBe(true);
+
+      const scatter = component.selectedScatterRegression();
+      expect(scatter?.seriesX.key).toBe('tw1');
+      expect(scatter?.seriesY.key).toBe('tw3');
+    });
+
+    it('should compute priorityQuadrantResult with median threshold mode', () => {
+      populateTestData();
+      fixture.detectChanges();
+
+      const quad = component.priorityQuadrantResult();
+      expect(quad).not.toBeNull();
+      expect(quad?.districts.length).toBe(5);
+      expect(quad?.thresholdMode).toBe('median');
+      expect(quad?.quadrantSummaries.q1).toBeDefined();
+
+      const cross = component.quadrantCrosshairs();
+      expect(cross.xPercent).toBeGreaterThanOrEqual(5);
+      expect(cross.xPercent).toBeLessThanOrEqual(95);
+
+      const qsl = component.quadrantSvgLayout();
+      expect(qsl.xCross).toBeGreaterThan(60);
+      expect(qsl.yCross).toBeGreaterThan(40);
+    });
+
+    it('should switch quadrant metrics and threshold mode', () => {
+      populateTestData();
+      fixture.detectChanges();
+
+      component.setQuadrantMetricX('tw1');
+      component.setQuadrantMetricY('tw4');
+      component.setQuadrantThresholdMode('target');
+      fixture.detectChanges();
+
+      const quad = component.priorityQuadrantResult();
+      expect(quad?.metricXKey).toBe('tw1');
+      expect(quad?.metricYKey).toBe('tw4');
+      expect(quad?.thresholdMode).toBe('target');
+      expect(quad?.thresholdX).toBe(80);
+      expect(quad?.thresholdY).toBe(80);
+    });
+
+    it('should filter quadrant districts based on selectedQuadrantFilter', () => {
+      populateTestData();
+      fixture.detectChanges();
+
+      component.setQuadrantFilter('all');
+      expect(component.filteredQuadrantDistricts().length).toBe(5);
+
+      component.setQuadrantFilter(1);
+      const filtered = component.filteredQuadrantDistricts();
+      for (const item of filtered) {
+        expect(item.quadrant).toBe(1);
+      }
+    });
+
+    it('should handle hovering scatter points and quadrant districts', () => {
+      const mockPt = { category: 'Kab. Magelang', x: 72.4, y: 84.5, normX: 0.5, normY: 0.5 };
+      component.setHoveredScatterPoint(mockPt);
+      expect(component.hoveredScatterPoint()).toEqual(mockPt);
+
+      component.setHoveredScatterPoint(null);
+      expect(component.hoveredScatterPoint()).toBeNull();
+
+      const mockDist = {
+        category: 'Kab. Magelang',
+        xVal: 72.4,
+        yVal: 84.5,
+        normX: 0.5,
+        normY: 0.5,
+        quadrant: 1 as const,
+        quadrantTitle: 'Kuadran I',
+        quadrantBadgeClass: 'badge',
+        color: '#10B981',
+        interpretation: 'Prima',
+      };
+      component.setHoveredQuadrantDistrict(mockDist);
+      expect(component.hoveredQuadrantDistrict()).toEqual(mockDist);
+
+      component.setHoveredQuadrantDistrict(null);
+      expect(component.hoveredQuadrantDistrict()).toBeNull();
+    });
+  });
 });

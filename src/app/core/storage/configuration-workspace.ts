@@ -126,7 +126,7 @@ export interface ChartConfigurationPreset {
   chartSubtitle?: string;
   hiddenRows?: string[];
   deletedRows?: string[];
-  viewMode?: 'by-region' | 'by-indicator' | 'by-map';
+  viewMode?: 'by-region' | 'by-indicator' | 'by-map' | 'by-correlation' | 'by-quadrant';
   activeMapIndicator?: string;
   regionColumns?: 1 | 2;
   regionGridColumns?: 1 | 2 | 3;

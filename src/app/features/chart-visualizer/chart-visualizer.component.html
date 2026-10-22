@@ -853,6 +853,50 @@
                 </svg>
                 <span>Peta Heatmap</span>
               </button>
+
+              <button
+                type="button"
+                (click)="setViewMode('by-correlation')"
+                class="flex items-center gap-1.5 rounded-md px-3 py-1.5 transition cursor-pointer"
+                [class.bg-white]="viewMode() === 'by-correlation'"
+                [class.text-[#525AFF]]="viewMode() === 'by-correlation'"
+                [class.shadow-xs]="viewMode() === 'by-correlation'"
+                [class.text-slate-600]="viewMode() !== 'by-correlation'"
+                [class.hover:text-[#525AFF]]="viewMode() !== 'by-correlation'"
+                title="Mode Korelasi: Matriks korelasi Pearson dan regresi scatter antar indikator kesehatan"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"
+                  />
+                </svg>
+                <span>Matriks Korelasi</span>
+              </button>
+
+              <button
+                type="button"
+                (click)="setViewMode('by-quadrant')"
+                class="flex items-center gap-1.5 rounded-md px-3 py-1.5 transition cursor-pointer"
+                [class.bg-white]="viewMode() === 'by-quadrant'"
+                [class.text-[#525AFF]]="viewMode() === 'by-quadrant'"
+                [class.shadow-xs]="viewMode() === 'by-quadrant'"
+                [class.text-slate-600]="viewMode() !== 'by-quadrant'"
+                [class.hover:text-[#525AFF]]="viewMode() !== 'by-quadrant'"
+                title="Mode Kuadran Prioritas: Pemetaan 4 kuadran kebijakan (Hulu vs Hilir) untuk alokasi intervensi stunting"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+                  />
+                </svg>
+                <span>Kuadran Prioritas</span>
+              </button>
             </div>
 
             <!-- UNDUH DATA KE EXCEL -->
@@ -2390,7 +2434,7 @@
               wilayah.
             </span>
           </div>
-        } @else {
+        } @else if (viewMode() === 'by-map') {
           <!-- ============================================== -->
           <!-- MODE 3: PETA HEATMAP (SPASIAL JAWA TENGAH)     -->
           <!-- ============================================== -->
@@ -3064,6 +3108,1019 @@
               <p class="mt-1 text-xs text-slate-500">
                 Pilih minimal satu kolom indikator angka atau persentase untuk merender peta heatmap
                 wilayah.
+              </p>
+            </div>
+          }
+        } @else if (viewMode() === 'by-correlation') {
+          <!-- ============================================== -->
+          <!-- MODE 4: MATRIKS KORELASI INDIKATOR & SCATTER    -->
+          <!-- ============================================== -->
+          @if (correlationMatrixResult(); as corrData) {
+            <div class="space-y-6">
+              <!-- HEADER KARTU KORELASI -->
+              <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">
+                <div
+                  class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-100 pb-4"
+                >
+                  <div class="flex items-center gap-3">
+                    <span
+                      class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200"
+                    >
+                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"
+                        />
+                      </svg>
+                    </span>
+                    <div>
+                      <h4 class="text-base font-bold text-slate-800">
+                        Matriks Korelasi Antar Indikator (Correlogram)
+                      </h4>
+                      <p class="text-xs text-slate-500 mt-0.5">
+                        Kalkulasi Pearson correlation coefficient (r) dinamis dari
+                        {{ dataRows().length }} kabupaten/kota. Klik sel matriks untuk membedah
+                        regresi linear dan diagram sebar.
+                      </p>
+                    </div>
+                  </div>
+
+                  <!-- LEGENDA KEKUATAN KORELASI -->
+                  <div class="flex flex-wrap items-center gap-2 text-[11px] font-medium">
+                    <span class="text-slate-400 font-semibold mr-1">Skala r:</span>
+                    <span
+                      class="inline-flex items-center gap-1 rounded px-2 py-0.5 bg-emerald-700 text-white font-bold"
+                      >≥ +0.7 Positif Kuat</span
+                    >
+                    <span
+                      class="inline-flex items-center gap-1 rounded px-2 py-0.5 bg-emerald-500 text-white font-bold"
+                      >+0.4 s/d +0.7 Sedang</span
+                    >
+                    <span
+                      class="inline-flex items-center gap-1 rounded px-2 py-0.5 bg-slate-200 text-slate-700 font-semibold"
+                      >Netral / Lemah</span
+                    >
+                    <span
+                      class="inline-flex items-center gap-1 rounded px-2 py-0.5 bg-rose-400 text-white font-bold"
+                      >-0.4 s/d -0.7 Sedang</span
+                    >
+                    <span
+                      class="inline-flex items-center gap-1 rounded px-2 py-0.5 bg-rose-700 text-white font-bold"
+                      >≤ -0.7 Negatif Kuat</span
+                    >
+                  </div>
+                </div>
+
+                <!-- TOP INSIGHTS CARDS -->
+                <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <!-- TOP POSITIF -->
+                  <div class="rounded-lg border border-emerald-100 bg-emerald-50/50 p-3.5">
+                    <div
+                      class="flex items-center justify-between text-xs font-bold text-emerald-800 mb-2"
+                    >
+                      <span class="flex items-center gap-1.5">
+                        <svg
+                          class="w-4 h-4 text-emerald-600"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
+                          />
+                        </svg>
+                        Hubungan Sinergi Tertinggi (Korelasi Positif)
+                      </span>
+                      <span
+                        class="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold"
+                        >Tumbuh Bersama</span
+                      >
+                    </div>
+                    @if (corrData.topPositive.length > 0) {
+                      <div class="space-y-1.5">
+                        @for (p of corrData.topPositive; track p.key1 + '-' + p.key2) {
+                          <button
+                            type="button"
+                            (click)="selectCorrelationPair(p.key1, p.key2)"
+                            class="w-full flex items-center justify-between p-2 rounded-md bg-white border border-emerald-200/60 hover:border-emerald-400 hover:shadow-xs transition text-left cursor-pointer group"
+                          >
+                            <span
+                              class="text-xs text-slate-700 truncate pr-2 group-hover:text-emerald-700 font-medium"
+                            >
+                              {{ p.label1 }} <span class="text-slate-400">↔</span> {{ p.label2 }}
+                            </span>
+                            <span
+                              class="shrink-0 text-xs font-mono font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800"
+                            >
+                              r = +{{ p.r.toFixed(3) }}
+                            </span>
+                          </button>
+                        }
+                      </div>
+                    } @else {
+                      <div class="text-xs text-slate-400 italic">
+                        Belum ada pasangan indikator dengan korelasi positif signifikan.
+                      </div>
+                    }
+                  </div>
+
+                  <!-- TOP NEGATIF / DISPARITAS -->
+                  <div class="rounded-lg border border-rose-100 bg-rose-50/50 p-3.5">
+                    <div
+                      class="flex items-center justify-between text-xs font-bold text-rose-800 mb-2"
+                    >
+                      <span class="flex items-center gap-1.5">
+                        <svg
+                          class="w-4 h-4 text-rose-600"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"
+                          />
+                        </svg>
+                        Hubungan Trade-off / Disparitas (Korelasi Negatif)
+                      </span>
+                      <span
+                        class="text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold"
+                        >Arah Berlawanan</span
+                      >
+                    </div>
+                    @if (corrData.topNegative.length > 0) {
+                      <div class="space-y-1.5">
+                        @for (n of corrData.topNegative; track n.key1 + '-' + n.key2) {
+                          <button
+                            type="button"
+                            (click)="selectCorrelationPair(n.key1, n.key2)"
+                            class="w-full flex items-center justify-between p-2 rounded-md bg-white border border-rose-200/60 hover:border-rose-400 hover:shadow-xs transition text-left cursor-pointer group"
+                          >
+                            <span
+                              class="text-xs text-slate-700 truncate pr-2 group-hover:text-rose-700 font-medium"
+                            >
+                              {{ n.label1 }} <span class="text-slate-400">↔</span> {{ n.label2 }}
+                            </span>
+                            <span
+                              class="shrink-0 text-xs font-mono font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-800"
+                            >
+                              r = {{ n.r.toFixed(3) }}
+                            </span>
+                          </button>
+                        }
+                      </div>
+                    } @else {
+                      <div class="text-xs text-slate-400 italic">
+                        Belum ada pasangan indikator dengan korelasi negatif signifikan.
+                      </div>
+                    }
+                  </div>
+                </div>
+
+                <!-- TABEL HEATMAP CORRELOGRAM -->
+                <div class="mt-5 overflow-x-auto rounded-lg border border-slate-200 shadow-2xs">
+                  <table class="min-w-full divide-y divide-slate-200 text-xs">
+                    <thead class="bg-slate-50">
+                      <tr>
+                        <th
+                          class="sticky left-0 z-20 bg-slate-100 px-3 py-2 text-left font-bold text-slate-700 border-r border-slate-200"
+                        >
+                          Indikator Kesehatan
+                        </th>
+                        @for (col of corrData.series; track col.key) {
+                          <th
+                            class="px-2 py-2 text-center font-bold text-slate-700 max-w-[120px] truncate"
+                            [title]="col.label"
+                          >
+                            {{ col.label }}
+                          </th>
+                        }
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 bg-white">
+                      @for (row of corrData.matrix; let i = $index; track i) {
+                        <tr class="hover:bg-slate-50/50">
+                          <td
+                            class="sticky left-0 z-10 bg-slate-50 px-3 py-2 font-medium text-slate-800 border-r border-slate-200 max-w-[200px] truncate"
+                            [title]="corrData.series[i].label"
+                          >
+                            <span
+                              class="inline-block w-2 h-2 rounded-full mr-1.5"
+                              [style.backgroundColor]="corrData.series[i].color || '#525AFF'"
+                            ></span>
+                            {{ corrData.series[i].label }}
+                          </td>
+                          @for (cell of row; track cell.key2) {
+                            <td
+                              (click)="selectCorrelationPair(cell.key1, cell.key2)"
+                              class="px-2 py-2 text-center font-mono font-semibold transition cursor-pointer select-none"
+                              [style.backgroundColor]="cell.color"
+                              [style.color]="cell.textColor"
+                              [class.ring-2]="
+                                selectedCorrelationCell()?.key1 === cell.key1 &&
+                                selectedCorrelationCell()?.key2 === cell.key2
+                              "
+                              [class.ring-indigo-600]="
+                                selectedCorrelationCell()?.key1 === cell.key1 &&
+                                selectedCorrelationCell()?.key2 === cell.key2
+                              "
+                              [class.ring-inset]="
+                                selectedCorrelationCell()?.key1 === cell.key1 &&
+                                selectedCorrelationCell()?.key2 === cell.key2
+                              "
+                              [title]="
+                                cell.label1 +
+                                ' vs ' +
+                                cell.label2 +
+                                ' (r = ' +
+                                cell.r.toFixed(3) +
+                                ', R² = ' +
+                                (cell.r2 * 100).toFixed(1) +
+                                '%)'
+                              "
+                            >
+                              {{
+                                cell.key1 === cell.key2
+                                  ? '1.00'
+                                  : (cell.r >= 0 ? '+' : '') + cell.r.toFixed(2)
+                              }}
+                            </td>
+                          }
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- REGRESI SCATTER PLOT DETAIL UNTUK PASANGAN TERPILIH -->
+              @if (selectedScatterRegression(); as reg) {
+                <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">
+                  <div
+                    class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-100 pb-4"
+                  >
+                    <div>
+                      <div class="flex items-center gap-2">
+                        <span
+                          class="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded"
+                        >
+                          Analisis Regresi OLS
+                        </span>
+                        <h4 class="text-base font-bold text-slate-800">
+                          {{ reg.seriesX.label }}
+                          <span class="text-slate-400 font-normal">terhadap</span>
+                          {{ reg.seriesY.label }}
+                        </h4>
+                      </div>
+                      <p class="text-xs text-slate-500 mt-1">
+                        Persamaan regresi:
+                        <strong class="text-slate-800 font-mono">{{ reg.formula }}</strong>
+                      </p>
+                    </div>
+
+                    <!-- METRIK SUMMARY REGRESI -->
+                    <div class="flex flex-wrap items-center gap-3">
+                      <div class="rounded-lg bg-slate-50 border border-slate-200 px-3 py-1.5 text-center">
+                        <div class="text-[10px] text-slate-500 font-medium">Koefisien Korelasi (r)</div>
+                        <div class="text-sm font-bold font-mono text-slate-800">
+                          {{ reg.r >= 0 ? '+' : '' }}{{ reg.r.toFixed(3) }}
+                        </div>
+                      </div>
+                      <div class="rounded-lg bg-slate-50 border border-slate-200 px-3 py-1.5 text-center">
+                        <div class="text-[10px] text-slate-500 font-medium">Determinasi (R²)</div>
+                        <div class="text-sm font-bold font-mono text-indigo-600">
+                          {{ (reg.r2 * 100).toFixed(1) }}%
+                        </div>
+                      </div>
+                      <div class="rounded-lg bg-slate-50 border border-slate-200 px-3 py-1.5 text-center">
+                        <div class="text-[10px] text-slate-500 font-medium">Kemiringan (Slope m)</div>
+                        <div class="text-sm font-bold font-mono text-slate-800">
+                          {{ reg.slope.toFixed(3) }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- SVG SCATTER CANVAS -->
+                  <div class="mt-6 relative">
+                    <div class="w-full overflow-hidden bg-slate-50/70 rounded-lg border border-slate-200 p-2">
+                      <svg
+                        class="w-full h-auto max-h-[460px]"
+                        viewBox="0 0 700 420"
+                        preserveAspectRatio="xMidYMid meet"
+                      >
+                        <!-- Grid Lines -->
+                        <line x1="60" y1="30" x2="670" y2="30" stroke="#E2E8F0" stroke-width="1" />
+                        <line
+                          x1="60"
+                          y1="112"
+                          x2="670"
+                          y2="112"
+                          stroke="#E2E8F0"
+                          stroke-width="1"
+                          stroke-dasharray="2 2"
+                        />
+                        <line
+                          x1="60"
+                          y1="195"
+                          x2="670"
+                          y2="195"
+                          stroke="#E2E8F0"
+                          stroke-width="1"
+                          stroke-dasharray="2 2"
+                        />
+                        <line
+                          x1="60"
+                          y1="277"
+                          x2="670"
+                          y2="277"
+                          stroke="#E2E8F0"
+                          stroke-width="1"
+                          stroke-dasharray="2 2"
+                        />
+                        <line x1="60" y1="360" x2="670" y2="360" stroke="#CBD5E1" stroke-width="1.5" />
+
+                        <line x1="60" y1="30" x2="60" y2="360" stroke="#CBD5E1" stroke-width="1.5" />
+                        <line
+                          x1="212"
+                          y1="30"
+                          x2="212"
+                          y2="360"
+                          stroke="#E2E8F0"
+                          stroke-width="1"
+                          stroke-dasharray="2 2"
+                        />
+                        <line
+                          x1="365"
+                          y1="30"
+                          x2="365"
+                          y2="360"
+                          stroke="#E2E8F0"
+                          stroke-width="1"
+                          stroke-dasharray="2 2"
+                        />
+                        <line
+                          x1="517"
+                          y1="30"
+                          x2="517"
+                          y2="360"
+                          stroke="#E2E8F0"
+                          stroke-width="1"
+                          stroke-dasharray="2 2"
+                        />
+                        <line x1="670" y1="30" x2="670" y2="360" stroke="#E2E8F0" stroke-width="1" />
+
+                        <!-- OLS Regression Trendline -->
+                        @if (scatterSvgLayout(); as sl) {
+                          <line
+                            [attr.x1]="sl.x1"
+                            [attr.y1]="sl.y1"
+                            [attr.x2]="sl.x2"
+                            [attr.y2]="sl.y2"
+                            stroke="#525AFF"
+                            stroke-width="3"
+                            stroke-linecap="round"
+                          />
+                        }
+
+                        <!-- Scatter Points -->
+                        @for (p of reg.points; track p.category) {
+                          <circle
+                            [attr.cx]="60 + p.normX * 610"
+                            [attr.cy]="30 + (1 - p.normY) * 330"
+                            r="6"
+                            fill="#525AFF"
+                            fill-opacity="0.8"
+                            stroke="#ffffff"
+                            stroke-width="2"
+                            class="transition-transform duration-150 hover:scale-150 cursor-pointer"
+                            (mouseenter)="setHoveredScatterPoint(p)"
+                            (mouseleave)="setHoveredScatterPoint(null)"
+                          />
+                        }
+
+                        <!-- Axis Labels -->
+                        <text
+                          x="365"
+                          y="405"
+                          text-anchor="middle"
+                          font-size="12"
+                          font-weight="600"
+                          fill="#475569"
+                        >
+                          Sumbu X: {{ reg.seriesX.label }} ({{ reg.minX.toFixed(1) }} s/d
+                          {{ reg.maxX.toFixed(1) }})
+                        </text>
+                        <text
+                          x="18"
+                          y="195"
+                          text-anchor="middle"
+                          font-size="12"
+                          font-weight="600"
+                          fill="#475569"
+                          transform="rotate(-90 18 195)"
+                        >
+                          Sumbu Y: {{ reg.seriesY.label }}
+                        </text>
+                        <text x="60" y="375" text-anchor="start" font-size="10" fill="#94A3B8">
+                          {{ reg.minX.toFixed(1) }}
+                        </text>
+                        <text x="670" y="375" text-anchor="end" font-size="10" fill="#94A3B8">
+                          {{ reg.maxX.toFixed(1) }}
+                        </text>
+                        <text x="50" y="360" text-anchor="end" font-size="10" fill="#94A3B8">
+                          {{ reg.minY.toFixed(1) }}
+                        </text>
+                        <text x="50" y="35" text-anchor="end" font-size="10" fill="#94A3B8">
+                          {{ reg.maxY.toFixed(1) }}
+                        </text>
+                      </svg>
+                    </div>
+
+                    <!-- HOVERED POINT TOOLTIP POPUP -->
+                    @if (hoveredScatterPoint(); as hp) {
+                      <div
+                        class="mt-3 flex items-center gap-3 p-3 rounded-lg bg-indigo-50 border border-indigo-200 text-xs text-indigo-950"
+                      >
+                        <span class="font-bold text-sm text-indigo-800">{{ hp.category }}</span>
+                        <span class="text-slate-400">|</span>
+                        <span
+                          >{{ reg.seriesX.label }}:
+                          <strong class="font-mono">{{ hp.x }}</strong></span
+                        >
+                        <span class="text-slate-400">|</span>
+                        <span
+                          >{{ reg.seriesY.label }}:
+                          <strong class="font-mono">{{ hp.y }}</strong></span
+                        >
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          } @else {
+            <div class="rounded-xl border border-slate-200 bg-white p-12 text-center">
+              <h4 class="text-base font-bold text-slate-700">Matriks Korelasi Siap Dihitung</h4>
+              <p class="mt-1 text-xs text-slate-500">
+                Pilih minimal 2 kolom indikator angka atau persentase untuk menghitung korelasi dan
+                regresi antar indikator.
+              </p>
+            </div>
+          }
+        } @else if (viewMode() === 'by-quadrant') {
+          <!-- ============================================== -->
+          <!-- MODE 5: KUADRAN PRIORITAS (HULU VS HILIR)      -->
+          <!-- ============================================== -->
+          @if (priorityQuadrantResult(); as quad) {
+            <div class="space-y-6">
+              <!-- HEADER & KONTROL SUMBU / AMBANG -->
+              <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">
+                <div
+                  class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-100 pb-4"
+                >
+                  <div class="flex items-center gap-3">
+                    <span
+                      class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200"
+                    >
+                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+                        />
+                      </svg>
+                    </span>
+                    <div>
+                      <h4 class="text-base font-bold text-slate-800">
+                        Matriks Kuadran Prioritas Intervensi Stunting
+                      </h4>
+                      <p class="text-xs text-slate-500 mt-0.5">
+                        Segmentasi 35 Kabupaten/Kota ke dalam 4 kuadran kebijakan untuk
+                        mengidentifikasi bottleneck pencegahan (Hulu) vs penanganan (Hilir).
+                      </p>
+                    </div>
+                  </div>
+
+                  <!-- KONTROL SUMBU X, Y & MODE AMBANG -->
+                  <div class="flex flex-wrap items-center gap-3">
+                    <!-- Sumbu X (Hulu) -->
+                    <div class="flex items-center gap-1.5 text-xs">
+                      <label class="font-semibold text-slate-600">Sumbu X (Hulu):</label>
+                      <select
+                        [value]="quadrantMetricX()"
+                        (change)="setQuadrantMetricX($any($event.target).value)"
+                        class="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:border-[#525AFF] focus:outline-hidden"
+                      >
+                        <option value="composite_hulu">Komposit Capaian Hulu (Remaja &amp; Bumil)</option>
+                        @for (s of seriesList(); track s.key) {
+                          <option [value]="s.key">{{ s.label }}</option>
+                        }
+                      </select>
+                    </div>
+
+                    <!-- Sumbu Y (Hilir) -->
+                    <div class="flex items-center gap-1.5 text-xs">
+                      <label class="font-semibold text-slate-600">Sumbu Y (Hilir):</label>
+                      <select
+                        [value]="quadrantMetricY()"
+                        (change)="setQuadrantMetricY($any($event.target).value)"
+                        class="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:border-[#525AFF] focus:outline-hidden"
+                      >
+                        <option value="composite_hilir">Komposit Capaian Hilir (Balita &amp; Gizi)</option>
+                        @for (s of seriesList(); track s.key) {
+                          <option [value]="s.key">{{ s.label }}</option>
+                        }
+                      </select>
+                    </div>
+
+                    <!-- Ambang Threshold Mode -->
+                    <div class="flex items-center gap-1 bg-slate-100 rounded-lg p-1 text-xs">
+                      <span class="text-[10px] font-semibold text-slate-500 uppercase px-1">Ambang:</span>
+                      <button
+                        type="button"
+                        (click)="setQuadrantThresholdMode('median')"
+                        class="rounded px-2 py-0.5 font-medium transition cursor-pointer"
+                        [class.bg-white]="quadrantThresholdMode() === 'median'"
+                        [class.text-[#525AFF]]="quadrantThresholdMode() === 'median'"
+                        [class.shadow-2xs]="quadrantThresholdMode() === 'median'"
+                        [class.text-slate-600]="quadrantThresholdMode() !== 'median'"
+                        title="Gunakan median capaian 35 kabupaten/kota sebagai batas tengah"
+                      >
+                        Median ({{ quad.medianX }}% / {{ quad.medianY }}%)
+                      </button>
+                      <button
+                        type="button"
+                        (click)="setQuadrantThresholdMode('target')"
+                        class="rounded px-2 py-0.5 font-medium transition cursor-pointer"
+                        [class.bg-white]="quadrantThresholdMode() === 'target'"
+                        [class.text-[#525AFF]]="quadrantThresholdMode() === 'target'"
+                        [class.shadow-2xs]="quadrantThresholdMode() === 'target'"
+                        [class.text-slate-600]="quadrantThresholdMode() !== 'target'"
+                        title="Gunakan target baku 80% sebagai standar ambang kelulusan"
+                      >
+                        Target 80%
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 4 KARTU KUADRAN KEBIJAKAN -->
+                <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                  <!-- KUADRAN 1: MANDIRI (KANAN ATAS) -->
+                  <div
+                    (click)="setQuadrantFilter(selectedQuadrantFilter() === 1 ? 'all' : 1)"
+                    class="rounded-xl border p-4 transition cursor-pointer select-none"
+                    [class.border-emerald-300]="
+                      selectedQuadrantFilter() === 1 || selectedQuadrantFilter() === 'all'
+                    "
+                    [class.bg-emerald-50]="selectedQuadrantFilter() === 1"
+                    [class.bg-emerald-50/40]="selectedQuadrantFilter() === 'all'"
+                    [class.opacity-50]="
+                      selectedQuadrantFilter() !== 1 && selectedQuadrantFilter() !== 'all'
+                    "
+                  >
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-bold text-emerald-800">Kuadran I</span>
+                      <span
+                        class="text-xs font-mono font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full"
+                      >
+                        {{ quad.quadrantSummaries.q1.count }} Kab/Kota ({{
+                          quad.quadrantSummaries.q1.percentage
+                        }}%)
+                      </span>
+                    </div>
+                    <div class="text-sm font-bold text-slate-800 mt-1">Mandiri &amp; Prima</div>
+                    <p class="text-[11px] text-slate-600 mt-1 line-clamp-2">
+                      {{ quad.quadrantSummaries.q1.subtitle }}
+                    </p>
+                  </div>
+
+                  <!-- KUADRAN 2: TANTANGAN HULU (KIRI ATAS) -->
+                  <div
+                    (click)="setQuadrantFilter(selectedQuadrantFilter() === 2 ? 'all' : 2)"
+                    class="rounded-xl border p-4 transition cursor-pointer select-none"
+                    [class.border-amber-300]="
+                      selectedQuadrantFilter() === 2 || selectedQuadrantFilter() === 'all'
+                    "
+                    [class.bg-amber-50]="selectedQuadrantFilter() === 2"
+                    [class.bg-amber-50/40]="selectedQuadrantFilter() === 'all'"
+                    [class.opacity-50]="
+                      selectedQuadrantFilter() !== 2 && selectedQuadrantFilter() !== 'all'
+                    "
+                  >
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-bold text-amber-800">Kuadran II</span>
+                      <span
+                        class="text-xs font-mono font-bold text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full"
+                      >
+                        {{ quad.quadrantSummaries.q2.count }} Kab/Kota ({{
+                          quad.quadrantSummaries.q2.percentage
+                        }}%)
+                      </span>
+                    </div>
+                    <div class="text-sm font-bold text-slate-800 mt-1">Tantangan Hulu</div>
+                    <p class="text-[11px] text-slate-600 mt-1 line-clamp-2">
+                      {{ quad.quadrantSummaries.q2.subtitle }}
+                    </p>
+                  </div>
+
+                  <!-- KUADRAN 3: TANTANGAN HILIR (KANAN BAWAH) -->
+                  <div
+                    (click)="setQuadrantFilter(selectedQuadrantFilter() === 3 ? 'all' : 3)"
+                    class="rounded-xl border p-4 transition cursor-pointer select-none"
+                    [class.border-indigo-300]="
+                      selectedQuadrantFilter() === 3 || selectedQuadrantFilter() === 'all'
+                    "
+                    [class.bg-indigo-50]="selectedQuadrantFilter() === 3"
+                    [class.bg-indigo-50/40]="selectedQuadrantFilter() === 'all'"
+                    [class.opacity-50]="
+                      selectedQuadrantFilter() !== 3 && selectedQuadrantFilter() !== 'all'
+                    "
+                  >
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-bold text-indigo-800">Kuadran III</span>
+                      <span
+                        class="text-xs font-mono font-bold text-indigo-700 bg-indigo-100 border border-indigo-200 px-2 py-0.5 rounded-full"
+                      >
+                        {{ quad.quadrantSummaries.q3.count }} Kab/Kota ({{
+                          quad.quadrantSummaries.q3.percentage
+                        }}%)
+                      </span>
+                    </div>
+                    <div class="text-sm font-bold text-slate-800 mt-1">Tantangan Hilir</div>
+                    <p class="text-[11px] text-slate-600 mt-1 line-clamp-2">
+                      {{ quad.quadrantSummaries.q3.subtitle }}
+                    </p>
+                  </div>
+
+                  <!-- KUADRAN 4: PRIORITAS INTERVENSI (KIRI BAWAH) -->
+                  <div
+                    (click)="setQuadrantFilter(selectedQuadrantFilter() === 4 ? 'all' : 4)"
+                    class="rounded-xl border p-4 transition cursor-pointer select-none"
+                    [class.border-rose-300]="
+                      selectedQuadrantFilter() === 4 || selectedQuadrantFilter() === 'all'
+                    "
+                    [class.bg-rose-50]="selectedQuadrantFilter() === 4"
+                    [class.bg-rose-50/40]="selectedQuadrantFilter() === 'all'"
+                    [class.opacity-50]="
+                      selectedQuadrantFilter() !== 4 && selectedQuadrantFilter() !== 'all'
+                    "
+                  >
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-bold text-rose-800">Kuadran IV</span>
+                      <span
+                        class="text-xs font-mono font-bold text-rose-700 bg-rose-100 border border-rose-200 px-2 py-0.5 rounded-full"
+                      >
+                        {{ quad.quadrantSummaries.q4.count }} Kab/Kota ({{
+                          quad.quadrantSummaries.q4.percentage
+                        }}%)
+                      </span>
+                    </div>
+                    <div class="text-sm font-bold text-slate-800 mt-1">Prioritas Darurat</div>
+                    <p class="text-[11px] text-slate-600 mt-1 line-clamp-2">
+                      {{ quad.quadrantSummaries.q4.subtitle }}
+                    </p>
+                  </div>
+                </div>
+
+                <!-- 2D POLICY SCATTER CANVAS (SVG) -->
+                @if (quadrantSvgLayout(); as qsl) {
+                  <div
+                    class="mt-6 w-full overflow-hidden bg-slate-50/60 rounded-xl border border-slate-200 p-3"
+                  >
+                    <svg
+                      class="w-full h-auto max-h-[500px]"
+                      viewBox="0 0 700 480"
+                      preserveAspectRatio="xMidYMid meet"
+                    >
+                      <!-- 4 Tinted Background Quadrant Rectangles -->
+                      <!-- Q2: Top-Left (Amber) -->
+                      <rect
+                        x="60"
+                        y="40"
+                        [attr.width]="qsl.q2Width"
+                        [attr.height]="qsl.q2Height"
+                        fill="#FEF3C7"
+                        fill-opacity="0.35"
+                      />
+                      <!-- Q1: Top-Right (Emerald) -->
+                      <rect
+                        [attr.x]="qsl.xCross"
+                        y="40"
+                        [attr.width]="qsl.q1Width"
+                        [attr.height]="qsl.q1Height"
+                        fill="#D1FAE5"
+                        fill-opacity="0.35"
+                      />
+                      <!-- Q4: Bottom-Left (Rose) -->
+                      <rect
+                        x="60"
+                        [attr.y]="qsl.yCross"
+                        [attr.width]="qsl.q4Width"
+                        [attr.height]="qsl.q4Height"
+                        fill="#FFE4E6"
+                        fill-opacity="0.4"
+                      />
+                      <!-- Q3: Bottom-Right (Indigo) -->
+                      <rect
+                        [attr.x]="qsl.xCross"
+                        [attr.y]="qsl.yCross"
+                        [attr.width]="qsl.q3Width"
+                        [attr.height]="qsl.q3Height"
+                        fill="#E0E7FF"
+                        fill-opacity="0.35"
+                      />
+
+                      <!-- Outer Canvas Border -->
+                      <rect
+                        x="60"
+                        y="40"
+                        width="600"
+                        height="380"
+                        fill="none"
+                        stroke="#CBD5E1"
+                        stroke-width="1.5"
+                      />
+
+                      <!-- Crosshair Axes Lines -->
+                      <line
+                        [attr.x1]="qsl.xCross"
+                        y1="40"
+                        [attr.x2]="qsl.xCross"
+                        y2="420"
+                        stroke="#64748B"
+                        stroke-width="2"
+                        stroke-dasharray="4 3"
+                      />
+                      <line
+                        x1="60"
+                        [attr.y1]="qsl.yCross"
+                        x2="660"
+                        [attr.y2]="qsl.yCross"
+                        stroke="#64748B"
+                        stroke-width="2"
+                        stroke-dasharray="4 3"
+                      />
+
+                      <!-- Corner Quadrant Watermark Badges -->
+                      <text x="70" y="60" font-size="11" font-weight="700" fill="#D97706" opacity="0.8">
+                        Kuadran II (Tantangan Hulu)
+                      </text>
+                      <text
+                        x="650"
+                        y="60"
+                        text-anchor="end"
+                        font-size="11"
+                        font-weight="700"
+                        fill="#059669"
+                        opacity="0.8"
+                      >
+                        Kuadran I (Mandiri &amp; Prima)
+                      </text>
+                      <text x="70" y="410" font-size="11" font-weight="700" fill="#E11D48" opacity="0.8">
+                        Kuadran IV (Prioritas Darurat)
+                      </text>
+                      <text
+                        x="650"
+                        y="410"
+                        text-anchor="end"
+                        font-size="11"
+                        font-weight="700"
+                        fill="#4F46E5"
+                        opacity="0.8"
+                      >
+                        Kuadran III (Tantangan Hilir)
+                      </text>
+
+                      <!-- District Circles -->
+                      @for (d of quad.districts; track d.category) {
+                        <circle
+                          [attr.cx]="60 + d.normX * 600"
+                          [attr.cy]="40 + (1 - d.normY) * 380"
+                          r="7"
+                          [attr.fill]="d.color"
+                          fill-opacity="0.85"
+                          stroke="#ffffff"
+                          stroke-width="2"
+                          class="transition-transform duration-150 hover:scale-150 cursor-pointer"
+                          (mouseenter)="setHoveredQuadrantDistrict(d)"
+                          (mouseleave)="setHoveredQuadrantDistrict(null)"
+                        />
+                      }
+
+                      <!-- Crosshair Threshold Badges -->
+                      <text
+                        [attr.x]="qsl.xCross"
+                        y="32"
+                        text-anchor="middle"
+                        font-size="10"
+                        font-weight="bold"
+                        fill="#334155"
+                      >
+                        Ambang X: {{ quad.thresholdX.toFixed(1) }}%
+                      </text>
+                      <text
+                        x="50"
+                        [attr.y]="qsl.yCross + 3"
+                        text-anchor="end"
+                        font-size="10"
+                        font-weight="bold"
+                        fill="#334155"
+                      >
+                        {{ quad.thresholdY.toFixed(1) }}%
+                      </text>
+
+                      <!-- Axis Labels -->
+                      <text
+                        x="360"
+                        y="455"
+                        text-anchor="middle"
+                        font-size="12"
+                        font-weight="700"
+                        fill="#334155"
+                      >
+                        Sumbu X (Hulu): {{ quad.metricXLabel }}
+                      </text>
+                      <text
+                        x="18"
+                        y="230"
+                        text-anchor="middle"
+                        font-size="12"
+                        font-weight="700"
+                        fill="#334155"
+                        transform="rotate(-90 18 230)"
+                      >
+                        Sumbu Y (Hilir): {{ quad.metricYLabel }}
+                      </text>
+                    </svg>
+                  </div>
+
+                  <!-- HOVERED DISTRICT POLICY CARD -->
+                  @if (hoveredQuadrantDistrict(); as hd) {
+                    <div
+                      class="mt-3 flex flex-col md:flex-row md:items-center justify-between gap-3 p-3.5 rounded-lg border bg-white shadow-xs"
+                      [class]="hd.quadrantBadgeClass"
+                    >
+                      <div class="flex items-center gap-3">
+                        <span
+                          class="w-3 h-3 rounded-full shrink-0"
+                          [style.backgroundColor]="hd.color"
+                        ></span>
+                        <div>
+                          <div class="text-sm font-bold text-slate-800">{{ hd.category }}</div>
+                          <div class="text-xs text-slate-600 mt-0.5">
+                            Capaian Hulu:
+                            <strong class="font-mono">{{ hd.xVal.toFixed(1) }}%</strong> &bull;
+                            Capaian Hilir:
+                            <strong class="font-mono">{{ hd.yVal.toFixed(1) }}%</strong>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="text-xs">
+                        <span class="font-bold text-slate-800">{{ hd.quadrantTitle }}</span
+                        >:
+                        <span class="text-slate-600">{{ hd.interpretation }}</span>
+                      </div>
+                    </div>
+                  }
+                }
+              </div>
+
+              <!-- TABEL BREAKDOWN DAERAH PER KUADRAN -->
+              <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">
+                <div
+                  class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4"
+                >
+                  <div>
+                    <h4 class="text-sm font-bold text-slate-800">
+                      Rincian Daerah &amp; Rekomendasi Kebijakan
+                    </h4>
+                    <p class="text-xs text-slate-500 mt-0.5">
+                      Menampilkan {{ filteredQuadrantDistricts().length }} dari
+                      {{ quad.districts.length }} Kabupaten/Kota.
+                    </p>
+                  </div>
+
+                  <!-- FILTER TABS PER KUADRAN -->
+                  <div class="flex flex-wrap items-center gap-1.5 text-xs">
+                    <button
+                      type="button"
+                      (click)="setQuadrantFilter('all')"
+                      class="rounded-md px-2.5 py-1 font-medium transition cursor-pointer"
+                      [class.bg-[#525AFF]]="selectedQuadrantFilter() === 'all'"
+                      [class.text-white]="selectedQuadrantFilter() === 'all'"
+                      [class.bg-slate-100]="selectedQuadrantFilter() !== 'all'"
+                      [class.text-slate-600]="selectedQuadrantFilter() !== 'all'"
+                    >
+                      Semua ({{ quad.districts.length }})
+                    </button>
+                    <button
+                      type="button"
+                      (click)="setQuadrantFilter(1)"
+                      class="rounded-md px-2.5 py-1 font-medium transition cursor-pointer"
+                      [class.bg-emerald-600]="selectedQuadrantFilter() === 1"
+                      [class.text-white]="selectedQuadrantFilter() === 1"
+                      [class.bg-emerald-50]="selectedQuadrantFilter() !== 1"
+                      [class.text-emerald-700]="selectedQuadrantFilter() !== 1"
+                    >
+                      Kuadran I ({{ quad.quadrantSummaries.q1.count }})
+                    </button>
+                    <button
+                      type="button"
+                      (click)="setQuadrantFilter(2)"
+                      class="rounded-md px-2.5 py-1 font-medium transition cursor-pointer"
+                      [class.bg-amber-600]="selectedQuadrantFilter() === 2"
+                      [class.text-white]="selectedQuadrantFilter() === 2"
+                      [class.bg-amber-50]="selectedQuadrantFilter() !== 2"
+                      [class.text-amber-700]="selectedQuadrantFilter() !== 2"
+                    >
+                      Kuadran II ({{ quad.quadrantSummaries.q2.count }})
+                    </button>
+                    <button
+                      type="button"
+                      (click)="setQuadrantFilter(3)"
+                      class="rounded-md px-2.5 py-1 font-medium transition cursor-pointer"
+                      [class.bg-indigo-600]="selectedQuadrantFilter() === 3"
+                      [class.text-white]="selectedQuadrantFilter() === 3"
+                      [class.bg-indigo-50]="selectedQuadrantFilter() !== 3"
+                      [class.text-indigo-700]="selectedQuadrantFilter() !== 3"
+                    >
+                      Kuadran III ({{ quad.quadrantSummaries.q3.count }})
+                    </button>
+                    <button
+                      type="button"
+                      (click)="setQuadrantFilter(4)"
+                      class="rounded-md px-2.5 py-1 font-medium transition cursor-pointer"
+                      [class.bg-rose-600]="selectedQuadrantFilter() === 4"
+                      [class.text-white]="selectedQuadrantFilter() === 4"
+                      [class.bg-rose-50]="selectedQuadrantFilter() !== 4"
+                      [class.text-rose-700]="selectedQuadrantFilter() !== 4"
+                    >
+                      Kuadran IV ({{ quad.quadrantSummaries.q4.count }})
+                    </button>
+                  </div>
+                </div>
+
+                <!-- TABEL RINCIAN -->
+                <div class="mt-4 overflow-x-auto rounded-lg border border-slate-200">
+                  <table class="min-w-full divide-y divide-slate-200 text-xs">
+                    <thead class="bg-slate-50">
+                      <tr>
+                        <th class="px-3 py-2.5 text-center font-bold text-slate-700 w-12">No</th>
+                        <th class="px-3 py-2.5 text-left font-bold text-slate-700">Kabupaten / Kota</th>
+                        <th class="px-3 py-2.5 text-center font-bold text-slate-700">Capaian Hulu (X)</th>
+                        <th class="px-3 py-2.5 text-center font-bold text-slate-700">Capaian Hilir (Y)</th>
+                        <th class="px-3 py-2.5 text-center font-bold text-slate-700">Klasifikasi Kuadran</th>
+                        <th class="px-3 py-2.5 text-left font-bold text-slate-700">Rekomendasi Kebijakan</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 bg-white">
+                      @for (
+                        item of filteredQuadrantDistricts();
+                        let idx = $index;
+                        track item.category
+                      ) {
+                        <tr class="hover:bg-slate-50/60 transition-colors">
+                          <td class="px-3 py-2 text-center text-slate-400 font-mono">{{ idx + 1 }}</td>
+                          <td class="px-3 py-2 font-bold text-slate-800">{{ item.category }}</td>
+                          <td class="px-3 py-2 text-center font-mono font-semibold text-slate-700">
+                            {{ item.xVal.toFixed(1) }}%
+                          </td>
+                          <td class="px-3 py-2 text-center font-mono font-semibold text-slate-700">
+                            {{ item.yVal.toFixed(1) }}%
+                          </td>
+                          <td class="px-3 py-2 text-center">
+                            <span
+                              class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold border"
+                              [class]="item.quadrantBadgeClass"
+                            >
+                              {{ item.quadrantTitle }}
+                            </span>
+                          </td>
+                          <td class="px-3 py-2 text-slate-600 text-xs">
+                            {{ item.interpretation }}
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          } @else {
+            <div class="rounded-xl border border-slate-200 bg-white p-12 text-center">
+              <h4 class="text-base font-bold text-slate-700">Kuadran Prioritas Siap Dihitung</h4>
+              <p class="mt-1 text-xs text-slate-500">
+                Pilih minimal satu kolom indikator untuk menampilkan matriks kuadran kebijakan.
               </p>
             </div>
           }
