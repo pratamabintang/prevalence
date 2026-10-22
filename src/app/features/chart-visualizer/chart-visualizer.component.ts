@@ -28,6 +28,13 @@ import {
 } from '../../core/chart/indicator-stunting-knowledge';
 import { IndicatorEvaluator } from '../../core/evaluation/indicator-evaluator';
 import {
+  ChartSlicingEngine,
+  IndicatorChartGroup,
+  IndicatorStats,
+  RegionChartGroup,
+  RegionStats,
+} from '../../core/chart/chart-slicing-engine';
+import {
   ColumnInfo,
   ExcelEngine,
   ExcelWorkbook,
@@ -39,40 +46,7 @@ import { ChartConfigurationPreset, ChartPresetStore } from './chart-preset-store
 
 import { UiAlertComponent, UiButtonComponent, UiPageHeaderComponent } from '../../shared/ui';
 
-export interface IndicatorStats {
-  total: number;
-  validCount: number;
-  missingCount: number;
-  zeroCount: number;
-  achievedCount: number;
-  avgValue: number | null;
-  highest: { name: string; value: number } | null;
-  lowest: { name: string; value: number } | null;
-  targetValue: number | null;
-}
-
-export interface IndicatorChartGroup {
-  series: ChartSeriesConfig;
-  layout: ChartLayoutResult;
-  stats: IndicatorStats;
-}
-
-export interface RegionChartGroup {
-  regionName: string;
-  layout: ChartLayoutResult;
-  stats: {
-    total: number;
-    totalTargeted: number;
-    validCount: number;
-    missingCount: number;
-    zeroCount: number;
-    achievedCount: number;
-    avgValue: number | null;
-    highest: { label: string; value: number } | null;
-    lowest: { label: string; value: number } | null;
-    targetValue: number | null;
-  };
-}
+export type { IndicatorChartGroup, IndicatorStats, RegionChartGroup, RegionStats };
 
 @Component({
   selector: 'app-chart-visualizer',
@@ -2018,125 +1992,20 @@ export class ChartVisualizerComponent {
   // ============================================================
 
   regionLayouts = computed<RegionChartGroup[]>(() => {
-    const rawCats = this.filteredChartCategories();
     const series = this.filteredChartSeries();
-    const rows = this.dataRows();
-    const catCol = this.categoryColumn();
-    const sortMode = this.regionSortMode();
-
-    const rowMap = new Map<string, ChartDataRow>();
-    for (const r of rows) {
-      const key = String(r[catCol] ?? '')
-        .trim()
-        .toLowerCase();
-      if (key) {
-        rowMap.set(key, r);
-      }
+    const indicatorTargets: Record<string, number | null> = {};
+    for (const s of series) {
+      indicatorTargets[s.key] = this.getIndicatorTarget(s.key);
     }
 
-    const statsMap = new Map<string, RegionChartGroup['stats']>();
-
-    for (const catName of rawCats) {
-      const r = rowMap.get(catName.trim().toLowerCase());
-      const target = this.targetValue();
-
-      let validCount = 0;
-      let missingCount = 0;
-      let zeroCount = 0;
-      let achievedCount = 0;
-      let totalTargeted = 0;
-      let sum = 0;
-      let highest: { label: string; value: number } | null = null;
-      let lowest: { label: string; value: number } | null = null;
-
-      for (const s of series) {
-        const raw = r ? r[s.key] : null;
-        const num = IndicatorEvaluator.parseSmartNumber(raw);
-        const indTarget = this.getIndicatorTarget(s.key);
-
-        if (indTarget !== null) {
-          totalTargeted++;
-        }
-
-        if (num === null) {
-          missingCount++;
-        } else {
-          validCount++;
-          sum += num;
-          if (num === 0) zeroCount++;
-          if (indTarget !== null && num >= indTarget) achievedCount++;
-
-          if (highest === null || num > highest.value) {
-            highest = { label: s.label, value: num };
-          }
-          if (lowest === null || num < lowest.value) {
-            lowest = { label: s.label, value: num };
-          }
-        }
-      }
-
-      const avgValue = validCount > 0 ? Math.round((sum / validCount) * 10) / 10 : null;
-
-      statsMap.set(catName, {
-        total: series.length,
-        totalTargeted,
-        validCount,
-        missingCount,
-        zeroCount,
-        achievedCount,
-        avgValue,
-        highest,
-        lowest,
-        targetValue: target,
-      });
-    }
-
-    let cats = [...rawCats];
-
-    if (sortMode === 'desc' || sortMode === 'asc') {
-      cats.sort((a, b) => {
-        const valA = statsMap.get(a)?.avgValue ?? null;
-        const valB = statsMap.get(b)?.avgValue ?? null;
-        if (valA === null && valB === null) return 0;
-        if (valA === null) return 1;
-        if (valB === null) return -1;
-        return sortMode === 'desc' ? valB - valA : valA - valB;
-      });
-    }
-
-    return cats.map((catName) => {
-      const r = rowMap.get(catName.trim().toLowerCase());
-      const stats = statsMap.get(catName)!;
-
-      const indicatorRows = series.map((s) => ({
-        __indicator: s.label,
-        __value: r ? r[s.key] : null,
-      }));
-
-      const categoryColors: Record<string, string> = {};
-      const categoryTargets: Record<string, number | null> = {};
-      for (const s of series) {
-        categoryColors[s.label] = s.color;
-        categoryTargets[s.label] = this.getIndicatorTarget(s.key);
-      }
-
-      const layout = ChartLayoutEngine.computeLayout({
-        categoryColumn: '__indicator',
-        categories: series.map((s) => s.label),
-        series: [{ key: '__value', label: 'Capaian', color: '#525AFF' }],
-        rows: indicatorRows,
-        categoryColors,
-        categoryTargets,
-        width: 960,
-        rowHeight: 38,
-        margin: { top: 60, right: 95, bottom: 58, left: 200 },
-      });
-
-      return {
-        regionName: catName,
-        layout,
-        stats,
-      };
+    return ChartSlicingEngine.computeRegionGroups({
+      categories: this.filteredChartCategories(),
+      series,
+      rows: this.dataRows(),
+      categoryColumn: this.categoryColumn(),
+      sortMode: this.regionSortMode(),
+      targetValue: this.targetValue(),
+      indicatorTargets,
     });
   });
 
@@ -2147,98 +2016,18 @@ export class ChartVisualizerComponent {
 
   indicatorLayouts = computed<IndicatorChartGroup[]>(() => {
     const series = this.seriesList();
-    const catCol = this.categoryColumn();
-    const rawCats = this.filteredChartCategories();
-    const rows = this.dataRows();
-    const sortMode = this.indicatorSortMode();
-
-    const rowMap = new Map<string, ChartDataRow>();
-    for (const r of rows) {
-      const key = String(r[catCol] ?? '')
-        .trim()
-        .toLowerCase();
-      if (key) {
-        rowMap.set(key, r);
-      }
+    const indicatorTargets: Record<string, number | null> = {};
+    for (const s of series) {
+      indicatorTargets[s.key] = this.getIndicatorTarget(s.key);
     }
 
-    return series.map((s) => {
-      let cats = [...rawCats];
-      const target = this.getIndicatorTarget(s.key);
-
-      if (sortMode === 'desc' || sortMode === 'asc') {
-        cats.sort((a, b) => {
-          const rowA = rowMap.get(a.trim().toLowerCase());
-          const rowB = rowMap.get(b.trim().toLowerCase());
-          const valA = rowA ? IndicatorEvaluator.parseSmartNumber(rowA[s.key]) : null;
-          const valB = rowB ? IndicatorEvaluator.parseSmartNumber(rowB[s.key]) : null;
-
-          if (valA === null && valB === null) return 0;
-          if (valA === null) return 1;
-          if (valB === null) return -1;
-
-          return sortMode === 'desc' ? valB - valA : valA - valB;
-        });
-      }
-
-      let validCount = 0;
-      let missingCount = 0;
-      let zeroCount = 0;
-      let achievedCount = 0;
-      let sum = 0;
-      let highest: { name: string; value: number } | null = null;
-      let lowest: { name: string; value: number } | null = null;
-
-      for (const cat of rawCats) {
-        const r = rowMap.get(cat.trim().toLowerCase());
-        const raw = r ? r[s.key] : null;
-        const num = IndicatorEvaluator.parseSmartNumber(raw);
-
-        if (num === null) {
-          missingCount++;
-        } else {
-          validCount++;
-          sum += num;
-          if (num === 0) zeroCount++;
-          if (target !== null && num >= target) achievedCount++;
-
-          if (highest === null || num > highest.value) {
-            highest = { name: cat, value: num };
-          }
-          if (lowest === null || num < lowest.value) {
-            lowest = { name: cat, value: num };
-          }
-        }
-      }
-
-      const avgValue = validCount > 0 ? Math.round((sum / validCount) * 10) / 10 : null;
-
-      const layout = ChartLayoutEngine.computeLayout({
-        categoryColumn: catCol,
-        categories: cats,
-        series: [s],
-        rows,
-        targetValue: target,
-        width: 960,
-        rowHeight: 38,
-        margin: { top: 60, right: 95, bottom: 58, left: 200 },
-      });
-
-      return {
-        series: s,
-        layout,
-        stats: {
-          total: rawCats.length,
-          validCount,
-          missingCount,
-          zeroCount,
-          achievedCount,
-          avgValue,
-          highest,
-          lowest,
-          targetValue: target,
-        },
-      };
+    return ChartSlicingEngine.computeIndicatorGroups({
+      categories: this.filteredChartCategories(),
+      series,
+      rows: this.dataRows(),
+      categoryColumn: this.categoryColumn(),
+      sortMode: this.indicatorSortMode(),
+      indicatorTargets,
     });
   });
 

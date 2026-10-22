@@ -39,6 +39,18 @@ Kolom identifikasi bersama yang dijadikan rujukan dalam operasi penggabungan (Le
 _Avoid_: Kolom kunci mentah, primary key
 
 ### Visualisasi & Evaluasi Indikator
+**Mesin Pengiris Grafik (Chart Slicing Engine)**:
+Modul logika domain-presentasi yang memproses pemotongan multi-dimensi dataset Dinkes (memilah per-indikator vs per-wilayah), mengkalkulasi ringkasan statistik kesehatan (angka valid, missing/non-numerik, angka 0, kelulusan target, rata-rata, capaian ekstrem tertinggi dan terendah), mengurutkan data sesuai mode peringkat (*sort mode*), dan mendelegasikan penyusunan tata letak ke Mesin Tata Letak Grafik (`ChartLayoutEngine`).
+_Avoid_: Logika filter di template, pemrosesan chart di komponen, kalkulator statistik grafis terpisah
+
+**Kelompok Grafik Indikator (Indicator Chart Group)**:
+Struktur presentasi grafik yang merangkum visualisasi komparatif satu seri indikator untuk seluruh wilayah terpilih, dilengkapi tata letak visual SVG dan ringkasan metrik statistik kesehatan.
+_Avoid_: Split indicator chart, sub-chart
+
+**Kelompok Grafik Wilayah (Region Chart Group)**:
+Struktur presentasi grafik yang merangkum visualisasi multi-indikator untuk satu wilayah terpilih, dilengkapi tata letak visual SVG dan ringkasan metrik statistik pencapaian target.
+_Avoid_: Per-region card data, objek grafik wilayah mentah
+
 **Seri Indikator**:
 Kumpulan kolom metrik numerik yang dibandingkan secara berdampingan sebagai batang-batang dalam satu kategori wilayah (misal: Triwulan 1 s.d. Triwulan 4).
 _Avoid_: Bar cluster, kelompok batang, sub-kolom
