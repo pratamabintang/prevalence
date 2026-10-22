@@ -324,7 +324,7 @@
                 (click)="showSettings.set(false)"
                 title="Tutup panel pengaturan"
               >
-                Tutup ✕
+                <span class="inline-flex items-center gap-1"><span>Tutup</span><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></span>
               </button>
             }
           </div>
@@ -457,7 +457,7 @@
                       [class.text-slate-600]="!isSelected"
                     >
                       @if (isSelected) {
-                        <span>✓</span>
+                        <svg class="w-3 h-3 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
                       } @else {
                         <span>-</span>
                       }
@@ -1187,7 +1187,7 @@
                     class="absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400 hover:text-slate-600 cursor-pointer"
                     title="Hapus pencarian wilayah"
                   >
-                    ✕
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                   </button>
                 }
               </div>
@@ -1476,7 +1476,10 @@
                 [class.text-slate-700]="!showTargetPopover() && configuredTargetCount() === 0"
                 title="Atur target khusus per masing-masing indikator"
               >
-                <span>🎯 Target Indikator</span>
+                <span class="inline-flex items-center gap-1.5">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-width="2"/><circle cx="12" cy="12" r="3" stroke-width="2"/><path stroke-linecap="round" stroke-width="2" d="M12 2v3m0 14v3M2 12h3m14 0h3"/></svg>
+                  <span>Target Indikator</span>
+                </span>
                 @if (configuredTargetCount() > 0) {
                   <span
                     class="rounded-full bg-[#525AFF] px-1.5 py-0.2 text-[10px] font-bold text-white"
@@ -1511,9 +1514,10 @@
                     <button
                       type="button"
                       (click)="closeTargetPopover()"
-                      class="text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+                      class="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100 transition cursor-pointer"
+                      title="Tutup pengaturan target"
                     >
-                      ✕
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                   </div>
 
@@ -1989,7 +1993,7 @@
                                     [attr.fill]="bar.isAchieved ? '#16a34a' : '#dc2626'"
                                     font-weight="bold"
                                   >
-                                    {{ bar.isAchieved ? '✓' : '✗' }}
+                                    {{ bar.isAchieved ? 'OK' : '!' }}
                                   </tspan>
                                 }
                               }
@@ -2590,118 +2594,6 @@
                 </div>
               </div>
 
-              <!-- 2.5 KARTU PENJELASAN INDIKATOR & RELEVANSI STUNTING -->
-              @if (indicatorExplanation(); as info) {
-                <div
-                  class="mb-5 rounded-xl border border-indigo-200/80 bg-gradient-to-r from-indigo-50/80 via-blue-50/50 to-white p-4 text-xs shadow-2xs"
-                >
-                  <div
-                    class="flex flex-col sm:flex-row sm:items-start justify-between gap-2 border-b border-indigo-100 pb-2.5"
-                  >
-                    <div class="flex items-center gap-2.5">
-                      <span
-                        class="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[#525AFF] text-white text-xs font-bold shadow-2xs"
-                      >
-                        ℹ
-                      </span>
-                      <div>
-                        <div class="flex flex-wrap items-center gap-2">
-                          <h5 class="text-sm font-bold text-slate-800">
-                            {{ info.title }}
-                          </h5>
-                          <span
-                            class="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700"
-                          >
-                            Kategori: {{ info.category }}
-                          </span>
-                        </div>
-                        <span class="text-[11px] text-slate-500 mt-0.5 block">
-                          Sasaran Intervensi: <strong>{{ info.targetGroup }}</strong>
-                        </span>
-                      </div>
-                    </div>
-
-                    @if (info.standardTargetText) {
-                      <span
-                        class="inline-flex items-center gap-1 self-start rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 border border-emerald-200 shrink-0"
-                      >
-                        🎯 {{ info.standardTargetText }}
-                      </span>
-                    }
-                  </div>
-
-                  <div class="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    <!-- 1. Definisi Operasional (Ini Apa) -->
-                    <div
-                      class="rounded-lg bg-white/90 p-3 border border-indigo-100 shadow-2xs flex flex-col justify-between"
-                    >
-                      <div>
-                        <div class="flex items-center gap-1.5 font-bold text-slate-800 mb-1.5">
-                          <span class="text-[#525AFF]">📋</span>
-                          <span>Definisi Indikator (Ini Apa)</span>
-                        </div>
-                        <p class="text-[11.5px] leading-relaxed text-slate-600">
-                          {{ info.definition }}
-                        </p>
-                      </div>
-                    </div>
-
-                    <!-- 2. Hubungan Terhadap Stunting -->
-                    <div
-                      class="rounded-lg bg-white/90 p-3 border border-emerald-100 shadow-2xs flex flex-col justify-between"
-                    >
-                      <div>
-                        <div class="flex items-center gap-1.5 font-bold text-emerald-800 mb-1.5">
-                          <span>🌱</span>
-                          <span>Hubungan Terhadap Stunting (1000 HPK)</span>
-                        </div>
-                        <p class="text-[11.5px] leading-relaxed text-slate-600">
-                          {{ info.stuntingRelation }}
-                        </p>
-                      </div>
-                    </div>
-
-                    <!-- 3. Rumus & Asal Perhitungan -->
-                    <div
-                      class="rounded-lg bg-white/90 p-3 border border-amber-200/80 shadow-2xs flex flex-col justify-between md:col-span-2 lg:col-span-1"
-                    >
-                      <div>
-                        <div class="flex items-center justify-between gap-1.5 mb-1.5">
-                          <div class="flex items-center gap-1.5 font-bold text-amber-900">
-                            <span>📐</span>
-                            <span>Rumus & Asal Perhitungan</span>
-                          </div>
-                          <span
-                            class="rounded bg-amber-100/80 px-2 py-0.5 font-mono text-[10px] font-bold text-amber-800 border border-amber-200"
-                          >
-                            {{ info.calculation.formulaText }}
-                          </span>
-                        </div>
-
-                        <div class="space-y-1.5 text-[11px] leading-relaxed text-slate-600 mt-2">
-                          <div class="rounded bg-amber-50/50 p-1.5 border border-amber-100/60">
-                            <span class="font-bold text-amber-950 block text-[10.5px]"
-                              >Pembilang (A):</span
-                            >
-                            <span class="text-slate-700">{{
-                              info.calculation.numeratorDescription
-                            }}</span>
-                          </div>
-                          <div class="rounded bg-slate-50 p-1.5 border border-slate-200/60">
-                            <span class="font-bold text-slate-800 block text-[10.5px]"
-                              >Penyebut (B):</span
-                            >
-                            <span class="text-slate-700">{{
-                              info.calculation.denominatorDescription
-                            }}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              }
-
               <!-- 3. MAIN SVG MAP VIEWPORT & DISTRICT INSPECTOR -->
               <div class="grid grid-cols-1 lg:grid-cols-4 gap-5 items-start">
                 <!-- SVG MAP CONTAINER (3 COLS) -->
@@ -3038,7 +2930,7 @@
                             <div
                               class="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 p-2.5 text-xs text-emerald-800 font-semibold"
                             >
-                              <span class="text-emerald-600 text-sm">✓</span>
+                              <svg class="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
                               <div>
                                 <span>Mencapai Target (≥ {{ mapData.stats.targetValue }})</span>
                                 @if (hDist.diffFromTarget !== null && hDist.diffFromTarget > 0) {
@@ -3052,7 +2944,7 @@
                             <div
                               class="flex items-center gap-2 rounded-lg bg-rose-50 border border-rose-200 p-2.5 text-xs text-rose-800 font-semibold"
                             >
-                              <span class="text-rose-600 text-sm">⚠</span>
+                              <svg class="w-4 h-4 text-rose-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
                               <div>
                                 <span>Belum Mencapai Target</span>
                                 @if (hDist.diffFromTarget !== null) {
@@ -3075,7 +2967,7 @@
                       </div>
                     } @else {
                       <div class="text-center py-8 text-slate-400 my-auto">
-                        <span class="text-2xl block mb-2">🗺️</span>
+                        <svg class="w-8 h-8 text-slate-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
                         <p class="text-xs font-medium text-slate-600">Sorot Wilayah pada Peta</p>
                         <p class="text-[11px] text-slate-400 mt-1 max-w-[220px] mx-auto">
                           Arahkan kursor mouse ke poligon kabupaten/kota atau daftar peringkat untuk
@@ -4327,8 +4219,9 @@
             type="button"
             (click)="closeRegionFilterModal()"
             class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition cursor-pointer"
+            title="Tutup modal filter wilayah"
           >
-            ✕
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
 
@@ -4359,8 +4252,9 @@
                 type="button"
                 (click)="regionModalSearch.set('')"
                 class="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 cursor-pointer"
+                title="Hapus pencarian wilayah"
               >
-                ✕
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
               </button>
             }
           </div>
@@ -4486,8 +4380,9 @@
             type="button"
             (click)="closeIndicatorFilterModal()"
             class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition cursor-pointer"
+            title="Tutup modal filter indikator"
           >
-            ✕
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
 
@@ -4518,8 +4413,9 @@
                 type="button"
                 (click)="indicatorModalSearch.set('')"
                 class="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 cursor-pointer"
+                title="Hapus pencarian indikator"
               >
-                ✕
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
               </button>
             }
           </div>

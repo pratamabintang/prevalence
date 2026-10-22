@@ -381,7 +381,7 @@
                 (click)="showSettings.set(false)"
                 title="Tutup panel pengaturan"
               >
-                Tutup ✕
+                <span class="inline-flex items-center gap-1"><span>Tutup</span><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></span>
               </button>
             }
           </div>
@@ -901,7 +901,7 @@
                         [class.border-slate-300]="!isVariableSelected(sheet, variable)"
                       >
                         @if (isVariableSelected(sheet, variable)) {
-                          <span class="text-[10px] font-bold">✓</span>
+                          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
                         }
                       </div>
 
@@ -1104,7 +1104,7 @@
                     (click)="showColumnSettings.set(false)"
                     class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 cursor-pointer transition shadow-2xs"
                   >
-                    Tutup ✕
+                    <span class="inline-flex items-center gap-1"><span>Tutup</span><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></span>
                   </button>
                 </div>
 
@@ -1161,7 +1161,7 @@
                       [class.border-slate-300]="!enableTarget()"
                       title="Aktifkan / nonaktifkan baris Target"
                     >
-                      <span>🎯</span>
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-width="2"/><circle cx="12" cy="12" r="3" stroke-width="2"/><path stroke-linecap="round" stroke-width="2" d="M12 2v3m0 14v3M2 12h3m14 0h3"/></svg>
                       <span>{{ enableTarget() ? 'Target: Aktif' : 'Target: Nonaktif' }}</span>
                     </button>
 
@@ -1179,7 +1179,7 @@
                         [class.border-slate-300]="!enableCapaian()"
                         title="Tampilkan / sembunyikan kolom Capaian"
                       >
-                        <span>📊</span>
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                         <span>{{ enableCapaian() ? 'Capaian: Aktif' : 'Capaian: Nonaktif' }}</span>
                       </button>
                     }
@@ -1262,7 +1262,7 @@
                             <th class="px-4 py-2 text-left">Batas Anomali (Format Merah)</th>
                             <th class="px-4 py-2 text-left">Sertakan dalam Jumlah (∑)</th>
                             <th class="px-4 py-2 text-left">Sertakan dalam Rata-rata (x̄)</th>
-                            <th class="px-4 py-2 text-left">Target Indikator (🎯)</th>
+                            <th class="px-4 py-2 text-left">Target Indikator</th>
                             <th class="px-4 py-2 text-left">Nilai Sampel</th>
                           </tr>
                         </thead>
@@ -1447,7 +1447,7 @@
                                 }
                               </td>
 
-                              <!-- SERTAKAN DALAM TARGET (🎯) -->
+                              <!-- SERTAKAN DALAM TARGET -->
                               <td class="px-4 py-2.5">
                                 @if (idx === 0 || cfg?.dataType === 'string') {
                                   <span class="text-slate-400 italic">Tidak tersedia (Teks)</span>
@@ -1532,10 +1532,10 @@
                     <button
                       type="button"
                       (click)="clearSelectedColumnForMove()"
-                      class="text-indigo-500 hover:text-indigo-800 ml-0.5 cursor-pointer font-bold text-xs"
+                      class="text-indigo-500 hover:text-indigo-800 ml-0.5 cursor-pointer font-bold text-xs p-0.5 inline-flex items-center"
                       title="Batal pilih kolom (Esc)"
                     >
-                      ✕
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                   </div>
                 }
@@ -1639,10 +1639,10 @@
                                 <button
                                   type="button"
                                   (click)="startEditingColumn(cell.colKey, $event)"
-                                  class="opacity-0 group-hover/rename:opacity-60 hover:!opacity-100 text-slate-400 hover:text-[#525AFF] cursor-pointer transition text-[11px] p-0.5"
+                                  class="opacity-0 group-hover/rename:opacity-60 hover:!opacity-100 text-slate-400 hover:text-[#525AFF] cursor-pointer transition text-[11px] p-0.5 inline-flex items-center"
                                   title="Ubah nama kolom (Klik 2x pada header)"
                                 >
-                                  ✎
+                                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                                 </button>
                               }
                             </div>
@@ -1978,8 +1978,9 @@
           File Excel aktif (<strong class="text-slate-900">{{ file()?.name }}</strong>) dan konfigurasi join saat ini akan disimpan ke Google Drive dan <strong class="text-amber-700">menimpa file default lama</strong>.
         </p>
 
-        <div class="text-xs text-slate-500 mb-6 bg-amber-50 border border-amber-200/70 rounded-lg p-3">
-          ⚠️ Setiap kali aplikasi dibuka oleh staf atau pengguna lain, file Excel dan konfigurasi ini yang akan dimuat secara otomatis.
+        <div class="text-xs text-slate-500 mb-6 bg-amber-50 border border-amber-200/70 rounded-lg p-3 flex items-start gap-2">
+          <svg class="w-4 h-4 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+          <span>Setiap kali aplikasi dibuka oleh staf atau pengguna lain, file Excel dan konfigurasi ini yang akan dimuat secara otomatis.</span>
         </div>
 
         <div class="flex items-center justify-end gap-3">

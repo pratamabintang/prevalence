@@ -1444,7 +1444,7 @@ describe('ChartVisualizerComponent', () => {
       const layouts = component.regionLayouts();
       expect(layouts.length).toBe(5);
 
-      // Kab. Magelang: tw1=72.4 (>=70: ✓), tw2=78.2 (<80: ✗), tw3=84.5 (<85: ✗), tw4=91.0 (>=90: ✓)
+      // Kab. Magelang: tw1=72.4 (>=70: OK), tw2=78.2 (<80: Fail), tw3=84.5 (<85: Fail), tw4=91.0 (>=90: OK)
       const kabMagelang = layouts.find((l) => l.regionName === 'Kab. Magelang');
       expect(kabMagelang).toBeTruthy();
       expect(kabMagelang!.stats.totalTargeted).toBe(4);

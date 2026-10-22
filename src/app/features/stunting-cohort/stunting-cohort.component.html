@@ -1415,7 +1415,7 @@
                   <td class="whitespace-nowrap border border-slate-300 px-3 py-2 font-mono font-medium text-slate-900 text-xs">
                     {{ child.nik }}
                     @if (!StuntingCohortEngine.isValid16Digits(child.nik)) {
-                      <span class="text-amber-500 ml-1 text-[11px] cursor-help" title="Format NIK tidak standar 16 digit">⚠️</span>
+                      <svg class="w-3.5 h-3.5 text-amber-500 inline ml-0.5 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24" title="Format NIK tidak standar 16 digit"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
                     }
                   </td>
                   <td class="whitespace-nowrap border border-slate-300 px-3 py-2 font-semibold text-slate-800 text-xs">{{ child.nama }}</td>
@@ -1423,8 +1423,9 @@
                   <td class="whitespace-nowrap border border-slate-300 px-3 py-2 text-center font-medium text-xs">
                     {{ child.ageMonths !== null ? child.ageMonths + ' Bln' : '-' }}
                     @if (child.isAgeOutlier) {
-                      <span class="inline-flex items-center ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700" title="Outlier: Anak berusia >= 60 bulan masih tercatat kasus di Periode Evaluasi">
-                        ⚠️ Outlier (&ge;60 Bln)
+                      <span class="inline-flex items-center gap-1 ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700" title="Outlier: Anak berusia >= 60 bulan masih tercatat kasus di Periode Evaluasi">
+                        <svg class="w-3 h-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                        <span>Outlier (&ge;60 Bln)</span>
                       </span>
                     }
                   </td>
@@ -1475,7 +1476,7 @@
                           {{ child.p1StatusTbu || (child.inPeriod1 ? 'Pendek' : 'Normal') }}
                         </div>
                       } @else if (child.inPeriod1) {
-                        <span class="text-rose-600 font-bold">✓ Stunting</span>
+                        <span class="inline-flex items-center gap-1 text-rose-600 font-bold"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>Stunting</span>
                       } @else {
                         <span class="text-slate-400">-</span>
                       }
@@ -1493,7 +1494,7 @@
                           {{ child.p2StatusTbu || (child.inPeriod2 ? 'Pendek' : 'Normal') }}
                         </div>
                       } @else if (child.inPeriod2) {
-                        <span class="text-rose-600 font-bold">✓ Stunting</span>
+                        <span class="inline-flex items-center gap-1 text-rose-600 font-bold"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>Stunting</span>
                       } @else {
                         <div class="text-slate-400 font-mono">-</div>
                         <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200" title="Balita tidak terdata di Periode Evaluasi - Dianggap Lulus Stunting">
@@ -1539,7 +1540,7 @@
                           {{ child.p1StatusBbu || (child.inPeriod1 ? 'Berat Kurang' : 'Normal') }}
                         </div>
                       } @else if (child.inPeriod1) {
-                        <span class="text-yellow-700 font-bold">✓ Underweight</span>
+                        <span class="inline-flex items-center gap-1 text-yellow-700 font-bold"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>Underweight</span>
                       } @else {
                         <span class="text-slate-400">-</span>
                       }
@@ -1557,7 +1558,7 @@
                           {{ child.p2StatusBbu || (child.inPeriod2 ? 'Berat Kurang' : 'Normal') }}
                         </div>
                       } @else if (child.inPeriod2) {
-                        <span class="text-yellow-700 font-bold">✓ Underweight</span>
+                        <span class="inline-flex items-center gap-1 text-yellow-700 font-bold"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>Underweight</span>
                       } @else {
                         <div class="text-slate-400 font-mono">-</div>
                         <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200" title="Balita tidak terdata di Periode Evaluasi">
@@ -1606,7 +1607,7 @@
                           }
                         </div>
                       } @else if (child.inPeriod1) {
-                        <span class="text-amber-700 font-bold">✓ Kasus</span>
+                        <span class="inline-flex items-center gap-1 text-amber-700 font-bold"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>Kasus</span>
                       } @else {
                         <span class="text-slate-400">-</span>
                       }
@@ -1631,7 +1632,7 @@
                           }
                         </div>
                       } @else if (child.inPeriod2) {
-                        <span class="text-amber-700 font-bold">✓ Kasus</span>
+                        <span class="inline-flex items-center gap-1 text-amber-700 font-bold"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>Kasus</span>
                       } @else {
                         <div class="text-slate-400 font-mono">-</div>
                         <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200" title="Balita tidak terdata di Periode Evaluasi">

@@ -524,13 +524,13 @@ def validate_excel(file_path):
     missing_sheets = [s for s in REQUIRED_SHEETS if s not in excel.sheet_names]
     if missing_sheets:
         raise ValueError(f"Sheet hilang: {missing_sheets}")
-    print("✓ 10 Sheet wajib lengkap.")
+    print("[OK] 10 Sheet wajib lengkap.")
     
     # 2. Deteksi Periode Dinamis dari sheet Stunting
     stunting_df = pd.read_excel(excel, sheet_name='Stunting')
     ignored = ['KABUPATEN/KOTA', 'TARGET', 'TOTAL', 'JUMLAH', 'SASARAN', 'NO']
     periods = [c for c in stunting_df.columns if str(c).upper() not in ignored]
-    print(f"✓ Terdeteksi {len(periods)} periode triwulan: {periods}")
+    print(f"[OK] Terdeteksi {len(periods)} periode triwulan: {periods}")
     
     # 3. Verifikasi Keseragaman Kolom di 9 Sheet Lainnya
     for sheet in REQUIRED_SHEETS:
@@ -538,7 +538,7 @@ def validate_excel(file_path):
         for p in periods:
             if p not in df.columns:
                 raise ValueError(f"Kolom periode '{p}' tidak ditemukan pada sheet '{sheet}'")
-        print(f"✓ Sheet '{sheet}' valid ({len(df)} baris).")
+        print(f"[OK] Sheet '{sheet}' valid ({len(df)} baris).")
     
     print(f"\\nBerkas valid! Total observasi yang akan dimuat: {len(DISTRICTS) * len(periods)} (35 wilayah × {len(periods)} periode).")
 
