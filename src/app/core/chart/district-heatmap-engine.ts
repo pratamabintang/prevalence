@@ -53,6 +53,50 @@ export interface DistrictHeatmapResult {
   targetPositionPercent: number | null;
 }
 
+export interface HeatmapColorPalette {
+  id: string;
+  name: string;
+  startRgb: [number, number, number];
+  endRgb: [number, number, number];
+  startHex: string;
+  endHex: string;
+}
+
+export const HEATMAP_PALETTES: HeatmapColorPalette[] = [
+  {
+    id: 'yellow-red',
+    name: 'Kuning ke Merah (Yellow-Red)',
+    startRgb: [254, 240, 138], // #fef08a
+    endRgb: [185, 28, 28],     // #b91c1c
+    startHex: '#fef08a',
+    endHex: '#b91c1c',
+  },
+  {
+    id: 'teal-rose',
+    name: 'Teal ke Rose (Teal-Rose)',
+    startRgb: [153, 246, 228], // #99f6e4
+    endRgb: [190, 18, 60],     // #be123c
+    startHex: '#99f6e4',
+    endHex: '#be123c',
+  },
+  {
+    id: 'sky-indigo',
+    name: 'Biru Muda ke Indigo (Sky-Indigo)',
+    startRgb: [186, 230, 253], // #bae6fd
+    endRgb: [67, 56, 202],     // #4338ca
+    startHex: '#bae6fd',
+    endHex: '#4338ca',
+  },
+  {
+    id: 'emerald-amber',
+    name: 'Hijau ke Amber (Emerald-Amber)',
+    startRgb: [187, 247, 208], // #bbf7d0
+    endRgb: [194, 65, 12],     // #c2410c
+    startHex: '#bbf7d0',
+    endHex: '#c2410c',
+  },
+];
+
 export interface ComputeDistrictHeatmapOptions {
   districts: DistrictMapFeature[];
   rows: ChartDataRow[];
@@ -64,6 +108,7 @@ export interface ComputeDistrictHeatmapOptions {
    * Default is 228 (brand blue/indigo #525AFF).
    */
   baseHue?: number;
+  paletteId?: string;
 }
 
 /**
@@ -120,20 +165,39 @@ export class DistrictHeatmapEngine {
   }
 
   /**
-   * Menghitung warna HSL secara kontinu berdasarkan rasio nilai (0.0 = min, 1.0 = max)
+   * Menghitung gradasi kontinu 2 warna berbasis interpolasi linear RGB dengan kontras teks otomatis
    */
-  static getColorForRatio(ratio: number, hue: number): { fill: string; text: string } {
-    const clampedRatio = Math.max(0, Math.min(1, ratio));
-    // Lightness bergerak secara kontinu halus dari 95% (sangat muda) ke 30% (sangat pekat)
-    const lightness = Number((95 - clampedRatio * 65).toFixed(1));
-    // Saturation bergerak halus dari 70% ke 90%
-    const saturation = Number((70 + clampedRatio * 20).toFixed(1));
+  static interpolateRgb(
+    ratio: number,
+    startRgb: [number, number, number] = HEATMAP_PALETTES[0].startRgb,
+    endRgb: [number, number, number] = HEATMAP_PALETTES[0].endRgb,
+  ): { fill: string; text: string } {
+    const clamped = Math.max(0, Math.min(1, ratio));
+    const r = Math.round(startRgb[0] + clamped * (endRgb[0] - startRgb[0]));
+    const g = Math.round(startRgb[1] + clamped * (endRgb[1] - startRgb[1]));
+    const b = Math.round(startRgb[2] + clamped * (endRgb[2] - startRgb[2]));
 
-    const fill = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-    // Gunakan teks putih jika latar belakang gelap (lightness < 58)
-    const text = lightness < 58 ? '#ffffff' : '#0f172a';
+    const fill = `rgb(${r}, ${g}, ${b})`;
+    // Perceived luminance (YIQ formula) untuk kontras teks optimal
+    const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+    const text = yiq < 135 ? '#ffffff' : '#0f172a';
 
     return { fill, text };
+  }
+
+  /**
+   * Menghitung warna gradasi kontinu berdasarkan rasio nilai (0.0 = min, 1.0 = max)
+   * Menggunakan gradien 2 warna (bukan monokrom)
+   */
+  static getColorForRatio(
+    ratio: number,
+    startRgbOrHue?: number | [number, number, number],
+    endRgb?: [number, number, number],
+  ): { fill: string; text: string } {
+    if (Array.isArray(startRgbOrHue) && Array.isArray(endRgb)) {
+      return this.interpolateRgb(ratio, startRgbOrHue, endRgb);
+    }
+    return this.interpolateRgb(ratio, HEATMAP_PALETTES[0].startRgb, HEATMAP_PALETTES[0].endRgb);
   }
 
   /**
@@ -141,6 +205,8 @@ export class DistrictHeatmapEngine {
    */
   static computeHeatmap(options: ComputeDistrictHeatmapOptions): DistrictHeatmapResult {
     const { districts, rows, categoryColumn, series, targetValue } = options;
+    const palette =
+      HEATMAP_PALETTES.find((p) => p.id === options.paletteId) ?? HEATMAP_PALETTES[0];
     const hue =
       options.baseHue ??
       (series.color ? this.extractHueFromHex(series.color) : this.DEFAULT_BASE_HUE);
@@ -272,7 +338,7 @@ export class DistrictHeatmapEngine {
       const rawRatio = (val - (min ?? 0)) / valueSpan;
       const clampedRatio = Math.max(0, Math.min(1, rawRatio));
       const ratioPercent = Math.round(clampedRatio * 100);
-      const { fill, text } = this.getColorForRatio(clampedRatio, hue);
+      const { fill, text } = this.getColorForRatio(clampedRatio, palette.startRgb, palette.endRgb);
 
       let status: 'achieved' | 'unachieved' | 'none' = 'none';
       let diffFromTarget: number | null = null;
@@ -312,7 +378,7 @@ export class DistrictHeatmapEngine {
       const stopsCount = 5;
       for (let i = 0; i < stopsCount; i++) {
         const ratio = i / (stopsCount - 1);
-        const { fill } = this.getColorForRatio(ratio, hue);
+        const { fill } = this.getColorForRatio(ratio, palette.startRgb, palette.endRgb);
         const stopVal = Math.round((min + ratio * valueSpan) * 10) / 10;
         const percentage = Math.round(ratio * 100);
 
@@ -329,14 +395,8 @@ export class DistrictHeatmapEngine {
       }
     }
 
-    // CSS Linear Gradient kontinu untuk bilah warna pada peta
-    const gradientCss = `linear-gradient(to right,
-      hsl(${hue}, 70%, 95%),
-      hsl(${hue}, 75%, 78%),
-      hsl(${hue}, 80%, 62%),
-      hsl(${hue}, 85%, 46%),
-      hsl(${hue}, 90%, 30%)
-    )`;
+    // CSS Linear Gradient kontinu 2 warna untuk bilah warna pada peta
+    const gradientCss = `linear-gradient(to right, rgb(${palette.startRgb.join(',')}), rgb(${palette.endRgb.join(',')}))`;
 
     let targetPositionPercent: number | null = null;
     if (targetValue !== null && min !== null && max !== null && max !== min) {

@@ -88,14 +88,17 @@ describe('DistrictHeatmapEngine', () => {
     );
   });
 
-  it('computes color for ratio with contrasting text color', () => {
-    const low = DistrictHeatmapEngine.getColorForRatio(0.0, 228);
-    expect(low.fill).toContain('hsl(228,');
+  it('computes color for ratio with contrasting text color and 2-color gradient', () => {
+    const low = DistrictHeatmapEngine.getColorForRatio(0.0);
+    expect(low.fill).toBe('rgb(254, 240, 138)');
     expect(low.text).toBe('#0f172a'); // dark text on light background
 
-    const high = DistrictHeatmapEngine.getColorForRatio(1.0, 228);
-    expect(high.fill).toContain('hsl(228,');
+    const high = DistrictHeatmapEngine.getColorForRatio(1.0);
+    expect(high.fill).toBe('rgb(185, 28, 28)');
     expect(high.text).toBe('#ffffff'); // white text on dark background
+
+    const mid = DistrictHeatmapEngine.getColorForRatio(0.5);
+    expect(mid.fill).toBe('rgb(220, 134, 83)'); // smooth warm orange midpoint
   });
 
   it('matches district names with various prefixes and keeps Kota distinct from Kabupaten', () => {

@@ -21,6 +21,8 @@ import {
   DistrictHeatmapEngine,
   DistrictHeatmapItem,
   DistrictHeatmapResult,
+  HEATMAP_PALETTES,
+  HeatmapColorPalette,
 } from '../../core/chart/district-heatmap-engine';
 import {
   IndicatorStuntingKnowledge,
@@ -194,6 +196,9 @@ export class ChartVisualizerComponent {
     this.activeMapIndicator.set(key);
   }
 
+  readonly heatmapPalettes = HEATMAP_PALETTES;
+  selectedHeatmapPaletteId = signal<string>('yellow-red');
+
   mapHeatmapResult = computed<DistrictHeatmapResult | null>(() => {
     const s = this.activeMapSeries();
     if (!s) return null;
@@ -207,6 +212,7 @@ export class ChartVisualizerComponent {
       categoryColumn: catCol,
       series: s,
       targetValue: target,
+      paletteId: this.selectedHeatmapPaletteId(),
     });
   });
 

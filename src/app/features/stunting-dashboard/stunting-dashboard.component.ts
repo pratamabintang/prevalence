@@ -5,6 +5,11 @@ import { StuntingDashboardStore } from '../../core/stunting-dashboard/stunting-d
 import { PYTHON_TEMPLATE_SCRIPT } from '../../core/stunting-dashboard/stunting-excel-parser';
 import { DistrictMapFeature } from '../../core/stunting-dashboard/stunting-map-data';
 import {
+  DistrictHeatmapEngine,
+  HEATMAP_PALETTES,
+  HeatmapColorPalette,
+} from '../../core/chart/district-heatmap-engine';
+import {
   UiAlertComponent,
   UiButtonComponent,
   UiCardComponent,
@@ -146,18 +151,31 @@ export class StuntingDashboardComponent {
     return this.barY(0);
   }
 
-  // Heatmap & Map color calculation
+  readonly heatmapPalettes = HEATMAP_PALETTES;
+  readonly selectedHeatmapPaletteId = signal<string>('yellow-red');
+
+  get activeHeatmapGradientCss(): string {
+    const palette =
+      HEATMAP_PALETTES.find((p) => p.id === this.selectedHeatmapPaletteId()) ?? HEATMAP_PALETTES[0];
+    return `linear-gradient(to right, rgb(${palette.startRgb.join(',')}), rgb(${palette.endRgb.join(',')}))`;
+  }
+
+  // Heatmap & Map color calculation (Gradien 2 Warna Kontinu)
   getHeatmapBg(val: number): string {
     const { min, max } = this.heatmapMinMax();
     const ratio = Math.max(0, Math.min(1, (val - min) / (max - min || 1)));
-    const lightness = Math.round(95 - ratio * 55);
-    return `hsl(215, 30%, ${lightness}%)`;
+    const palette =
+      HEATMAP_PALETTES.find((p) => p.id === this.selectedHeatmapPaletteId()) ?? HEATMAP_PALETTES[0];
+    return DistrictHeatmapEngine.interpolateRgb(ratio, palette.startRgb, palette.endRgb).fill;
   }
 
   getHeatmapTextClass(val: number): string {
     const { min, max } = this.heatmapMinMax();
-    const ratio = (val - min) / (max - min || 1);
-    return ratio > 0.55 ? 'text-white font-semibold' : 'text-slate-800 font-medium';
+    const ratio = Math.max(0, Math.min(1, (val - min) / (max - min || 1)));
+    const palette =
+      HEATMAP_PALETTES.find((p) => p.id === this.selectedHeatmapPaletteId()) ?? HEATMAP_PALETTES[0];
+    const { text } = DistrictHeatmapEngine.interpolateRgb(ratio, palette.startRgb, palette.endRgb);
+    return text === '#ffffff' ? 'text-white font-semibold' : 'text-slate-900 font-medium';
   }
 
   getDistrictFill(val: number | null): string {
