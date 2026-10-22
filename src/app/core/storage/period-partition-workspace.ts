@@ -11,6 +11,7 @@ import {
   ParsedDinkesDataset,
   ParseDinkesOptions,
 } from '../excel/dinkes-spreadsheet-parser';
+import { IndicatorEvaluator } from '../evaluation/indicator-evaluator';
 import { JoinPresetExecutionSpec } from '../excel/excel-join-engine';
 
 export interface QuarterDataset {
@@ -304,6 +305,48 @@ export class PeriodPartitionWorkspace {
     };
   }
 
+  private extractObservationsFromSpec(
+    spec: SavePeriodPartitionSpec,
+  ): Array<{ districtName: string; indicatorKey: string; numericValue: number | null; displayText?: string }> {
+    const primaryBuffer = spec.resultExcelBuffer ?? spec.rawExcelBuffer;
+    if (!primaryBuffer || primaryBuffer.byteLength === 0) {
+      return [];
+    }
+
+    try {
+      const preset = spec.preset ?? (spec.config as JoinPresetExecutionSpec | undefined);
+      const parsed = DinkesSpreadsheetParser.parse(primaryBuffer, { preset });
+      const observations: Array<{
+        districtName: string;
+        indicatorKey: string;
+        numericValue: number | null;
+        displayText?: string;
+      }> = [];
+
+      for (const row of parsed.regionRows) {
+        const districtName = String(row[parsed.keyCol] ?? '').trim();
+        if (!districtName) continue;
+
+        for (const col of parsed.columns) {
+          if (col === parsed.keyCol) continue;
+          const rawVal = row[col];
+          const numVal = IndicatorEvaluator.parseSmartNumber(rawVal);
+          if (numVal !== null) {
+            observations.push({
+              districtName,
+              indicatorKey: col,
+              numericValue: numVal,
+              displayText: rawVal !== undefined && rawVal !== null ? String(rawVal) : undefined,
+            });
+          }
+        }
+      }
+      return observations;
+    } catch {
+      return [];
+    }
+  }
+
   /**
    * Menyimpan partisi periode secara atomik ke Server Backend (utama) atau Google Drive (fallback).
    * Me-refresh daftar periode otomatis saat penyimpanan berhasil.
@@ -313,12 +356,14 @@ export class PeriodPartitionWorkspace {
     customUrl?: string,
   ): Promise<GasSaveResult> {
     if (!customUrl && this.backendStorage?.isConfigured()) {
+      const observations = this.extractObservationsFromSpec(spec);
       const backendSave = await this.backendStorage.savePeriod({
         year: spec.year,
         quarter: spec.quarter,
         rawExcelBuffer: spec.rawExcelBuffer,
         resultExcelBuffer: spec.resultExcelBuffer,
         config: spec.config,
+        observations,
       });
 
       if (backendSave.success) {

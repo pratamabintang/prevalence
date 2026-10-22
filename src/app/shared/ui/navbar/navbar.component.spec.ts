@@ -81,4 +81,16 @@ describe('AppNavbarComponent', () => {
     expect(logoImg).toBeTruthy();
     expect(logoImg.getAttribute('alt')).toBe('Logo Dinkes');
   });
+
+  it('should display Server SQLite status badge and update when backendStorage.isConnected changes', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    const badge = el.querySelector('[data-testid="server-status-badge"]') as HTMLButtonElement;
+    expect(badge).toBeTruthy();
+    expect(badge.textContent).toContain('Mode Cloud / Lokal');
+
+    component.backendStorage.isConnected.set(true);
+    fixture.detectChanges();
+
+    expect(badge.textContent).toContain('Server SQLite');
+  });
 });

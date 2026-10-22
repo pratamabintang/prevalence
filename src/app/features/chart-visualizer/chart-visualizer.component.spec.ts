@@ -1864,5 +1864,59 @@ describe('ChartVisualizerComponent', () => {
       component.setHoveredQuadrantDistrict(null);
       expect(component.hoveredQuadrantDistrict()).toBeNull();
     });
+
+    it('should load and display multi-period SQLite trends when switching to by-trends viewMode', async () => {
+      populateTestData();
+      component.dataSource.set('join');
+      vi.spyOn(component.backendStorage, 'getAvailableIndicators').mockResolvedValue([
+        'Stunting %',
+        'ASI Eksklusif %',
+      ]);
+      vi.spyOn(component.backendStorage, 'getIndicatorTrends').mockResolvedValue({
+        success: true,
+        indicator: 'Stunting %',
+        scope: 'province',
+        totalPeriods: 2,
+        series: [
+          {
+            year: 2025,
+            quarter: 'TW4',
+            count: 35,
+            avgValue: 13.8,
+            medianValue: 13.5,
+            minValue: 8.2,
+            maxValue: 19.4,
+            achievedCount: 22,
+            totalTargeted: 35,
+          },
+          {
+            year: 2026,
+            quarter: 'TW1',
+            count: 35,
+            avgValue: 12.4,
+            medianValue: 12.1,
+            minValue: 7.9,
+            maxValue: 18.0,
+            achievedCount: 26,
+            totalTargeted: 35,
+          },
+        ],
+      });
+
+      component.setViewMode('by-trends');
+      await component.loadTrendPanelData();
+      fixture.detectChanges();
+
+      expect(component.viewMode()).toBe('by-trends');
+      expect(component.trendAvailableIndicators()).toContain('Stunting %');
+      expect(component.trendChartBars().length).toBe(2);
+      expect(component.trendChartBars()[0].label).toBe('2025 TW4');
+      expect(component.trendChartBars()[1].label).toBe('2026 TW1');
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('[data-testid="trends-panel"]')).toBeTruthy();
+      expect(compiled.textContent).toContain('2025 TW4');
+      expect(compiled.textContent).toContain('26 / 35');
+    });
   });
 });

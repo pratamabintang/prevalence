@@ -1,6 +1,7 @@
-import { Component, computed, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { environment } from '../../../../environments/environment';
+import { BackendStorageService } from '../../../core/storage/backend-storage.service';
 
 export interface NavItem {
   id: number;
@@ -61,6 +62,43 @@ export interface NavItem {
               </a>
             }
           </nav>
+
+          <!-- SERVER STORAGE STATUS BADGE (RIGHT) -->
+          <div class="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              data-testid="server-status-badge"
+              (click)="checkServerConnection()"
+              [disabled]="isCheckingServer()"
+              class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition cursor-pointer select-none shadow-2xs"
+              [class.border-emerald-200]="backendStorage.isConnected()"
+              [class.bg-emerald-50]="backendStorage.isConnected()"
+              [class.text-emerald-800]="backendStorage.isConnected()"
+              [class.hover:bg-emerald-100]="backendStorage.isConnected()"
+              [class.border-slate-200]="!backendStorage.isConnected()"
+              [class.bg-slate-50]="!backendStorage.isConnected()"
+              [class.text-slate-600]="!backendStorage.isConnected()"
+              [class.hover:bg-slate-100]="!backendStorage.isConnected()"
+              [title]="
+                backendStorage.isConnected()
+                  ? 'Terhubung ke Server Database SQLite (WAL Mode). Klik untuk cek ulang.'
+                  : 'Mode Fallback (Google Drive / Lokal). Klik untuk mencoba koneksi ke Server SQLite.'
+              "
+            >
+              <span
+                class="h-2 w-2 rounded-full shrink-0"
+                [class.bg-emerald-500]="backendStorage.isConnected()"
+                [class.animate-pulse]="isCheckingServer()"
+                [class.bg-amber-400]="!backendStorage.isConnected()"
+              ></span>
+              <span class="hidden sm:inline">
+                {{ backendStorage.isConnected() ? 'Server SQLite' : 'Mode Cloud / Lokal' }}
+              </span>
+              <span class="sm:hidden">
+                {{ backendStorage.isConnected() ? 'SQLite' : 'Lokal' }}
+              </span>
+            </button>
+          </div>
         </div>
 
         <!-- MOBILE SUB-NAV (ALIGN CENTER) -->
@@ -84,7 +122,9 @@ export interface NavItem {
     </header>
   `,
 })
-export class AppNavbarComponent {
+export class AppNavbarComponent implements OnInit {
+  readonly backendStorage = inject(BackendStorageService);
+  readonly isCheckingServer = signal(false);
   readonly enableStuntingDashboard = signal(environment.enableStuntingDashboard);
 
   readonly allNavItems: NavItem[] = [
@@ -104,4 +144,18 @@ export class AppNavbarComponent {
         id: index + 1,
       }));
   });
+
+  ngOnInit(): void {
+    void this.checkServerConnection();
+  }
+
+  async checkServerConnection(): Promise<void> {
+    if (this.isCheckingServer()) return;
+    this.isCheckingServer.set(true);
+    try {
+      await this.backendStorage.pingServer();
+    } finally {
+      this.isCheckingServer.set(false);
+    }
+  }
 }
