@@ -103,6 +103,29 @@ export interface BackendPeriodSaveResult {
   error?: string;
 }
 
+export interface BackendTrendPoint {
+  year: number;
+  quarter: string;
+  count: number;
+  avgValue: number | null;
+  minValue: number | null;
+  maxValue: number | null;
+  districtCode?: string;
+  districtName?: string;
+  displayText?: string;
+}
+
+export interface BackendTrendsResult {
+  success: boolean;
+  indicator: string;
+  scope: 'province' | 'district';
+  districtCode?: string;
+  districtName?: string;
+  totalPeriods: number;
+  series: BackendTrendPoint[];
+  error?: string;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -512,6 +535,96 @@ export class BackendStorageService {
       return {
         success: false,
         error: err instanceof Error ? err.message : 'Gagal menyimpan periode ke server.',
+      };
+    }
+  }
+
+  /**
+   * Mengambil daftar seluruh indikator kesehatan yang tersedia dalam database.
+   */
+  async getAvailableIndicators(): Promise<string[]> {
+    const baseUrl = this.getBaseUrl();
+    if (!baseUrl) {
+      return [];
+    }
+
+    try {
+      const response = await fetch(`${baseUrl}/analytics/indicators`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+      });
+
+      if (!response.ok) {
+        return [];
+      }
+
+      const json = await response.json();
+      return Array.isArray(json.indicators) ? json.indicators : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Melakukan kueri analitik tren multi-periode untuk satu indikator.
+   */
+  async getIndicatorTrends(
+    indicatorKey: string,
+    districtCode?: string
+  ): Promise<BackendTrendsResult> {
+    const baseUrl = this.getBaseUrl();
+    if (!baseUrl) {
+      return {
+        success: false,
+        indicator: indicatorKey,
+        scope: districtCode ? 'district' : 'province',
+        totalPeriods: 0,
+        series: [],
+        error: 'Backend API URL belum dikonfigurasi.',
+      };
+    }
+
+    try {
+      const params = new URLSearchParams();
+      params.set('indicator', indicatorKey);
+      if (districtCode) {
+        params.set('district', districtCode);
+      }
+
+      const response = await fetch(`${baseUrl}/analytics/trends?${params.toString()}`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+      });
+
+      if (!response.ok) {
+        return {
+          success: false,
+          indicator: indicatorKey,
+          scope: districtCode ? 'district' : 'province',
+          totalPeriods: 0,
+          series: [],
+          error: `Server mengembalikan status HTTP ${response.status}`,
+        };
+      }
+
+      const json = await response.json();
+      return {
+        success: !!json.success,
+        indicator: json.indicator || indicatorKey,
+        scope: json.scope || (districtCode ? 'district' : 'province'),
+        districtCode: json.districtCode,
+        districtName: json.districtName,
+        totalPeriods: json.totalPeriods || (json.series ? json.series.length : 0),
+        series: (json.series || []) as BackendTrendPoint[],
+      };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        indicator: indicatorKey,
+        scope: districtCode ? 'district' : 'province',
+        totalPeriods: 0,
+        series: [],
+        error: err instanceof Error ? err.message : 'Gagal mengeksekusi kueri tren.',
       };
     }
   }

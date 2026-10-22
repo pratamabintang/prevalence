@@ -254,4 +254,68 @@ describe('BackendStorageService (Seam 2 Frontend Client)', () => {
       );
     });
   });
+
+  describe('getAvailableIndicators() & getIndicatorTrends()', () => {
+    it('harus memuat daftar indikator unik dari server', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          success: true,
+          indicators: ['stunting_prev', 'anc_6x'],
+        }),
+      } as unknown as Response);
+
+      const indicators = await service.getAvailableIndicators();
+
+      expect(indicators).toEqual(['stunting_prev', 'anc_6x']);
+    });
+
+    it('harus mengeksekusi kueri analitik tren dan mengembalikan deret waktu', async () => {
+      const mockTrends = {
+        success: true,
+        indicator: 'stunting_prev',
+        scope: 'province',
+        totalPeriods: 2,
+        series: [
+          { year: 2025, quarter: 'TW4', avgValue: 12.5 },
+          { year: 2026, quarter: 'TW1', avgValue: 11.2 },
+        ],
+      };
+
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockTrends,
+      } as unknown as Response);
+
+      const res = await service.getIndicatorTrends('stunting_prev');
+
+      expect(res.success).toBe(true);
+      expect(res.series.length).toBe(2);
+      expect(res.series[0].avgValue).toBe(12.5);
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        '/api/analytics/trends?indicator=stunting_prev',
+        expect.any(Object)
+      );
+    });
+
+    it('harus menyertakan parameter district saat kueri tren spesifik wilayah', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          success: true,
+          indicator: 'stunting_prev',
+          scope: 'district',
+          districtCode: '3301',
+          series: [],
+        }),
+      } as unknown as Response);
+
+      await service.getIndicatorTrends('stunting_prev', '3301');
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        '/api/analytics/trends?indicator=stunting_prev&district=3301',
+        expect.any(Object)
+      );
+    });
+  });
 });
