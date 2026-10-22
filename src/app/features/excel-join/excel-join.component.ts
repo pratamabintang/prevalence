@@ -1,10 +1,19 @@
-import { Component, computed, HostListener, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import {
+  Component,
+  computed,
+  HostListener,
+  inject,
+  OnDestroy,
+  OnInit,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import * as XLSX from 'xlsx-js-style';
 import { HealthDataExchange } from '../../core/domain/health-data-exchange';
 import { RegionNormalizer } from '../../core/domain/region-normalizer';
 import { ExcelJoinEngine } from '../../core/excel/excel-join-engine';
+import { DinkesSpreadsheetParser } from '../../core/excel/dinkes-spreadsheet-parser';
 import {
   CapaianSummary,
   ColumnConfig,
@@ -18,17 +27,8 @@ import {
   GasStorageService,
   QuarterSlot,
 } from '../../core/storage/gas-storage.service';
-import {
-  ColumnHeaderMeta,
-  ColumnInfo,
-  ExcelEngine,
-  HeaderGridCell,
-} from '../../shared/excel';
-import {
-  JoinConfigurationPreset,
-  PresetStore,
-  SheetConfigPreset,
-} from './preset-store';
+import { ColumnHeaderMeta, ColumnInfo, ExcelEngine, HeaderGridCell } from '../../shared/excel';
+import { JoinConfigurationPreset, PresetStore, SheetConfigPreset } from './preset-store';
 import { DEFAULT_JOIN_CONFIG } from './default-join-config';
 import { ExcelJoinStore, ExcelJoinStoredState } from './excel-join-store';
 import { environment } from '../../../environments/environment';
@@ -55,11 +55,7 @@ export interface SheetInfo {
   dataStartRow: number;
 }
 
-import {
-  UiAlertComponent,
-  UiButtonComponent,
-  UiPageHeaderComponent,
-} from '../../shared/ui';
+import { UiAlertComponent, UiButtonComponent, UiPageHeaderComponent } from '../../shared/ui';
 
 export interface ResultRow {
   [key: string]: unknown;
@@ -68,12 +64,7 @@ export interface ResultRow {
 @Component({
   selector: 'app-excel-join',
   standalone: true,
-  imports: [
-    FormsModule,
-    UiPageHeaderComponent,
-    UiButtonComponent,
-    UiAlertComponent,
-  ],
+  imports: [FormsModule, UiPageHeaderComponent, UiButtonComponent, UiAlertComponent],
   templateUrl: './excel-join.component.html',
 })
 export class ExcelJoinComponent implements OnInit, OnDestroy {
@@ -89,12 +80,20 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   showSettings = signal<boolean>(false);
   readonly enableToolbarActions = signal<boolean>(
     Boolean(
-      (environment as { enableExcelJoinToolbarActions?: boolean; enableExcelJoinConfigActions?: boolean })
-        .enableExcelJoinToolbarActions ??
-      (environment as { enableExcelJoinToolbarActions?: boolean; enableExcelJoinConfigActions?: boolean })
-        .enableExcelJoinConfigActions ??
-      false
-    )
+      (
+        environment as {
+          enableExcelJoinToolbarActions?: boolean;
+          enableExcelJoinConfigActions?: boolean;
+        }
+      ).enableExcelJoinToolbarActions ??
+      (
+        environment as {
+          enableExcelJoinToolbarActions?: boolean;
+          enableExcelJoinConfigActions?: boolean;
+        }
+      ).enableExcelJoinConfigActions ??
+      false,
+    ),
   );
   isDefaultData = signal<boolean>(false);
   isCloudDefault = signal<boolean>(false);
@@ -106,9 +105,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
 
   // Manajemen Partisi Periode Lintas Triwulan (Google Drive) - 5 Tahun ke Belakang
   currentYear = new Date().getFullYear();
-  availableYears = signal<number[]>(
-    Array.from({ length: 6 }, (_, i) => this.currentYear - i)
-  );
+  availableYears = signal<number[]>(Array.from({ length: 6 }, (_, i) => this.currentYear - i));
   selectedYear = signal<number>(this.currentYear);
   selectedQuarter = signal<QuarterSlot>('TW1');
   periodSlots = signal<GasPeriodItem[]>([]);
@@ -149,7 +146,12 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   }
 
   saveCurrentStateToStore(): void {
-    if (!this.file() && !this.workbook && this.sheets().length === 0 && this.resultRows().length === 0) {
+    if (
+      !this.file() &&
+      !this.workbook &&
+      this.sheets().length === 0 &&
+      this.resultRows().length === 0
+    ) {
       return;
     }
 
@@ -217,9 +219,13 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
             const cloudRes = await this.gasStorageService.loadDefault();
             if (cloudRes.success && cloudRes.excelBuffer) {
               wb = ExcelEngine.readWorkbook(cloudRes.excelBuffer);
-              file = new File([cloudRes.excelBuffer], cloudRes.fileName || 'default-join-data.xlsx', {
-                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-              });
+              file = new File(
+                [cloudRes.excelBuffer],
+                cloudRes.fileName || 'default-join-data.xlsx',
+                {
+                  type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                },
+              );
             }
           } catch {}
         } else if (state.isDefaultData) {
@@ -297,11 +303,9 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
           const cloudRes = await this.gasStorageService.loadDefault();
           if (cloudRes.success && cloudRes.hasData && cloudRes.excelBuffer) {
             const fileName = cloudRes.fileName || 'default-join-data.xlsx';
-            const cloudFile = new File(
-              [cloudRes.excelBuffer],
-              fileName,
-              { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }
-            );
+            const cloudFile = new File([cloudRes.excelBuffer], fileName, {
+              type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            });
 
             this.file.set(cloudFile);
             this.workbook = ExcelEngine.readWorkbook(cloudRes.excelBuffer);
@@ -322,10 +326,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
 
             if (cloudRes.config) {
               const preset = cloudRes.config as JoinConfigurationPreset;
-              this.applyConfiguration(
-                preset,
-                preset.name || 'Default Google Drive',
-              );
+              this.applyConfiguration(preset, preset.name || 'Default Google Drive');
             } else {
               this.applyConfiguration(
                 DEFAULT_JOIN_CONFIG,
@@ -358,7 +359,8 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       } else if (force) {
         this.configNotification.set({
           type: 'warning',
-          message: 'URL Google Apps Script belum dikonfigurasi. Menggunakan template bawaan sistem.',
+          message:
+            'URL Google Apps Script belum dikonfigurasi. Menggunakan template bawaan sistem.',
         });
       }
 
@@ -372,7 +374,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       const defaultFile = new File(
         [arrayBuffer],
         'Format Analisas Intervensi Spesifik TW3 01102026.xlsx',
-        { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }
+        { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
       );
 
       this.file.set(defaultFile);
@@ -430,7 +432,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       }
     }
 
-    const resolvedTarget = firstTarget !== null ? firstTarget : (isTargetEnabled ? undefined : 50);
+    const resolvedTarget = firstTarget !== null ? firstTarget : isTargetEnabled ? undefined : 50;
 
     this.healthDataExchange.publishJoinedToChart({
       title: this.file() ? `Grafik Hasil Join - ${this.file()!.name}` : 'Grafik Hasil Join Excel',
@@ -710,7 +712,10 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
           presetNameToApply = presetToApply.name || 'Template Google Drive';
         }
       } catch (err) {
-        console.warn('Gagal memuat template konfigurasi dari Google Drive, menggunakan template bawaan:', err);
+        console.warn(
+          'Gagal memuat template konfigurasi dari Google Drive, menggunakan template bawaan:',
+          err,
+        );
       }
     }
 
@@ -725,7 +730,9 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       presetNameToApply =
         this.activePresetName() ||
         this.preservedPresetName ||
-        (this.isCloudDefault() ? 'Default Google Drive' : (DEFAULT_JOIN_CONFIG.name || 'Template Standar Dinkes'));
+        (this.isCloudDefault()
+          ? 'Default Google Drive'
+          : DEFAULT_JOIN_CONFIG.name || 'Template Standar Dinkes');
     }
 
     this.reset();
@@ -806,344 +813,75 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
 
   /**
    * Mendeteksi apakah workbook adalah berkas hasil join Dinkes yang sudah terformat
-   * (memiliki sheet "Hasil Join" atau struktur kolom indikator Dinkes dengan baris ringkasan).
+   * mendelegasikan ke modul dalam DinkesSpreadsheetParser.
    */
   detectHasilJoinSheet(workbook: XLSX.WorkBook): string | null {
-    if (!workbook || !workbook.SheetNames || workbook.SheetNames.length === 0) {
-      return null;
-    }
-
-    // 1. Cek sheet yang bernama persis "Hasil Join" (case-insensitive)
-    const exactMatch = workbook.SheetNames.find(
-      (name) => name.trim().toLowerCase() === 'hasil join',
-    );
-    if (exactMatch) {
-      return exactMatch;
-    }
-
-    // 2. Cek apakah ada sheet yang mengandung kata "hasil join"
-    const partialMatch = workbook.SheetNames.find((name) =>
-      name.trim().toLowerCase().includes('hasil join'),
-    );
-    if (partialMatch) {
-      return partialMatch;
-    }
-
-    // 3. HANYA jika buku kerja memiliki HANYA 1 SHEET (misal hasil unduh yang di-rename):
-    if (workbook.SheetNames.length === 1) {
-      const name = workbook.SheetNames[0];
-      const ws = workbook.Sheets[name];
-      if (!ws) return null;
-      const rawData = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1 });
-      if (!rawData || rawData.length < 10) return null;
-
-      const headerIdx = rawData.findIndex(
-        (r) =>
-          Array.isArray(r) &&
-          r.some((cell) => {
-            const s = String(cell || '').trim().toLowerCase();
-            return (
-              s === 'kabupaten/kota' ||
-              s === 'kab/kota' ||
-              s === 'kabupaten' ||
-              s === 'kota' ||
-              s === 'wilayah'
-            );
-          }),
-      );
-
-      if (headerIdx !== -1 && headerIdx < 10) {
-        const headerRow = rawData[headerIdx];
-        const regionColIdx = headerRow.findIndex((cell) => {
-          const s = String(cell || '').trim().toLowerCase();
-          return (
-            s === 'kabupaten/kota' ||
-            s === 'kab/kota' ||
-            s === 'kabupaten' ||
-            s === 'kota' ||
-            s === 'wilayah'
-          );
-        });
-
-        let hasSummaryRow = false;
-        for (let r = headerIdx + 1; r < rawData.length; r++) {
-          const row = rawData[r];
-          if (!row) continue;
-          const regVal = String(row[regionColIdx] || '').trim().toLowerCase();
-          const firstVal = String(row[0] || '').trim().toLowerCase();
-          if (
-            regVal === 'jumlah' ||
-            regVal === 'total' ||
-            regVal === 'rata-rata' ||
-            regVal === 'rata rata' ||
-            regVal === 'target' ||
-            firstVal === 'jumlah' ||
-            firstVal === 'total' ||
-            firstVal === 'rata-rata' ||
-            firstVal === 'rata rata' ||
-            firstVal === 'target'
-          ) {
-            hasSummaryRow = true;
-            break;
-          }
-        }
-
-        const hasPercentIndicator = headerRow.some((col) => String(col || '').includes('%'));
-
-        if (hasSummaryRow && hasPercentIndicator && rawData.length >= 30) {
-          return name;
-        }
-      }
-    }
-
-    return null;
+    return DinkesSpreadsheetParser.detectPreJoinedSheet(workbook);
   }
 
   /**
-   * Mengekstrak sheet yang sudah berformat Hasil Join secara langsung:
-   * Mengambil baris data wilayah, mengecualikan 'No' dan 'Capaian' dari resultColumns,
-   * mendeteksi baris Jumlah, Rata-rata, dan Target, serta mengonfigurasi sinyal terkait.
+   * Mengekstrak sheet yang sudah berformat Hasil Join secara langsung
+   * menggunakan modul dalam DinkesSpreadsheetParser.
    */
-  loadPreJoinedHasilJoinSheet(
-    workbook: XLSX.WorkBook,
-    sheetName: string,
-    fileName: string,
-  ): void {
-    const ws = workbook.Sheets[sheetName];
-    if (!ws) return;
+  loadPreJoinedHasilJoinSheet(workbook: XLSX.WorkBook, sheetName: string, fileName: string): void {
+    const parsed = DinkesSpreadsheetParser.parse(workbook, {
+      stripKabupaten: this.stripKabupaten(),
+    });
 
-    const rawData = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1 });
-    if (!rawData || rawData.length === 0) return;
+    if (parsed.regionRows.length === 0 && parsed.columns.length === 0) {
+      return;
+    }
 
-    // Cari baris header yang memuat kolom wilayah
-    let headerRowIdx = rawData.findIndex(
-      (r) =>
-        Array.isArray(r) &&
-        r.some((cell) => {
-          const s = String(cell || '').trim().toLowerCase();
-          return (
-            s === 'kabupaten/kota' ||
-            s === 'kab/kota' ||
-            s === 'kabupaten' ||
-            s === 'kota' ||
-            s === 'wilayah'
-          );
-        }),
+    // Update state sinyal hasil
+    this.resultRows.set(parsed.regionRows);
+    this.originalResultRows.set(parsed.regionRows.map((r) => ({ ...r })));
+    this.resultColumns.set(parsed.columns);
+    this.resultColumnsMeta.set(parsed.columnsMeta);
+    this.defaultResultColumns.set(parsed.columns);
+    this.defaultResultColumnsMeta.set(parsed.columnsMeta);
+
+    this.columnConfigs.set(parsed.columnConfigs);
+    this.columnTargets.set(parsed.columnTargets);
+    this.sumColumns.set(parsed.sums);
+    this.avgColumns.set(parsed.averages);
+
+    this.enableJumlah.set(parsed.totalRow !== null || Object.values(parsed.sums).some(Boolean));
+    this.enableAverage.set(
+      parsed.summaryRow !== null || Object.values(parsed.averages).some(Boolean),
     );
-
-    if (headerRowIdx === -1) {
-      headerRowIdx = 0;
-    }
-
-    const headerRow = rawData[headerRowIdx] || [];
-    let regionColIdx = headerRow.findIndex((cell) => {
-      const s = String(cell || '').trim().toLowerCase();
-      return (
-        s === 'kabupaten/kota' ||
-        s === 'kab/kota' ||
-        s === 'kabupaten' ||
-        s === 'kota' ||
-        s === 'wilayah'
-      );
-    });
-
-    if (regionColIdx === -1) {
-      regionColIdx = 1;
-    }
-
-    // Filter kolom yang valid (kecualikan 'No', 'Nomor', 'Capaian')
-    const validCols: string[] = [];
-    const validColIndices: number[] = [];
-
-    // Kolom wilayah utama diletakkan di indeks 0
-    const primaryRegionHeader = String(headerRow[regionColIdx] || 'Kabupaten/Kota').trim();
-    validCols.push(primaryRegionHeader);
-    validColIndices.push(regionColIdx);
-
-    headerRow.forEach((col, idx) => {
-      const colName = String(col || '').trim();
-      if (
-        idx !== regionColIdx &&
-        colName &&
-        !/^(no|nomor|no\.|capaian)$/i.test(colName)
-      ) {
-        validCols.push(colName);
-        validColIndices.push(idx);
-      }
-    });
-
-    const dataRows: ResultRow[] = [];
-    let rawJumlahRow: unknown[] | null = null;
-    let rawRataRataRow: unknown[] | null = null;
-    let rawTargetRow: unknown[] | null = null;
-
-    for (let r = headerRowIdx + 1; r < rawData.length; r++) {
-      const row = rawData[r];
-      if (!row || row.length === 0) continue;
-
-      const regVal = String(row[regionColIdx] || '').trim().toLowerCase();
-      const firstVal = String(row[0] || '').trim().toLowerCase();
-
-      if (
-        regVal === 'jumlah' ||
-        regVal === 'total' ||
-        firstVal === 'jumlah' ||
-        firstVal === 'total'
-      ) {
-        rawJumlahRow = row;
-      } else if (
-        regVal === 'rata-rata' ||
-        regVal === 'rata rata' ||
-        regVal === 'average' ||
-        regVal === 'mean' ||
-        firstVal === 'rata-rata' ||
-        firstVal === 'rata rata' ||
-        firstVal === 'average'
-      ) {
-        rawRataRataRow = row;
-      } else if (
-        regVal === 'target' ||
-        firstVal === 'target'
-      ) {
-        rawTargetRow = row;
-      } else {
-        if (!regVal || regVal === '-') continue;
-
-        const rowObj: ResultRow = {};
-        validCols.forEach((colName, cIdx) => {
-          const cellVal = row[validColIndices[cIdx]];
-          if (cIdx === 0) {
-            const rawStr = String(cellVal ?? '').trim();
-            rowObj[colName] = this.stripKabupaten()
-              ? RegionNormalizer.cleanKabupatenPrefix(rawStr)
-              : RegionNormalizer.cleanCodePrefix(rawStr);
-          } else {
-            if (cellVal !== undefined && cellVal !== null && cellVal !== '-' && cellVal !== '') {
-              if (typeof cellVal === 'number') {
-                rowObj[colName] = cellVal;
-              } else {
-                const parsed = IndicatorEvaluator.parseSmartNumber(cellVal);
-                rowObj[colName] = parsed !== null ? parsed : cellVal;
-              }
-            } else {
-              rowObj[colName] = null;
-            }
-          }
-        });
-        dataRows.push(rowObj);
-      }
-    }
-
-    // Setup kolom configs, targets, sums, avgs
-    const configs: Record<string, ColumnConfig> = {};
-    const targets: Record<string, ColumnTargetConfig> = {};
-    const sums: Record<string, boolean> = {};
-    const avgs: Record<string, boolean> = {};
-
-    validCols.forEach((colName, cIdx) => {
-      if (cIdx === 0) {
-        configs[colName] = {
-          dataType: 'string',
-          anomalyEnabled: false,
-          minAnomaly: null,
-          maxAnomaly: null,
-        };
-        sums[colName] = false;
-        avgs[colName] = false;
-        targets[colName] = { operator: '>=', value: null, enabled: false };
-      } else {
-        const isPercent = colName.includes('%');
-        configs[colName] = {
-          dataType: isPercent ? 'percentage' : 'number',
-          anomalyEnabled: false,
-          minAnomaly: null,
-          maxAnomaly: null,
-        };
-        sums[colName] = !isPercent;
-        avgs[colName] = isPercent;
-
-        let targetParsed: ColumnTargetConfig = { operator: '>=', value: null, enabled: false };
-        if (rawTargetRow) {
-          const targetCell = String(rawTargetRow[validColIndices[cIdx]] ?? '').trim();
-          const targetMatch = targetCell.match(/^([><]=?|=)?\s*([0-9]+(?:[.,][0-9]+)?)$/);
-          if (targetMatch) {
-            let op: TargetOperator = '>=';
-            if (
-              targetMatch[1] === '<=' ||
-              targetMatch[1] === '>=' ||
-              targetMatch[1] === '<' ||
-              targetMatch[1] === '>'
-            ) {
-              op = targetMatch[1];
-            } else if (targetMatch[1] === '=' || targetMatch[1] === '==') {
-              op = '==';
-            }
-            const numStr = targetMatch[2].replace(',', '.');
-            targetParsed = {
-              operator: op,
-              value: parseFloat(numStr),
-              enabled: true,
-            };
-          }
-        }
-        targets[colName] = targetParsed;
-      }
-    });
-
-    const columnsMeta: ColumnHeaderMeta[] = validCols.map((c) => ({
-      key: c,
-      layers: [c],
-    }));
-
-    // Update state signals
-    this.resultRows.set(dataRows);
-    this.originalResultRows.set(dataRows.map((r) => ({ ...r })));
-    this.resultColumns.set(validCols);
-    this.resultColumnsMeta.set(columnsMeta);
-    this.defaultResultColumns.set(validCols);
-    this.defaultResultColumnsMeta.set(columnsMeta);
-
-    this.columnConfigs.set(configs);
-    this.columnTargets.set(targets);
-    this.sumColumns.set(sums);
-    this.avgColumns.set(avgs);
-
-    this.enableJumlah.set(rawJumlahRow !== null || Object.values(sums).some(Boolean));
-    this.enableAverage.set(rawRataRataRow !== null || Object.values(avgs).some(Boolean));
     this.enableTarget.set(
-      rawTargetRow !== null &&
-        Object.values(targets).some((t) => t.enabled && t.value !== null),
+      parsed.targetRow !== null &&
+        Object.values(parsed.columnTargets).some((t) => t.enabled && t.value !== null),
     );
     this.enableCapaian.set(true);
-
-    this.joinBy.set(primaryRegionHeader);
+    this.joinBy.set(parsed.keyCol);
 
     // Update sheet list agar konsisten dengan preset & sheet view
-    const sheetCols: ColumnInfo[] = validCols.map((c, idx) => ({
-      colIndex: validColIndices[idx],
-      colLetter: XLSX.utils.encode_col(validColIndices[idx]),
+    const sheetCols: ColumnInfo[] = parsed.columns.map((c, idx) => ({
+      colIndex: idx,
+      colLetter: XLSX.utils.encode_col(idx),
       header: c,
       leafHeader: c,
       layers: [c],
     }));
 
     const preJoinedSheetInfo: SheetInfo = {
-      name: sheetName,
+      name: parsed.sheetName,
       columns: sheetCols,
-      headers: validCols,
+      headers: parsed.columns,
       selected: true,
-      variables: validCols.slice(1),
-      joinColumn: primaryRegionHeader,
-      headerStartRow: headerRowIdx + 1,
-      headerEndRow: headerRowIdx + 1,
-      dataStartRow: headerRowIdx + 2,
+      variables: parsed.columns.slice(1),
+      joinColumn: parsed.keyCol,
+      headerStartRow: 1,
+      headerEndRow: 1,
+      dataStartRow: 2,
     };
 
     const existingSheets = this.sheets();
-    if (existingSheets.some((s) => s.name === sheetName)) {
+    if (existingSheets.some((s) => s.name === parsed.sheetName)) {
       this.sheets.set(
         existingSheets.map((s) =>
-          s.name === sheetName ? preJoinedSheetInfo : { ...s, selected: false },
+          s.name === parsed.sheetName ? preJoinedSheetInfo : { ...s, selected: false },
         ),
       );
     } else {
@@ -1154,7 +892,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     this.showSettings.set(false);
     this.configNotification.set({
       type: 'success',
-      message: `File hasil join "${fileName}" berhasil dimuat! Terdeteksi ${dataRows.length} wilayah, ${validCols.length - 1} indikator, baris ringkasan (Jumlah & Rata-rata), serta target capaian. Siap disimpan ke cloud atau dianalisis.`,
+      message: `File hasil join "${fileName}" berhasil dimuat! Terdeteksi ${parsed.regionRows.length} wilayah, ${parsed.columns.length - 1} indikator, baris ringkasan (Jumlah & Rata-rata), serta target capaian. Siap disimpan ke cloud atau dianalisis.`,
     });
 
     this.saveCurrentStateToStore();
@@ -1297,8 +1035,10 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
           columns: newColumns,
           headers: newColumns.map((c) => c.header),
           joinColumn: nextJoinCol,
-          variables: s.variables.filter((v) =>
-            newColumns.some((c) => c.header === v) && this.normalizeKey(v) !== this.normalizeKey(nextJoinCol),
+          variables: s.variables.filter(
+            (v) =>
+              newColumns.some((c) => c.header === v) &&
+              this.normalizeKey(v) !== this.normalizeKey(nextJoinCol),
           ),
         };
       }),
@@ -1413,7 +1153,9 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
           return {
             ...s,
             joinColumn: matched,
-            variables: s.variables.filter((v) => this.normalizeKey(v) !== this.normalizeKey(matched)),
+            variables: s.variables.filter(
+              (v) => this.normalizeKey(v) !== this.normalizeKey(matched),
+            ),
           };
         }
         return s;
@@ -1494,10 +1236,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       const h = header.toLowerCase();
       const leaf = col?.leafHeader?.toLowerCase() || '';
       return (
-        h.includes(query) ||
-        letter === query ||
-        letter.startsWith(query) ||
-        leaf.includes(query)
+        h.includes(query) || letter === query || letter.startsWith(query) || leaf.includes(query)
       );
     });
   }
@@ -1907,7 +1646,11 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
           return { ...row, [col]: String(rawVal) };
         } else {
           const num = IndicatorEvaluator.parseSmartNumber(rawVal);
-          if (typeof rawVal === 'string' && /^-?\d+([.,]\d+)?%?$/.test(rawVal.trim()) && num !== null) {
+          if (
+            typeof rawVal === 'string' &&
+            /^-?\d+([.,]\d+)?%?$/.test(rawVal.trim()) &&
+            num !== null
+          ) {
             return { ...row, [col]: num };
           }
           return { ...row, [col]: rawVal };
@@ -2149,7 +1892,9 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     const selected = this.selectedSheets();
     return {
       version: '1.0',
-      name: customName || (this.file() ? `Konfigurasi - ${this.file()!.name}` : 'Konfigurasi Excel Join'),
+      name:
+        customName ||
+        (this.file() ? `Konfigurasi - ${this.file()!.name}` : 'Konfigurasi Excel Join'),
       savedAt: new Date().toISOString(),
       outputHeaderFormat: this.outputHeaderFormat(),
       includeSheetPrefix: this.includeSheetPrefix(),
@@ -2181,7 +1926,8 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     if (selected.length === 0) {
       this.configNotification.set({
         type: 'warning',
-        message: 'Pilih minimal 1 sheet dan variabel terlebih dahulu sebelum menyimpan konfigurasi.',
+        message:
+          'Pilih minimal 1 sheet dan variabel terlebih dahulu sebelum menyimpan konfigurasi.',
       });
       return;
     }
@@ -2209,7 +1955,8 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     if (!this.gasStorageService.isConfigured()) {
       this.configNotification.set({
         type: 'warning',
-        message: 'URL Google Apps Script belum dikonfigurasi di repositori utama (src/environments/environment.ts).',
+        message:
+          'URL Google Apps Script belum dikonfigurasi di repositori utama (src/environments/environment.ts).',
       });
       return;
     }
@@ -2256,7 +2003,9 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
         this.showSaveDefaultConfirm.set(false);
         this.configNotification.set({
           type: 'success',
-          message: res.message || 'File Excel dan konfigurasi default berhasil disimpan ke Google Drive (menimpa default lama).',
+          message:
+            res.message ||
+            'File Excel dan konfigurasi default berhasil disimpan ke Google Drive (menimpa default lama).',
         });
       } else {
         this.configNotification.set({
@@ -2298,7 +2047,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
 
   isQuarterAvailable(year: number, quarter: QuarterSlot): boolean {
     return this.periodSlots().some(
-      (p) => p.year === year && p.quarter === quarter && (p.hasRaw || p.hasResult)
+      (p) => p.year === year && p.quarter === quarter && (p.hasRaw || p.hasResult),
     );
   }
 
@@ -2311,9 +2060,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   }
 
   getYearQuarterCount(year: number): number {
-    return this.periodSlots().filter(
-      (p) => p.year === year && (p.hasRaw || p.hasResult)
-    ).length;
+    return this.periodSlots().filter((p) => p.year === year && (p.hasRaw || p.hasResult)).length;
   }
 
   async loadPeriodDirect(year: number, quarter: QuarterSlot): Promise<void> {
@@ -2356,7 +2103,8 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       if (!res.hasData || !res.rawExcelBuffer) {
         this.configNotification.set({
           type: 'info',
-          message: res.message || `Belum ada data tersimpan untuk periode ${yr} ${qr} di Google Drive.`,
+          message:
+            res.message || `Belum ada data tersimpan untuk periode ${yr} ${qr} di Google Drive.`,
         });
         return;
       }
@@ -2474,7 +2222,9 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
         }
       }
 
-      const preset = this.getCurrentPreset(`Drive ${this.selectedYear()} ${this.selectedQuarter()}`);
+      const preset = this.getCurrentPreset(
+        `Drive ${this.selectedYear()} ${this.selectedQuarter()}`,
+      );
       const res = await this.gasStorageService.savePeriod({
         year: this.selectedYear(),
         quarter: this.selectedQuarter(),
@@ -2548,7 +2298,8 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       } catch (err) {
         this.configNotification.set({
           type: 'warning',
-          message: 'Format file JSON tidak valid. Pastikan file adalah file konfigurasi yang benar.',
+          message:
+            'Format file JSON tidak valid. Pastikan file adalah file konfigurasi yang benar.',
         });
       } finally {
         input.value = '';
@@ -2607,9 +2358,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
 
     // Proses sheet preset sesuai urutan yang tersimpan dalam konfigurasi
     for (const ps of preset.sheets) {
-      const currentSheet = availableSheets.find(
-        (s) => matchedSheetMap.get(s.name) === ps,
-      );
+      const currentSheet = availableSheets.find((s) => matchedSheetMap.get(s.name) === ps);
 
       if (!currentSheet) {
         unmatchedSheets.push(ps.sheetName);
@@ -3051,7 +2800,8 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     if (this.selectedSheets().length > 0) {
       this.preservedPreset = this.getCurrentPreset(this.activePresetName() || undefined);
       this.preservedPresetName =
-        this.activePresetName() || (this.isCloudDefault() ? 'Default Google Drive' : 'Konfigurasi Sebelumnya');
+        this.activePresetName() ||
+        (this.isCloudDefault() ? 'Default Google Drive' : 'Konfigurasi Sebelumnya');
     }
     this.excelJoinStore.clearState();
     this.file.set(null);

@@ -1,4 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import * as XLSX from 'xlsx-js-style';
 import { environment } from '../../../environments/environment';
@@ -10,18 +11,27 @@ import {
   ChartLayoutResult,
   ChartSeriesConfig,
 } from '../../core/chart/chart-layout-engine';
+import {
+  CENTRAL_JAVA_DISTRICTS,
+  MAIN_MAP_VIEWBOX,
+  NEIGHBOR_PROVINCES,
+  DistrictMapFeature,
+  NeighborProvince,
+} from '../../core/stunting-dashboard/stunting-map-data';
+import {
+  DistrictHeatmapEngine,
+  DistrictHeatmapItem,
+  DistrictHeatmapResult,
+} from '../../core/chart/district-heatmap-engine';
+import {
+  IndicatorStuntingKnowledge,
+  IndicatorStuntingExplanation,
+} from '../../core/chart/indicator-stunting-knowledge';
 import { IndicatorEvaluator } from '../../core/evaluation/indicator-evaluator';
 import { ColumnInfo, ExcelEngine } from '../../shared/excel';
-import {
-  ChartConfigurationPreset,
-  ChartPresetStore,
-} from './chart-preset-store';
+import { ChartConfigurationPreset, ChartPresetStore } from './chart-preset-store';
 
-import {
-  UiAlertComponent,
-  UiButtonComponent,
-  UiPageHeaderComponent,
-} from '../../shared/ui';
+import { UiAlertComponent, UiButtonComponent, UiPageHeaderComponent } from '../../shared/ui';
 
 export interface IndicatorStats {
   total: number;
@@ -61,15 +71,11 @@ export interface RegionChartGroup {
 @Component({
   selector: 'app-chart-visualizer',
   standalone: true,
-  imports: [
-    FormsModule,
-    UiPageHeaderComponent,
-    UiButtonComponent,
-    UiAlertComponent,
-  ],
+  imports: [CommonModule, FormsModule, UiPageHeaderComponent, UiButtonComponent, UiAlertComponent],
   templateUrl: './chart-visualizer.component.html',
 })
 export class ChartVisualizerComponent {
+  readonly Math = Math;
   private healthDataExchange = inject(HealthDataExchange);
 
   // Fitur Toolbar Actions (Konfigurasi Terakhir, Muat JSON, Simpan JSON) via Environment
@@ -79,8 +85,8 @@ export class ChartVisualizerComponent {
         .enableChartToolbarActions ??
       (environment as { enableChartToolbarActions?: boolean; enableChartConfigActions?: boolean })
         .enableChartConfigActions ??
-      false
-    )
+      false,
+    ),
   );
 
   // Kontrol Tampilan Tombol Pengaturan via Environment
@@ -107,8 +113,8 @@ export class ChartVisualizerComponent {
           enableChartToolbarActions?: boolean;
         }
       ).enableChartToolbarActions ??
-      false
-    )
+      false,
+    ),
   );
 
   // Status & Panel
@@ -180,8 +186,55 @@ export class ChartVisualizerComponent {
   originalDataRows = signal<ChartDataRow[]>([]);
   targetValue = signal<number | null>(null);
 
-  // Mode Tampilan: 'by-region' (Multi-Indikator per Daerah) vs 'by-indicator' (Per Kolom Indikator)
-  viewMode = signal<'by-region' | 'by-indicator'>('by-region');
+  // Mode Tampilan: 'by-region' (Multi-Indikator per Daerah) vs 'by-indicator' (Per Kolom Indikator) vs 'by-map' (Peta Heatmap)
+  viewMode = signal<'by-region' | 'by-indicator' | 'by-map'>('by-region');
+
+  // ============================================================
+  // MODE PETA HEATMAP (SPASIAL JAWA TENGAH)
+  // ============================================================
+  readonly mainMapViewBox = MAIN_MAP_VIEWBOX;
+  readonly neighborProvinces: NeighborProvince[] = NEIGHBOR_PROVINCES;
+  readonly centralJavaDistricts: DistrictMapFeature[] = CENTRAL_JAVA_DISTRICTS;
+
+  activeMapIndicator = signal<string>('');
+  hoveredMapDistrict = signal<DistrictHeatmapItem | null>(null);
+
+  activeMapSeries = computed<ChartSeriesConfig | null>(() => {
+    const list = this.seriesList();
+    if (list.length === 0) return null;
+    const currentKey = this.activeMapIndicator();
+    if (currentKey) {
+      const match = list.find((s) => s.key === currentKey);
+      if (match) return match;
+    }
+    return list[0];
+  });
+
+  setActiveMapIndicator(key: string): void {
+    this.activeMapIndicator.set(key);
+  }
+
+  mapHeatmapResult = computed<DistrictHeatmapResult | null>(() => {
+    const s = this.activeMapSeries();
+    if (!s) return null;
+    const catCol = this.categoryColumn();
+    const rows = this.dataRows();
+    const target = this.getIndicatorTarget(s.key);
+
+    return DistrictHeatmapEngine.computeHeatmap({
+      districts: this.centralJavaDistricts,
+      rows,
+      categoryColumn: catCol,
+      series: s,
+      targetValue: target,
+    });
+  });
+
+  indicatorExplanation = computed<IndicatorStuntingExplanation | null>(() => {
+    const s = this.activeMapSeries();
+    if (!s) return null;
+    return IndicatorStuntingKnowledge.getExplanation(s.label || s.key);
+  });
 
   // Tata Letak Kolom Grafik pada Mode Per Wilayah (1, 2, atau 3 grafik per baris)
   regionGridColumns = signal<1 | 2 | 3>(2);
@@ -202,7 +255,7 @@ export class ChartVisualizerComponent {
   // Filter Tab Indikator pada Mode Per Indikator ('all' atau key seri tertentu)
   selectedIndicatorFilter = signal<string>('all');
 
-  setViewMode(mode: 'by-region' | 'by-indicator'): void {
+  setViewMode(mode: 'by-region' | 'by-indicator' | 'by-map'): void {
     this.viewMode.set(mode);
   }
 
@@ -460,10 +513,7 @@ export class ChartVisualizerComponent {
 
     const candidateSeries = transferred.columns.filter(
       (c) =>
-        c !== transferred.categoryColumn &&
-        !c.startsWith('__') &&
-        c !== 'No' &&
-        c !== 'Capaian',
+        c !== transferred.categoryColumn && !c.startsWith('__') && c !== 'No' && c !== 'Capaian',
     );
 
     // Filter hanya kolom yang memiliki nilai angka (numerik) valid
@@ -495,8 +545,7 @@ export class ChartVisualizerComponent {
     });
 
     // Pilih seluruh kolom persentase berangka secara otomatis (fallback ke seluruh kolom angka bila tidak ada kolom persentase)
-    const selectedCols =
-      percentageCandidates.length > 0 ? percentageCandidates : numericCandidates;
+    const selectedCols = percentageCandidates.length > 0 ? percentageCandidates : numericCandidates;
 
     const initialSeries = selectedCols.map((col, idx) => ({
       key: col,
@@ -655,7 +704,10 @@ export class ChartVisualizerComponent {
     if (selectedSeries.length === 0) {
       const allRows = ExcelEngine.readSheetRows(worksheet, cols, dataStart);
       const targetRow = allRows.find((r) =>
-        String(r[cat] ?? '').trim().toLowerCase().startsWith('target'),
+        String(r[cat] ?? '')
+          .trim()
+          .toLowerCase()
+          .startsWith('target'),
       );
       const sampleRows = allRows.slice(0, 10);
       const numericCols: string[] = [];
@@ -681,7 +733,9 @@ export class ChartVisualizerComponent {
         const targetCols = numericCols.filter((c) => {
           const raw = targetRow[c];
           if (raw === undefined || raw === null || raw === '-') return false;
-          const cleanStr = String(raw).replace(/^[<>=!\s]+/, '').trim();
+          const cleanStr = String(raw)
+            .replace(/^[<>=!\s]+/, '')
+            .trim();
           return IndicatorEvaluator.parseSmartNumber(cleanStr) !== null;
         });
         selectedSeries = (targetCols.length > 0 ? targetCols : numericCols).slice(0, 4);
@@ -713,7 +767,9 @@ export class ChartVisualizerComponent {
 
     // Otomatis deteksi baris TARGET bila ada pada lembar data Excel
     const targetRow = rows.find((r) => {
-      const val = String(r[catCol] ?? '').trim().toLowerCase();
+      const val = String(r[catCol] ?? '')
+        .trim()
+        .toLowerCase();
       return val.startsWith('target');
     });
 
@@ -730,7 +786,9 @@ export class ChartVisualizerComponent {
         }
         const raw = targetRow[col.header];
         if (raw !== undefined && raw !== null && raw !== '-') {
-          const cleanStr = String(raw).replace(/^[<>=!\s]+/, '').trim();
+          const cleanStr = String(raw)
+            .replace(/^[<>=!\s]+/, '')
+            .trim();
           const num = IndicatorEvaluator.parseSmartNumber(cleanStr);
           if (num !== null) {
             detectedTargets[col.header] = num;
@@ -819,12 +877,7 @@ export class ChartVisualizerComponent {
       if (this.workbook && this.selectedSheet()) {
         const ws = this.workbook.Sheets[this.selectedSheet()];
         if (ws) {
-          this.refreshSheetColumnsAndData(
-            ws,
-            this.headerStartRow(),
-            this.headerEndRow(),
-            val,
-          );
+          this.refreshSheetColumnsAndData(ws, this.headerStartRow(), this.headerEndRow(), val);
         }
       }
     }
@@ -860,9 +913,7 @@ export class ChartVisualizerComponent {
     const all = this.allCandidateSeriesColumns();
     if (!q) return all;
     return all.filter(
-      (c) =>
-        c.header.toLowerCase().includes(q) ||
-        c.leafHeader.toLowerCase().includes(q),
+      (c) => c.header.toLowerCase().includes(q) || c.leafHeader.toLowerCase().includes(q),
     );
   });
 
@@ -890,13 +941,7 @@ export class ChartVisualizerComponent {
     if (this.workbook && this.selectedSheet()) {
       const ws = this.workbook.Sheets[this.selectedSheet()];
       if (ws) {
-        this.rebuildChartData(
-          ws,
-          this.sheetColumns(),
-          newCat,
-          updatedSeries,
-          this.dataStartRow(),
-        );
+        this.rebuildChartData(ws, this.sheetColumns(), newCat, updatedSeries, this.dataStartRow());
       }
     } else {
       const rows = this.originalDataRows().length > 0 ? this.originalDataRows() : this.dataRows();
@@ -990,7 +1035,9 @@ export class ChartVisualizerComponent {
         this.rebuildChartData(ws, allCols, cat, numericCols, this.dataStartRow());
       }
     } else {
-      const sampleRows = (this.originalDataRows().length > 0 ? this.originalDataRows() : this.dataRows()).slice(0, 15);
+      const sampleRows = (
+        this.originalDataRows().length > 0 ? this.originalDataRows() : this.dataRows()
+      ).slice(0, 15);
       const numericCols = cols
         .filter((c) =>
           sampleRows.some((r) => IndicatorEvaluator.parseSmartNumber(r[c.header]) !== null),
@@ -1080,7 +1127,9 @@ export class ChartVisualizerComponent {
   restoreAllRows(): void {
     const cats = this.availableCategories();
     this.selectedCategories.set([...cats]);
-    this.notificationMessage.set(`Seluruh baris (${cats.length} baris) berhasil ditampilkan kembali.`);
+    this.notificationMessage.set(
+      `Seluruh baris (${cats.length} baris) berhasil ditampilkan kembali.`,
+    );
   }
 
   // Mengecek apakah ada baris yang disembunyikan
@@ -1131,9 +1180,7 @@ export class ChartVisualizerComponent {
     const all = this.allCandidateSeriesColumns();
     if (!q) return all;
     return all.filter(
-      (c) =>
-        c.header.toLowerCase().includes(q) ||
-        c.leafHeader.toLowerCase().includes(q),
+      (c) => c.header.toLowerCase().includes(q) || c.leafHeader.toLowerCase().includes(q),
     );
   });
 
@@ -1178,7 +1225,9 @@ export class ChartVisualizerComponent {
       const series = this.seriesList();
       const rowMap = new Map<string, ChartDataRow>();
       for (const r of rows) {
-        const key = String(r[catCol] ?? '').trim().toLowerCase();
+        const key = String(r[catCol] ?? '')
+          .trim()
+          .toLowerCase();
         if (key) rowMap.set(key, r);
       }
       const avgMap = new Map<string, number | null>();
@@ -1261,9 +1310,9 @@ export class ChartVisualizerComponent {
     const target =
       targetOverride !== undefined
         ? targetOverride
-        : (bar.targetVal !== undefined && bar.targetVal !== null
-            ? bar.targetVal
-            : this.getIndicatorTarget(bar.seriesKey));
+        : bar.targetVal !== undefined && bar.targetVal !== null
+          ? bar.targetVal
+          : this.getIndicatorTarget(bar.seriesKey);
 
     if (target !== null && bar.numericVal !== null) {
       diff = Math.round((bar.numericVal - target) * 10) / 10;
@@ -1322,14 +1371,19 @@ export class ChartVisualizerComponent {
     if (!sheet || series.length === 0) {
       this.configNotification.set({
         type: 'warning',
-        message: 'Pilih sheet dan minimal 1 kolom indikator terlebih dahulu sebelum menyimpan konfigurasi.',
+        message:
+          'Pilih sheet dan minimal 1 kolom indikator terlebih dahulu sebelum menyimpan konfigurasi.',
       });
       return;
     }
 
     const catCol = this.categoryColumn();
     const allOrigCats = Array.from(
-      new Set(this.originalDataRows().map((r) => String(r[catCol] ?? '').trim()).filter(Boolean)),
+      new Set(
+        this.originalDataRows()
+          .map((r) => String(r[catCol] ?? '').trim())
+          .filter(Boolean),
+      ),
     );
     const availableCats = this.availableCategories();
     const selectedCats = this.selectedCategories();
@@ -1351,6 +1405,7 @@ export class ChartVisualizerComponent {
       chartSubtitle: this.chartSubtitle(),
       hiddenRows,
       viewMode: this.viewMode(),
+      activeMapIndicator: this.activeMapIndicator(),
       regionColumns: this.regionColumns(),
       regionGridColumns: this.regionGridColumns(),
       regionSortMode: this.regionSortMode(),
@@ -1363,7 +1418,8 @@ export class ChartVisualizerComponent {
 
     this.configNotification.set({
       type: 'success',
-      message: 'Konfigurasi grafik berhasil disimpan dan diunduh (.json)! Berkas ini juga tersimpan otomatis di browser ini.',
+      message:
+        'Konfigurasi grafik berhasil disimpan dan diunduh (.json)! Berkas ini juga tersimpan otomatis di browser ini.',
     });
   }
 
@@ -1381,7 +1437,8 @@ export class ChartVisualizerComponent {
       } catch (err) {
         this.configNotification.set({
           type: 'warning',
-          message: err instanceof Error ? err.message : 'Format berkas JSON konfigurasi tidak valid.',
+          message:
+            err instanceof Error ? err.message : 'Format berkas JSON konfigurasi tidak valid.',
         });
       } finally {
         input.value = '';
@@ -1422,6 +1479,9 @@ export class ChartVisualizerComponent {
     if (preset.viewMode) {
       this.viewMode.set(preset.viewMode);
     }
+    if (preset.activeMapIndicator) {
+      this.activeMapIndicator.set(preset.activeMapIndicator);
+    }
     if (preset.regionColumns) {
       this.regionColumns.set(preset.regionColumns);
     }
@@ -1447,7 +1507,9 @@ export class ChartVisualizerComponent {
           layers: [h],
         }));
         this.sheetColumns.set(colInfos);
-        const matchedCat = ChartPresetStore.findMatchingHeader(preset.categoryColumn, colInfos) || this.categoryColumn();
+        const matchedCat =
+          ChartPresetStore.findMatchingHeader(preset.categoryColumn, colInfos) ||
+          this.categoryColumn();
         if (matchedCat) {
           this.categoryColumn.set(matchedCat);
         }
@@ -1485,11 +1547,11 @@ export class ChartVisualizerComponent {
         if (preset.viewMode) {
           this.viewMode.set(preset.viewMode);
         }
+        if (preset.activeMapIndicator) {
+          this.activeMapIndicator.set(preset.activeMapIndicator);
+        }
 
-        const toHide = new Set([
-          ...(preset.hiddenRows || []),
-          ...(preset.deletedRows || []),
-        ]);
+        const toHide = new Set([...(preset.hiddenRows || []), ...(preset.deletedRows || [])]);
         if (toHide.size > 0) {
           this.selectedCategories.update((curr) => curr.filter((c) => !toHide.has(c)));
         }
@@ -1582,6 +1644,9 @@ export class ChartVisualizerComponent {
     if (preset.viewMode) {
       this.viewMode.set(preset.viewMode);
     }
+    if (preset.activeMapIndicator) {
+      this.activeMapIndicator.set(preset.activeMapIndicator);
+    }
     if (preset.regionColumns) {
       this.regionColumns.set(preset.regionColumns);
     }
@@ -1592,10 +1657,7 @@ export class ChartVisualizerComponent {
       this.regionSortMode.set(preset.regionSortMode);
     }
 
-    const toHide = new Set([
-      ...(preset.hiddenRows || []),
-      ...(preset.deletedRows || []),
-    ]);
+    const toHide = new Set([...(preset.hiddenRows || []), ...(preset.deletedRows || [])]);
     if (toHide.size > 0) {
       this.selectedCategories.update((curr) => curr.filter((c) => !toHide.has(c)));
     }
@@ -1640,9 +1702,7 @@ export class ChartVisualizerComponent {
 
   selectPercentageSeriesColumns(): void {
     const cols = this.allCandidateSeriesColumns();
-    const pctCols = cols
-      .filter((c) => this.isPercentageColumn(c.header))
-      .map((c) => c.header);
+    const pctCols = cols.filter((c) => this.isPercentageColumn(c.header)).map((c) => c.header);
 
     const targetCols = pctCols.length > 0 ? pctCols : cols.map((c) => c.header);
     this.selectedSeriesKeys.set(targetCols);
@@ -1880,7 +1940,9 @@ export class ChartVisualizerComponent {
     const cats = this.filteredChartCategories();
 
     if (cats.length === 0 || series.length === 0) {
-      this.notificationMessage.set('Tidak ada baris atau kolom indikator yang dipilih untuk diekspor.');
+      this.notificationMessage.set(
+        'Tidak ada baris atau kolom indikator yang dipilih untuk diekspor.',
+      );
       return;
     }
 
@@ -1890,7 +1952,9 @@ export class ChartVisualizerComponent {
       const targetSeries = series[0];
       const fileName = `${this.slugify(targetSeries.label) || 'data-indikator'}.xlsx`;
       ExcelEngine.writeWorkbook(wb, fileName);
-      this.notificationMessage.set(`Berkas "${fileName}" untuk indikator "${targetSeries.label}" berhasil diunduh.`);
+      this.notificationMessage.set(
+        `Berkas "${fileName}" untuk indikator "${targetSeries.label}" berhasil diunduh.`,
+      );
       return;
     }
 
@@ -1906,7 +1970,10 @@ export class ChartVisualizerComponent {
     const series = this.filteredChartSeries();
     const rows = this.dataRows();
     const r = rows.find(
-      (row) => String(row[catCol] ?? '').trim().toLowerCase() === regionName.trim().toLowerCase(),
+      (row) =>
+        String(row[catCol] ?? '')
+          .trim()
+          .toLowerCase() === regionName.trim().toLowerCase(),
     );
 
     const wb = XLSX.utils.book_new();
@@ -1971,7 +2038,9 @@ export class ChartVisualizerComponent {
 
     const rowMap = new Map<string, ChartDataRow>();
     for (const r of rows) {
-      const key = String(r[catCol] ?? '').trim().toLowerCase();
+      const key = String(r[catCol] ?? '')
+        .trim()
+        .toLowerCase();
       if (key) {
         rowMap.set(key, r);
       }
@@ -2097,7 +2166,9 @@ export class ChartVisualizerComponent {
 
     const rowMap = new Map<string, ChartDataRow>();
     for (const r of rows) {
-      const key = String(r[catCol] ?? '').trim().toLowerCase();
+      const key = String(r[catCol] ?? '')
+        .trim()
+        .toLowerCase();
       if (key) {
         rowMap.set(key, r);
       }

@@ -17,6 +17,7 @@ import { ColumnInfo, ExcelEngine } from '../../shared/excel';
 import { StuntingExcelExporter } from '../../core/stunting/stunting-excel-exporter';
 import * as XLSX from 'xlsx';
 import { ExcelJoinEngine } from '../../core/excel/excel-join-engine';
+import { DinkesSpreadsheetParser } from '../../core/excel/dinkes-spreadsheet-parser';
 import { DEFAULT_JOIN_CONFIG } from '../excel-join/default-join-config';
 import {
   GasPeriodItem,
@@ -40,11 +41,7 @@ export interface SecondarySheetSetup {
   columns: ColumnInfo[];
 }
 
-import {
-  UiAlertComponent,
-  UiButtonComponent,
-  UiPageHeaderComponent,
-} from '../../shared/ui';
+import { UiAlertComponent, UiButtonComponent, UiPageHeaderComponent } from '../../shared/ui';
 
 export interface JoinedRowPreviewItem {
   id: string;
@@ -132,14 +129,20 @@ export class StuntingMonitoringComponent implements OnInit {
   selectedQuartersWithDataCount = computed<number>(() => {
     return this.quarterOptions.filter((q) => {
       if (!this.selectedQuarterSlots()[q.value]) return false;
-      return this.isQuarterAvailableInCloud(this.selectedYear(), q.value) || !!this.quarterLocalFiles()[q.value];
+      return (
+        this.isQuarterAvailableInCloud(this.selectedYear(), q.value) ||
+        !!this.quarterLocalFiles()[q.value]
+      );
     }).length;
   });
 
   hasIncompleteQuarterInSelection = computed<boolean>(() => {
     return this.quarterOptions.some((q) => {
       if (!this.selectedQuarterSlots()[q.value]) return false;
-      return !this.isQuarterAvailableInCloud(this.selectedYear(), q.value) && !this.quarterLocalFiles()[q.value];
+      return (
+        !this.isQuarterAvailableInCloud(this.selectedYear(), q.value) &&
+        !this.quarterLocalFiles()[q.value]
+      );
     });
   });
 
@@ -319,9 +322,15 @@ export class StuntingMonitoringComponent implements OnInit {
     return [1, 2, 3, 4];
   });
 
-  onTrackCount = computed(() => this.evaluationResult()?.rows.filter((r) => r.status === 'on_track').length ?? 0);
-  perluPercepatanCount = computed(() => this.evaluationResult()?.rows.filter((r) => r.status === 'perlu_percepatan').length ?? 0);
-  perluPerhatianCount = computed(() => this.evaluationResult()?.rows.filter((r) => r.status === 'perlu_perhatian').length ?? 0);
+  onTrackCount = computed(
+    () => this.evaluationResult()?.rows.filter((r) => r.status === 'on_track').length ?? 0,
+  );
+  perluPercepatanCount = computed(
+    () => this.evaluationResult()?.rows.filter((r) => r.status === 'perlu_percepatan').length ?? 0,
+  );
+  perluPerhatianCount = computed(
+    () => this.evaluationResult()?.rows.filter((r) => r.status === 'perlu_perhatian').length ?? 0,
+  );
 
   setViewMode(mode: 'auto' | 'single_quarter' | 'all_quarters'): void {
     this.viewMode.set(mode);
@@ -435,7 +444,8 @@ export class StuntingMonitoringComponent implements OnInit {
       }
       this.configNotification.set({
         type: 'success',
-        message: 'Contoh data Hasil Join standar Dinkes (35 Kabupaten/Kota Jawa Tengah) berhasil dimuat!',
+        message:
+          'Contoh data Hasil Join standar Dinkes (35 Kabupaten/Kota Jawa Tengah) berhasil dimuat!',
         details: [
           `Wilayah: ${this.activeRegionRows().length} Kabupaten/Kota`,
           '14 pasangan indikator serta baris acuan Rata-rata dan Target Dinkes otomatis terkonfigurasi.',
@@ -461,9 +471,13 @@ export class StuntingMonitoringComponent implements OnInit {
       const res = await this.gasStorageService.listPeriods();
       if (res.success && Array.isArray(res.periods)) {
         this.periodSlots.set(res.periods);
-        const yearsFromPeriods = Array.from(new Set(res.periods.map((p) => p.year))).sort((a, b) => b - a);
+        const yearsFromPeriods = Array.from(new Set(res.periods.map((p) => p.year))).sort(
+          (a, b) => b - a,
+        );
         if (yearsFromPeriods.length > 0) {
-          const mergedYears = Array.from(new Set([...yearsFromPeriods, ...this.availableYears()])).sort((a, b) => b - a);
+          const mergedYears = Array.from(
+            new Set([...yearsFromPeriods, ...this.availableYears()]),
+          ).sort((a, b) => b - a);
           this.availableYears.set(mergedYears);
           if (!res.periods.some((p) => p.year === this.selectedYear())) {
             this.selectedYear.set(yearsFromPeriods[0]);
@@ -586,7 +600,9 @@ export class StuntingMonitoringComponent implements OnInit {
             let slotConfig: unknown = undefined;
             if (this.isQuarterAvailableInCloud(year, slot)) {
               try {
-                const cloudSlot = await this.gasStorageService.loadPeriod(year, slot, { preferResult: true });
+                const cloudSlot = await this.gasStorageService.loadPeriod(year, slot, {
+                  preferResult: true,
+                });
                 if (cloudSlot.config) slotConfig = cloudSlot.config;
               } catch {
                 // ignore
@@ -679,7 +695,9 @@ export class StuntingMonitoringComponent implements OnInit {
         `Wilayah aktif: ${this.activeRegionRows().length} Kab/Kota terdeteksi`,
       ];
       if (this.isHasilJoinFormat()) {
-        details.push('Format Standar Dinkes (Hasil Join) terdeteksi & 14 indikator terkonfigurasi otomatis.');
+        details.push(
+          'Format Standar Dinkes (Hasil Join) terdeteksi & 14 indikator terkonfigurasi otomatis.',
+        );
         if (this.summaryRowData()) {
           details.push(`Capaian %: ${this.summaryRowData()![this.primaryKeyCol()]}`);
         }
@@ -712,55 +730,6 @@ export class StuntingMonitoringComponent implements OnInit {
     }
   }
 
-  private separateSpecialRows(
-    rawRows: Record<string, unknown>[],
-    columns: string[],
-    keyCol: string,
-  ): {
-    rows: Record<string, unknown>[];
-    columns: string[];
-    keyCol: string;
-    summaryRow: Record<string, unknown> | null;
-    targetRow: Record<string, unknown> | null;
-    totalRow: Record<string, unknown> | null;
-  } {
-    let summaryRow: Record<string, unknown> | null = null;
-    let targetRow: Record<string, unknown> | null = null;
-    let totalRow: Record<string, unknown> | null = null;
-    const regionRows: Record<string, unknown>[] = [];
-
-    for (const r of rawRows) {
-      const rawVal = String(r[keyCol] ?? '').trim();
-      if (!rawVal) continue;
-      const upper = rawVal.toUpperCase();
-
-      if (upper.includes('TARGET')) {
-        if (!targetRow) targetRow = r;
-      } else if (
-        upper.includes('RATA') ||
-        upper.includes('AVERAGE') ||
-        upper.includes('JAWA TENGAH') ||
-        upper.includes('PROVINSI') ||
-        upper.startsWith('PROV')
-      ) {
-        if (!summaryRow) summaryRow = r;
-      } else if (upper.includes('TOTAL') || upper.includes('JUMLAH')) {
-        if (!totalRow) totalRow = r;
-      } else {
-        regionRows.push(r);
-      }
-    }
-
-    return {
-      rows: regionRows,
-      columns,
-      keyCol,
-      summaryRow,
-      targetRow,
-      totalRow,
-    };
-  }
-
   private extractDatasetFromBuffer(
     buffer: ArrayBuffer,
     config?: unknown,
@@ -772,114 +741,23 @@ export class StuntingMonitoringComponent implements OnInit {
     targetRow: Record<string, unknown> | null;
     totalRow: Record<string, unknown> | null;
   } {
-    const wb = ExcelEngine.readWorkbook(buffer);
-
-    // 1. Cek apakah ada lembar "Hasil Join" (format standar hasil join yang diekspor/disimpan dari modul Excel Join)
-    if (wb.SheetNames.includes('Hasil Join')) {
-      const ws = wb.Sheets['Hasil Join'];
-      const struct = ExcelEngine.detectSheetStructure(ws);
-      const colsMeta = ExcelEngine.extractSheetColumns(ws, struct.headerStartRow, struct.headerEndRow);
-      const cols: string[] = colsMeta.map((c: ColumnInfo) => c.header);
-      const rawRows = ExcelEngine.readSheetRows(ws, colsMeta, struct.dataStartRow);
-      const keyCol =
-        cols.find((c: string) => /kabupaten|kota|wilayah|puskesmas/i.test(c)) ||
-        cols[0] ||
-        'Kabupaten/Kota';
-      const separated = this.separateSpecialRows(rawRows, cols, keyCol);
-
-      // Jika ada config dari Drive/Preset yang membawa target acuan, lengkapi baris target jika belum ada atau kosong
-      if (config && typeof config === 'object' && 'columnTargets' in config) {
-        const cfg = config as any;
-        if (cfg.columnTargets) {
-          if (!separated.targetRow) {
-            separated.targetRow = { [keyCol]: 'Target Dinkes', __id: 'row-target-cfg' };
-          }
-          for (const c of cols) {
-            if (c === keyCol) continue;
-            const tgt = cfg.columnTargets[c];
-            if (tgt && tgt.enabled !== false && tgt.value !== null && tgt.value !== undefined) {
-              const currentVal = separated.targetRow[c];
-              if (
-                currentVal === undefined ||
-                currentVal === null ||
-                String(currentVal).trim() === '' ||
-                String(currentVal).trim() === '-'
-              ) {
-                separated.targetRow[c] = tgt.operator ? `${tgt.operator} ${tgt.value}` : String(tgt.value);
-              }
-            }
-          }
-        }
-      }
-
-      return separated;
-    }
-
-    // 2. Cek apakah ada konfigurasi join yang valid (Preset dari Google Apps Script atau storage)
-    let joinPreset: any = null;
-    if (config && typeof config === 'object' && 'sheets' in config && Array.isArray((config as any).sheets)) {
-      joinPreset = config;
-    } else if (config && typeof config === 'object' && 'selectedSheets' in config) {
-      joinPreset = config;
-    }
-
-    if (joinPreset) {
-      try {
-        const result = ExcelJoinEngine.executeJoinFromPreset(wb, joinPreset);
-        if (result.rows.length > 0) {
-          return result;
-        }
-      } catch (e) {
-        console.warn('executeJoinFromPreset failed for period config, falling back:', e);
-      }
-    }
-
-    // 3. Fallback cerdas: Cek apakah template workbook memiliki sheet standar Dinkes ('anak', 'gizi', 'BUMIL', 'remaja', 'idl')
-    // Jika ya, gunakan DEFAULT_JOIN_CONFIG untuk menggabungkan seluruh indikator resmi Dinkes secara otomatis
-    const standardDinkesSheets = ['anak', 'gizi', 'bumil', 'remaja', 'idl'];
-    const hasStandardSheets = standardDinkesSheets.some((sn) =>
-      wb.SheetNames.some((n) => n.trim().toLowerCase() === sn)
-    );
-    if (hasStandardSheets) {
-      try {
-        const result = ExcelJoinEngine.executeJoinFromPreset(wb, DEFAULT_JOIN_CONFIG);
-        if (result.rows.length > 0) {
-          return result;
-        }
-      } catch (e) {
-        console.warn('DEFAULT_JOIN_CONFIG join failed:', e);
-      }
-    }
-
-    // 4. Fallback: Baca sheet pertama
-    const firstSheetName = wb.SheetNames[0];
-    if (firstSheetName && wb.Sheets[firstSheetName]) {
-      const ws = wb.Sheets[firstSheetName];
-      const struct = ExcelEngine.detectSheetStructure(ws);
-      const colsMeta = ExcelEngine.extractSheetColumns(ws, struct.headerStartRow, struct.headerEndRow);
-      const cols: string[] = colsMeta.map((c: ColumnInfo) => c.header);
-      const rawRows = ExcelEngine.readSheetRows(ws, colsMeta, struct.dataStartRow);
-      const keyCol =
-        cols.find((c: string) => /kabupaten|kota|wilayah|puskesmas/i.test(c)) ||
-        cols[0] ||
-        'Kabupaten/Kota';
-      return this.separateSpecialRows(rawRows, cols, keyCol);
-    }
+    const parsed = DinkesSpreadsheetParser.parse(buffer, {
+      preset:
+        config && typeof config === 'object' && 'sheets' in config ? (config as any) : undefined,
+      stripKabupaten: this.stripKabupaten(),
+    });
 
     return {
-      rows: [],
-      columns: [],
-      keyCol: 'Kabupaten/Kota',
-      summaryRow: null,
-      targetRow: null,
-      totalRow: null,
+      rows: parsed.regionRows,
+      columns: parsed.columns,
+      keyCol: parsed.keyCol,
+      summaryRow: parsed.summaryRow,
+      targetRow: parsed.targetRow,
+      totalRow: parsed.totalRow,
     };
   }
 
-  private processMergedQuarterDatasets(
-    loadedQuarters: LoadedQuarterItem[],
-    year: number,
-  ): void {
+  private processMergedQuarterDatasets(loadedQuarters: LoadedQuarterItem[], year: number): void {
     if (loadedQuarters.length === 0) return;
 
     const primaryKey = 'Kabupaten/Kota';
@@ -888,12 +766,7 @@ export class StuntingMonitoringComponent implements OnInit {
 
     const isNonIndicatorCol = (c: string, keyCol: string): boolean => {
       const cl = c.trim().toLowerCase();
-      return (
-        cl === keyCol.toLowerCase() ||
-        cl === 'no' ||
-        cl === '__id' ||
-        cl === 'capaian'
-      );
+      return cl === keyCol.toLowerCase() || cl === 'no' || cl === '__id' || cl === 'capaian';
     };
 
     // Kumpulkan seluruh wilayah unik dari seluruh triwulan yang dimuat
@@ -1107,7 +980,9 @@ export class StuntingMonitoringComponent implements OnInit {
     let detectedTotalRow: Record<string, unknown> | null = this.totalRowData();
 
     for (const r of rowsWithId) {
-      const keyStr = String(r[pKey] ?? '').trim().toUpperCase();
+      const keyStr = String(r[pKey] ?? '')
+        .trim()
+        .toUpperCase();
       if (keyStr.includes('TARGET')) {
         if (!detectedTargetRow) detectedTargetRow = r;
       } else if (
@@ -1168,8 +1043,12 @@ export class StuntingMonitoringComponent implements OnInit {
     for (const sheetName of sheets) {
       if (sheetName !== p) {
         const ws = this.getWorksheet(sheetName);
-        const struct = ws ? ExcelEngine.detectSheetStructure(ws) : { headerStartRow: 1, headerEndRow: 1, dataStartRow: 2 };
-        const cols = ws ? ExcelEngine.extractSheetColumns(ws, struct.headerStartRow, struct.headerEndRow) : [];
+        const struct = ws
+          ? ExcelEngine.detectSheetStructure(ws)
+          : { headerStartRow: 1, headerEndRow: 1, dataStartRow: 2 };
+        const cols = ws
+          ? ExcelEngine.extractSheetColumns(ws, struct.headerStartRow, struct.headerEndRow)
+          : [];
         const detectedKey = this.autoDetectKeyColumn(cols);
 
         secondaries.push({
@@ -1209,13 +1088,29 @@ export class StuntingMonitoringComponent implements OnInit {
 
     // Deteksi triwulan aktif dari nama berkas atau nama lembar kerja (contoh: TW3)
     const contextName = `${sheetName} ${this.file()?.name || ''}`.toLowerCase();
-    if (contextName.includes('tw3') || contextName.includes('tw 3') || contextName.includes('triwulan 3')) {
+    if (
+      contextName.includes('tw3') ||
+      contextName.includes('tw 3') ||
+      contextName.includes('triwulan 3')
+    ) {
       this.manualActiveQuarter.set(3);
-    } else if (contextName.includes('tw2') || contextName.includes('tw 2') || contextName.includes('triwulan 2')) {
+    } else if (
+      contextName.includes('tw2') ||
+      contextName.includes('tw 2') ||
+      contextName.includes('triwulan 2')
+    ) {
       this.manualActiveQuarter.set(2);
-    } else if (contextName.includes('tw4') || contextName.includes('tw 4') || contextName.includes('triwulan 4')) {
+    } else if (
+      contextName.includes('tw4') ||
+      contextName.includes('tw 4') ||
+      contextName.includes('triwulan 4')
+    ) {
       this.manualActiveQuarter.set(4);
-    } else if (contextName.includes('tw1') || contextName.includes('tw 1') || contextName.includes('triwulan 1')) {
+    } else if (
+      contextName.includes('tw1') ||
+      contextName.includes('tw 1') ||
+      contextName.includes('triwulan 1')
+    ) {
       this.manualActiveQuarter.set(1);
     }
 
@@ -1223,7 +1118,10 @@ export class StuntingMonitoringComponent implements OnInit {
     this.performJoin();
 
     // Auto-populate indikator jika berada pada mode ringkasan dan indikator masih kosong
-    if (this.calculationDataSource() === 'summary_row' && this.categories().every((c) => c.subCategories.length === 0)) {
+    if (
+      this.calculationDataSource() === 'summary_row' &&
+      this.categories().every((c) => c.subCategories.length === 0)
+    ) {
       this.autoPopulateIndicatorsFromData();
     }
   }
@@ -1267,7 +1165,11 @@ export class StuntingMonitoringComponent implements OnInit {
     if (!this.workbook || !this.primarySheet()) return;
     const ws = this.workbook.Sheets[this.primarySheet()];
     if (!ws) return;
-    const cols = ExcelEngine.extractSheetColumns(ws, this.primaryHeaderStartRow(), this.primaryHeaderEndRow());
+    const cols = ExcelEngine.extractSheetColumns(
+      ws,
+      this.primaryHeaderStartRow(),
+      this.primaryHeaderEndRow(),
+    );
     this.primaryColumns.set(cols);
     if (!cols.some((c) => c.header === this.primaryKeyCol())) {
       this.primaryKeyCol.set(this.autoDetectKeyColumn(cols));
@@ -1326,7 +1228,9 @@ export class StuntingMonitoringComponent implements OnInit {
       list.map((s) => {
         if (s.sheetName !== sheetName) return s;
         const cols = ExcelEngine.extractSheetColumns(ws, s.headerStartRow, s.headerEndRow);
-        const nextKey = cols.some((c) => c.header === s.keyCol) ? s.keyCol : this.autoDetectKeyColumn(cols);
+        const nextKey = cols.some((c) => c.header === s.keyCol)
+          ? s.keyCol
+          : this.autoDetectKeyColumn(cols);
         return { ...s, columns: cols, keyCol: nextKey };
       }),
     );
@@ -1412,7 +1316,11 @@ export class StuntingMonitoringComponent implements OnInit {
 
   toggleRowExclusion(rowId: string): void {
     const row = this.joinedRows().find((r) => r['__id'] === rowId);
-    const rawKey = row ? String(row[this.primaryKeyCol()] ?? '').trim().toLowerCase() : '';
+    const rawKey = row
+      ? String(row[this.primaryKeyCol()] ?? '')
+          .trim()
+          .toLowerCase()
+      : '';
 
     this.excludedRowIds.update((set) => {
       const next = new Set(set);
@@ -1510,7 +1418,9 @@ export class StuntingMonitoringComponent implements OnInit {
       if (!isMatch) {
         for (const [col, val] of Object.entries(r)) {
           if (col === '__id') continue;
-          const strVal = String(val ?? '').trim().toUpperCase();
+          const strVal = String(val ?? '')
+            .trim()
+            .toUpperCase();
           for (const kw of keywords) {
             if (strVal === kw || strVal.startsWith(kw + ' ') || strVal.endsWith(' ' + kw)) {
               isMatch = true;
@@ -1542,11 +1452,7 @@ export class StuntingMonitoringComponent implements OnInit {
     const pKey = this.primaryKeyCol();
 
     // Read master rows
-    const masterRows = ExcelEngine.readSheetRows(
-      masterWs,
-      pCols,
-      this.primaryDataStartRow(),
-    );
+    const masterRows = ExcelEngine.readSheetRows(masterWs, pCols, this.primaryDataStartRow());
 
     const activeSecondaries = this.secondarySheets().filter((s) => s.selected);
     const allColsMap = new Map<string, string>(); // normalized -> original column header
@@ -1629,7 +1535,9 @@ export class StuntingMonitoringComponent implements OnInit {
     let detectedTotalRow: Record<string, unknown> | null = null;
 
     for (const r of merged) {
-      const keyStr = String(r[pKey] ?? '').trim().toUpperCase();
+      const keyStr = String(r[pKey] ?? '')
+        .trim()
+        .toUpperCase();
       if (keyStr.includes('TARGET')) {
         if (!detectedTargetRow) detectedTargetRow = r;
       } else if (
@@ -1655,7 +1563,9 @@ export class StuntingMonitoringComponent implements OnInit {
       this.summaryRowData.set(detectedSummaryRow);
       this.excludedRowIds.update((s) => new Set(s).add(sId));
 
-      const keyStr = String(detectedSummaryRow[pKey] ?? '').trim().toUpperCase();
+      const keyStr = String(detectedSummaryRow[pKey] ?? '')
+        .trim()
+        .toUpperCase();
       if (
         keyStr.includes('JAWA TENGAH') ||
         keyStr.includes('PROVINSI') ||
@@ -1682,7 +1592,11 @@ export class StuntingMonitoringComponent implements OnInit {
     }
 
     // Auto-populate indikator jika format Hasil Join terdeteksi atau indikator masih kosong
-    if (this.isHasilJoinFormat() || this.categories().length === 0 || this.categories().every((c) => c.subCategories.length === 0)) {
+    if (
+      this.isHasilJoinFormat() ||
+      this.categories().length === 0 ||
+      this.categories().every((c) => c.subCategories.length === 0)
+    ) {
       this.autoPopulateIndicatorsFromData();
     }
   }
@@ -1733,7 +1647,12 @@ export class StuntingMonitoringComponent implements OnInit {
     const detectedQuartersInCols = quarterSlots.filter((q) =>
       cols.some((c) => {
         const norm = normalizeStr(c);
-        return norm.includes(`(tw${q})`) || norm.includes(`(tw ${q})`) || norm.includes(`tw${q}`) || norm.includes(`tw ${q}`);
+        return (
+          norm.includes(`(tw${q})`) ||
+          norm.includes(`(tw ${q})`) ||
+          norm.includes(`tw${q}`) ||
+          norm.includes(`tw ${q}`)
+        );
       }),
     );
     const hasQuarterSuffixes = detectedQuartersInCols.length > 0;
@@ -1769,7 +1688,13 @@ export class StuntingMonitoringComponent implements OnInit {
             // Prioritas 2: Kolom mengandung keyword dan triwulan q
             const containsMatch = cols.find((c) => {
               const norm = normalizeStr(c);
-              return norm.includes(normKw) && (norm.includes(`(tw${q})`) || norm.includes(`(tw ${q})`) || norm.includes(`tw${q}`) || norm.includes(`tw ${q}`));
+              return (
+                norm.includes(normKw) &&
+                (norm.includes(`(tw${q})`) ||
+                  norm.includes(`(tw ${q})`) ||
+                  norm.includes(`tw${q}`) ||
+                  norm.includes(`tw ${q}`))
+              );
             });
             if (containsMatch) {
               qMeanCol = containsMatch;
@@ -1790,7 +1715,13 @@ export class StuntingMonitoringComponent implements OnInit {
             }
             const containsMatch = cols.find((c) => {
               const norm = normalizeStr(c);
-              return norm.includes(normKw) && (norm.includes(`(tw${q})`) || norm.includes(`(tw ${q})`) || norm.includes(`tw${q}`) || norm.includes(`tw ${q}`));
+              return (
+                norm.includes(normKw) &&
+                (norm.includes(`(tw${q})`) ||
+                  norm.includes(`(tw ${q})`) ||
+                  norm.includes(`tw${q}`) ||
+                  norm.includes(`tw ${q}`))
+              );
             });
             if (containsMatch) {
               qSumCol = containsMatch;
@@ -1803,12 +1734,22 @@ export class StuntingMonitoringComponent implements OnInit {
             if (qMeanCol) matchedMeanCols.add(qMeanCol);
             if (qSumCol) matchedSumCols.add(qSumCol);
 
-            const directVal = summaryRow ? IndicatorEvaluator.parseSmartNumber(summaryRow[effMean]) : null;
-            const countVal = qSumCol && countSource ? IndicatorEvaluator.parseSmartNumber(countSource[qSumCol]) : null;
+            const directVal = summaryRow
+              ? IndicatorEvaluator.parseSmartNumber(summaryRow[effMean])
+              : null;
+            const countVal =
+              qSumCol && countSource
+                ? IndicatorEvaluator.parseSmartNumber(countSource[qSumCol])
+                : null;
 
             if (foundTarget === null && targetRow) {
               const rawTarget = targetRow[effMean] ?? (qSumCol ? targetRow[qSumCol] : null);
-              if (rawTarget !== null && rawTarget !== undefined && String(rawTarget).trim() !== '' && String(rawTarget).trim() !== '-') {
+              if (
+                rawTarget !== null &&
+                rawTarget !== undefined &&
+                String(rawTarget).trim() !== '' &&
+                String(rawTarget).trim() !== '-'
+              ) {
                 const cleaned = StuntingEvaluationEngine.cleanTargetValue(rawTarget);
                 if (cleaned.value !== null) {
                   foundTarget = cleaned.value;
@@ -1837,7 +1778,8 @@ export class StuntingMonitoringComponent implements OnInit {
         // Mode Single-Triwulan (berkas Excel biasa / Hasil Join satu triwulan)
         for (const kw of std.sumKeywords) {
           const normKw = normalizeStr(kw);
-          const found = cols.find((c) => normalizeStr(c) === normKw) ||
+          const found =
+            cols.find((c) => normalizeStr(c) === normKw) ||
             cols.find((c) => normalizeStr(c).includes(normKw));
           if (found) {
             latestSumCol = found;
@@ -1847,7 +1789,8 @@ export class StuntingMonitoringComponent implements OnInit {
 
         for (const kw of std.meanKeywords) {
           const normKw = normalizeStr(kw);
-          const found = cols.find((c) => normalizeStr(c) === normKw) ||
+          const found =
+            cols.find((c) => normalizeStr(c) === normKw) ||
             cols.find((c) => normalizeStr(c).includes(normKw));
           if (found) {
             latestMeanCol = found;
@@ -1860,12 +1803,22 @@ export class StuntingMonitoringComponent implements OnInit {
           if (latestMeanCol) matchedMeanCols.add(latestMeanCol);
           if (latestSumCol) matchedSumCols.add(latestSumCol);
 
-          latestDirectVal = summaryRow ? IndicatorEvaluator.parseSmartNumber(summaryRow[effMean]) : null;
-          latestCountVal = latestSumCol && countSource ? IndicatorEvaluator.parseSmartNumber(countSource[latestSumCol]) : null;
+          latestDirectVal = summaryRow
+            ? IndicatorEvaluator.parseSmartNumber(summaryRow[effMean])
+            : null;
+          latestCountVal =
+            latestSumCol && countSource
+              ? IndicatorEvaluator.parseSmartNumber(countSource[latestSumCol])
+              : null;
 
           if (targetRow) {
             const rawTarget = targetRow[effMean] ?? (latestSumCol ? targetRow[latestSumCol] : null);
-            if (rawTarget !== null && rawTarget !== undefined && String(rawTarget).trim() !== '' && String(rawTarget).trim() !== '-') {
+            if (
+              rawTarget !== null &&
+              rawTarget !== undefined &&
+              String(rawTarget).trim() !== '' &&
+              String(rawTarget).trim() !== '-'
+            ) {
               const cleaned = StuntingEvaluationEngine.cleanTargetValue(rawTarget);
               if (cleaned.value !== null) {
                 foundTarget = cleaned.value;
@@ -1887,7 +1840,8 @@ export class StuntingMonitoringComponent implements OnInit {
 
       if (Object.keys(quarterColumns).length > 0) {
         const effMean = latestMeanCol || latestSumCol || '';
-        const defaultTgt = typeof std.defaultTargetCurrent === 'number' ? std.defaultTargetCurrent : null;
+        const defaultTgt =
+          typeof std.defaultTargetCurrent === 'number' ? std.defaultTargetCurrent : null;
         const targetVal = foundTarget !== null ? foundTarget : defaultTgt;
 
         const subConfig: StuntingSubCategoryConfig = {
@@ -1906,7 +1860,8 @@ export class StuntingMonitoringComponent implements OnInit {
           prevYearMode: 'manual',
           actualPrevYear: std.defaultActualPrev ?? null,
           targetPrevYear: std.defaultTargetPrev ?? null,
-          polarity: (detectedPolarity && detectedPolarity !== 'positive') ? detectedPolarity : std.polarity,
+          polarity:
+            detectedPolarity && detectedPolarity !== 'positive' ? detectedPolarity : std.polarity,
         };
 
         if (std.canonicalCategory === 'sebelum_kelahiran') {
@@ -1948,7 +1903,12 @@ export class StuntingMonitoringComponent implements OnInit {
       let lastCountVal: number | null = null;
       let foundTarget: number | null = null;
       let polarity: IndicatorPolarity = 'positive';
-      if (normBase.includes('anemia') || normBase.includes('kek') || normBase.includes('gibur') || normBase.includes('kurang')) {
+      if (
+        normBase.includes('anemia') ||
+        normBase.includes('kek') ||
+        normBase.includes('gibur') ||
+        normBase.includes('kurang')
+      ) {
         polarity = 'negative';
       }
 
@@ -1956,20 +1916,39 @@ export class StuntingMonitoringComponent implements OnInit {
         for (const q of quarterSlots) {
           const qCol = cols.find((c) => {
             const n = normalizeStr(c);
-            return n.includes(normBase) && (n.includes(`(tw${q})`) || n.includes(`(tw ${q})`) || n.includes(`tw${q}`) || n.includes(`tw ${q}`));
+            return (
+              n.includes(normBase) &&
+              (n.includes(`(tw${q})`) ||
+                n.includes(`(tw ${q})`) ||
+                n.includes(`tw${q}`) ||
+                n.includes(`tw ${q}`))
+            );
           });
           if (qCol) {
             matchedMeanCols.add(qCol);
             const qColIdx = cols.indexOf(qCol);
-            const prevCol = qColIdx > 0 && !matchedMeanCols.has(cols[qColIdx - 1]) ? cols[qColIdx - 1] : undefined;
+            const prevCol =
+              qColIdx > 0 && !matchedMeanCols.has(cols[qColIdx - 1])
+                ? cols[qColIdx - 1]
+                : undefined;
             if (prevCol) matchedSumCols.add(prevCol);
 
-            const directVal = summaryRow ? IndicatorEvaluator.parseSmartNumber(summaryRow[qCol]) : null;
-            const countVal = prevCol && countSource ? IndicatorEvaluator.parseSmartNumber(countSource[prevCol]) : null;
+            const directVal = summaryRow
+              ? IndicatorEvaluator.parseSmartNumber(summaryRow[qCol])
+              : null;
+            const countVal =
+              prevCol && countSource
+                ? IndicatorEvaluator.parseSmartNumber(countSource[prevCol])
+                : null;
 
             if (foundTarget === null && targetRow) {
               const rawTgt = targetRow[qCol] ?? (prevCol ? targetRow[prevCol] : null);
-              if (rawTgt !== null && rawTgt !== undefined && String(rawTgt).trim() !== '' && String(rawTgt).trim() !== '-') {
+              if (
+                rawTgt !== null &&
+                rawTgt !== undefined &&
+                String(rawTgt).trim() !== '' &&
+                String(rawTgt).trim() !== '-'
+              ) {
                 const cleaned = StuntingEvaluationEngine.cleanTargetValue(rawTgt);
                 if (cleaned.value !== null) {
                   foundTarget = cleaned.value;
@@ -1999,11 +1978,17 @@ export class StuntingMonitoringComponent implements OnInit {
         if (prevCol) matchedSumCols.add(prevCol);
 
         const directVal = summaryRow ? IndicatorEvaluator.parseSmartNumber(summaryRow[col]) : null;
-        const countVal = prevCol && countSource ? IndicatorEvaluator.parseSmartNumber(countSource[prevCol]) : null;
+        const countVal =
+          prevCol && countSource ? IndicatorEvaluator.parseSmartNumber(countSource[prevCol]) : null;
 
         if (targetRow) {
           const rawTgt = targetRow[col] ?? (prevCol ? targetRow[prevCol] : null);
-          if (rawTgt !== null && rawTgt !== undefined && String(rawTgt).trim() !== '' && String(rawTgt).trim() !== '-') {
+          if (
+            rawTgt !== null &&
+            rawTgt !== undefined &&
+            String(rawTgt).trim() !== '' &&
+            String(rawTgt).trim() !== '-'
+          ) {
             const cleaned = StuntingEvaluationEngine.cleanTargetValue(rawTgt);
             if (cleaned.value !== null) {
               foundTarget = cleaned.value;
@@ -2091,7 +2076,8 @@ export class StuntingMonitoringComponent implements OnInit {
     // 3. Fallback: Jika tidak ada kolom terpetakan, scaffold struktur indikator resmi
     if (cat1Subs.length === 0 && cat2Subs.length === 0 && cat3Subs.length === 0) {
       for (const std of StuntingEvaluationEngine.DINKES_STANDARD_INDICATORS) {
-        const defaultTgt = typeof std.defaultTargetCurrent === 'number' ? std.defaultTargetCurrent : null;
+        const defaultTgt =
+          typeof std.defaultTargetCurrent === 'number' ? std.defaultTargetCurrent : null;
         const subConfig: StuntingSubCategoryConfig = {
           id: `sub-std-${std.no}-${Date.now()}`,
           no: std.no,
@@ -2155,7 +2141,9 @@ export class StuntingMonitoringComponent implements OnInit {
     );
     if (movingSub) {
       this.categories.update((cats) =>
-        cats.map((c) => (c.id === targetCatId ? { ...c, subCategories: [...c.subCategories, movingSub!] } : c)),
+        cats.map((c) =>
+          c.id === targetCatId ? { ...c, subCategories: [...c.subCategories, movingSub!] } : c,
+        ),
       );
     }
   }
@@ -2179,7 +2167,7 @@ export class StuntingMonitoringComponent implements OnInit {
             const updatedQ: StuntingQuarterInputConfig = {
               ...prevQ,
               sumCol: colName || undefined,
-              countValue: countVal !== null ? countVal : (colName ? prevQ.countValue : undefined),
+              countValue: countVal !== null ? countVal : colName ? prevQ.countValue : undefined,
             };
             const newQuarterColumns = {
               ...(s.quarterColumns || {}),
@@ -2202,7 +2190,8 @@ export class StuntingMonitoringComponent implements OnInit {
   onQuarterMeanColChange(catId: string, subId: string, q: number, colName: string): void {
     const quarter = (q >= 1 && q <= 4 ? q : 1) as 1 | 2 | 3 | 4;
     const summaryRow = this.summaryRowData();
-    const directVal = summaryRow && colName ? IndicatorEvaluator.parseSmartNumber(summaryRow[colName]) : null;
+    const directVal =
+      summaryRow && colName ? IndicatorEvaluator.parseSmartNumber(summaryRow[colName]) : null;
     const targetRow = this.targetRowData();
     const rawTarget = targetRow && colName ? targetRow[colName] : null;
     const cleanedTarget = StuntingEvaluationEngine.cleanTargetValue(rawTarget);
@@ -2219,7 +2208,7 @@ export class StuntingMonitoringComponent implements OnInit {
               ...prevQ,
               meanCol: colName || undefined,
               numeratorCol: colName || undefined,
-              actualValue: directVal !== null ? directVal : (colName ? prevQ.actualValue : undefined),
+              actualValue: directVal !== null ? directVal : colName ? prevQ.actualValue : undefined,
             };
             const newQuarterColumns = {
               ...(s.quarterColumns || {}),
@@ -2289,7 +2278,9 @@ export class StuntingMonitoringComponent implements OnInit {
         };
       }),
     );
-    this.notificationMessage.set(`Konfigurasi TW ${quarter} berhasil disalin ke semua Triwulan (TW 1 - TW 4).`);
+    this.notificationMessage.set(
+      `Konfigurasi TW ${quarter} berhasil disalin ke semua Triwulan (TW 1 - TW 4).`,
+    );
   }
 
   clearQuarterConfig(catId: string, subId: string, q: number): void {
@@ -2358,9 +2349,7 @@ export class StuntingMonitoringComponent implements OnInit {
 
   updateCategoryName(catId: string, event: Event): void {
     const val = (event.target as HTMLInputElement).value;
-    this.categories.update((cats) =>
-      cats.map((c) => (c.id === catId ? { ...c, name: val } : c)),
-    );
+    this.categories.update((cats) => cats.map((c) => (c.id === catId ? { ...c, name: val } : c)));
   }
 
   addSubCategory(catId: string): void {
@@ -2378,8 +2367,14 @@ export class StuntingMonitoringComponent implements OnInit {
     let rawTarget = targetRow ? targetRow[numCol] : null;
     const cleanedTarget = StuntingEvaluationEngine.cleanTargetValue(rawTarget);
     const isSummarySource = this.calculationDataSource() === 'summary_row';
-    const directVal = isSummarySource && summaryRow ? IndicatorEvaluator.parseSmartNumber(summaryRow[numCol]) : null;
-    const countVal = isSummarySource && prevCol && summaryRow ? IndicatorEvaluator.parseSmartNumber(summaryRow[prevCol]) : null;
+    const directVal =
+      isSummarySource && summaryRow
+        ? IndicatorEvaluator.parseSmartNumber(summaryRow[numCol])
+        : null;
+    const countVal =
+      isSummarySource && prevCol && summaryRow
+        ? IndicatorEvaluator.parseSmartNumber(summaryRow[prevCol])
+        : null;
 
     const actQ = this.activeQuarter();
     const newSub: StuntingSubCategoryConfig = {
@@ -2462,8 +2457,18 @@ export class StuntingMonitoringComponent implements OnInit {
               ...prevQ,
               numeratorCol: colName,
               meanCol: colName,
-              actualValue: directVal !== null ? directVal : (this.calculationDataSource() === 'summary_row' ? prevQ.actualValue : undefined),
-              countValue: countVal !== null ? countVal : (this.calculationDataSource() === 'summary_row' ? prevQ.countValue : undefined),
+              actualValue:
+                directVal !== null
+                  ? directVal
+                  : this.calculationDataSource() === 'summary_row'
+                    ? prevQ.actualValue
+                    : undefined,
+              countValue:
+                countVal !== null
+                  ? countVal
+                  : this.calculationDataSource() === 'summary_row'
+                    ? prevQ.countValue
+                    : undefined,
             };
             const newQuarterColumns = s.quarterColumns
               ? {
@@ -2477,10 +2482,16 @@ export class StuntingMonitoringComponent implements OnInit {
               numeratorCol: colName,
               dataCol: colName,
               meanCol: colName,
-              actualValue: directVal !== null ? directVal : (this.calculationDataSource() === 'summary_row' ? s.actualValue : undefined),
+              actualValue:
+                directVal !== null
+                  ? directVal
+                  : this.calculationDataSource() === 'summary_row'
+                    ? s.actualValue
+                    : undefined,
               countValue: countVal !== null ? countVal : s.countValue,
               name: shouldAutoRename ? colName : s.name,
-              targetCurrentYear: cleanedTarget.value !== null ? cleanedTarget.value : s.targetCurrentYear,
+              targetCurrentYear:
+                cleanedTarget.value !== null ? cleanedTarget.value : s.targetCurrentYear,
               polarity: cleanedTarget.polarity !== 'positive' ? cleanedTarget.polarity : s.polarity,
               ...(newQuarterColumns ? { quarterColumns: newQuarterColumns } : {}),
             };
@@ -2518,7 +2529,10 @@ export class StuntingMonitoringComponent implements OnInit {
     if (sub.quarterColumns?.[quarter]?.sumCol !== undefined) {
       return sub.quarterColumns[quarter]!.sumCol || '';
     }
-    if ((!sub.quarterColumns || Object.keys(sub.quarterColumns).length === 0) && quarter === this.activeQuarter()) {
+    if (
+      (!sub.quarterColumns || Object.keys(sub.quarterColumns).length === 0) &&
+      quarter === this.activeQuarter()
+    ) {
       return sub.sumCol || '';
     }
     return '';
@@ -2532,7 +2546,10 @@ export class StuntingMonitoringComponent implements OnInit {
     if (sub.quarterColumns?.[quarter]?.numeratorCol !== undefined) {
       return sub.quarterColumns[quarter]!.numeratorCol || '';
     }
-    if ((!sub.quarterColumns || Object.keys(sub.quarterColumns).length === 0) && quarter === this.activeQuarter()) {
+    if (
+      (!sub.quarterColumns || Object.keys(sub.quarterColumns).length === 0) &&
+      quarter === this.activeQuarter()
+    ) {
       return sub.meanCol || sub.numeratorCol || '';
     }
     return '';
@@ -2550,7 +2567,10 @@ export class StuntingMonitoringComponent implements OnInit {
         (qCfg.countValue !== undefined && qCfg.countValue !== null)
       );
     }
-    if ((!sub.quarterColumns || Object.keys(sub.quarterColumns).length === 0) && quarter === this.activeQuarter()) {
+    if (
+      (!sub.quarterColumns || Object.keys(sub.quarterColumns).length === 0) &&
+      quarter === this.activeQuarter()
+    ) {
       return !!(
         sub.sumCol ||
         sub.meanCol ||
@@ -2568,7 +2588,10 @@ export class StuntingMonitoringComponent implements OnInit {
       return sub.quarterColumns[quarter]!.numeratorCol || '';
     }
     // Fallback for single/legacy config
-    if ((!sub.quarterColumns || Object.keys(sub.quarterColumns).length === 0) && quarter === this.activeQuarter()) {
+    if (
+      (!sub.quarterColumns || Object.keys(sub.quarterColumns).length === 0) &&
+      quarter === this.activeQuarter()
+    ) {
       return sub.numeratorCol || '';
     }
     return '';
@@ -2606,7 +2629,10 @@ export class StuntingMonitoringComponent implements OnInit {
     );
   }
 
-  getSubCategoryQuarterLiveStats(sub: StuntingSubCategoryConfig, q: number): {
+  getSubCategoryQuarterLiveStats(
+    sub: StuntingSubCategoryConfig,
+    q: number,
+  ): {
     sumNum: number | null;
     sumDen: number | null;
     actualPercentage: number | null;
@@ -2641,14 +2667,28 @@ export class StuntingMonitoringComponent implements OnInit {
     }
 
     const sumCol = qConfig?.sumCol || (quarter === this.activeQuarter() ? sub.sumCol : undefined);
-    let meanCol = qConfig?.meanCol || qConfig?.numeratorCol || (quarter === this.activeQuarter() ? (sub.meanCol || sub.numeratorCol) : undefined);
-    let numCol = qConfig?.numeratorCol || (quarter === this.activeQuarter() ? sub.numeratorCol : undefined);
+    let meanCol =
+      qConfig?.meanCol ||
+      qConfig?.numeratorCol ||
+      (quarter === this.activeQuarter() ? sub.meanCol || sub.numeratorCol : undefined);
+    let numCol =
+      qConfig?.numeratorCol || (quarter === this.activeQuarter() ? sub.numeratorCol : undefined);
     if (!meanCol && numCol) {
       meanCol = numCol;
     }
 
-    const directActualVal = qConfig?.actualValue !== undefined ? qConfig.actualValue : (quarter === this.activeQuarter() ? sub.actualValue : undefined);
-    const directCountVal = qConfig?.countValue !== undefined ? qConfig.countValue : (quarter === this.activeQuarter() ? sub.countValue : undefined);
+    const directActualVal =
+      qConfig?.actualValue !== undefined
+        ? qConfig.actualValue
+        : quarter === this.activeQuarter()
+          ? sub.actualValue
+          : undefined;
+    const directCountVal =
+      qConfig?.countValue !== undefined
+        ? qConfig.countValue
+        : quarter === this.activeQuarter()
+          ? sub.countValue
+          : undefined;
 
     if (!sumCol && !meanCol && !numCol && directActualVal === null && directCountVal === null) {
       return { sumNum: null, sumDen: null, actualPercentage: null };
@@ -2667,7 +2707,9 @@ export class StuntingMonitoringComponent implements OnInit {
       sumNum = directCountVal ?? null;
     } else {
       // 1. Calculate sumNum
-      const targetSumCol = denCol ? (numCol || sumCol) : (sumCol || (sub.calculationMode === 'absolute' ? (meanCol || numCol) : undefined));
+      const targetSumCol = denCol
+        ? numCol || sumCol
+        : sumCol || (sub.calculationMode === 'absolute' ? meanCol || numCol : undefined);
       if (targetSumCol && rows.length > 0) {
         if (rows.length === 1) {
           sumNum = IndicatorEvaluator.parseSmartNumber(rows[0][targetSumCol]);
@@ -2693,7 +2735,9 @@ export class StuntingMonitoringComponent implements OnInit {
           const directVal = IndicatorEvaluator.parseSmartNumber(rows[0][targetMeanCol]);
           actualPercentage = directVal;
           if (sumNum === null) {
-            sumNum = directCountVal ?? (typeof directVal === 'number' && directVal > 100 ? directVal : null);
+            sumNum =
+              directCountVal ??
+              (typeof directVal === 'number' && directVal > 100 ? directVal : null);
           }
         } else if (rows.length > 0) {
           if (targetMeanCol && sub.calculationMode !== 'absolute') {
@@ -2733,7 +2777,9 @@ export class StuntingMonitoringComponent implements OnInit {
       };
     }
     const isNegative = sub.polarity === 'negative';
-    const isSuccess = isNegative ? stats.actualPercentage <= target : stats.actualPercentage >= target;
+    const isSuccess = isNegative
+      ? stats.actualPercentage <= target
+      : stats.actualPercentage >= target;
     if (isSuccess) {
       return {
         label: 'On Track',
@@ -2798,7 +2844,10 @@ export class StuntingMonitoringComponent implements OnInit {
     return res.groupedRows
       .map((group) => {
         const filtered = group.rows.filter((r) => {
-          const matchQuery = !query || r.name.toLowerCase().includes(query) || r.category.toLowerCase().includes(query);
+          const matchQuery =
+            !query ||
+            r.name.toLowerCase().includes(query) ||
+            r.category.toLowerCase().includes(query);
           if (!matchQuery) return false;
 
           if (filter === 'all') return true;
@@ -2839,10 +2888,16 @@ export class StuntingMonitoringComponent implements OnInit {
 
   goToStep(step: 1 | 2 | 3): void {
     if (step === 2 && this.validJoinedRows().length === 0) {
-      this.notificationMessage.set('Harap unggah berkas dan pastikan minimal ada 1 baris data aktif.');
+      this.notificationMessage.set(
+        'Harap unggah berkas dan pastikan minimal ada 1 baris data aktif.',
+      );
       return;
     }
-    if (step === 3 && (!this.categories().some((c) => c.subCategories.length > 0) || this.validJoinedRows().length === 0)) {
+    if (
+      step === 3 &&
+      (!this.categories().some((c) => c.subCategories.length > 0) ||
+        this.validJoinedRows().length === 0)
+    ) {
       this.notificationMessage.set('Harap buat minimal 1 sub-kategori indikator pada Langkah 2.');
       return;
     }
@@ -2857,7 +2912,8 @@ export class StuntingMonitoringComponent implements OnInit {
   // ============================================================
 
   exportJoinedData(): void {
-    const rows = this.activeRegionRows().length > 0 ? this.activeRegionRows() : this.validJoinedRows();
+    const rows =
+      this.activeRegionRows().length > 0 ? this.activeRegionRows() : this.validJoinedRows();
     if (rows.length === 0) {
       this.notificationMessage.set('Tidak ada data gabungan yang aktif untuk diekspor.');
       return;
@@ -2879,14 +2935,14 @@ export class StuntingMonitoringComponent implements OnInit {
       return;
     }
 
-    const quartersToExport = this.viewMode() === 'single_quarter'
-      ? [this.activeQuarter()]
-      : this.displayedQuarters();
+    const quartersToExport =
+      this.viewMode() === 'single_quarter' ? [this.activeQuarter()] : this.displayedQuarters();
 
     const fileName = StuntingExcelExporter.exportMonitoringReport({
       evaluationResult: res,
       availableQuarters: quartersToExport,
-      validJoinedRows: this.activeRegionRows().length > 0 ? this.activeRegionRows() : this.validJoinedRows(),
+      validJoinedRows:
+        this.activeRegionRows().length > 0 ? this.activeRegionRows() : this.validJoinedRows(),
       primaryKeyColumn: this.primaryKeyCol(),
       joinedColumns: this.joinedColumns(),
     });
@@ -2929,7 +2985,9 @@ export class StuntingMonitoringComponent implements OnInit {
           headerEndRow: s.headerEndRow,
           dataStartRow: s.dataStartRow,
         })),
-      excludedRowKeywords: this.excludedRowKeywords().split(',').map((k) => k.trim()),
+      excludedRowKeywords: this.excludedRowKeywords()
+        .split(',')
+        .map((k) => k.trim()),
       manualExcludedKeys: Array.from(this.manualExcludedKeys()),
       categories: this.categories(),
       activeQuarter: this.activeQuarter(),
@@ -2960,7 +3018,8 @@ export class StuntingMonitoringComponent implements OnInit {
       } catch (err) {
         this.configNotification.set({
           type: 'warning',
-          message: 'Format file JSON tidak valid. Pastikan file berasal dari ekspor konfigurasi stunting.',
+          message:
+            'Format file JSON tidak valid. Pastikan file berasal dari ekspor konfigurasi stunting.',
         });
       } finally {
         input.value = '';
@@ -3024,7 +3083,11 @@ export class StuntingMonitoringComponent implements OnInit {
       }
       if (this.primarySheet() && this.workbook?.Sheets[this.primarySheet()]) {
         const ws = this.workbook.Sheets[this.primarySheet()];
-        const cols = ExcelEngine.extractSheetColumns(ws, this.primaryHeaderStartRow(), this.primaryHeaderEndRow());
+        const cols = ExcelEngine.extractSheetColumns(
+          ws,
+          this.primaryHeaderStartRow(),
+          this.primaryHeaderEndRow(),
+        );
         this.primaryColumns.set(cols);
       }
       if (p2.primaryKeyColumn) {

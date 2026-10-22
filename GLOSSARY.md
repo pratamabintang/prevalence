@@ -14,6 +14,14 @@ Aturan domain penghapusan prefiks "Kabupaten", "Kab.", atau "Kab" dengan tetap m
 _Avoid_: String clean, regex strip, pembersihan teks
 
 ### Pengolahan & Penggabungan Data
+**Ingesti Buku Kerja Dinkes (Dinkes Workbook Ingestion)**:
+Modul domain terpadu yang memproses dan menormalkan buku kerja Excel Dinkes (baik dalam format mentah multi-sheet yang perlu di-join maupun format hasil penggabungan standar yang sudah terformat) menjadi representasi dataset yang konsisten di balik satu antarmuka tunggal.
+_Avoid_: File loader, helper baca excel, parser manual
+
+**Dataset Terpadu Dinkes (Parsed Dinkes Dataset)**:
+Struktur data hasil ingesti yang memisahkan baris data wilayah murni secara tegas dari baris ringkasan (Jumlah, Rata-rata, Target), serta menyediakan konfigurasi tipe data, target capaian, dan kolom agregasi secara terpusat.
+_Avoid_: Objek excel mentah, JSON join bebas
+
 **Multi-Layer Header**:
 Struktur header tabel Excel berjenjang yang memiliki pengelompokan judul induk di baris atas dan sub-judul spesifik di baris bawah.
 _Avoid_: Merged header, header bertingkat tak beraturan
@@ -46,6 +54,10 @@ _Avoid_: Group bar biasa, multi-bar chart
 **Mode Per Indikator (Per Kolom)**:
 Mode tampilan visualisasi komparatif di mana setiap kolom indikator disajikan dalam satu kelompok grafik terpisah, membandingkan seluruh Kategori Wilayah secara langsung pada satu indikator tersebut lengkap dengan ringkasan statistik (rata-rata, tertinggi, terendah) dan target.
 _Avoid_: Single-series chart, split chart, grafik per kolom mentah
+
+**Mode Peta Heatmap (District Spatial Heatmap)**:
+Mode visualisasi spasial geografis pada modul Visualisasi Grafik yang memetakan capaian indikator kesehatan terpilih ke dalam polygon peta SVG 35 Kabupaten/Kota Jawa Tengah. Menyajikan gradasi warna HSL adaptif, peringkat wilayah, selisih terhadap target/rata-rata provinsi, serta pemeriksa wilayah interaktif (*District Inspector*). Menampilkan satu indikator dalam satu layar dengan kendali pemilih indikator dinamis.
+_Avoid_: Peta biasa, GIS mentah, peta gambar statis
 
 ### Pertukaran Data Lintas Modul (Health Data Exchange)
 **Pertukaran Data Lintas Modul (Health Data Exchange)**:

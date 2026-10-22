@@ -6,10 +6,7 @@ import { ChartVisualizerComponent } from './chart-visualizer.component';
 import { HealthDataExchange } from '../../core/domain/health-data-exchange';
 import { ChartBarItem } from '../../core/chart/chart-layout-engine';
 import { ColumnInfo, ExcelEngine } from '../../shared/excel';
-import {
-  ChartConfigurationPreset,
-  ChartPresetStore,
-} from './chart-preset-store';
+import { ChartConfigurationPreset, ChartPresetStore } from './chart-preset-store';
 
 describe('ChartVisualizerComponent', () => {
   let component: ChartVisualizerComponent;
@@ -292,7 +289,7 @@ describe('ChartVisualizerComponent', () => {
       const el = fixture.nativeElement as HTMLElement;
       expect(el.textContent).toContain('Pengaturan');
       const settingsBtn = Array.from(el.querySelectorAll('button')).find((b) =>
-        b.textContent?.includes('Pengaturan')
+        b.textContent?.includes('Pengaturan'),
       );
       expect(settingsBtn).toBeTruthy();
     });
@@ -432,18 +429,38 @@ describe('ChartVisualizerComponent', () => {
     it('should test resilient matching in ChartPresetStore', () => {
       // 1. Sheet matching
       const sheets = ['Rekap Data Bulanan 2026', 'Data Kasus', 'Grafik Utama'];
-      expect(ChartPresetStore.findMatchingSheet('rekap data bulanan 2026', sheets)).toBe('Rekap Data Bulanan 2026');
-      expect(ChartPresetStore.findMatchingSheet('rekap_data_bulanan_2026', sheets)).toBe('Rekap Data Bulanan 2026');
+      expect(ChartPresetStore.findMatchingSheet('rekap data bulanan 2026', sheets)).toBe(
+        'Rekap Data Bulanan 2026',
+      );
+      expect(ChartPresetStore.findMatchingSheet('rekap_data_bulanan_2026', sheets)).toBe(
+        'Rekap Data Bulanan 2026',
+      );
       expect(ChartPresetStore.findMatchingSheet('Kasus', sheets)).toBe('Data Kasus');
 
       // 2. Header matching (exact, normalized, leaf, clean)
       const cols = [
-        { colIndex: 0, colLetter: 'A', header: 'Imunisasi Dasar - HB-0 - Target', leafHeader: 'Target', layers: ['Imunisasi Dasar', 'HB-0', 'Target'] },
-        { colIndex: 1, colLetter: 'B', header: 'Nama Kabupaten / Kota', leafHeader: 'Nama Kabupaten / Kota', layers: ['Nama Kabupaten / Kota'] },
+        {
+          colIndex: 0,
+          colLetter: 'A',
+          header: 'Imunisasi Dasar - HB-0 - Target',
+          leafHeader: 'Target',
+          layers: ['Imunisasi Dasar', 'HB-0', 'Target'],
+        },
+        {
+          colIndex: 1,
+          colLetter: 'B',
+          header: 'Nama Kabupaten / Kota',
+          leafHeader: 'Nama Kabupaten / Kota',
+          layers: ['Nama Kabupaten / Kota'],
+        },
       ];
 
-      expect(ChartPresetStore.findMatchingHeader('Target', cols)).toBe('Imunisasi Dasar - HB-0 - Target');
-      expect(ChartPresetStore.findMatchingHeader('nama kabupaten kota', cols)).toBe('Nama Kabupaten / Kota');
+      expect(ChartPresetStore.findMatchingHeader('Target', cols)).toBe(
+        'Imunisasi Dasar - HB-0 - Target',
+      );
+      expect(ChartPresetStore.findMatchingHeader('nama kabupaten kota', cols)).toBe(
+        'Nama Kabupaten / Kota',
+      );
     });
   });
 
@@ -505,7 +522,11 @@ describe('ChartVisualizerComponent', () => {
 
       // Select Indikator A back
       joinComponent.toggleSeriesColumn('Indikator A');
-      expect(joinComponent.selectedSeriesKeys()).toEqual(['Indikator B', 'Indikator C', 'Indikator A']);
+      expect(joinComponent.selectedSeriesKeys()).toEqual([
+        'Indikator B',
+        'Indikator C',
+        'Indikator A',
+      ]);
 
       // Clear all
       joinComponent.clearAllSeriesColumns();
@@ -664,8 +685,12 @@ describe('ChartVisualizerComponent', () => {
       component.chartRegionSearch.set('Wonosobo');
       expect(component.isChartFilterActive()).toBe(true);
       expect(component.filteredChartCategories()).toEqual(['Kab. Wonosobo']);
-      expect(component.layout().categoryGroups.map((g) => g.categoryName)).toEqual(['Kab. Wonosobo']);
-      expect(component.indicatorLayouts()[0].layout.categoryGroups.map((g) => g.categoryName)).toEqual(['Kab. Wonosobo']);
+      expect(component.layout().categoryGroups.map((g) => g.categoryName)).toEqual([
+        'Kab. Wonosobo',
+      ]);
+      expect(
+        component.indicatorLayouts()[0].layout.categoryGroups.map((g) => g.categoryName),
+      ).toEqual(['Kab. Wonosobo']);
 
       // 3. Clear search text
       component.chartRegionSearch.set('');
@@ -791,7 +816,9 @@ describe('ChartVisualizerComponent', () => {
       // preventNegativeKey prevents minus key
       const event = new KeyboardEvent('keydown', { key: '-' });
       let prevented = false;
-      event.preventDefault = () => { prevented = true; };
+      event.preventDefault = () => {
+        prevented = true;
+      };
       component.preventNegativeKey(event);
       expect(prevented).toBe(true);
     });
@@ -848,6 +875,116 @@ describe('ChartVisualizerComponent', () => {
 
       expect(() => component.exportSvg('indicatorChartSvg-0', 'Triwulan 1')).not.toThrow();
       expect(() => component.exportPng('indicatorChartSvg-0', 'Triwulan 1')).not.toThrow();
+    });
+  });
+
+  describe('Peta Heatmap Mode (Spatial Map Visualization)', () => {
+    beforeEach(() => {
+      populateTestData();
+    });
+
+    it('should allow switching viewMode to "by-map" and back', () => {
+      expect(component.viewMode()).toBe('by-region');
+
+      component.setViewMode('by-map');
+      expect(component.viewMode()).toBe('by-map');
+
+      component.setViewMode('by-region');
+      expect(component.viewMode()).toBe('by-region');
+    });
+
+    it('should default activeMapSeries to first series and compute mapHeatmapResult with 35 districts', () => {
+      component.setViewMode('by-map');
+      component.targetValue.set(75);
+
+      // Active indicator defaults to tw1
+      const activeSeries = component.activeMapSeries();
+      expect(activeSeries?.key).toBe('tw1');
+      expect(activeSeries?.label).toBe('Triwulan 1');
+
+      const result = component.mapHeatmapResult();
+      expect(result).not.toBeNull();
+      expect(result!.items.length).toBe(35); // 35 Central Java districts
+      expect(result!.stats.totalDistricts).toBe(35);
+      expect(result!.stats.validCount).toBe(5); // 5 populated districts in test data
+      expect(result!.stats.missingCount).toBe(30);
+
+      // Highest should be Kota Magelang (81.0)
+      expect(result!.stats.highest?.name).toBe('Kota Magelang');
+      expect(result!.stats.highest?.value).toBe(81.0);
+
+      // Lowest should be Kab. Wonosobo (65.0)
+      expect(result!.stats.lowest?.name).toBe('Wonosobo');
+      expect(result!.stats.lowest?.value).toBe(65.0);
+    });
+
+    it('should dynamically switch indicator via setActiveMapIndicator and recompute heatmap', () => {
+      component.setViewMode('by-map');
+
+      // Switch to tw4
+      component.setActiveMapIndicator('tw4');
+      expect(component.activeMapIndicator()).toBe('tw4');
+      expect(component.activeMapSeries()?.key).toBe('tw4');
+
+      const result = component.mapHeatmapResult();
+      expect(result).not.toBeNull();
+      expect(result!.series.key).toBe('tw4');
+      // For tw4: Kota Magelang is 95.2, Kab. Magelang is 91.0, Purworejo is 89.4, Temanggung is 88.5, Wonosobo is missing ('-')
+      expect(result!.stats.validCount).toBe(4);
+      expect(result!.stats.highest?.name).toBe('Kota Magelang');
+      expect(result!.stats.highest?.value).toBe(95.2);
+    });
+
+    it('should track and update hoveredMapDistrict for inspector panel', () => {
+      component.setViewMode('by-map');
+      const result = component.mapHeatmapResult()!;
+      const magelangItem = result.items.find((i) => i.district.id === '33-71'); // Kota Magelang
+      expect(magelangItem).toBeDefined();
+
+      expect(component.hoveredMapDistrict()).toBeNull();
+
+      component.hoveredMapDistrict.set(magelangItem!);
+      expect(component.hoveredMapDistrict()?.district.kabupatenKota).toBe('KOTA MAGELANG');
+      expect(component.hoveredMapDistrict()?.value).toBe(81.0);
+
+      component.hoveredMapDistrict.set(null);
+      expect(component.hoveredMapDistrict()).toBeNull();
+    });
+
+    it('should provide continuous gradient CSS and indicator explanation for stunting relevance', () => {
+      component.setViewMode('by-map');
+      component.setActiveMapIndicator('tw1');
+
+      const result = component.mapHeatmapResult()!;
+      expect(result.gradientCss).toContain('linear-gradient(to right,');
+      expect(result.rankedItems.length).toBe(5);
+
+      // Check indicator explanation (Ini apa, hubungan stunting)
+      const explanation = component.indicatorExplanation();
+      expect(explanation).not.toBeNull();
+      expect(explanation!.definition).toBeDefined();
+      expect(explanation!.stuntingRelation).toBeDefined();
+      expect(explanation!.stuntingRelation.length).toBeGreaterThan(10);
+    });
+
+    it('should save and load "by-map" viewMode and activeMapIndicator in preset store', () => {
+      component.selectedSheet.set('Rekap Data');
+      component.setViewMode('by-map');
+      component.setActiveMapIndicator('tw3');
+
+      component.exportConfiguration();
+      const saved = ChartPresetStore.loadLastPreset();
+      expect(saved?.viewMode).toBe('by-map');
+      expect(saved?.activeMapIndicator).toBe('tw3');
+
+      // Reset to by-region and empty indicator
+      component.setViewMode('by-region');
+      component.setActiveMapIndicator('tw1');
+      expect(component.viewMode()).toBe('by-region');
+
+      component.loadSavedConfigurationFromStorage();
+      expect(component.viewMode()).toBe('by-map');
+      expect(component.activeMapIndicator()).toBe('tw3');
     });
   });
 
@@ -954,8 +1091,18 @@ describe('ChartVisualizerComponent', () => {
         categoryColumn: 'Kabupaten/Kota',
         columns: ['Kabupaten/Kota', 'Konsumsi TTD %', 'Skrining Anemia %', 'Jumlah Kasus'],
         rows: [
-          { 'Kabupaten/Kota': 'Cilacap', 'Konsumsi TTD %': 65, 'Skrining Anemia %': 80, 'Jumlah Kasus': 120 },
-          { 'Kabupaten/Kota': 'Banyumas', 'Konsumsi TTD %': 70, 'Skrining Anemia %': 75, 'Jumlah Kasus': 95 },
+          {
+            'Kabupaten/Kota': 'Cilacap',
+            'Konsumsi TTD %': 65,
+            'Skrining Anemia %': 80,
+            'Jumlah Kasus': 120,
+          },
+          {
+            'Kabupaten/Kota': 'Banyumas',
+            'Konsumsi TTD %': 70,
+            'Skrining Anemia %': 75,
+            'Jumlah Kasus': 95,
+          },
         ],
         targetValue: 50,
         indicatorTargets: {
@@ -983,7 +1130,10 @@ describe('ChartVisualizerComponent', () => {
       // Only numeric percentage columns ('Konsumsi TTD %', 'Skrining Anemia %') are auto-selected;
       // non-percentage column ('Jumlah Kasus') is not auto-selected but remains available for manual selection
       expect(component.selectedSeriesKeys()).toEqual(['Konsumsi TTD %', 'Skrining Anemia %']);
-      expect(component.seriesList().map((s) => s.key)).toEqual(['Konsumsi TTD %', 'Skrining Anemia %']);
+      expect(component.seriesList().map((s) => s.key)).toEqual([
+        'Konsumsi TTD %',
+        'Skrining Anemia %',
+      ]);
       expect(component.candidateSeriesColumns().map((c) => c.header)).toContain('Jumlah Kasus');
 
       // Per-Indikator mode layouts use indicator specific targets
@@ -1008,7 +1158,13 @@ describe('ChartVisualizerComponent', () => {
     it('should auto-select all numeric percentage columns (even > 6 columns) and exclude non-numeric columns when transferred from Excel Join', () => {
       const exchange = TestBed.inject(HealthDataExchange);
       const pctCols = Array.from({ length: 10 }, (_, i) => `Indikator Persentase ${i + 1} - %`);
-      const allCols = ['Kabupaten/Kota', ...pctCols, 'Jumlah Sasaran', 'Keterangan Teks', 'Persentase Kosong %'];
+      const allCols = [
+        'Kabupaten/Kota',
+        ...pctCols,
+        'Jumlah Sasaran',
+        'Keterangan Teks',
+        'Persentase Kosong %',
+      ];
 
       const row1: Record<string, unknown> = {
         'Kabupaten/Kota': 'Cilacap',
@@ -1050,12 +1206,36 @@ describe('ChartVisualizerComponent', () => {
       ];
       const ws = XLSX.utils.aoa_to_sheet(wsData);
       const cols: ColumnInfo[] = [
-        { colIndex: 0, colLetter: 'A', header: 'Kabupaten/Kota', leafHeader: 'Kabupaten/Kota', layers: ['Kabupaten/Kota'] },
-        { colIndex: 1, colLetter: 'B', header: '% Konsumsi TTD', leafHeader: '% Konsumsi TTD', layers: ['% Konsumsi TTD'] },
-        { colIndex: 2, colLetter: 'C', header: '% Skrining Anemia', leafHeader: '% Skrining Anemia', layers: ['% Skrining Anemia'] },
+        {
+          colIndex: 0,
+          colLetter: 'A',
+          header: 'Kabupaten/Kota',
+          leafHeader: 'Kabupaten/Kota',
+          layers: ['Kabupaten/Kota'],
+        },
+        {
+          colIndex: 1,
+          colLetter: 'B',
+          header: '% Konsumsi TTD',
+          leafHeader: '% Konsumsi TTD',
+          layers: ['% Konsumsi TTD'],
+        },
+        {
+          colIndex: 2,
+          colLetter: 'C',
+          header: '% Skrining Anemia',
+          leafHeader: '% Skrining Anemia',
+          layers: ['% Skrining Anemia'],
+        },
       ];
 
-      component.rebuildChartData(ws, cols, 'Kabupaten/Kota', ['% Konsumsi TTD', '% Skrining Anemia'], 2);
+      component.rebuildChartData(
+        ws,
+        cols,
+        'Kabupaten/Kota',
+        ['% Konsumsi TTD', '% Skrining Anemia'],
+        2,
+      );
 
       // Target row excluded from data rows
       expect(component.dataRows().length).toBe(2);
@@ -1088,7 +1268,12 @@ describe('ChartVisualizerComponent', () => {
 
     it('should allow user to select non-percentage numeric columns and return to percentage defaults', () => {
       const exchange = TestBed.inject(HealthDataExchange);
-      const cols = ['Kabupaten/Kota', 'Sasaran Riil Balita', '% Cakupan Imunisasi', '% Pemberian ASI'];
+      const cols = [
+        'Kabupaten/Kota',
+        'Sasaran Riil Balita',
+        '% Cakupan Imunisasi',
+        '% Pemberian ASI',
+      ];
       const rows = [
         {
           'Kabupaten/Kota': 'Cilacap',
@@ -1317,7 +1502,9 @@ describe('ChartVisualizerComponent', () => {
 
       const compiled = fixture.nativeElement as HTMLElement;
       const sortSelect = compiled.querySelector('#regionSortModeSelect') as HTMLSelectElement;
-      const gridSelect = compiled.querySelector('#regionGridSelect, #regionGridColumnsSelect') as HTMLSelectElement;
+      const gridSelect = compiled.querySelector(
+        '#regionGridSelect, #regionGridColumnsSelect',
+      ) as HTMLSelectElement;
 
       expect(sortSelect).toBeTruthy();
       expect(gridSelect).toBeTruthy();
@@ -1406,8 +1593,8 @@ describe('ChartVisualizerComponent', () => {
       const compiled = fixture.nativeElement as HTMLElement;
       expect(compiled.textContent).not.toContain('Seri Indikator:');
       // Should not contain the quick jump "Semua Indikator" pill button
-      const allIndicatorsBtn = Array.from(compiled.querySelectorAll('button')).find(
-        (b) => b.textContent?.trim().startsWith('Semua Indikator')
+      const allIndicatorsBtn = Array.from(compiled.querySelectorAll('button')).find((b) =>
+        b.textContent?.trim().startsWith('Semua Indikator'),
       );
       expect(allIndicatorsBtn).toBeUndefined();
     });
@@ -1420,7 +1607,9 @@ describe('ChartVisualizerComponent', () => {
 
       const compiled = fixture.nativeElement as HTMLElement;
       const sortSelect = compiled.querySelector('#indicatorSortModeSelect') as HTMLSelectElement;
-      const gridSelect = compiled.querySelector('#indicatorGridSelect, #indicatorGridColumnsSelect') as HTMLSelectElement;
+      const gridSelect = compiled.querySelector(
+        '#indicatorGridSelect, #indicatorGridColumnsSelect',
+      ) as HTMLSelectElement;
 
       expect(sortSelect).toBeTruthy();
       expect(gridSelect).toBeTruthy();
@@ -1463,7 +1652,9 @@ describe('ChartVisualizerComponent', () => {
       expect(component.filteredModalCategories()).not.toContain('Kab. Magelang');
 
       component.regionModalSearch.set('');
-      expect(component.filteredModalCategories().length).toBe(component.availableCategories().length);
+      expect(component.filteredModalCategories().length).toBe(
+        component.availableCategories().length,
+      );
 
       // Test deselecting and re-selecting a region
       expect(component.isCategorySelected('Kab. Wonosobo')).toBe(true);
@@ -1499,7 +1690,9 @@ describe('ChartVisualizerComponent', () => {
       expect(component.filteredModalIndicators().some((i) => i.header === 'tw1')).toBe(true);
 
       component.indicatorModalSearch.set('');
-      expect(component.filteredModalIndicators().length).toBe(component.allCandidateSeriesColumns().length);
+      expect(component.filteredModalIndicators().length).toBe(
+        component.allCandidateSeriesColumns().length,
+      );
 
       // Toggle series column
       expect(component.selectedSeriesKeys()).toContain('tw1');
@@ -1537,10 +1730,10 @@ describe('ChartVisualizerComponent', () => {
       expect(component.selectedRegionFilter()).toBe('all');
       expect(component.selectedIndicatorFilter()).toBe('all');
       expect(component.selectedCategories().length).toBe(component.availableCategories().length);
-      expect(component.selectedSeriesKeys().length).toBe(component.allCandidateSeriesColumns().length);
+      expect(component.selectedSeriesKeys().length).toBe(
+        component.allCandidateSeriesColumns().length,
+      );
       expect(component.isChartFilterActive()).toBe(false);
     });
   });
 });
-
-
