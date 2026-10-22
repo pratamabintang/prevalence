@@ -15,6 +15,7 @@ import {
 } from '../../core/stunting/stunting-evaluation-engine';
 import { ColumnInfo, ExcelEngine } from '../../shared/excel';
 import { StuntingExcelExporter } from '../../core/stunting/stunting-excel-exporter';
+import { StuntingWorkflowEngine } from '../../core/stunting/stunting-workflow-engine';
 import * as XLSX from 'xlsx';
 import { ExcelJoinEngine } from '../../core/excel/excel-join-engine';
 import { DinkesSpreadsheetParser } from '../../core/excel/dinkes-spreadsheet-parser';
@@ -83,6 +84,7 @@ export class StuntingMonitoringComponent implements OnInit {
   private healthDataExchange = inject(HealthDataExchange);
   gasStorageService = inject(GasStorageService);
   periodPartitionWorkspace = inject(PeriodPartitionWorkspace);
+  workflowEngine = inject(StuntingWorkflowEngine);
 
   async ngOnInit(): Promise<void> {
     this.loadTransferredData();
@@ -92,7 +94,7 @@ export class StuntingMonitoringComponent implements OnInit {
   }
 
   // Stepper State: 1 = Unggah & Join, 2 = Kategori & Indikator, 3 = Dashboard Monitoring
-  activeStep = signal<1 | 2 | 3>(1);
+  activeStep = this.workflowEngine.activeStep;
 
   // ============================================================
   // MULTI-QUARTER CLOUD STORAGE STATE (GOOGLE APPS SCRIPT)
@@ -163,153 +165,57 @@ export class StuntingMonitoringComponent implements OnInit {
 
   availableSheets = signal<string[]>([]);
   primarySheet = signal<string>('');
-  primaryKeyCol = signal<string>('');
+  primaryKeyCol = this.workflowEngine.primaryKeyCol;
   primaryHeaderStartRow = signal<number>(1);
   primaryHeaderEndRow = signal<number>(1);
   primaryDataStartRow = signal<number>(2);
   primaryColumns = signal<ColumnInfo[]>([]);
 
   secondarySheets = signal<SecondarySheetSetup[]>([]);
-  stripKabupaten = signal<boolean>(true);
-  excludedRowKeywords = signal<string>('TOTAL, JUMLAH, RATA, AVERAGE, TARGET');
-  manualExcludedKeys = signal<Set<string>>(new Set());
-  excludedRowIds = signal<Set<string>>(new Set());
+  stripKabupaten = this.workflowEngine.stripKabupaten;
+  excludedRowKeywords = this.workflowEngine.excludedRowKeywords;
+  manualExcludedKeys = this.workflowEngine.manualExcludedKeys;
+  excludedRowIds = this.workflowEngine.excludedRowIds;
 
   // Raw & Joined Dataset
-  joinedRows = signal<Record<string, unknown>[]>([]);
-  joinedColumns = signal<string[]>([]);
+  joinedRows = this.workflowEngine.joinedRows;
+  joinedColumns = this.workflowEngine.joinedColumns;
   previewExpanded = signal<boolean>(false);
   previewWrapText = signal<boolean>(true);
 
   // Summary & Target Rows for Pre-Calculated Direct Evaluation
-  calculationDataSource = signal<'summary_row' | 'all_rows'>('all_rows');
-  summaryRowId = signal<string>('');
-  targetRowId = signal<string>('');
-  totalRowId = signal<string>('');
-  summaryRowData = signal<Record<string, unknown> | null>(null);
-  targetRowData = signal<Record<string, unknown> | null>(null);
-  totalRowData = signal<Record<string, unknown> | null>(null);
+  calculationDataSource = this.workflowEngine.calculationDataSource;
+  summaryRowId = this.workflowEngine.summaryRowId;
+  targetRowId = this.workflowEngine.targetRowId;
+  totalRowId = this.workflowEngine.totalRowId;
+  summaryRowData = this.workflowEngine.summaryRowData;
+  targetRowData = this.workflowEngine.targetRowData;
+  totalRowData = this.workflowEngine.totalRowData;
 
-  isHasilJoinFormat = computed<boolean>(() => {
-    const cols = this.joinedColumns();
-    const rows = this.joinedRows();
-    const pKey = this.primaryKeyCol();
-    if (cols.length === 0 || rows.length === 0) return false;
-
-    if (this.primarySheet() === 'Hasil Join' || this.isMultiQuarterCloudMode()) return true;
-
-    const percentCols = cols.filter((c) => c.includes('%'));
-    const hasWilayahCol = /kabupaten|kota|wilayah|puskesmas/i.test(pKey);
-    const hasTargetRow = rows.some((r) => /target/i.test(String(r[pKey] ?? '')));
-    const hasAvgOrSumRow = rows.some((r) => /rata|jumlah|total/i.test(String(r[pKey] ?? '')));
-
-    return (
-      (percentCols.length >= 2 && (hasWilayahCol || hasTargetRow || hasAvgOrSumRow)) ||
-      (hasTargetRow && hasAvgOrSumRow)
-    );
-  });
-
-  availableSummaryRows = computed(() => {
-    const pKey = this.primaryKeyCol();
-    return this.joinedRows().map((r, idx) => ({
-      id: String(r['__id'] ?? `row-${idx}`),
-      label: String(r[pKey] ?? '').trim() || `[Baris ${idx + 1}]`,
-      data: r,
-    }));
-  });
-
-  availableTargetRows = computed(() => {
-    const pKey = this.primaryKeyCol();
-    return this.joinedRows().map((r, idx) => ({
-      id: String(r['__id'] ?? `row-${idx}`),
-      label: String(r[pKey] ?? '').trim() || `[Baris ${idx + 1}]`,
-      data: r,
-    }));
-  });
-
-  // Valid rows for evaluation: if in summary_row mode and summaryRowData is present, use single pre-calculated row
-  validJoinedRows = computed(() => {
-    if (this.calculationDataSource() === 'summary_row' && this.summaryRowData()) {
-      return [this.summaryRowData()!];
-    }
-    const rows = this.joinedRows();
-    const exIds = this.excludedRowIds();
-    return rows.filter((r) => !exIds.has(String(r['__id'])));
-  });
-
-  // Active region rows (excluding summary, target, and excluded rows)
-  activeRegionRows = computed(() => {
-    const rows = this.joinedRows();
-    const exIds = this.excludedRowIds();
-    return rows.filter((r) => !exIds.has(String(r['__id'])));
-  });
-
-  // Preview List for checklist table
-  previewRows = computed<JoinedRowPreviewItem[]>(() => {
-    const rows = this.joinedRows();
-    const pKey = this.primaryKeyCol();
-    const exIds = this.excludedRowIds();
-    const keywords = this.excludedRowKeywords()
-      .split(',')
-      .map((k) => k.trim().toUpperCase())
-      .filter((k) => k.length > 0);
-
-    return rows.map((r, idx) => {
-      const id = String(r['__id'] ?? `row-${idx}`);
-      const keyVal = String(r[pKey] ?? '').trim();
-      const isExcluded = exIds.has(id);
-
-      let reason = '';
-      if (isExcluded) {
-        if (!keyVal) {
-          reason = 'Baris kosong / tanpa nama wilayah';
-        } else {
-          const upperKey = keyVal.toUpperCase();
-          for (const kw of keywords) {
-            if (upperKey.includes(kw)) {
-              reason = `Baris akumulasi (${kw})`;
-              break;
-            }
-          }
-          if (!reason) {
-            reason = 'Dinonaktifkan manual';
-          }
-        }
-      }
-
-      return {
-        id,
-        key: keyVal || `[Baris ${idx + 1} - Tanpa Nama]`,
-        data: r,
-        isExcluded,
-        excludeReason: reason,
-      };
-    });
-  });
+  isHasilJoinFormat = this.workflowEngine.isHasilJoinFormat;
+  availableSummaryRows = this.workflowEngine.availableSummaryRows;
+  availableTargetRows = this.workflowEngine.availableTargetRows;
+  validJoinedRows = this.workflowEngine.validJoinedRows;
+  activeRegionRows = this.workflowEngine.activeRegionRows;
+  previewRows = this.workflowEngine.previewRows;
 
   // ============================================================
   // STEP 2: CATEGORY & SUB-CATEGORY BUILDER
   // ============================================================
-  categories = signal<StuntingCategoryConfig[]>([]);
-
-  totalIndicatorsCount = computed(() =>
-    this.categories().reduce((sum, c) => sum + c.subCategories.length, 0),
-  );
-
-  canProceedToStep2 = computed(() => this.validJoinedRows().length > 0);
-
-  canProceedToStep3 = computed(
-    () =>
-      this.validJoinedRows().length > 0 &&
-      this.categories().some((c) => c.subCategories.length > 0),
-  );
+  categories = this.workflowEngine.categories;
+  totalIndicatorsCount = this.workflowEngine.totalIndicatorsCount;
+  canProceedToStep2 = this.workflowEngine.canProceedToStep2;
+  canProceedToStep3 = this.workflowEngine.canProceedToStep3;
 
   // ============================================================
   // STEP 3: DASHBOARD MONITORING & MULTI-QUARTER EVALUATION
   // ============================================================
-  manualActiveQuarter = signal<1 | 2 | 3 | 4 | null>(null);
-  toleranceThreshold = signal<number>(-5.0);
-  quarterWeight = signal<number | null>(null);
+  manualActiveQuarter = this.workflowEngine.manualActiveQuarter;
+  toleranceThreshold = this.workflowEngine.toleranceThreshold;
+  quarterWeight = this.workflowEngine.quarterWeight;
+  evaluationResult = this.workflowEngine.evaluationResult;
+  availableQuarters = this.workflowEngine.availableQuarters;
+  activeQuarter = this.workflowEngine.activeQuarter;
   searchQuery = signal<string>('');
   activeFilter = signal<string>('all');
   collapsedCategories = signal<Record<string, boolean>>({});
@@ -324,15 +230,9 @@ export class StuntingMonitoringComponent implements OnInit {
     return [1, 2, 3, 4];
   });
 
-  onTrackCount = computed(
-    () => this.evaluationResult()?.rows.filter((r) => r.status === 'on_track').length ?? 0,
-  );
-  perluPercepatanCount = computed(
-    () => this.evaluationResult()?.rows.filter((r) => r.status === 'perlu_percepatan').length ?? 0,
-  );
-  perluPerhatianCount = computed(
-    () => this.evaluationResult()?.rows.filter((r) => r.status === 'perlu_perhatian').length ?? 0,
-  );
+  onTrackCount = this.workflowEngine.onTrackCount;
+  perluPercepatanCount = this.workflowEngine.perluPercepatanCount;
+  perluPerhatianCount = this.workflowEngine.perluPerhatianCount;
 
   setViewMode(mode: 'auto' | 'single_quarter' | 'all_quarters'): void {
     this.viewMode.set(mode);
@@ -1317,78 +1217,7 @@ export class StuntingMonitoringComponent implements OnInit {
   }
 
   applyKeywordAndPatternExclusions(rows = this.joinedRows()): void {
-    const pKey = this.primaryKeyCol();
-    const keywords = this.excludedRowKeywords()
-      .split(',')
-      .map((k) => k.trim().toUpperCase())
-      .filter((k) => k.length > 0);
-    const manualEx = this.manualExcludedKeys();
-
-    const exIds = new Set<string>();
-
-    for (const r of rows) {
-      const id = String(r['__id']);
-      const rawKey = String(r[pKey] ?? '').trim();
-      const lowerKey = rawKey.toLowerCase();
-      const upperKey = rawKey.toUpperCase();
-
-      // 1. Empty or whitespace key (blank spacer row, footnote, footer without name)
-      if (!rawKey) {
-        exIds.add(id);
-        continue;
-      }
-
-      // 1b. Summary, target, or total row id or keywords
-      if (
-        id === this.summaryRowId() ||
-        id === this.targetRowId() ||
-        id === this.totalRowId() ||
-        upperKey.includes('JAWA TENGAH') ||
-        upperKey.includes('PROVINSI') ||
-        upperKey.startsWith('PROV')
-      ) {
-        exIds.add(id);
-        continue;
-      }
-
-      // 2. Previously manually excluded key
-      if (manualEx.has(lowerKey)) {
-        exIds.add(id);
-        continue;
-      }
-
-      // 3. Keyword in primary key column
-      let isMatch = false;
-      for (const kw of keywords) {
-        if (upperKey.includes(kw)) {
-          isMatch = true;
-          break;
-        }
-      }
-
-      // 4. Keyword in any column of the row (e.g. "TOTAL" in another cell)
-      if (!isMatch) {
-        for (const [col, val] of Object.entries(r)) {
-          if (col === '__id') continue;
-          const strVal = String(val ?? '')
-            .trim()
-            .toUpperCase();
-          for (const kw of keywords) {
-            if (strVal === kw || strVal.startsWith(kw + ' ') || strVal.endsWith(' ' + kw)) {
-              isMatch = true;
-              break;
-            }
-          }
-          if (isMatch) break;
-        }
-      }
-
-      if (isMatch) {
-        exIds.add(id);
-      }
-    }
-
-    this.excludedRowIds.set(exIds);
+    this.workflowEngine.applyKeywordAndPatternExclusions(rows);
   }
 
   // ============================================================
@@ -1402,146 +1231,37 @@ export class StuntingMonitoringComponent implements OnInit {
 
     const pCols = this.primaryColumns();
     const pKey = this.primaryKeyCol();
-
-    // Read master rows
-    const masterRows = ExcelEngine.readSheetRows(masterWs, pCols, this.primaryDataStartRow());
-
     const activeSecondaries = this.secondarySheets().filter((s) => s.selected);
-    const allColsMap = new Map<string, string>(); // normalized -> original column header
 
-    // Register master columns
-    for (const c of pCols) {
-      allColsMap.set(c.header.toLowerCase(), c.header);
-    }
+    const selectedSheets = [
+      {
+        name: this.primarySheet(),
+        selected: true,
+        dataStartRow: this.primaryDataStartRow(),
+        columns: pCols,
+        headers: pCols.map((c) => c.header),
+        variables: pCols.map((c) => c.header).filter((h) => h.toLowerCase() !== pKey.toLowerCase()),
+        joinColumn: pKey,
+      },
+      ...activeSecondaries.map((sec) => ({
+        name: sec.sheetName,
+        selected: true,
+        dataStartRow: sec.dataStartRow,
+        columns: sec.columns,
+        headers: sec.columns.map((c) => c.header),
+        variables: sec.columns.map((c) => c.header).filter((h) => h.toLowerCase() !== sec.keyCol.toLowerCase()),
+        joinColumn: sec.keyCol,
+      })),
+    ];
 
-    // Map secondary sheets data
-    const secondaryIndexes: {
-      sheet: SecondarySheetSetup;
-      map: Map<string, Record<string, unknown>>;
-    }[] = [];
-
-    for (const sec of activeSecondaries) {
-      const ws = this.getWorksheet(sec.sheetName);
-      if (!ws) continue;
-
-      const secRows = ExcelEngine.readSheetRows(ws, sec.columns, sec.dataStartRow);
-      const map = new Map<string, Record<string, unknown>>();
-
-      for (const sr of secRows) {
-        const rawK = String(sr[sec.keyCol] ?? '').trim();
-        if (rawK) {
-          const normK = RegionNormalizer.normalizeJoinKey(rawK, this.stripKabupaten());
-          map.set(normK, sr);
-        }
-      }
-
-      secondaryIndexes.push({ sheet: sec, map });
-
-      // Register secondary columns (prefix with sheet name if collision occurs)
-      for (const sc of sec.columns) {
-        if (sc.header.toLowerCase() === sec.keyCol.toLowerCase()) continue;
-        let colHeader = sc.header;
-        if (allColsMap.has(colHeader.toLowerCase())) {
-          colHeader = `${sec.sheetName} - ${sc.header}`;
-        }
-        allColsMap.set(colHeader.toLowerCase(), colHeader);
-      }
-    }
-
-    // Merge rows
-    const merged: Record<string, unknown>[] = [];
-    let rowCounter = 0;
-    for (const mr of masterRows) {
-      const rawPKey = String(mr[pKey] ?? '').trim();
-      const normPKey = RegionNormalizer.normalizeJoinKey(rawPKey, this.stripKabupaten());
-
-      const mergedRow: Record<string, unknown> = {
-        __id: `row-${rowCounter++}`,
-        ...mr,
-      };
-
-      for (const { sheet, map } of secondaryIndexes) {
-        const secRow = map.get(normPKey);
-        if (secRow) {
-          for (const sc of sheet.columns) {
-            if (sc.header.toLowerCase() === sheet.keyCol.toLowerCase()) continue;
-            let targetName = sc.header;
-            if (pCols.some((pc) => pc.header.toLowerCase() === sc.header.toLowerCase())) {
-              targetName = `${sheet.sheetName} - ${sc.header}`;
-            }
-            mergedRow[targetName] = secRow[sc.header];
-          }
-        }
-      }
-
-      merged.push(mergedRow);
-    }
-
-    this.joinedRows.set(merged);
-    this.joinedColumns.set(Array.from(allColsMap.values()));
-    this.applyKeywordAndPatternExclusions(merged);
-
-    // Deteksi baris ringkasan (RATA-RATA / JAWA TENGAH / PROVINSI), baris target (TARGET), dan baris total (JUMLAH)
-    let detectedSummaryRow: Record<string, unknown> | null = null;
-    let detectedTargetRow: Record<string, unknown> | null = null;
-    let detectedTotalRow: Record<string, unknown> | null = null;
-
-    for (const r of merged) {
-      const keyStr = String(r[pKey] ?? '')
-        .trim()
-        .toUpperCase();
-      if (keyStr.includes('TARGET')) {
-        if (!detectedTargetRow) detectedTargetRow = r;
-      } else if (
-        keyStr.includes('RATA') ||
-        keyStr.includes('AVERAGE') ||
-        keyStr.includes('JAWA TENGAH') ||
-        keyStr.includes('PROVINSI') ||
-        keyStr.startsWith('PROV')
-      ) {
-        if (!detectedSummaryRow) detectedSummaryRow = r;
-      } else if (keyStr.includes('TOTAL') || keyStr.includes('JUMLAH')) {
-        if (!detectedTotalRow) detectedTotalRow = r;
-      }
-    }
-
-    if (!detectedSummaryRow && detectedTotalRow) {
-      detectedSummaryRow = detectedTotalRow;
-    }
-
-    if (detectedSummaryRow) {
-      const sId = String(detectedSummaryRow['__id']);
-      this.summaryRowId.set(sId);
-      this.summaryRowData.set(detectedSummaryRow);
-      this.excludedRowIds.update((s) => new Set(s).add(sId));
-
-      const keyStr = String(detectedSummaryRow[pKey] ?? '')
-        .trim()
-        .toUpperCase();
-      if (
-        keyStr.includes('JAWA TENGAH') ||
-        keyStr.includes('PROVINSI') ||
-        keyStr.includes('RATA') ||
-        keyStr.includes('AVERAGE') ||
-        this.isHasilJoinFormat()
-      ) {
-        this.calculationDataSource.set('summary_row');
-      }
-    }
-
-    if (detectedTargetRow) {
-      const tId = String(detectedTargetRow['__id']);
-      this.targetRowId.set(tId);
-      this.targetRowData.set(detectedTargetRow);
-      this.excludedRowIds.update((s) => new Set(s).add(tId));
-    }
-
-    if (detectedTotalRow) {
-      const totId = String(detectedTotalRow['__id']);
-      this.totalRowId.set(totId);
-      this.totalRowData.set(detectedTotalRow);
-      this.excludedRowIds.update((s) => new Set(s).add(totId));
-    }
+    this.workflowEngine.executeWorkbookJoin({
+      workbook: this.workbook,
+      selectedSheets,
+      joinBy: pKey,
+      stripKabupaten: this.stripKabupaten(),
+      outputHeaderFormat: 'concat',
+      includeSheetPrefix: false,
+    });
 
     // Auto-populate indikator jika format Hasil Join terdeteksi atau indikator masih kosong
     if (
@@ -1554,529 +1274,29 @@ export class StuntingMonitoringComponent implements OnInit {
   }
 
   onSummaryRowChange(id: string): void {
-    this.summaryRowId.set(id);
+    this.workflowEngine.setSummaryRowId(id);
     if (!id || id === 'none') {
-      this.summaryRowData.set(null);
-      this.calculationDataSource.set('all_rows');
+      this.workflowEngine.setCalculationDataSource('all_rows');
     } else {
-      const row = this.joinedRows().find((r) => r['__id'] === id);
-      this.summaryRowData.set(row ?? null);
-      this.calculationDataSource.set('summary_row');
+      this.workflowEngine.setCalculationDataSource('summary_row');
     }
   }
 
   onTargetRowChange(id: string): void {
-    this.targetRowId.set(id);
-    if (!id || id === 'none') {
-      this.targetRowData.set(null);
-    } else {
-      const row = this.joinedRows().find((r) => r['__id'] === id);
-      this.targetRowData.set(row ?? null);
-    }
+    this.workflowEngine.setTargetRowId(id);
   }
 
   onDataSourceModeChange(mode: 'summary_row' | 'all_rows'): void {
-    this.calculationDataSource.set(mode);
+    this.workflowEngine.setCalculationDataSource(mode);
   }
 
   autoPopulateIndicatorsFromData(): void {
-    const cols = this.joinedColumns();
-    const summaryRow = this.summaryRowData();
-    const targetRow = this.targetRowData();
-    const totalRow = this.totalRowData();
-    const countSource = totalRow || summaryRow;
-
-    const cat1Subs: StuntingSubCategoryConfig[] = [];
-    const cat2Subs: StuntingSubCategoryConfig[] = [];
-    const cat3Subs: StuntingSubCategoryConfig[] = [];
-    const matchedMeanCols = new Set<string>();
-    const matchedSumCols = new Set<string>();
-
-    const normalizeStr = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
-
-    // Deteksi triwulan mana saja yang memiliki kolom spesifik dalam dataset
-    const quarterSlots: (1 | 2 | 3 | 4)[] = [1, 2, 3, 4];
-    const detectedQuartersInCols = quarterSlots.filter((q) =>
-      cols.some((c) => {
-        const norm = normalizeStr(c);
-        return (
-          norm.includes(`(tw${q})`) ||
-          norm.includes(`(tw ${q})`) ||
-          norm.includes(`tw${q}`) ||
-          norm.includes(`tw ${q}`)
-        );
-      }),
-    );
-    const hasQuarterSuffixes = detectedQuartersInCols.length > 0;
-
-    // 1. First pass: Cocokkan indikator standar resmi Dinkes (14 indikator)
-    for (const std of StuntingEvaluationEngine.DINKES_STANDARD_INDICATORS) {
-      const quarterColumns: Record<1 | 2 | 3 | 4, StuntingQuarterInputConfig> = {} as any;
-      let foundTarget: number | null = null;
-      let detectedPolarity: IndicatorPolarity | undefined;
-      let latestSumCol: string | undefined;
-      let latestMeanCol: string | undefined;
-      let latestDirectVal: number | null = null;
-      let latestCountVal: number | null = null;
-
-      if (hasQuarterSuffixes) {
-        // Mode Multi-Triwulan: telusuri tiap triwulan 1 s.d. 4
-        for (const q of quarterSlots) {
-          let qMeanCol: string | undefined;
-          let qSumCol: string | undefined;
-
-          // Cari kolom capaian (MEAN %) untuk TW q
-          for (const kw of std.meanKeywords) {
-            const normKw = normalizeStr(kw);
-            // Prioritas 1: Exact `${kw} (TW${q})`
-            const exactMatch = cols.find((c) => {
-              const norm = normalizeStr(c);
-              return norm === `${normKw} (tw${q})` || norm === `${normKw} (tw ${q})`;
-            });
-            if (exactMatch) {
-              qMeanCol = exactMatch;
-              break;
-            }
-            // Prioritas 2: Kolom mengandung keyword dan triwulan q
-            const containsMatch = cols.find((c) => {
-              const norm = normalizeStr(c);
-              return (
-                norm.includes(normKw) &&
-                (norm.includes(`(tw${q})`) ||
-                  norm.includes(`(tw ${q})`) ||
-                  norm.includes(`tw${q}`) ||
-                  norm.includes(`tw ${q}`))
-              );
-            });
-            if (containsMatch) {
-              qMeanCol = containsMatch;
-              break;
-            }
-          }
-
-          // Cari kolom jumlah/kasus (SUM) untuk TW q
-          for (const kw of std.sumKeywords) {
-            const normKw = normalizeStr(kw);
-            const exactMatch = cols.find((c) => {
-              const norm = normalizeStr(c);
-              return norm === `${normKw} (tw${q})` || norm === `${normKw} (tw ${q})`;
-            });
-            if (exactMatch) {
-              qSumCol = exactMatch;
-              break;
-            }
-            const containsMatch = cols.find((c) => {
-              const norm = normalizeStr(c);
-              return (
-                norm.includes(normKw) &&
-                (norm.includes(`(tw${q})`) ||
-                  norm.includes(`(tw ${q})`) ||
-                  norm.includes(`tw${q}`) ||
-                  norm.includes(`tw ${q}`))
-              );
-            });
-            if (containsMatch) {
-              qSumCol = containsMatch;
-              break;
-            }
-          }
-
-          if (qMeanCol || qSumCol) {
-            const effMean = qMeanCol || qSumCol!;
-            if (qMeanCol) matchedMeanCols.add(qMeanCol);
-            if (qSumCol) matchedSumCols.add(qSumCol);
-
-            const directVal = summaryRow
-              ? IndicatorEvaluator.parseSmartNumber(summaryRow[effMean])
-              : null;
-            const countVal =
-              qSumCol && countSource
-                ? IndicatorEvaluator.parseSmartNumber(countSource[qSumCol])
-                : null;
-
-            if (foundTarget === null && targetRow) {
-              const rawTarget = targetRow[effMean] ?? (qSumCol ? targetRow[qSumCol] : null);
-              if (
-                rawTarget !== null &&
-                rawTarget !== undefined &&
-                String(rawTarget).trim() !== '' &&
-                String(rawTarget).trim() !== '-'
-              ) {
-                const cleaned = StuntingEvaluationEngine.cleanTargetValue(rawTarget);
-                if (cleaned.value !== null) {
-                  foundTarget = cleaned.value;
-                  detectedPolarity = cleaned.polarity;
-                }
-              }
-            }
-
-            quarterColumns[q] = {
-              meanCol: qMeanCol,
-              sumCol: qSumCol,
-              numeratorCol: effMean,
-              actualValue: directVal,
-              countValue: countVal,
-            };
-
-            latestMeanCol = qMeanCol;
-            latestSumCol = qSumCol;
-            latestDirectVal = directVal;
-            latestCountVal = countVal;
-          }
-        }
-      }
-
-      if (!hasQuarterSuffixes || Object.keys(quarterColumns).length === 0) {
-        // Mode Single-Triwulan (berkas Excel biasa / Hasil Join satu triwulan)
-        for (const kw of std.sumKeywords) {
-          const normKw = normalizeStr(kw);
-          const found =
-            cols.find((c) => normalizeStr(c) === normKw) ||
-            cols.find((c) => normalizeStr(c).includes(normKw));
-          if (found) {
-            latestSumCol = found;
-            break;
-          }
-        }
-
-        for (const kw of std.meanKeywords) {
-          const normKw = normalizeStr(kw);
-          const found =
-            cols.find((c) => normalizeStr(c) === normKw) ||
-            cols.find((c) => normalizeStr(c).includes(normKw));
-          if (found) {
-            latestMeanCol = found;
-            break;
-          }
-        }
-
-        if (latestSumCol || latestMeanCol) {
-          const effMean = latestMeanCol || latestSumCol!;
-          if (latestMeanCol) matchedMeanCols.add(latestMeanCol);
-          if (latestSumCol) matchedSumCols.add(latestSumCol);
-
-          latestDirectVal = summaryRow
-            ? IndicatorEvaluator.parseSmartNumber(summaryRow[effMean])
-            : null;
-          latestCountVal =
-            latestSumCol && countSource
-              ? IndicatorEvaluator.parseSmartNumber(countSource[latestSumCol])
-              : null;
-
-          if (targetRow) {
-            const rawTarget = targetRow[effMean] ?? (latestSumCol ? targetRow[latestSumCol] : null);
-            if (
-              rawTarget !== null &&
-              rawTarget !== undefined &&
-              String(rawTarget).trim() !== '' &&
-              String(rawTarget).trim() !== '-'
-            ) {
-              const cleaned = StuntingEvaluationEngine.cleanTargetValue(rawTarget);
-              if (cleaned.value !== null) {
-                foundTarget = cleaned.value;
-                detectedPolarity = cleaned.polarity;
-              }
-            }
-          }
-
-          const actQ = this.activeQuarter();
-          quarterColumns[actQ] = {
-            meanCol: latestMeanCol,
-            sumCol: latestSumCol,
-            numeratorCol: effMean,
-            actualValue: latestDirectVal,
-            countValue: latestCountVal,
-          };
-        }
-      }
-
-      if (Object.keys(quarterColumns).length > 0) {
-        const effMean = latestMeanCol || latestSumCol || '';
-        const defaultTgt =
-          typeof std.defaultTargetCurrent === 'number' ? std.defaultTargetCurrent : null;
-        const targetVal = foundTarget !== null ? foundTarget : defaultTgt;
-
-        const subConfig: StuntingSubCategoryConfig = {
-          id: `sub-std-${std.no}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-          no: std.no,
-          name: std.name,
-          sumCol: latestSumCol,
-          meanCol: latestMeanCol,
-          numeratorCol: effMean,
-          dataCol: effMean,
-          actualValue: latestDirectVal,
-          countValue: latestCountVal,
-          quarterColumns,
-          calculationMode: 'percentage',
-          targetCurrentYear: targetVal,
-          prevYearMode: 'manual',
-          actualPrevYear: std.defaultActualPrev ?? null,
-          targetPrevYear: std.defaultTargetPrev ?? null,
-          polarity:
-            detectedPolarity && detectedPolarity !== 'positive' ? detectedPolarity : std.polarity,
-        };
-
-        if (std.canonicalCategory === 'sebelum_kelahiran') {
-          cat1Subs.push(subConfig);
-        } else if (std.canonicalCategory === 'setelah_kelahiran') {
-          cat2Subs.push(subConfig);
-        } else {
-          cat3Subs.push(subConfig);
-        }
-      }
+    const totalLoaded = this.workflowEngine.autoPopulateIndicators();
+    if (totalLoaded > 0) {
+      this.notificationMessage.set(
+        `Berhasil memuat ${totalLoaded} indikator langsung dari baris data dan target. Silakan periksa pemetaan indikator atau lanjutkan ke Langkah 3.`,
+      );
     }
-
-    // 2. Second pass: Kolom % atau cakupan lain di luar definisi standar
-    const processedBaseCols = new Set<string>();
-
-    for (let i = 0; i < cols.length; i++) {
-      const col = cols[i];
-      const lowerCol = col.toLowerCase();
-
-      if (matchedMeanCols.has(col) || matchedSumCols.has(col)) {
-        continue;
-      }
-
-      if (!col.includes('%') && !lowerCol.includes('persen') && !lowerCol.includes('cakupan')) {
-        continue;
-      }
-
-      const baseCol = col.replace(/\s*\(tw[1-4]\)\s*$/i, '').trim();
-      const normBase = normalizeStr(baseCol);
-      if (processedBaseCols.has(normBase)) {
-        continue;
-      }
-      processedBaseCols.add(normBase);
-
-      const quarterColumns: Record<1 | 2 | 3 | 4, StuntingQuarterInputConfig> = {} as any;
-      let lastMeanCol: string = col;
-      let lastSumCol: string | undefined;
-      let lastDirectVal: number | null = null;
-      let lastCountVal: number | null = null;
-      let foundTarget: number | null = null;
-      let polarity: IndicatorPolarity = 'positive';
-      if (
-        normBase.includes('anemia') ||
-        normBase.includes('kek') ||
-        normBase.includes('gibur') ||
-        normBase.includes('kurang')
-      ) {
-        polarity = 'negative';
-      }
-
-      if (hasQuarterSuffixes) {
-        for (const q of quarterSlots) {
-          const qCol = cols.find((c) => {
-            const n = normalizeStr(c);
-            return (
-              n.includes(normBase) &&
-              (n.includes(`(tw${q})`) ||
-                n.includes(`(tw ${q})`) ||
-                n.includes(`tw${q}`) ||
-                n.includes(`tw ${q}`))
-            );
-          });
-          if (qCol) {
-            matchedMeanCols.add(qCol);
-            const qColIdx = cols.indexOf(qCol);
-            const prevCol =
-              qColIdx > 0 && !matchedMeanCols.has(cols[qColIdx - 1])
-                ? cols[qColIdx - 1]
-                : undefined;
-            if (prevCol) matchedSumCols.add(prevCol);
-
-            const directVal = summaryRow
-              ? IndicatorEvaluator.parseSmartNumber(summaryRow[qCol])
-              : null;
-            const countVal =
-              prevCol && countSource
-                ? IndicatorEvaluator.parseSmartNumber(countSource[prevCol])
-                : null;
-
-            if (foundTarget === null && targetRow) {
-              const rawTgt = targetRow[qCol] ?? (prevCol ? targetRow[prevCol] : null);
-              if (
-                rawTgt !== null &&
-                rawTgt !== undefined &&
-                String(rawTgt).trim() !== '' &&
-                String(rawTgt).trim() !== '-'
-              ) {
-                const cleaned = StuntingEvaluationEngine.cleanTargetValue(rawTgt);
-                if (cleaned.value !== null) {
-                  foundTarget = cleaned.value;
-                  if (cleaned.polarity !== 'positive') polarity = cleaned.polarity;
-                }
-              }
-            }
-
-            quarterColumns[q] = {
-              meanCol: qCol,
-              sumCol: prevCol,
-              numeratorCol: qCol,
-              actualValue: directVal,
-              countValue: countVal,
-            };
-            lastMeanCol = qCol;
-            lastSumCol = prevCol;
-            lastDirectVal = directVal;
-            lastCountVal = countVal;
-          }
-        }
-      }
-
-      if (!hasQuarterSuffixes || Object.keys(quarterColumns).length === 0) {
-        const prevCol = i > 0 && !matchedMeanCols.has(cols[i - 1]) ? cols[i - 1] : undefined;
-        matchedMeanCols.add(col);
-        if (prevCol) matchedSumCols.add(prevCol);
-
-        const directVal = summaryRow ? IndicatorEvaluator.parseSmartNumber(summaryRow[col]) : null;
-        const countVal =
-          prevCol && countSource ? IndicatorEvaluator.parseSmartNumber(countSource[prevCol]) : null;
-
-        if (targetRow) {
-          const rawTgt = targetRow[col] ?? (prevCol ? targetRow[prevCol] : null);
-          if (
-            rawTgt !== null &&
-            rawTgt !== undefined &&
-            String(rawTgt).trim() !== '' &&
-            String(rawTgt).trim() !== '-'
-          ) {
-            const cleaned = StuntingEvaluationEngine.cleanTargetValue(rawTgt);
-            if (cleaned.value !== null) {
-              foundTarget = cleaned.value;
-              if (cleaned.polarity !== 'positive') polarity = cleaned.polarity;
-            }
-          }
-        }
-
-        const actQ = this.activeQuarter();
-        quarterColumns[actQ] = {
-          meanCol: col,
-          sumCol: prevCol,
-          numeratorCol: col,
-          actualValue: directVal,
-          countValue: countVal,
-        };
-        lastMeanCol = col;
-        lastSumCol = prevCol;
-        lastDirectVal = directVal;
-        lastCountVal = countVal;
-      }
-
-      if (Object.keys(quarterColumns).length > 0) {
-        const subId = `sub-auto-${i}-${Date.now()}`;
-        const subConfig: StuntingSubCategoryConfig = {
-          id: subId,
-          no: String(cat1Subs.length + cat2Subs.length + cat3Subs.length + 1),
-          name: baseCol || lastMeanCol,
-          sumCol: lastSumCol,
-          meanCol: lastMeanCol,
-          numeratorCol: lastMeanCol,
-          dataCol: lastMeanCol,
-          actualValue: lastDirectVal,
-          countValue: lastCountVal,
-          quarterColumns,
-          calculationMode: 'percentage',
-          targetCurrentYear: foundTarget,
-          prevYearMode: 'manual',
-          actualPrevYear: null,
-          targetPrevYear: null,
-          polarity,
-        };
-
-        const countColLower = lastSumCol ? lastSumCol.toLowerCase() : '';
-        const isCat1 =
-          normBase.includes('rematri') ||
-          normBase.includes('remaja') ||
-          normBase.includes('bumil') ||
-          normBase.includes('hamil') ||
-          normBase.includes('anc') ||
-          normBase.includes('ttd') ||
-          normBase.includes('kek') ||
-          countColLower.includes('rematri') ||
-          countColLower.includes('bumil') ||
-          countColLower.includes('hamil');
-
-        const isCat2 =
-          normBase.includes('balita') ||
-          normBase.includes('baduta') ||
-          normBase.includes('bayi') ||
-          normBase.includes('d/s') ||
-          normBase.includes('tumbang') ||
-          normBase.includes('pertumbuhan') ||
-          normBase.includes('perkembangan') ||
-          normBase.includes('asi') ||
-          normBase.includes('mpasi') ||
-          normBase.includes('gizi') ||
-          normBase.includes('bb') ||
-          normBase.includes('gibur') ||
-          normBase.includes('idl') ||
-          normBase.includes('mt') ||
-          countColLower.includes('balita') ||
-          countColLower.includes('baduta');
-
-        if (isCat1) {
-          cat1Subs.push(subConfig);
-        } else if (isCat2) {
-          cat2Subs.push(subConfig);
-        } else {
-          cat3Subs.push(subConfig);
-        }
-      }
-    }
-
-    // 3. Fallback: Jika tidak ada kolom terpetakan, scaffold struktur indikator resmi
-    if (cat1Subs.length === 0 && cat2Subs.length === 0 && cat3Subs.length === 0) {
-      for (const std of StuntingEvaluationEngine.DINKES_STANDARD_INDICATORS) {
-        const defaultTgt =
-          typeof std.defaultTargetCurrent === 'number' ? std.defaultTargetCurrent : null;
-        const subConfig: StuntingSubCategoryConfig = {
-          id: `sub-std-${std.no}-${Date.now()}`,
-          no: std.no,
-          name: std.name,
-          numeratorCol: '',
-          dataCol: '',
-          actualValue: null,
-          countValue: null,
-          calculationMode: 'percentage',
-          targetCurrentYear: defaultTgt,
-          prevYearMode: 'manual',
-          actualPrevYear: std.defaultActualPrev ?? null,
-          targetPrevYear: std.defaultTargetPrev ?? null,
-          polarity: std.polarity,
-        };
-        if (std.canonicalCategory === 'sebelum_kelahiran') {
-          cat1Subs.push(subConfig);
-        } else if (std.canonicalCategory === 'setelah_kelahiran') {
-          cat2Subs.push(subConfig);
-        } else {
-          cat3Subs.push(subConfig);
-        }
-      }
-    }
-
-    this.categories.set([
-      {
-        id: 'cat-1',
-        name: 'Intervensi untuk remaja putri dan ibu hamil (sebelum kelahiran)',
-        subCategories: cat1Subs,
-      },
-      {
-        id: 'cat-2',
-        name: 'Intervensi untuk balita (setelah kelahiran)',
-        subCategories: cat2Subs,
-      },
-      {
-        id: 'cat-3',
-        name: 'Intervensi lintas siklus hidup',
-        subCategories: cat3Subs,
-      },
-    ]);
-
-    const totalLoaded = cat1Subs.length + cat2Subs.length + cat3Subs.length;
-    this.notificationMessage.set(
-      `Berhasil memuat ${totalLoaded} indikator langsung dari baris data dan target. Silakan periksa pemetaan indikator atau lanjutkan ke Langkah 3.`,
-    );
   }
 
   moveSubCategoryToCategory(sourceCatId: string, subId: string, targetCatId: string): void {
@@ -2305,68 +1525,11 @@ export class StuntingMonitoringComponent implements OnInit {
   }
 
   addSubCategory(catId: string): void {
-    const pKey = this.primaryKeyCol();
-    const metricCols = this.joinedColumns().filter((c) => c !== pKey);
-    const subId = `sub-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-
-    const cat = this.categories().find((c) => c.id === catId);
-    const existingCount = cat ? cat.subCategories.length : 0;
-    const numCol = metricCols.length > 1 ? metricCols[1] : metricCols[0] || '';
-    const prevCol = metricCols.length > 1 ? metricCols[0] : '';
-    const summaryRow = this.summaryRowData();
-    const targetRow = this.targetRowData();
-
-    let rawTarget = targetRow ? targetRow[numCol] : null;
-    const cleanedTarget = StuntingEvaluationEngine.cleanTargetValue(rawTarget);
-    const isSummarySource = this.calculationDataSource() === 'summary_row';
-    const directVal =
-      isSummarySource && summaryRow
-        ? IndicatorEvaluator.parseSmartNumber(summaryRow[numCol])
-        : null;
-    const countVal =
-      isSummarySource && prevCol && summaryRow
-        ? IndicatorEvaluator.parseSmartNumber(summaryRow[prevCol])
-        : null;
-
-    const actQ = this.activeQuarter();
-    const newSub: StuntingSubCategoryConfig = {
-      id: subId,
-      no: String(existingCount + 1),
-      name: numCol || 'Indikator Baru',
-      sumCol: prevCol || undefined,
-      meanCol: numCol || undefined,
-      numeratorCol: numCol,
-      dataCol: numCol,
-      actualValue: directVal,
-      countValue: countVal,
-      quarterColumns: {
-        [actQ]: {
-          sumCol: prevCol || undefined,
-          meanCol: numCol || undefined,
-          numeratorCol: numCol || undefined,
-          actualValue: directVal,
-          countValue: countVal,
-        },
-      },
-      calculationMode: 'percentage',
-      targetCurrentYear: cleanedTarget.value !== null ? cleanedTarget.value : null,
-      prevYearMode: 'manual',
-      actualPrevYear: null,
-      targetPrevYear: null,
-      polarity: cleanedTarget.polarity,
-    };
-
-    this.categories.update((cats) =>
-      cats.map((c) => (c.id === catId ? { ...c, subCategories: [...c.subCategories, newSub] } : c)),
-    );
+    this.workflowEngine.addSubCategory(catId);
   }
 
   removeSubCategory(catId: string, subId: string): void {
-    this.categories.update((cats) =>
-      cats.map((c) =>
-        c.id === catId ? { ...c, subCategories: c.subCategories.filter((s) => s.id !== subId) } : c,
-      ),
-    );
+    this.workflowEngine.removeSubCategory(catId, subId);
   }
 
   onNumeratorColChange(catId: string, subId: string, colName: string): void {
@@ -2590,118 +1753,7 @@ export class StuntingMonitoringComponent implements OnInit {
     actualPercentage: number | null;
   } {
     const quarter = (q >= 1 && q <= 4 ? q : 1) as 1 | 2 | 3 | 4;
-    const hasExplicit =
-      !!sub.quarterColumns &&
-      Object.values(sub.quarterColumns).some(
-        (qc) =>
-          !!qc &&
-          (!!qc.sumCol ||
-            !!qc.meanCol ||
-            !!qc.numeratorCol ||
-            (qc.actualValue !== undefined && qc.actualValue !== null) ||
-            (qc.countValue !== undefined && qc.countValue !== null)),
-      );
-
-    const qConfig = sub.quarterColumns?.[quarter];
-    const isConfigured =
-      !!qConfig &&
-      (!!qConfig.sumCol ||
-        !!qConfig.meanCol ||
-        !!qConfig.numeratorCol ||
-        (qConfig.actualValue !== undefined && qConfig.actualValue !== null) ||
-        (qConfig.countValue !== undefined && qConfig.countValue !== null));
-
-    if (hasExplicit && !isConfigured) {
-      return { sumNum: null, sumDen: null, actualPercentage: null };
-    }
-    if (!hasExplicit && quarter !== this.activeQuarter()) {
-      return { sumNum: null, sumDen: null, actualPercentage: null };
-    }
-
-    const sumCol = qConfig?.sumCol || (quarter === this.activeQuarter() ? sub.sumCol : undefined);
-    let meanCol =
-      qConfig?.meanCol ||
-      qConfig?.numeratorCol ||
-      (quarter === this.activeQuarter() ? sub.meanCol || sub.numeratorCol : undefined);
-    let numCol =
-      qConfig?.numeratorCol || (quarter === this.activeQuarter() ? sub.numeratorCol : undefined);
-    if (!meanCol && numCol) {
-      meanCol = numCol;
-    }
-
-    const directActualVal =
-      qConfig?.actualValue !== undefined
-        ? qConfig.actualValue
-        : quarter === this.activeQuarter()
-          ? sub.actualValue
-          : undefined;
-    const directCountVal =
-      qConfig?.countValue !== undefined
-        ? qConfig.countValue
-        : quarter === this.activeQuarter()
-          ? sub.countValue
-          : undefined;
-
-    if (!sumCol && !meanCol && !numCol && directActualVal === null && directCountVal === null) {
-      return { sumNum: null, sumDen: null, actualPercentage: null };
-    }
-
-    const rows = this.validJoinedRows();
-    const denCol = qConfig?.denominatorCol || sub.denominatorCol;
-
-    let sumNum: number | null = null;
-    let sumDen: number | null = null;
-    let actualPercentage: number | null = null;
-
-    const isSummaryMode = this.calculationDataSource() === 'summary_row' || rows.length <= 1;
-    if (isSummaryMode && directActualVal !== undefined && directActualVal !== null) {
-      actualPercentage = directActualVal;
-      sumNum = directCountVal ?? null;
-    } else {
-      // 1. Calculate sumNum
-      const targetSumCol = denCol
-        ? numCol || sumCol
-        : sumCol || (sub.calculationMode === 'absolute' ? meanCol || numCol : undefined);
-      if (targetSumCol && rows.length > 0) {
-        if (rows.length === 1) {
-          sumNum = IndicatorEvaluator.parseSmartNumber(rows[0][targetSumCol]);
-        } else {
-          sumNum = StuntingEvaluationEngine.sumColumnValues(rows, targetSumCol);
-        }
-      }
-      if (sumNum === null && directCountVal !== undefined && directCountVal !== null) {
-        sumNum = directCountVal;
-      }
-
-      // 2. Calculate actualPercentage
-      if (denCol && rows.length > 0) {
-        sumDen = StuntingEvaluationEngine.sumColumnValues(rows, denCol);
-        if (sumDen && sumDen > 0 && sumNum !== null) {
-          actualPercentage = Math.round((sumNum / sumDen) * 10000) / 100;
-        }
-      }
-
-      if (actualPercentage === null) {
-        const targetMeanCol = meanCol || (!denCol ? numCol : undefined);
-        if (rows.length === 1 && targetMeanCol) {
-          const directVal = IndicatorEvaluator.parseSmartNumber(rows[0][targetMeanCol]);
-          actualPercentage = directVal;
-          if (sumNum === null) {
-            sumNum =
-              directCountVal ??
-              (typeof directVal === 'number' && directVal > 100 ? directVal : null);
-          }
-        } else if (rows.length > 0) {
-          if (targetMeanCol && sub.calculationMode !== 'absolute') {
-            actualPercentage = StuntingEvaluationEngine.averageColumnValues(rows, targetMeanCol);
-          } else if (targetSumCol && sub.calculationMode === 'absolute') {
-            actualPercentage = sumNum;
-          }
-        }
-      }
-    }
-
-    return { sumNum, sumDen, actualPercentage };
+    return this.workflowEngine.calculateQuarterActual(sub, quarter, this.validJoinedRows());
   }
 
   getSubCategoryLiveStats(sub: StuntingSubCategoryConfig): {
@@ -2748,43 +1800,6 @@ export class StuntingMonitoringComponent implements OnInit {
       };
     }
   }
-
-  // ============================================================
-  // STEP 3: DASHBOARD EVALUATION & MONITORING
-  // ============================================================
-
-  evaluationResult = computed<StuntingEvaluationResult | null>(() => {
-    const cats = this.categories();
-    const rows = this.validJoinedRows();
-
-    // Check if any subcategory exists
-    const hasSubCategories = cats.some((c) => c.subCategories.length > 0);
-    if (!hasSubCategories || rows.length === 0) {
-      return null;
-    }
-
-    return StuntingEvaluationEngine.evaluateAggregatedDataset(cats, rows, {
-      activeQuarter: this.manualActiveQuarter() ?? undefined,
-      toleranceThresholdPercent: this.toleranceThreshold(),
-      quarterWeight: this.quarterWeight() ?? undefined,
-      calculationDataSource: this.calculationDataSource(),
-    });
-  });
-
-  availableQuarters = computed<(1 | 2 | 3 | 4)[]>(() => {
-    const res = this.evaluationResult();
-    if (!res || !res.availableQuarters || res.availableQuarters.length === 0) {
-      return [1];
-    }
-    return res.availableQuarters;
-  });
-
-  activeQuarter = computed<1 | 2 | 3 | 4>(() => {
-    const manual = this.manualActiveQuarter();
-    if (manual) return manual;
-    const res = this.evaluationResult();
-    return res?.activeQuarter ?? 1;
-  });
 
   filteredGroupedRows = computed(() => {
     const res = this.evaluationResult();
@@ -2839,21 +1854,20 @@ export class StuntingMonitoringComponent implements OnInit {
   }
 
   goToStep(step: 1 | 2 | 3): void {
-    if (step === 2 && this.validJoinedRows().length === 0) {
-      this.notificationMessage.set(
-        'Harap unggah berkas dan pastikan minimal ada 1 baris data aktif.',
-      );
+    const check = this.workflowEngine.canTransitionTo(step);
+    if (!check.allowed) {
+      if (step === 2) {
+        this.notificationMessage.set(
+          'Harap unggah berkas dan pastikan minimal ada 1 baris data aktif.',
+        );
+      } else if (step === 3) {
+        this.notificationMessage.set('Harap buat minimal 1 sub-kategori indikator pada Langkah 2.');
+      } else {
+        this.notificationMessage.set(check.reason || 'Transisi langkah tidak diizinkan.');
+      }
       return;
     }
-    if (
-      step === 3 &&
-      (!this.categories().some((c) => c.subCategories.length > 0) ||
-        this.validJoinedRows().length === 0)
-    ) {
-      this.notificationMessage.set('Harap buat minimal 1 sub-kategori indikator pada Langkah 2.');
-      return;
-    }
-    this.activeStep.set(step);
+    this.workflowEngine.transitionTo(step);
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -3097,27 +2111,17 @@ export class StuntingMonitoringComponent implements OnInit {
   }
 
   clearFile(): void {
+    this.workflowEngine.reset();
     this.file.set(null);
     this.workbook = null;
     this.availableSheets.set([]);
     this.primarySheet.set('');
     this.primaryColumns.set([]);
     this.secondarySheets.set([]);
-    this.joinedRows.set([]);
-    this.joinedColumns.set([]);
-    this.excludedRowIds.set(new Set());
-    this.manualExcludedKeys.set(new Set());
-    this.manualActiveQuarter.set(null);
     this.showSettings.set(false);
-    this.summaryRowId.set('');
-    this.targetRowId.set('');
-    this.summaryRowData.set(null);
-    this.targetRowData.set(null);
-    this.calculationDataSource.set('all_rows');
     this.healthDataExchange.clearStuntingData();
     this.notificationMessage.set(null);
     this.isMultiQuarterCloudMode.set(false);
     this.cloudLoadNotice.set(null);
-    this.activeStep.set(1);
   }
 }

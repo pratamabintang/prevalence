@@ -73,6 +73,14 @@ Logika seleksi bawaan pada visualisasi komparatif yang secara otomatis memilih k
 _Avoid_: Filter kunci mutlak, batasan kolom angka
 
 ### Pemantauan Stunting & Evaluasi Kinerja
+**Mesin Alur Kerja Pemantauan Stunting (Stunting Workflow Engine)**:
+Modul domain terpadu yang mengoordinasikan seluruh alur evaluasi stunting 3-langkah (Unggah & Gabung Lembar Kerja $\to$ Perancang Kategori & Indikator $\to$ Evaluasi Capaian & Scorecard). Mengelola status reaktif, mengeksekusi penggabungan data via `ExcelJoinEngine`, melakukan auto-populasi indikator standar Dinkes, memvalidasi invarian transisi langkah secara ketat di luar lapisan UI/DOM, serta memicu kalkulasi pada `StuntingEvaluationEngine`.
+_Avoid_: UI Stepper component, state holder lepas, logic helper
+
+**Invarian Transisi Langkah (Step Transition Invariant)**:
+Aturan prasyarat domain yang wajib dipenuhi sebelum sistem mengizinkan perpindahan antar-tahap dalam alur kerja pemantauan stunting (misalnya: Langkah 2 mewajibkan dataset gabungan terisi dan valid; Langkah 3 mewajibkan minimal satu kategori memiliki sub-kategori indikator).
+_Avoid_: Kondisi disabled tombol, validasi form biasa, if-check UI
+
 **Intervensi Stunting**:
 Program atau tindakan kesehatan spesifik (sebelum kelahiran/remaja-ibu hamil atau setelah kelahiran/balita) yang diukur capaian kinerjanya dalam percepatan penurunan stunting.
 _Avoid_: Program gizi, kegiatan dinkes, proyek stunting
