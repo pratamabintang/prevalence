@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { PeriodPartitionWorkspace } from './period-partition-workspace';
 import { GasPeriodItem, GasStorageService } from './gas-storage.service';
+import { BackendStorageService } from './backend-storage.service';
 
 describe('PeriodPartitionWorkspace', () => {
   let mockGasStorage: Partial<GasStorageService>;
@@ -228,6 +229,58 @@ describe('PeriodPartitionWorkspace', () => {
     });
   });
 
+  describe('BackendStorageService Integration & Graceful Fallback', () => {
+    it('harus memprioritaskan BackendStorageService saat terkonfigurasi dan beralih ke GasStorageService saat backend gagal', async () => {
+      const mockBackend: Partial<BackendStorageService> = {
+        isConfigured: vi.fn().mockReturnValue(true),
+        listPeriods: vi.fn().mockResolvedValue({
+          success: true,
+          periods: [
+            {
+              year: 2026,
+              quarter: 'TW1',
+              hasRaw: true,
+              hasResult: true,
+              hasConfig: true,
+            },
+          ],
+        }),
+        loadPeriod: vi.fn().mockResolvedValue({
+          success: true,
+          hasData: true,
+          year: 2026,
+          quarter: 'TW1',
+          resultExcelBuffer: new ArrayBuffer(32),
+        }),
+        savePeriod: vi.fn().mockResolvedValue({
+          success: true,
+          message: 'Saved to SQLite',
+        }),
+      };
+
+      const hybridWorkspace = new PeriodPartitionWorkspace(
+        mockGasStorage as GasStorageService,
+        mockBackend as BackendStorageService,
+      );
+
+      const periods = await hybridWorkspace.refreshPeriods();
+      expect(mockBackend.listPeriods).toHaveBeenCalled();
+      expect(mockGasStorage.listPeriods).not.toHaveBeenCalled();
+      expect(periods).toHaveLength(1);
+      expect(periods[0].hasConfig).toBe(true);
+
+      const loaded = await hybridWorkspace.loadSingleQuarter(2026, 'TW1', { prefer: 'result' });
+      expect(mockBackend.loadPeriod).toHaveBeenCalledWith(2026, 'TW1');
+      expect(loaded).not.toBeNull();
+
+      // Simulasikan backend offline -> fallback ke GasStorageService
+      (mockBackend.listPeriods as any).mockResolvedValue({ success: false, periods: [] });
+      const fallbackPeriods = await hybridWorkspace.refreshPeriods();
+      expect(mockGasStorage.listPeriods).toHaveBeenCalled();
+      expect(fallbackPeriods).toEqual(samplePeriods);
+    });
+  });
+
   describe('Angular DI Integration', () => {
     it('harus dapat diinjeksi via Angular DI / TestBed', async () => {
       const { TestBed } = await import('@angular/core/testing');
@@ -235,6 +288,10 @@ describe('PeriodPartitionWorkspace', () => {
         providers: [
           PeriodPartitionWorkspace,
           { provide: GasStorageService, useValue: mockGasStorage },
+          {
+            provide: BackendStorageService,
+            useValue: { isConfigured: () => false },
+          },
         ],
       });
 

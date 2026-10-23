@@ -1,0 +1,20 @@
+services:
+  dinkes-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dinkes_app
+    ports:
+      - "8080:80"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DB_PATH=/data/dinkes.db
+      - UPLOADS_DIR=/data/uploads
+    volumes:
+      - dinkes_storage:/data
+    restart: unless-stopped
+
+volumes:
+  dinkes_storage:
+    name: dinkes_storage

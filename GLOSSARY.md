@@ -195,5 +195,19 @@ _Avoid_: Drop out usia, kadaluwarsa, lewat umur
 Anomali data pemantauan di mana anak yang telah mencapai atau melampaui batas usia balita (>=60 bulan) masih tercatat mengalami stunting pada Periode Evaluasi, mengindikasikan adanya kekeliruan input tanggal lahir atau keterlambatan pengeluaran anak yang telah memasuki usia prasekolah/sekolah dasar dari pelaporan sasaran balita.
 _Avoid_: Error data mentah, anak salah, balita kadaluarsa
 
+### Penyimpanan Server Terpusat & Kontainerisasi
+**Penyimpanan Terpusat Server SQLite (Server-Side SQLite Storage)**:
+Lapisan persistensi server mandiri berbasis mesin SQLite dengan mode Write-Ahead Logging (WAL) yang menyimpan data agregat 35 Kabupaten/Kota, partisi triwulan, konfigurasi join, dan metadata berkas secara terpusat tanpa memerlukan daemon database terpisah.
+_Avoid_: Database server berat, database lokal browser, serverless DB
+
+**Ingesti Berbantuan Klien (Client-Assisted Ingestion)**:
+Pola arsitektur penyerapan data di mana proses pembacaan file spreadsheet, pencocokan wilayah, dan normalisasi dieksekusi di peramban pengguna untuk verifikasi visual (preview), sebelum dikirimkan (commit) ke backend server untuk disimpan secara persisten.
+_Avoid_: Full server parsing, upload mentah tanpa preview, client-only storage
+
+**Partisi Arsip Berkas Server (Server File Archive Partition)**:
+Struktur direktori penyimpanan berkas biner Excel (.xlsx) di sisi server yang terorganisasi per tahun dan triwulan, di mana metadata dan lokasinya dikaitkan dengan baris data pada database SQLite.
+_Avoid_: Blob storage acak, file campur aduk, folder mentah
+
+
 
 

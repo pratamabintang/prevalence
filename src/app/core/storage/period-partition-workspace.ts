@@ -5,11 +5,13 @@ import {
   GasStorageService,
   QuarterSlot,
 } from './gas-storage.service';
+import { BackendStorageService } from './backend-storage.service';
 import {
   DinkesSpreadsheetParser,
   ParsedDinkesDataset,
   ParseDinkesOptions,
 } from '../excel/dinkes-spreadsheet-parser';
+import { IndicatorEvaluator } from '../evaluation/indicator-evaluator';
 import { JoinPresetExecutionSpec } from '../excel/excel-join-engine';
 
 export interface QuarterDataset {
@@ -53,6 +55,7 @@ export interface SavePeriodPartitionSpec {
 })
 export class PeriodPartitionWorkspace {
   private readonly gasStorage: GasStorageService;
+  private readonly backendStorage?: BackendStorageService;
 
   readonly currentYear = new Date().getFullYear();
   private readonly _availableYears = signal<number[]>(
@@ -67,35 +70,63 @@ export class PeriodPartitionWorkspace {
   readonly isLoading: Signal<boolean> = this._isLoading.asReadonly();
   readonly selectedYear: Signal<number> = this._selectedYear.asReadonly();
 
-  constructor(gasStorage?: GasStorageService) {
+  constructor(gasStorage?: GasStorageService, backendStorage?: BackendStorageService) {
     this.gasStorage = gasStorage ?? inject(GasStorageService);
+    if (backendStorage !== undefined) {
+      this.backendStorage = backendStorage;
+    } else if (!gasStorage) {
+      this.backendStorage = inject(BackendStorageService, { optional: true }) ?? undefined;
+    }
   }
 
   setSelectedYear(year: number): void {
     this._selectedYear.set(year);
   }
 
+  private applyRemotePeriods(periods: GasPeriodItem[]): GasPeriodItem[] {
+    this._periodSlots.set(periods);
+
+    const yearsFromRemote = Array.from(new Set(periods.map((p) => p.year)));
+    const fallbackYears = Array.from({ length: 6 }, (_, i) => this.currentYear - i);
+    const mergedYears = Array.from(new Set([...yearsFromRemote, ...fallbackYears])).sort(
+      (a, b) => b - a,
+    );
+
+    this._availableYears.set(mergedYears);
+    if (!mergedYears.includes(this._selectedYear())) {
+      this._selectedYear.set(mergedYears[0]);
+    }
+    return periods;
+  }
+
   /**
-   * Memperbarui daftar slot periode dari Google Drive dan menyinkronkan daftar tahun.
+   * Memperbarui daftar slot periode dari Server Backend (utama) atau Google Drive (fallback)
+   * dan menyinkronkan daftar tahun.
    */
   async refreshPeriods(customUrl?: string): Promise<GasPeriodItem[]> {
     this._isLoading.set(true);
     try {
+      if (!customUrl && this.backendStorage?.isConfigured()) {
+        const backendRes = await this.backendStorage.listPeriods();
+        if (backendRes.success && Array.isArray(backendRes.periods)) {
+          const mapped: GasPeriodItem[] = backendRes.periods.map((p) => ({
+            year: p.year,
+            quarter: p.quarter,
+            hasRaw: p.hasRaw,
+            hasResult: p.hasResult,
+            hasConfig: Boolean(p.hasConfig),
+            rawFileName: p.rawFileName,
+            resultFileName: p.resultFileName,
+            updatedAt: p.updatedAt,
+            fileSize: p.fileSize,
+          }));
+          return this.applyRemotePeriods(mapped);
+        }
+      }
+
       const res = await this.gasStorage.listPeriods(customUrl);
       if (res.success && Array.isArray(res.periods)) {
-        this._periodSlots.set(res.periods);
-
-        const yearsFromRemote = Array.from(new Set(res.periods.map((p) => p.year)));
-        const fallbackYears = Array.from({ length: 6 }, (_, i) => this.currentYear - i);
-        const mergedYears = Array.from(new Set([...yearsFromRemote, ...fallbackYears])).sort(
-          (a, b) => b - a,
-        );
-
-        this._availableYears.set(mergedYears);
-        if (!mergedYears.includes(this._selectedYear())) {
-          this._selectedYear.set(mergedYears[0]);
-        }
-        return res.periods;
+        return this.applyRemotePeriods(res.periods);
       }
       return this._periodSlots();
     } finally {
@@ -120,7 +151,8 @@ export class PeriodPartitionWorkspace {
   }
 
   /**
-   * Memuat data single quarter dari Google Drive dengan preferensi varian berkas ('raw' vs 'result').
+   * Memuat data single quarter dari Server Backend (utama) atau Google Drive (fallback)
+   * dengan preferensi varian berkas ('raw' vs 'result').
    */
   async loadSingleQuarter(
     year: number,
@@ -129,6 +161,37 @@ export class PeriodPartitionWorkspace {
     customUrl?: string,
   ): Promise<QuarterDataset | null> {
     const preferResult = options?.prefer !== 'raw';
+
+    if (!customUrl && this.backendStorage?.isConfigured()) {
+      const backendRes = await this.backendStorage.loadPeriod(year, quarter);
+      if (backendRes.success) {
+        if (!backendRes.hasData) {
+          return null;
+        }
+        const backendBuffer =
+          preferResult && backendRes.resultExcelBuffer
+            ? backendRes.resultExcelBuffer
+            : (backendRes.rawExcelBuffer ?? backendRes.resultExcelBuffer);
+
+        if (backendBuffer) {
+          const preset = (backendRes.config as JoinPresetExecutionSpec) ?? options?.parseOptions?.preset;
+          const dataset = DinkesSpreadsheetParser.parse(backendBuffer, {
+            ...options?.parseOptions,
+            preset,
+          });
+          return {
+            year,
+            quarter,
+            source: 'cloud',
+            fileName: preferResult && backendRes.resultExcelBuffer ? 'joined-result.xlsx' : 'raw-data.xlsx',
+            dataset,
+            rawBuffer: backendRes.rawExcelBuffer,
+            resultBuffer: backendRes.resultExcelBuffer,
+          };
+        }
+      }
+    }
+
     const res = await this.gasStorage.loadPeriod(year, quarter, { preferResult, customUrl });
 
     if (!res.success || !res.hasData) {
@@ -164,7 +227,7 @@ export class PeriodPartitionWorkspace {
   /**
    * Memuat batch multi-kuartal dengan rantai prioritas ketat:
    * 1. Berkas lokal pengguna (menimpa cloud).
-   * 2. Slot Google Drive (cloud).
+   * 2. Slot Server Backend / Google Drive (cloud).
    * 3. Slot hilang non-fatal (missingQuarters).
    */
   async loadMultiQuarters(
@@ -242,14 +305,77 @@ export class PeriodPartitionWorkspace {
     };
   }
 
+  private extractObservationsFromSpec(
+    spec: SavePeriodPartitionSpec,
+  ): Array<{ districtName: string; indicatorKey: string; numericValue: number | null; displayText?: string }> {
+    const primaryBuffer = spec.resultExcelBuffer ?? spec.rawExcelBuffer;
+    if (!primaryBuffer || primaryBuffer.byteLength === 0) {
+      return [];
+    }
+
+    try {
+      const preset = spec.preset ?? (spec.config as JoinPresetExecutionSpec | undefined);
+      const parsed = DinkesSpreadsheetParser.parse(primaryBuffer, { preset });
+      const observations: Array<{
+        districtName: string;
+        indicatorKey: string;
+        numericValue: number | null;
+        displayText?: string;
+      }> = [];
+
+      for (const row of parsed.regionRows) {
+        const districtName = String(row[parsed.keyCol] ?? '').trim();
+        if (!districtName) continue;
+
+        for (const col of parsed.columns) {
+          if (col === parsed.keyCol) continue;
+          const rawVal = row[col];
+          const numVal = IndicatorEvaluator.parseSmartNumber(rawVal);
+          if (numVal !== null) {
+            observations.push({
+              districtName,
+              indicatorKey: col,
+              numericValue: numVal,
+              displayText: rawVal !== undefined && rawVal !== null ? String(rawVal) : undefined,
+            });
+          }
+        }
+      }
+      return observations;
+    } catch {
+      return [];
+    }
+  }
+
   /**
-   * Menyimpan partisi periode secara atomik ke Google Drive.
+   * Menyimpan partisi periode secara atomik ke Server Backend (utama) atau Google Drive (fallback).
    * Me-refresh daftar periode otomatis saat penyimpanan berhasil.
    */
   async savePeriodPartition(
     spec: SavePeriodPartitionSpec,
     customUrl?: string,
   ): Promise<GasSaveResult> {
+    if (!customUrl && this.backendStorage?.isConfigured()) {
+      const observations = this.extractObservationsFromSpec(spec);
+      const backendSave = await this.backendStorage.savePeriod({
+        year: spec.year,
+        quarter: spec.quarter,
+        rawExcelBuffer: spec.rawExcelBuffer,
+        resultExcelBuffer: spec.resultExcelBuffer,
+        config: spec.config,
+        observations,
+      });
+
+      if (backendSave.success) {
+        await this.refreshPeriods(customUrl);
+        return {
+          success: true,
+          message: backendSave.message,
+          updatedAt: backendSave.updatedAt,
+        };
+      }
+    }
+
     const res = await this.gasStorage.savePeriod(
       {
         year: spec.year,

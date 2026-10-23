@@ -58,6 +58,10 @@ import {
   TabularSheetSpec,
 } from '../../shared/excel';
 import { ChartConfigurationPreset, ChartPresetStore } from './chart-preset-store';
+import {
+  BackendStorageService,
+  BackendTrendPoint,
+} from '../../core/storage/backend-storage.service';
 
 import { UiAlertComponent, UiButtonComponent, UiPageHeaderComponent } from '../../shared/ui';
 
@@ -72,6 +76,7 @@ export type { IndicatorChartGroup, IndicatorStats, RegionChartGroup, RegionStats
 export class ChartVisualizerComponent {
   readonly Math = Math;
   private healthDataExchange = inject(HealthDataExchange);
+  readonly backendStorage = inject(BackendStorageService);
 
   // Fitur Toolbar Actions (Konfigurasi Terakhir, Muat JSON, Simpan JSON) via Environment
   enableToolbarActions = signal<boolean>(
@@ -181,8 +186,96 @@ export class ChartVisualizerComponent {
   originalDataRows = signal<ChartDataRow[]>([]);
   targetValue = signal<number | null>(null);
 
-  // Mode Tampilan: 'by-region' (Multi-Indikator per Daerah) vs 'by-indicator' (Per Kolom Indikator) vs 'by-map' (Peta Heatmap) vs 'by-correlation' (Matriks Korelasi) vs 'by-quadrant' (Kuadran Prioritas)
-  viewMode = signal<'by-region' | 'by-indicator' | 'by-map' | 'by-correlation' | 'by-quadrant'>('by-region');
+  // Mode Tampilan: 'by-region' | 'by-indicator' | 'by-map' | 'by-correlation' | 'by-quadrant' | 'by-trends'
+  viewMode = signal<'by-region' | 'by-indicator' | 'by-map' | 'by-correlation' | 'by-quadrant' | 'by-trends'>('by-region');
+
+  // ============================================================
+  // MODE 6: TREN LINTAS PERIODE (SERVER SQLITE ANALYTICS)
+  // ============================================================
+  trendAvailableIndicators = signal<string[]>([]);
+  selectedTrendIndicator = signal<string>('');
+  selectedTrendDistrictCode = signal<string>('');
+  trendSeries = signal<BackendTrendPoint[]>([]);
+  isLoadingTrends = signal<boolean>(false);
+  trendError = signal<string | null>(null);
+
+  trendChartBars = computed(() => {
+    const pts = this.trendSeries();
+    if (pts.length === 0) return [];
+    const vals = pts.map((p) => p.avgValue ?? 0);
+    const maxVal = Math.max(...vals, 1);
+    return pts.map((p) => {
+      const val = p.avgValue ?? 0;
+      const heightPct = Math.max(8, Math.min(100, Math.round((val / maxVal) * 100)));
+      return {
+        ...p,
+        label: `${p.year} ${p.quarter}`,
+        heightPct,
+      };
+    });
+  });
+
+  async loadTrendPanelData(): Promise<void> {
+    this.isLoadingTrends.set(true);
+    this.trendError.set(null);
+    try {
+      const serverIndicators = await this.backendStorage.getAvailableIndicators();
+      const localSeriesKeys = this.seriesList().map((s) => s.key);
+      const merged = Array.from(new Set([...serverIndicators, ...localSeriesKeys]));
+      this.trendAvailableIndicators.set(merged);
+
+      let activeInd = this.selectedTrendIndicator();
+      if (!activeInd || !merged.includes(activeInd)) {
+        activeInd = merged[0] || '';
+        this.selectedTrendIndicator.set(activeInd);
+      }
+
+      if (activeInd) {
+        await this.fetchIndicatorTrend(activeInd, this.selectedTrendDistrictCode());
+      } else {
+        this.trendSeries.set([]);
+      }
+    } catch (err: unknown) {
+      this.trendError.set(
+        err instanceof Error ? err.message : 'Gagal memuat daftar indikator tren dari server.',
+      );
+    } finally {
+      this.isLoadingTrends.set(false);
+    }
+  }
+
+  async fetchIndicatorTrend(indicatorKey?: string, districtCode?: string): Promise<void> {
+    const ind = (indicatorKey ?? this.selectedTrendIndicator()).trim();
+    const dist = (districtCode ?? this.selectedTrendDistrictCode()).trim();
+    if (!ind) {
+      this.trendSeries.set([]);
+      return;
+    }
+
+    this.isLoadingTrends.set(true);
+    this.trendError.set(null);
+    try {
+      const res = await this.backendStorage.getIndicatorTrends(ind, dist || undefined);
+      if (!res.success) {
+        this.trendError.set(res.error || 'Gagal mengambil data tren dari server SQLite.');
+        this.trendSeries.set([]);
+        return;
+      }
+      this.trendSeries.set(res.series);
+    } finally {
+      this.isLoadingTrends.set(false);
+    }
+  }
+
+  onTrendIndicatorChange(indicatorKey: string): void {
+    this.selectedTrendIndicator.set(indicatorKey);
+    void this.fetchIndicatorTrend(indicatorKey, this.selectedTrendDistrictCode());
+  }
+
+  onTrendDistrictChange(districtCode: string): void {
+    this.selectedTrendDistrictCode.set(districtCode);
+    void this.fetchIndicatorTrend(this.selectedTrendIndicator(), districtCode);
+  }
 
   // ============================================================
   // MODE PETA HEATMAP (SPASIAL JAWA TENGAH)
@@ -418,9 +511,18 @@ export class ChartVisualizerComponent {
   }
 
   setViewMode(
-    mode: 'by-region' | 'by-indicator' | 'by-map' | 'by-correlation' | 'by-quadrant',
+    mode:
+      | 'by-region'
+      | 'by-indicator'
+      | 'by-map'
+      | 'by-correlation'
+      | 'by-quadrant'
+      | 'by-trends',
   ): void {
     this.viewMode.set(mode);
+    if (mode === 'by-trends') {
+      void this.loadTrendPanelData();
+    }
   }
 
   setRegionColumns(cols: 1 | 2): void {

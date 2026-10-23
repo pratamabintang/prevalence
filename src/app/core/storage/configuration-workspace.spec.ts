@@ -140,11 +140,45 @@ describe('ConfigurationWorkspace', () => {
     });
   });
 
-  describe('Static Singleton Instance', () => {
+  describe('Static Singleton Instance & Backend Sync', () => {
     it('should expose static singleton instances for easy global access', () => {
       expect(ConfigurationWorkspace.excelJoin).toBeDefined();
       expect(ConfigurationWorkspace.stunting).toBeDefined();
       expect(ConfigurationWorkspace.chart).toBeDefined();
+    });
+
+    it('should sync preset from BackendStorageService and fall back to local cache when offline', async () => {
+      const remoteJoinPreset: JoinConfigurationPreset = {
+        version: '1.0',
+        savedAt: '2026-10-22T09:00:00.000Z',
+        joinBy: 'Kabupaten/Kota',
+        sheets: [{ sheetName: 'Gizi', variables: ['Stunting %'] }],
+      };
+
+      let isOnline = true;
+      const mockBackend = {
+        isConfigured: () => true,
+        getConfig: async () =>
+          isOnline
+            ? { success: true, hasConfig: true, config: remoteJoinPreset }
+            : { success: false, hasConfig: false },
+        saveConfig: async () => ({ success: isOnline }),
+      } as any;
+
+      const syncedWorkspace = new ConfigurationWorkspace({
+        storage: mockStorage,
+        downloader: mockDownloader,
+        backendStorage: mockBackend,
+      });
+
+      const loadedFromServer = await syncedWorkspace.syncFromServer<JoinConfigurationPreset>('join');
+      expect(loadedFromServer).toEqual(remoteJoinPreset);
+      expect(syncedWorkspace.excelJoin.loadLastPreset()).toEqual(remoteJoinPreset);
+
+      // Saat server luring, fallback ke cache lokal
+      isOnline = false;
+      const fallbackLoaded = await syncedWorkspace.syncFromServer<JoinConfigurationPreset>('join');
+      expect(fallbackLoaded).toEqual(remoteJoinPreset);
     });
   });
 });
