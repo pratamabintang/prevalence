@@ -2,7 +2,7 @@
   "version": "1.0",
   "name": "Konfigurasi - Format Analisis Intervensi Spesifik TW3",
   "savedAt": "2026-10-22T00:00:00.000Z",
-  "outputHeaderFormat": "full",
+  "outputHeaderFormat": "concat",
   "includeSheetPrefix": true,
   "joinBy": "Kabupaten/Kota",
   "stripKabupaten": true,
@@ -539,21 +539,21 @@
     },
     "remaja - Persentase remaja putri mendapatkan dan mengonsumsi TTD - % (2)": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "Persentase remaja putri mendapatkan dan mengonsumsi TTD - % (2)": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "% Konsumsi TTD": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "remaja - Persentase remaja putri skrining anemia - Jumlah remaja putri kelas 7 dan 10 di satuan pendidikan (SMP/MTs/Pesantren/sederajat dan SMA/SMK/MAK/Pesantren/sederajat) yang skrining anemia sampai TW ini": {
       "dataType": "number",
@@ -575,21 +575,21 @@
     },
     "remaja - Persentase remaja putri skrining anemia - % (3)": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "Persentase remaja putri skrining anemia - % (3)": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "% Skrining Anemia": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "BUMIL - Laporan Pemeriksaan ANC - Jumlah ibu bersalin K6 sampai TW ini (2)": {
       "dataType": "number",
@@ -611,21 +611,21 @@
     },
     "BUMIL - Laporan Pemeriksaan ANC - % K6": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "Laporan Pemeriksaan ANC - % K6": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "% ANC 6x": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "BUMIL - Persentase ibu hamil mendapat suplementasi gizi - Jumlah ibu hamil mengonsumsi suplementasi gizi (minimal 180 tablet TTD dan MMS) sampai TW ini": {
       "dataType": "number",
@@ -647,21 +647,21 @@
     },
     "BUMIL - Persentase ibu hamil mendapat suplementasi gizi - % (2)": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "Persentase ibu hamil mendapat suplementasi gizi - % (2)": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "% TTD/MMS": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "BUMIL - Persentase ibu hamil KEK mendapat makanan tambahan - Jumlah ibu hamil KEK mendapat makanan tambahan sampai TW ini": {
       "dataType": "number",
@@ -683,21 +683,21 @@
     },
     "BUMIL - Persentase ibu hamil KEK mendapat makanan tambahan - %": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "Persentase ibu hamil KEK mendapat makanan tambahan - %": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "% Bumil PMT": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "gizi - Pemantauan Pertumbuhan dan Perkembangan - Jumlah balita usia 0-59 ditimbang dan diukur bulan ini (avg)": {
       "dataType": "number",
@@ -719,21 +719,21 @@
     },
     "gizi - Pemantauan Pertumbuhan dan Perkembangan - % (9)": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "Pemantauan Pertumbuhan dan Perkembangan - % (9)": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "% D/S": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "anak - Pemantauan Pertumbuhan dan Perkembangan - Jumlah balita usia 12-59 bulan yang dipantau pertumbuhan dan perkembangan TW ini": {
       "dataType": "number",
@@ -755,21 +755,21 @@
     },
     "anak - Pemantauan Pertumbuhan dan Perkembangan - % (3)": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "Pemantauan Pertumbuhan dan Perkembangan - % (3)": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "% Tumbang": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "gizi - ASI Eksklusif dan MPASI - Persentase bayi usia <6 bulan mendapat ASI Eksklusif - Jumlah bayi usia 0-5 bulan yang mendapat ASI Eksklusif berdasarkan recall 24 jam": {
       "dataType": "number",
@@ -791,21 +791,21 @@
     },
     "gizi - ASI Eksklusif dan MPASI - Persentase bayi usia <6 bulan mendapat ASI Eksklusif - %": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "ASI Eksklusif dan MPASI - Persentase bayi usia <6 bulan mendapat ASI Eksklusif - %": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "% ASI": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "gizi - ASI Eksklusif dan MPASI - Persentase Anak 6-23 bulan mendapat MPASI - Jumlah anak usia 6-23 bulan mendapat MPASI baik(avg)": {
       "dataType": "number",
@@ -827,21 +827,21 @@
     },
     "gizi - ASI Eksklusif dan MPASI - Persentase Anak 6-23 bulan mendapat MPASI - % (4)": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "ASI Eksklusif dan MPASI - Persentase Anak 6-23 bulan mendapat MPASI - % (4)": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "% MPASI": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi kurang mendapat makanan tambahan - Jumlah balita usia 6-59 bulan gizi kurang yang mendapatkan makanan tambahan berbahan pangan lokal sampai TW ini": {
       "dataType": "number",
@@ -863,21 +863,21 @@
     },
     "gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi kurang mendapat makanan tambahan - %": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi kurang mendapat makanan tambahan - %": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "% Gizi Kurang dapat MT": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita berat badan kurang mendapat makanan tambahan - Jumlah balita usia 6-59 bulan BB kurang yang tidak wasting dengan atau tanpa stunting yang mendapatkan makanan tambahan berbahan pangan lokal sampai TW ini": {
       "dataType": "number",
@@ -899,21 +899,21 @@
     },
     "gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita berat badan kurang mendapat makanan tambahan - %": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "Tatalaksana Balita Bermasalah Gizi - Persentase balita berat badan kurang mendapat makanan tambahan - %": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "% BB Kurang dapat MT": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita berat badan tidak naik (T) mendapat makanan tambahan - Jumlah seluruh balita usia 6-59 bulan dengan status pertumbuhan BB Tidak Naik (T) serta berat badan normal dengan atau tanpa stunting yang mendapatkan makanan tambahan berbahan pangan lokal sampai TW ini": {
       "dataType": "number",
@@ -935,21 +935,21 @@
     },
     "gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita berat badan tidak naik (T) mendapat makanan tambahan - %": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "Tatalaksana Balita Bermasalah Gizi - Persentase balita berat badan tidak naik (T) mendapat makanan tambahan - %": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "% BB Tidak Naik (T) dapat MT": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi buruk mendapat tata laksana - Jumlah Kasus Gizi Buruk bayi 6-59 Bulan mendapat perawatan sampai TW ini": {
       "dataType": "number",
@@ -971,21 +971,21 @@
     },
     "gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi buruk mendapat tata laksana - % (4)": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi buruk mendapat tata laksana - % (4)": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "% Talak Gibur": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "idl - IDL - Cakupan": {
       "dataType": "number",
@@ -1007,21 +1007,21 @@
     },
     "idl - IDL - (%) Capaian": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "IDL - (%) Capaian": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     },
     "% IDL": {
       "dataType": "percentage",
-      "anomalyEnabled": false,
-      "minAnomaly": null,
-      "maxAnomaly": null
+      "anomalyEnabled": true,
+      "minAnomaly": 0,
+      "maxAnomaly": 100
     }
   },
   "sumColumns": {

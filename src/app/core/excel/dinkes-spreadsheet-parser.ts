@@ -339,9 +339,9 @@ export class DinkesSpreadsheetParser {
         const isPercent = colName.includes('%');
         configs[colName] = {
           dataType: isPercent ? 'percentage' : 'number',
-          anomalyEnabled: false,
-          minAnomaly: null,
-          maxAnomaly: null,
+          anomalyEnabled: isPercent,
+          minAnomaly: isPercent ? 0 : null,
+          maxAnomaly: isPercent ? 100 : null,
         };
         sums[colName] = !isPercent;
         avgs[colName] = isPercent;

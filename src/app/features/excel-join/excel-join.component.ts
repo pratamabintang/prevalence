@@ -1660,12 +1660,18 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
         maxAnomaly: 100,
       };
       const anomalyEnabled = dataType === 'percentage' ? true : prev.anomalyEnabled;
+      const minAnomaly =
+        dataType === 'percentage' && prev.minAnomaly === null ? 0 : prev.minAnomaly;
+      const maxAnomaly =
+        dataType === 'percentage' && prev.maxAnomaly === null ? 100 : prev.maxAnomaly;
       return {
         ...configs,
         [col]: {
           ...prev,
           dataType,
           anomalyEnabled,
+          minAnomaly,
+          maxAnomaly,
         },
       };
     });
