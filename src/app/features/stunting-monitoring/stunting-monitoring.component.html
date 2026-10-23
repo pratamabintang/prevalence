@@ -1573,26 +1573,27 @@
                             </td>
                             <td class="px-3 py-2 text-right font-mono font-bold text-slate-900 text-xs whitespace-nowrap">
                               @if (qData.hasData && qData.actualAchievement !== null && qData.actualAchievement !== undefined) {
-                                {{ qData.actualAchievement + (row.calculationMode === 'absolute' ? '' : '%') }}
+                                {{ qData.actualAchievement | number:'1.2-2' }}{{ row.calculationMode === 'absolute' ? '' : '%' }}
                               } @else {
                                 <span class="text-slate-400 font-normal italic" title="Data triwulan ini belum diinput">-</span>
                               }
                             </td>
                           }
 
-                          <td class="px-3.5 py-2 text-center border-l border-slate-100 whitespace-nowrap">
+                          <td
+                            class="px-3.5 py-2 text-center border-l border-slate-100 whitespace-nowrap font-semibold text-[11px]"
+                            [ngClass]="{
+                              'bg-emerald-50 text-emerald-700': row.status === 'on_track',
+                              'bg-rose-50 text-rose-700': row.status === 'perlu_percepatan',
+                              'bg-slate-50 text-slate-600': row.status !== 'on_track' && row.status !== 'perlu_percepatan'
+                            }"
+                          >
                             @if (row.status === 'on_track') {
-                              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                On Track
-                              </span>
+                              On Track
                             } @else if (row.status === 'perlu_percepatan') {
-                              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-                                Percepatan
-                              </span>
+                              Percepatan
                             } @else {
-                              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-50 text-slate-600 border border-slate-200">
-                                Belum Dinilai
-                              </span>
+                              Belum Dinilai
                             }
                           </td>
                         </tr>

@@ -31,6 +31,7 @@ import {
   StuntingPipelinePreset,
   StuntingPresetStore,
 } from './stunting-preset-store';
+import { NgClass } from '@angular/common';
 
 export interface SecondarySheetSetup {
   sheetName: string;
@@ -75,6 +76,7 @@ export interface LoadedQuarterItem {
     UiPageHeaderComponent,
     UiButtonComponent,
     UiAlertComponent,
+    NgClass
   ],
   templateUrl: './stunting-monitoring.component.html',
 })
