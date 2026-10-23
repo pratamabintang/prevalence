@@ -4,7 +4,7 @@ export const DEFAULT_JOIN_CONFIG: JoinConfigurationPreset = {
   "version": "1.0",
   "name": "Konfigurasi - Format Analisis Intervensi Spesifik TW3",
   "savedAt": "2026-10-22T00:00:00.000Z",
-  "outputHeaderFormat": "full",
+  "outputHeaderFormat": "concat",
   "includeSheetPrefix": true,
   "joinBy": "Kabupaten/Kota",
   "stripKabupaten": true,

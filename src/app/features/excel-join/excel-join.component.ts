@@ -772,19 +772,52 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       }
 
       if (presetToApply && presetToApply.sheets && presetToApply.sheets.length > 0) {
-        // Cek apakah ada sheet pada workbook baru yang cocok dengan preset
-        const matchedSheetMap = PresetStore.matchSheets(
-          this.sheets().map((s) => s.name),
-          presetToApply.sheets,
-        );
+        // Kandidat konfigurasi: preset terpilih lebih dulu, lalu template standar Dinkes sebagai
+        // cadangan bila preset terpilih tidak cocok dengan sheet (mis. preset basi di server atau
+        // sisa berkas "Hasil Join") atau tidak menghasilkan baris data sama sekali.
+        const candidates: { preset: JoinConfigurationPreset; name: string }[] = [
+          { preset: presetToApply, name: presetNameToApply },
+        ];
+        if (presetToApply !== DEFAULT_JOIN_CONFIG) {
+          candidates.push({
+            preset: DEFAULT_JOIN_CONFIG,
+            name: DEFAULT_JOIN_CONFIG.name || 'Template Standar Dinkes',
+          });
+        }
 
-        if (matchedSheetMap.size > 0) {
-          // Ada sheet yang cocok! Terapkan konfigurasi aktif / template ke file baru
+        let applied = false;
+        for (let i = 0; i < candidates.length; i++) {
+          const candidate = candidates[i];
+          const isLast = i === candidates.length - 1;
+          const matchedSheetMap = PresetStore.matchSheets(
+            this.sheets().map((s) => s.name),
+            candidate.preset.sheets,
+          );
+          if (matchedSheetMap.size === 0) {
+            continue;
+          }
+
           this.pendingPreset = null;
           this.preservedPreset = null;
           this.preservedPresetName = null;
-          this.applyConfiguration(presetToApply, presetNameToApply);
+          this.applyConfiguration(candidate.preset, candidate.name);
+          applied = true;
 
+          const nextMatches =
+            !isLast &&
+            PresetStore.matchSheets(
+              this.sheets().map((s) => s.name),
+              candidates[i + 1].preset.sheets,
+            ).size > 0;
+          if (this.resultRows().length > 0 || !nextMatches) {
+            break;
+          }
+          // Preset terpilih tidak menghasilkan data: pulihkan sheet mentah lalu coba kandidat berikutnya.
+          applied = false;
+          this.loadSheets();
+        }
+
+        if (applied) {
           // Jika pengaturan dinonaktifkan via env atau data hasil join berhasil diekstrak,
           // tutup panel pengaturan agar user langsung fokus ke preview tabel hasil join
           if (!this.enableToolbarActions() || this.resultRows().length > 0) {
@@ -2616,7 +2649,10 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
         const normOrd = this.normalizeKey(ord);
         const ordClean = normOrd.replace(/[^a-z0-9]/g, '');
 
+        // Lewati kolom yang sudah terpakai agar nama yang menjadi sama setelah normalisasi
+        // (mis. "MPASI" dan "% MPASI") tidak memetakan ke kolom yang sama dua kali.
         const matched = currentCols.find((c) => {
+          if (orderedCols.includes(c)) return false;
           if (this.normalizeKey(c) === normOrd) return true;
           const alias = currentAliases[c];
           if (alias && this.normalizeKey(alias) === normOrd) return true;
