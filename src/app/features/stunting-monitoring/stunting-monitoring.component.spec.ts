@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 import { StuntingMonitoringComponent } from './stunting-monitoring.component';
 import { HealthDataExchange } from '../../core/domain/health-data-exchange';
 import { GasStorageService } from '../../core/storage/gas-storage.service';
+import { BackendStorageService } from '../../core/storage/backend-storage.service';
 import { StuntingExcelExporter } from '../../core/stunting/stunting-excel-exporter';
 import {
   StuntingPipelinePreset,
@@ -1087,6 +1088,29 @@ describe('StuntingMonitoringComponent', () => {
       expect(component.selectedQuarterSlots()['TW2']).toBe(true);
       expect(component.selectedQuarterSlots()['TW3']).toBe(true);
       expect(component.selectedQuarterSlots()['TW1']).toBe(false);
+    });
+
+    it('should initialize and load period slots from BackendStorageService when GAS is disabled', async () => {
+      vi.spyOn(gasStorageService, 'isConfigured').mockReturnValue(false);
+      const gasListSpy = vi.spyOn(gasStorageService, 'listPeriods');
+      gasListSpy.mockClear();
+
+      const backendStorage = TestBed.inject(BackendStorageService);
+      vi.spyOn(backendStorage, 'isConfigured').mockReturnValue(true);
+      vi.spyOn(backendStorage, 'listPeriods').mockResolvedValue({
+        success: true,
+        periods: [
+          { year: 2026, quarter: 'TW1', hasRaw: true, hasResult: true, hasConfig: true },
+        ],
+      });
+
+      expect(component.hasAnyGasConfigured()).toBe(true);
+
+      await component.ngOnInit();
+
+      expect(component.periodSlots()).toHaveLength(1);
+      expect(component.isQuarterAvailableInCloud(2026, 'TW1')).toBe(true);
+      expect(gasListSpy).not.toHaveBeenCalled();
     });
 
     it('should update quarter slots selection when selectedYear changes', () => {

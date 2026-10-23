@@ -87,7 +87,7 @@ export class StuntingMonitoringComponent implements OnInit {
 
   async ngOnInit(): Promise<void> {
     this.loadTransferredData();
-    if (this.gasStorageService.isConfigured()) {
+    if (this.periodPartitionWorkspace.isStorageConfigured()) {
       await this.fetchPeriodSlots();
     }
   }
@@ -123,7 +123,7 @@ export class StuntingMonitoringComponent implements OnInit {
   cloudLoadNotice = signal<string | null>(null);
   isMultiQuarterCloudMode = signal<boolean>(false);
 
-  hasAnyGasConfigured = computed<boolean>(() => this.gasStorageService.isConfigured());
+  hasAnyGasConfigured = computed<boolean>(() => this.periodPartitionWorkspace.isStorageConfigured());
 
   selectedQuartersCount = computed<number>(() => {
     return this.quarterOptions.filter((q) => this.selectedQuarterSlots()[q.value]).length;

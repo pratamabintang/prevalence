@@ -67,6 +67,17 @@ export function migrateSchema(db: DatabaseType): void {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    -- 7. Metadata Berkas & Konfigurasi Default Kustom (Singleton Row id = 1)
+    CREATE TABLE IF NOT EXISTS custom_defaults (
+      id INTEGER PRIMARY KEY CHECK(id = 1),
+      file_name TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      file_size INTEGER NOT NULL,
+      checksum TEXT,
+      config_json TEXT,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- Indeks performa untuk kueri observasi dan tren
     CREATE INDEX IF NOT EXISTS idx_obs_period_district ON period_observations(period_id, district_id);
     CREATE INDEX IF NOT EXISTS idx_obs_indicator ON period_observations(indicator_key);

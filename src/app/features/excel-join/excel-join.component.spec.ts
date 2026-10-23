@@ -8,7 +8,9 @@ import { DEFAULT_JOIN_CONFIG } from './default-join-config';
 import * as XLSX from 'xlsx-js-style';
 import { environment } from '../../../environments/environment';
 import { GasStorageService } from '../../core/storage/gas-storage.service';
+import { BackendStorageService } from '../../core/storage/backend-storage.service';
 import { HealthDataExchange } from '../../core/domain/health-data-exchange';
+import { ExcelWorkbookAdapter } from '../../shared/excel';
 
 describe('ExcelJoinComponent', () => {
   let component: ExcelJoinComponent;
@@ -423,14 +425,72 @@ describe('ExcelJoinComponent', () => {
       expect(component.showSaveDefaultConfirm()).toBe(false);
     });
 
-    it('openSaveDefaultConfirm menampilkan peringatan jika URL GAS di environment belum dikonfigurasi', () => {
+    it('openSaveDefaultConfirm menampilkan peringatan jika penyimpanan server belum dikonfigurasi', () => {
       const dummyFile = new File(['dummy'], 'test.xlsx');
       component.file.set(dummyFile);
       environment.googleAppsScriptUrl = '';
+      vi.spyOn(component.periodPartitionWorkspace, 'isStorageConfigured').mockReturnValue(false);
 
       component.openSaveDefaultConfirm();
       expect(component.showSaveDefaultConfirm()).toBe(false);
       expect(component.configNotification()?.type).toBe('warning');
+    });
+
+    it('confirmSaveDefaultToCloud, loadDefaultDataAndConfig, dan confirmResetToFactoryDefault berjalan melalui BackendStorageService ketika GAS dinonaktifkan', async () => {
+      environment.googleAppsScriptUrl = '';
+      vi.spyOn(component.gasStorageService, 'isConfigured').mockReturnValue(false);
+      const gasSaveSpy = vi.spyOn(component.gasStorageService, 'saveDefault');
+      const gasLoadSpy = vi.spyOn(component.gasStorageService, 'loadDefault');
+      const gasResetSpy = vi.spyOn(component.gasStorageService, 'resetDefault');
+
+      const backendStorage = TestBed.inject(BackendStorageService);
+      vi.spyOn(backendStorage, 'isConfigured').mockReturnValue(true);
+
+      const wb = ExcelWorkbookAdapter.createTabularWorkbook([
+        {
+          name: 'Sheet1',
+          headers: ['Kabupaten/Kota', 'Indikator A'],
+          rows: [['CILACAP', 92]],
+        },
+      ]);
+      const buf = ExcelWorkbookAdapter.writeToBuffer(wb);
+
+      const backendSaveSpy = vi.spyOn(backendStorage, 'saveDefault').mockResolvedValue({
+        success: true,
+        message: 'Default Kustom disimpan di SQLite',
+        updatedAt: '2026-10-23T09:00:00Z',
+      });
+      const backendLoadSpy = vi.spyOn(backendStorage, 'loadDefault').mockResolvedValue({
+        success: true,
+        hasData: true,
+        fileName: 'server-default.xlsx',
+        excelBuffer: buf,
+        config: { version: '1.0', name: 'Default Server SQLite', joinBy: 'Kabupaten/Kota', sheets: [] },
+      });
+      const backendResetSpy = vi.spyOn(backendStorage, 'resetDefault').mockResolvedValue({
+        success: true,
+        message: 'Default Kustom dihapus',
+      });
+
+      const dummyFile = new File([buf], 'server-default.xlsx');
+      component.file.set(dummyFile);
+
+      component.openSaveDefaultConfirm();
+      expect(component.showSaveDefaultConfirm()).toBe(true);
+
+      await component.confirmSaveDefaultToCloud();
+      expect(backendSaveSpy).toHaveBeenCalled();
+      expect(gasSaveSpy).not.toHaveBeenCalled();
+      expect(component.isCloudDefault()).toBe(true);
+
+      await component.loadDefaultDataAndConfig(true);
+      expect(backendLoadSpy).toHaveBeenCalled();
+      expect(gasLoadSpy).not.toHaveBeenCalled();
+      expect(component.isDefaultData()).toBe(true);
+
+      await component.confirmResetToFactoryDefault();
+      expect(backendResetSpy).toHaveBeenCalled();
+      expect(gasResetSpy).not.toHaveBeenCalled();
     });
 
     it('confirmSaveDefaultToCloud mengunggah data dan memperbarui isCloudDefault', async () => {
@@ -916,6 +976,75 @@ describe('ExcelJoinComponent', () => {
       expect(component.sumColumns()['Indikator Khusus Drive']).toBe(true);
       expect(component.resultRows().length).toBe(1);
       expect(component.resultRows()[0]['Indikator Khusus Drive']).toBe(95);
+    });
+
+    it('should load template config from BackendStorageService on local file upload when GAS URL is empty', async () => {
+      environment.googleAppsScriptUrl = '';
+      vi.spyOn(component.gasStorageService, 'isConfigured').mockReturnValue(false);
+      const gasTemplateSpy = vi.spyOn(component.gasStorageService, 'loadTemplateConfig');
+
+      const serverConfig: JoinConfigurationPreset = {
+        version: '1.0',
+        name: 'Template Server SQLite',
+        savedAt: '2026-10-23T00:00:00.000Z',
+        joinBy: 'Kabupaten/Kota',
+        stripKabupaten: true,
+        outputHeaderFormat: 'full',
+        includeSheetPrefix: false,
+        sheets: [
+          {
+            sheetName: 'SheetServer1',
+            headerStartRow: 1,
+            headerEndRow: 1,
+            dataStartRow: 2,
+            joinColumn: 'Kabupaten/Kota',
+            variables: ['Metrik Server 1'],
+          },
+          {
+            sheetName: 'SheetServer2',
+            headerStartRow: 1,
+            headerEndRow: 1,
+            dataStartRow: 2,
+            joinColumn: 'Kabupaten/Kota',
+            variables: ['Metrik Server 2'],
+          },
+        ],
+      };
+
+      const backendStorage = TestBed.inject(BackendStorageService);
+      vi.spyOn(backendStorage, 'isConfigured').mockReturnValue(true);
+      const getConfigSpy = vi.spyOn(backendStorage, 'getConfig').mockResolvedValue({
+        success: true,
+        hasConfig: true,
+        config: serverConfig,
+      });
+
+      const wb = ExcelWorkbookAdapter.createTabularWorkbook([
+        {
+          name: 'SheetServer1',
+          headers: ['Kabupaten/Kota', 'Metrik Server 1'],
+          rows: [['CILACAP', 91]],
+        },
+        {
+          name: 'SheetServer2',
+          headers: ['Kabupaten/Kota', 'Metrik Server 2'],
+          rows: [['CILACAP', 84]],
+        },
+      ]);
+      const u8 = new Uint8Array(ExcelWorkbookAdapter.writeToBuffer(wb));
+      const rawFile = new File([u8 as BlobPart], 'Local_Upload.xlsx', {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+
+      await component.onFileSelected({
+        target: { files: [rawFile], value: '' },
+      } as unknown as Event);
+
+      expect(getConfigSpy).toHaveBeenCalledWith('join');
+      expect(gasTemplateSpy).not.toHaveBeenCalled();
+      expect(component.activePresetName()).toBe('Template Server SQLite');
+      expect(component.resultRows()).toHaveLength(1);
+      expect(component.resultRows()[0]['Metrik Server 1']).toBe(91);
     });
   });
 
@@ -1673,13 +1802,75 @@ describe('ExcelJoinComponent', () => {
       expect(component.showSavePeriodConfirm()).toBe(false);
     });
 
-    it('openSavePeriodConfirm menampilkan peringatan jika GAS belum dikonfigurasi', () => {
+    it('openSavePeriodConfirm menampilkan peringatan jika penyimpanan belum dikonfigurasi', () => {
       vi.spyOn(component.gasStorageService, 'isConfigured').mockReturnValue(false);
+      vi.spyOn(component.periodPartitionWorkspace, 'isStorageConfigured').mockReturnValue(false);
       component.file.set(new File(['content'], 'test.xlsx'));
 
       component.openSavePeriodConfirm();
       expect(component.showSavePeriodConfirm()).toBe(false);
       expect(component.configNotification()?.type).toBe('warning');
+    });
+
+    it('berfungsi penuh dengan Penyimpanan Terpusat Server SQLite ketika URL Google Apps Script dikosongkan', async () => {
+      vi.spyOn(component.gasStorageService, 'isConfigured').mockReturnValue(false);
+      const gasLoadSpy = vi.spyOn(component.gasStorageService, 'loadPeriod');
+      const gasListSpy = vi.spyOn(component.gasStorageService, 'listPeriods');
+
+      const backendStorage = TestBed.inject(BackendStorageService);
+      vi.spyOn(backendStorage, 'isConfigured').mockReturnValue(true);
+      vi.spyOn(backendStorage, 'listPeriods').mockResolvedValue({
+        success: true,
+        periods: [
+          {
+            year: 2026,
+            quarter: 'TW1',
+            hasRaw: true,
+            hasResult: true,
+            hasConfig: true,
+            rawFileName: 'sqlite-raw-tw1.xlsx',
+          },
+        ],
+      });
+
+      const wb = ExcelWorkbookAdapter.createTabularWorkbook([
+        {
+          name: 'Sheet1',
+          headers: ['KABUPATEN', 'IND1'],
+          rows: [['Cilacap', 85]],
+        },
+      ]);
+      const buf = ExcelWorkbookAdapter.writeToBuffer(wb);
+
+      vi.spyOn(backendStorage, 'loadPeriod').mockResolvedValue({
+        success: true,
+        hasData: true,
+        year: 2026,
+        quarter: 'TW1',
+        hasRaw: true,
+        hasResult: true,
+        rawExcelBuffer: buf,
+        config: { name: 'Preset SQLite TW1', sheets: [] },
+      });
+
+      expect(component.isStorageConfigured()).toBe(true);
+
+      await component.fetchPeriodSlots();
+      expect(component.periodSlots()).toHaveLength(1);
+      expect(gasListSpy).not.toHaveBeenCalled();
+
+      component.file.set(new File(['content'], 'test.xlsx'));
+      component.openSavePeriodConfirm();
+      expect(component.showSavePeriodConfirm()).toBe(true);
+      component.closeSavePeriodConfirm();
+
+      component.selectedYear.set(2026);
+      component.selectedQuarter.set('TW1');
+      await component.loadSelectedPeriod();
+
+      expect(component.activePeriodLabel()).toBe('2026 TW1');
+      expect(component.configNotification()?.type).toBe('success');
+      expect(gasLoadSpy).not.toHaveBeenCalled();
     });
 
     it('loadSelectedPeriod memuat data dan mengaktifkan label periode', async () => {

@@ -135,8 +135,12 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     { value: 'TW4', label: 'TW 4', periodText: 'Oktober - Desember', months: 'Oktober - Desember' },
   ];
 
+  isStorageConfigured(): boolean {
+    return this.periodPartitionWorkspace.isStorageConfigured();
+  }
+
   async ngOnInit(): Promise<void> {
-    if (this.gasStorageService.isConfigured()) {
+    if (this.isStorageConfigured()) {
       void this.fetchPeriodSlots();
     }
     if (this.excelJoinStore.hasState()) {
@@ -222,9 +226,9 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       let file = this.excelJoinStore.getFile();
 
       if (!wb) {
-        if (state.isCloudDefault && this.gasStorageService.isConfigured()) {
+        if (state.isCloudDefault && this.isStorageConfigured()) {
           try {
-            const cloudRes = await this.gasStorageService.loadDefault();
+            const cloudRes = await this.periodPartitionWorkspace.loadDefault();
             if (cloudRes.success && cloudRes.excelBuffer) {
               wb = ExcelEngine.readWorkbook(cloudRes.excelBuffer);
               file = new File(
@@ -305,10 +309,10 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     try {
       this.isProcessing.set(true);
 
-      // 1. Coba muat dari Google Apps Script jika URL sudah dikonfigurasi
-      if (this.gasStorageService.isConfigured()) {
+      // 1. Coba muat dari Penyimpanan Terpusat Server SQLite (utama) atau penyimpanan eksternal cadangan
+      if (this.isStorageConfigured()) {
         try {
-          const cloudRes = await this.gasStorageService.loadDefault();
+          const cloudRes = await this.periodPartitionWorkspace.loadDefault();
           if (cloudRes.success && cloudRes.hasData && cloudRes.excelBuffer) {
             const fileName = cloudRes.fileName || 'default-join-data.xlsx';
             const cloudFile = new File([cloudRes.excelBuffer], fileName, {
@@ -368,7 +372,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
         this.configNotification.set({
           type: 'warning',
           message:
-            'URL Google Apps Script belum dikonfigurasi. Menggunakan template bawaan sistem.',
+            'Penyimpanan server belum dikonfigurasi. Menggunakan template bawaan sistem.',
         });
       }
 
@@ -712,16 +716,16 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     if (this.pendingPreset) {
       presetToApply = this.pendingPreset;
       presetNameToApply = this.pendingPreset.name || 'Konfigurasi Impor';
-    } else if (this.gasStorageService.isConfigured()) {
+    } else if (this.isStorageConfigured()) {
       try {
-        const driveRes = await this.gasStorageService.loadTemplateConfig();
+        const driveRes = await this.periodPartitionWorkspace.loadTemplateConfig();
         if (driveRes.success && driveRes.hasConfig && driveRes.config) {
           presetToApply = driveRes.config as JoinConfigurationPreset;
-          presetNameToApply = presetToApply.name || 'Template Google Drive';
+          presetNameToApply = presetToApply.name || 'Template Server Database';
         }
       } catch (err) {
         console.warn(
-          'Gagal memuat template konfigurasi dari Google Drive, menggunakan template bawaan:',
+          'Gagal memuat template konfigurasi dari penyimpanan server, menggunakan template bawaan:',
           err,
         );
       }
@@ -1960,11 +1964,10 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (!this.gasStorageService.isConfigured()) {
+    if (!this.isStorageConfigured()) {
       this.configNotification.set({
         type: 'warning',
-        message:
-          'URL Google Apps Script belum dikonfigurasi di repositori utama (src/environments/environment.ts).',
+        message: 'Penyimpanan server belum dikonfigurasi.',
       });
       return;
     }
@@ -1993,16 +1996,16 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       }
 
       if (!buffer || buffer.byteLength === 0) {
-        this.errorMessage.set('Tidak ada data Excel yang valid untuk disimpan ke Google Drive.');
+        this.errorMessage.set('Tidak ada data Excel yang valid untuk disimpan ke server.');
         this.isSavingDefault.set(false);
         this.showSaveDefaultConfirm.set(false);
         return;
       }
 
-      const preset = this.getCurrentPreset('Default Google Drive');
+      const preset = this.getCurrentPreset('Default Server Database');
       const fileName = this.file()?.name || 'default-join-data.xlsx';
 
-      const res = await this.gasStorageService.saveDefault(buffer, fileName, preset);
+      const res = await this.periodPartitionWorkspace.saveDefault(buffer, fileName, preset);
       if (res.success) {
         this.isDefaultData.set(true);
         this.isCloudDefault.set(true);
@@ -2032,14 +2035,14 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   // ============================================================
 
   async fetchPeriodSlots(): Promise<void> {
-    if (!this.gasStorageService.isConfigured()) return;
+    if (!this.isStorageConfigured()) return;
     this.isLoadingPeriods.set(true);
     try {
       const periods = await this.periodPartitionWorkspace.refreshPeriods();
       this.periodSlots.set(periods);
       this.availableYears.set(this.periodPartitionWorkspace.availableYears());
     } catch (e) {
-      console.warn('Gagal memuat daftar periode Google Drive:', e);
+      console.warn('Gagal memuat daftar periode penyimpanan:', e);
     } finally {
       this.isLoadingPeriods.set(false);
     }
@@ -2091,11 +2094,11 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     const qr = this.selectedQuarter();
 
     try {
-      const res = await this.gasStorageService.loadPeriod(yr, qr);
+      const res = await this.periodPartitionWorkspace.loadRawPeriod(yr, qr);
       if (!res.success) {
         this.configNotification.set({
           type: 'warning',
-          message: res.error || `Gagal memuat data periode ${yr} ${qr} dari Google Drive.`,
+          message: res.error || `Gagal memuat data periode ${yr} ${qr} dari penyimpanan server.`,
         });
         return;
       }
@@ -2104,7 +2107,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
         this.configNotification.set({
           type: 'info',
           message:
-            res.message || `Belum ada data tersimpan untuk periode ${yr} ${qr} di Google Drive.`,
+            res.message || `Belum ada data tersimpan untuk periode ${yr} ${qr} di penyimpanan server.`,
         });
         return;
       }
@@ -2152,10 +2155,10 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   }
 
   openSavePeriodConfirm(): void {
-    if (!this.gasStorageService.isConfigured()) {
+    if (!this.isStorageConfigured()) {
       this.configNotification.set({
         type: 'warning',
-        message: 'URL Google Apps Script belum dikonfigurasi di repositori utama.',
+        message: 'Penyimpanan server belum dikonfigurasi.',
       });
       return;
     }
@@ -2269,11 +2272,11 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     this.preservedPresetName = null;
     this.excelJoinStore.clearState();
     try {
-      if (this.gasStorageService.isConfigured()) {
-        await this.gasStorageService.resetDefault();
+      if (this.isStorageConfigured()) {
+        await this.periodPartitionWorkspace.resetDefault();
       }
     } catch (e) {
-      console.warn('Gagal reset di Google Apps Script:', e);
+      console.warn('Gagal reset default di server:', e);
     }
     await this.resetToDefaultData();
     this.configNotification.set({

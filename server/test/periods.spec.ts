@@ -116,4 +116,73 @@ describe('Backend API: Quarterly Period Storage & Archive (Seam 1)', () => {
     expect(res.headers['content-disposition']).toContain('attachment');
     expect(res.body.toString()).toBe('PK...fake excel binary stream for tw1');
   });
+
+  describe('Custom Default Workbook Lifecycle (/api/default)', () => {
+    it('GET /api/default - harus mengembalikan hasData: false saat belum ada Default Kustom', async () => {
+      const res = await request(app).get('/api/default');
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.hasData).toBe(false);
+    });
+
+    it('POST /api/default - harus menyimpan berkas Default Kustom dan Preset Konfigurasi Dinkes', async () => {
+      const dummyBuffer = Buffer.from('PK...custom default excel binary');
+      const mockConfig = JSON.stringify({
+        version: '1.0',
+        name: 'Default Provinsi Jateng',
+        joinBy: 'Kabupaten/Kota',
+        sheets: [],
+      });
+
+      const res = await request(app)
+        .post('/api/default')
+        .attach('excelFile', dummyBuffer, 'custom-default.xlsx')
+        .field('fileName', 'custom-default.xlsx')
+        .field('config', mockConfig);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.updatedAt).toBeDefined();
+
+      const savedPath = path.join(tempUploadsDir, 'default', 'default-join-data.xlsx');
+      expect(fs.existsSync(savedPath)).toBe(true);
+    });
+
+    it('GET /api/default & GET /api/default/download - harus mengembalikan metadata dan berkas biner Default Kustom', async () => {
+      const metaRes = await request(app).get('/api/default');
+      expect(metaRes.status).toBe(200);
+      expect(metaRes.body.success).toBe(true);
+      expect(metaRes.body.hasData).toBe(true);
+      expect(metaRes.body.fileName).toBe('custom-default.xlsx');
+      expect(metaRes.body.config).toEqual({
+        version: '1.0',
+        name: 'Default Provinsi Jateng',
+        joinBy: 'Kabupaten/Kota',
+        sheets: [],
+      });
+
+      const dlRes = await request(app)
+        .get('/api/default/download')
+        .buffer(true)
+        .parse((res, cb) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (c) => chunks.push(c));
+          res.on('end', () => cb(null, Buffer.concat(chunks)));
+        });
+
+      expect(dlRes.status).toBe(200);
+      expect(dlRes.headers['content-type']).toContain('application/vnd.openxmlformats');
+      expect(dlRes.body.toString()).toBe('PK...custom default excel binary');
+    });
+
+    it('DELETE /api/default - harus menghapus Default Kustom dari disk dan SQLite', async () => {
+      const delRes = await request(app).delete('/api/default');
+      expect(delRes.status).toBe(200);
+      expect(delRes.body.success).toBe(true);
+
+      const afterRes = await request(app).get('/api/default');
+      expect(afterRes.status).toBe(200);
+      expect(afterRes.body.hasData).toBe(false);
+    });
+  });
 });

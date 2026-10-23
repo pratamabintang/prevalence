@@ -318,4 +318,72 @@ describe('BackendStorageService (Seam 2 Frontend Client)', () => {
       );
     });
   });
+
+  describe('loadDefault(), saveDefault(), & resetDefault()', () => {
+    it('harus memuat metadata dan berkas biner Default Kustom dari /api/default', async () => {
+      const dummyExcel = new Uint8Array([80, 75, 1, 2]).buffer;
+      globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+        if (url === '/api/default') {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              success: true,
+              hasData: true,
+              fileName: 'server-default.xlsx',
+              config: { version: '1.0', name: 'Default Server', sheets: [] },
+              updatedAt: '2026-10-23T08:00:00Z',
+            }),
+          });
+        }
+        if (url === '/api/default/download') {
+          return Promise.resolve({
+            ok: true,
+            blob: async () => new Blob([dummyExcel]),
+          });
+        }
+        return Promise.resolve({ ok: false, status: 404 });
+      });
+
+      const res = await service.loadDefault();
+      expect(res.success).toBe(true);
+      expect(res.hasData).toBe(true);
+      expect(res.fileName).toBe('server-default.xlsx');
+      expect(res.excelBuffer).toBeDefined();
+      expect(res.config).toEqual({ version: '1.0', name: 'Default Server', sheets: [] });
+    });
+
+    it('harus mengirim multipart form data saat saveDefault dipanggil dan DELETE saat resetDefault dipanggil', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          success: true,
+          message: 'Saved default',
+          updatedAt: '2026-10-23T09:00:00Z',
+        }),
+      } as unknown as Response);
+
+      const saveRes = await service.saveDefault(
+        new Uint8Array([1, 2, 3]).buffer,
+        'custom.xlsx',
+        { version: '1.0', sheets: [] },
+      );
+      expect(saveRes.success).toBe(true);
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        '/api/default',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.any(FormData),
+        }),
+      );
+
+      const resetRes = await service.resetDefault();
+      expect(resetRes.success).toBe(true);
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        '/api/default',
+        expect.objectContaining({
+          method: 'DELETE',
+        }),
+      );
+    });
+  });
 });

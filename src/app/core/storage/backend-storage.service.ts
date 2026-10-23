@@ -72,8 +72,10 @@ export interface BackendPeriodLoadResult {
   quarter?: QuarterSlot;
   status?: string;
   updatedAt?: string;
+  fileName?: string;
   hasRaw?: boolean;
   hasResult?: boolean;
+  resultExcelAvailable?: boolean;
   rawExcelBuffer?: ArrayBuffer;
   resultExcelBuffer?: ArrayBuffer;
   config?: unknown;
@@ -100,6 +102,24 @@ export interface BackendPeriodSaveResult {
   periodId?: number;
   year?: number;
   quarter?: QuarterSlot;
+  updatedAt?: string;
+  error?: string;
+}
+
+export interface BackendDefaultLoadResult {
+  success: boolean;
+  hasData: boolean;
+  fileName?: string;
+  excelBuffer?: ArrayBuffer;
+  config?: unknown;
+  updatedAt?: string;
+  message?: string;
+  error?: string;
+}
+
+export interface BackendDefaultSaveResult {
+  success: boolean;
+  message?: string;
   updatedAt?: string;
   error?: string;
 }
@@ -350,6 +370,12 @@ export class BackendStorageService {
       }
     }
 
+    const filesArr = Array.isArray(meta.files)
+      ? (meta.files as { file_type?: string; file_name?: string }[])
+      : [];
+    const rawFileEntry = filesArr.find((f) => f.file_type === 'raw');
+    const resultFileEntry = filesArr.find((f) => f.file_type === 'result');
+
     return {
       success: true,
       hasData: true,
@@ -357,8 +383,10 @@ export class BackendStorageService {
       quarter: meta.quarter,
       status: meta.status,
       updatedAt: meta.updatedAt,
+      fileName: rawFileEntry?.file_name || resultFileEntry?.file_name,
       hasRaw: meta.hasRaw,
       hasResult: meta.hasResult,
+      resultExcelAvailable: Boolean(resultExcelBuffer || meta.hasResult),
       rawExcelBuffer,
       resultExcelBuffer,
       config: meta.config,
@@ -501,6 +529,123 @@ export class BackendStorageService {
       districtName: json.districtName,
       totalPeriods: json.totalPeriods || (json.series ? json.series.length : 0),
       series: (json.series || []) as BackendTrendPoint[],
+    };
+  }
+
+  /**
+   * Memuat berkas Excel dan konfigurasi Default Kustom dari server (/api/default).
+   */
+  async loadDefault(): Promise<BackendDefaultLoadResult> {
+    const res = await this.requestJson(
+      '/default',
+      { method: 'GET' },
+      'Gagal memuat metadata Default Kustom dari server.',
+    );
+    if (!res.ok) {
+      return { success: false, hasData: false, error: res.error };
+    }
+
+    const meta = res.data;
+    if (!meta.hasData) {
+      return {
+        success: true,
+        hasData: false,
+        message: meta.message || 'Belum ada Default Kustom di server.',
+      };
+    }
+
+    const baseUrl = this.getBaseUrl();
+    let excelBuffer: ArrayBuffer | undefined = undefined;
+    try {
+      const dlRes = await fetch(`${baseUrl}/default/download`, { method: 'GET' });
+      if (dlRes.ok) {
+        const blob = await dlRes.blob();
+        excelBuffer = await blob.arrayBuffer();
+      }
+    } catch {
+      // Abaikan jika unduhan gagal
+    }
+
+    if (!excelBuffer) {
+      return {
+        success: false,
+        hasData: false,
+        error: 'Gagal mengunduh berkas biner Default Kustom dari server.',
+      };
+    }
+
+    return {
+      success: true,
+      hasData: true,
+      fileName: meta.fileName || 'default-join-data.xlsx',
+      excelBuffer,
+      config: meta.config,
+      updatedAt: meta.updatedAt,
+    };
+  }
+
+  /**
+   * Menyimpan berkas Excel dan konfigurasi sebagai Default Kustom di server (/api/default).
+   */
+  async saveDefault(
+    excelBuffer: ArrayBuffer,
+    fileName: string,
+    config?: unknown,
+  ): Promise<BackendDefaultSaveResult> {
+    if (!excelBuffer || excelBuffer.byteLength === 0) {
+      return {
+        success: false,
+        error: 'Data file Excel kosong (0 byte).',
+      };
+    }
+
+    const formData = new FormData();
+    const excelBlob = new Blob([excelBuffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    formData.append('excelFile', excelBlob, fileName || 'default-join-data.xlsx');
+    formData.append('fileName', fileName || 'default-join-data.xlsx');
+    if (config !== undefined) {
+      const serialized = JSON.stringify(config);
+      formData.append('configJson', serialized);
+      formData.append('config', serialized);
+    }
+
+    const res = await this.requestJson(
+      '/default',
+      {
+        method: 'POST',
+        body: formData,
+      },
+      'Gagal menyimpan Default Kustom ke server.',
+    );
+    if (!res.ok) {
+      return { success: false, error: res.error };
+    }
+
+    return {
+      success: !!res.data.success,
+      message: res.data.message,
+      updatedAt: res.data.updatedAt,
+    };
+  }
+
+  /**
+   * Menghapus Default Kustom di server (/api/default) dan mengembalikan ke Bawaan Sistem.
+   */
+  async resetDefault(): Promise<BackendDefaultSaveResult> {
+    const res = await this.requestJson(
+      '/default',
+      { method: 'DELETE' },
+      'Gagal menghapus Default Kustom di server.',
+    );
+    if (!res.ok) {
+      return { success: false, error: res.error };
+    }
+
+    return {
+      success: !!res.data.success,
+      message: res.data.message,
     };
   }
 }

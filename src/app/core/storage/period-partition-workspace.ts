@@ -1,8 +1,11 @@
 import { inject, Injectable, signal, Signal } from '@angular/core';
 import {
+  GasLoadResult,
   GasPeriodItem,
+  GasPeriodLoadResult,
   GasSaveResult,
   GasStorageService,
+  GasTemplateConfigResult,
   QuarterSlot,
 } from './gas-storage.service';
 import { BackendStorageService } from './backend-storage.service';
@@ -83,6 +86,13 @@ export class PeriodPartitionWorkspace {
     this._selectedYear.set(year);
   }
 
+  /**
+   * Mengecek apakah Penyimpanan Terpusat Server SQLite (utama) atau penyimpanan eksternal cadangan terkonfigurasi.
+   */
+  isStorageConfigured(): boolean {
+    return Boolean(this.backendStorage?.isConfigured() || this.gasStorage.isConfigured());
+  }
+
   private applyRemotePeriods(periods: GasPeriodItem[]): GasPeriodItem[] {
     this._periodSlots.set(periods);
 
@@ -151,6 +161,56 @@ export class PeriodPartitionWorkspace {
   }
 
   /**
+   * Memuat buffer mentah, buffer hasil penggabungan, dan konfigurasi periode dari
+   * Penyimpanan Terpusat Server SQLite (utama) atau penyimpanan eksternal cadangan.
+   */
+  async loadRawPeriod(
+    year: number,
+    quarter: QuarterSlot,
+    options?: { preferResult?: boolean; customUrl?: string },
+  ): Promise<GasPeriodLoadResult> {
+    const preferResult = Boolean(options?.preferResult);
+    const customUrl = options?.customUrl;
+
+    if (!customUrl && this.backendStorage?.isConfigured()) {
+      const backendRes = await this.backendStorage.loadPeriod(year, quarter);
+      if (backendRes.success) {
+        if (!backendRes.hasData) {
+          return {
+            success: true,
+            hasData: false,
+            year,
+            quarter,
+            message: backendRes.message || `Belum ada data tersimpan untuk periode ${year} ${quarter} di Server Database.`,
+          };
+        }
+
+        const slotItem = this.getQuarterSlotItem(year, quarter);
+        const hasResult = Boolean(backendRes.resultExcelBuffer || backendRes.hasResult);
+        const primaryRawOrRes = backendRes.rawExcelBuffer ?? backendRes.resultExcelBuffer;
+        return {
+          success: true,
+          hasData: Boolean(primaryRawOrRes),
+          year: backendRes.year ?? year,
+          quarter: backendRes.quarter ?? quarter,
+          fileName:
+            preferResult && backendRes.resultExcelBuffer
+              ? (slotItem?.resultFileName || 'joined-result.xlsx')
+              : (slotItem?.rawFileName || `${year}_${quarter}_raw-data.xlsx`),
+          rawExcelBuffer: primaryRawOrRes,
+          resultExcelBuffer: backendRes.resultExcelBuffer,
+          config: backendRes.config,
+          resultExcelAvailable: hasResult,
+          isResultExcel: !backendRes.rawExcelBuffer && Boolean(backendRes.resultExcelBuffer),
+          updatedAt: backendRes.updatedAt,
+        };
+      }
+    }
+
+    return this.gasStorage.loadPeriod(year, quarter, { preferResult, customUrl });
+  }
+
+  /**
    * Memuat data single quarter dari Server Backend (utama) atau Google Drive (fallback)
    * dengan preferensi varian berkas ('raw' vs 'result').
    */
@@ -161,38 +221,7 @@ export class PeriodPartitionWorkspace {
     customUrl?: string,
   ): Promise<QuarterDataset | null> {
     const preferResult = options?.prefer !== 'raw';
-
-    if (!customUrl && this.backendStorage?.isConfigured()) {
-      const backendRes = await this.backendStorage.loadPeriod(year, quarter);
-      if (backendRes.success) {
-        if (!backendRes.hasData) {
-          return null;
-        }
-        const backendBuffer =
-          preferResult && backendRes.resultExcelBuffer
-            ? backendRes.resultExcelBuffer
-            : (backendRes.rawExcelBuffer ?? backendRes.resultExcelBuffer);
-
-        if (backendBuffer) {
-          const preset = (backendRes.config as JoinPresetExecutionSpec) ?? options?.parseOptions?.preset;
-          const dataset = DinkesSpreadsheetParser.parse(backendBuffer, {
-            ...options?.parseOptions,
-            preset,
-          });
-          return {
-            year,
-            quarter,
-            source: 'cloud',
-            fileName: preferResult && backendRes.resultExcelBuffer ? 'joined-result.xlsx' : 'raw-data.xlsx',
-            dataset,
-            rawBuffer: backendRes.rawExcelBuffer,
-            resultBuffer: backendRes.resultExcelBuffer,
-          };
-        }
-      }
-    }
-
-    const res = await this.gasStorage.loadPeriod(year, quarter, { preferResult, customUrl });
+    const res = await this.loadRawPeriod(year, quarter, { preferResult, customUrl });
 
     if (!res.success || !res.hasData) {
       return null;
@@ -249,7 +278,7 @@ export class PeriodPartitionWorkspace {
           const slotItem = this.getQuarterSlotItem(year, slot);
           if (slotItem?.hasConfig || this.isQuarterAvailable(year, slot)) {
             try {
-              const cloudRes = await this.gasStorage.loadPeriod(year, slot, {
+              const cloudRes = await this.loadRawPeriod(year, slot, {
                 preferResult: true,
                 customUrl,
               });
@@ -392,5 +421,89 @@ export class PeriodPartitionWorkspace {
     }
 
     return res;
+  }
+
+  /**
+   * Memuat template konfigurasi join aktif dari Penyimpanan Terpusat Server SQLite (utama)
+   * atau penyimpanan eksternal cadangan.
+   */
+  async loadTemplateConfig(customUrl?: string): Promise<GasTemplateConfigResult> {
+    if (!customUrl && this.backendStorage?.isConfigured()) {
+      const backendRes = await this.backendStorage.getConfig('join');
+      if (backendRes.success) {
+        return {
+          success: true,
+          hasConfig: backendRes.hasConfig,
+          config: backendRes.config,
+          fileName: 'server-join-config.json',
+          updatedAt: backendRes.updatedAt,
+        };
+      }
+    }
+
+    return this.gasStorage.loadTemplateConfig(customUrl);
+  }
+
+  /**
+   * Memuat berkas Excel dan konfigurasi Default Kustom dari Penyimpanan Terpusat Server SQLite (utama)
+   * atau penyimpanan eksternal cadangan.
+   */
+  async loadDefault(): Promise<GasLoadResult> {
+    if (this.backendStorage?.isConfigured()) {
+      const backendRes = await this.backendStorage.loadDefault();
+      if (backendRes.success) {
+        return {
+          success: true,
+          hasData: backendRes.hasData,
+          fileName: backendRes.fileName,
+          excelBuffer: backendRes.excelBuffer,
+          config: backendRes.config,
+          updatedAt: backendRes.updatedAt,
+          message: backendRes.message,
+        };
+      }
+    }
+
+    return this.gasStorage.loadDefault();
+  }
+
+  /**
+   * Menyimpan berkas Excel dan konfigurasi sebagai Default Kustom ke Penyimpanan Terpusat Server SQLite (utama)
+   * atau penyimpanan eksternal cadangan.
+   */
+  async saveDefault(
+    excelBuffer: ArrayBuffer,
+    fileName: string,
+    config: unknown,
+  ): Promise<GasSaveResult> {
+    if (this.backendStorage?.isConfigured()) {
+      const backendRes = await this.backendStorage.saveDefault(excelBuffer, fileName, config);
+      if (backendRes.success) {
+        return {
+          success: true,
+          message: backendRes.message,
+          updatedAt: backendRes.updatedAt,
+        };
+      }
+    }
+
+    return this.gasStorage.saveDefault(excelBuffer, fileName, config);
+  }
+
+  /**
+   * Menghapus Default Kustom di Penyimpanan Terpusat Server SQLite (utama) atau penyimpanan eksternal cadangan.
+   */
+  async resetDefault(): Promise<GasSaveResult> {
+    if (this.backendStorage?.isConfigured()) {
+      const backendRes = await this.backendStorage.resetDefault();
+      if (backendRes.success) {
+        return {
+          success: true,
+          message: backendRes.message,
+        };
+      }
+    }
+
+    return this.gasStorage.resetDefault();
   }
 }

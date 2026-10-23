@@ -279,6 +279,111 @@ describe('PeriodPartitionWorkspace', () => {
       expect(mockGasStorage.listPeriods).toHaveBeenCalled();
       expect(fallbackPeriods).toEqual(samplePeriods);
     });
+
+    it('harus mendukung isStorageConfigured, loadRawPeriod, dan resolusi config berkas lokal via BackendStorageService ketika GAS dinonaktifkan', async () => {
+      (mockGasStorage.isConfigured as any).mockReturnValue(false);
+      const rawBuf = new ArrayBuffer(24);
+      const resBuf = new ArrayBuffer(36);
+      const mockPreset = { version: '1.0', name: 'Preset Server TW1', joinBy: 'Wilayah', sheets: [] };
+
+      const mockBackend: Partial<BackendStorageService> = {
+        isConfigured: vi.fn().mockReturnValue(true),
+        listPeriods: vi.fn().mockResolvedValue({
+          success: true,
+          periods: [
+            {
+              year: 2026,
+              quarter: 'TW1',
+              hasRaw: true,
+              hasResult: true,
+              hasConfig: true,
+              rawFileName: 'server-raw-tw1.xlsx',
+              resultFileName: 'server-res-tw1.xlsx',
+            },
+          ],
+        }),
+        loadPeriod: vi.fn().mockResolvedValue({
+          success: true,
+          hasData: true,
+          year: 2026,
+          quarter: 'TW1',
+          hasRaw: true,
+          hasResult: true,
+          rawExcelBuffer: rawBuf,
+          resultExcelBuffer: resBuf,
+          config: mockPreset,
+        }),
+      };
+
+      const backendOnlyWorkspace = new PeriodPartitionWorkspace(
+        mockGasStorage as GasStorageService,
+        mockBackend as BackendStorageService,
+      );
+
+      expect(backendOnlyWorkspace.isStorageConfigured()).toBe(true);
+
+      await backendOnlyWorkspace.refreshPeriods();
+
+      // 1. Uji loadRawPeriod mengambil langsung dari backendStorage tanpa menyentuh gasStorage
+      const rawPeriodRes = await backendOnlyWorkspace.loadRawPeriod(2026, 'TW1');
+      expect(rawPeriodRes.success).toBe(true);
+      expect(rawPeriodRes.hasData).toBe(true);
+      expect(rawPeriodRes.rawExcelBuffer).toBe(rawBuf);
+      expect(rawPeriodRes.resultExcelBuffer).toBe(resBuf);
+      expect(rawPeriodRes.resultExcelAvailable).toBe(true);
+      expect(rawPeriodRes.config).toEqual(mockPreset);
+      expect(mockGasStorage.loadPeriod).not.toHaveBeenCalled();
+
+      // 2. Uji loadMultiQuarters dengan berkas lokal tetap mengambil config dari backendStorage tanpa menyentuh gasStorage
+      const localFile = {
+        name: 'override-tw1.xlsx',
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(16)),
+      } as unknown as File;
+
+      const multiRes = await backendOnlyWorkspace.loadMultiQuarters(
+        2026,
+        ['TW1'],
+        { TW1: localFile },
+      );
+      expect(multiRes.loadedQuarters).toHaveLength(1);
+      expect(multiRes.loadedQuarters[0].source).toBe('local');
+      expect(mockBackend.loadPeriod).toHaveBeenCalledWith(2026, 'TW1');
+      expect(mockGasStorage.loadPeriod).not.toHaveBeenCalled();
+    });
+
+    it('harus memuat template konfigurasi join dari BackendStorageService terlebih dahulu via loadTemplateConfig', async () => {
+      (mockGasStorage.isConfigured as any).mockReturnValue(false);
+      mockGasStorage.loadTemplateConfig = vi.fn();
+
+      const serverJoinPreset = {
+        version: '1.0',
+        name: 'Template Server SQLite',
+        joinBy: 'Kabupaten/Kota',
+        sheets: [],
+      };
+
+      const mockBackend: Partial<BackendStorageService> = {
+        isConfigured: vi.fn().mockReturnValue(true),
+        getConfig: vi.fn().mockResolvedValue({
+          success: true,
+          hasConfig: true,
+          config: serverJoinPreset,
+          updatedAt: '2026-10-23T08:00:00Z',
+        }),
+      };
+
+      const backendWorkspace = new PeriodPartitionWorkspace(
+        mockGasStorage as GasStorageService,
+        mockBackend as BackendStorageService,
+      );
+
+      const res = await backendWorkspace.loadTemplateConfig();
+      expect(res.success).toBe(true);
+      expect(res.hasConfig).toBe(true);
+      expect(res.config).toEqual(serverJoinPreset);
+      expect(mockBackend.getConfig).toHaveBeenCalledWith('join');
+      expect(mockGasStorage.loadTemplateConfig).not.toHaveBeenCalled();
+    });
   });
 
   describe('Angular DI Integration', () => {
