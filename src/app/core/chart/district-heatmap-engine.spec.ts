@@ -305,5 +305,19 @@ describe('DistrictHeatmapEngine', () => {
     expect(cilacap.status).toBe('achieved');
     expect(banyumas.status).toBe('unachieved');
     expect(result.stats.achievedCount).toBe(1);
+
+    // Gradient bar starts green at 0% and ends red at 100%
+    expect(result.gradientCss).toContain('rgb(22,163,74) 0%');
+    expect(result.gradientCss).toContain('rgb(234,179,8) 14%');
+    expect(result.gradientCss).toContain('rgb(220,38,38) 100%');
+
+    // Color stops follow green to red
+    expect(result.colorStops[0].color).toBe('rgb(22, 163, 74)'); // Green at 0%
+    expect(result.colorStops[4].color).toBe('rgb(220, 38, 38)'); // Red at 100%
+
+    // Rank 1 is Cilacap (prevalence terendah = 10%)
+    expect(cilacap.rank).toBe(1);
+    expect(banyumas.rank).toBe(2);
+    expect(result.rankedItems[0].district.id).toBe('33-01');
   });
 });

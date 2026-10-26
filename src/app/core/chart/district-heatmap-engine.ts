@@ -39,6 +39,7 @@ export interface HeatmapIndicatorStats {
   max: number | null;
   avg: number | null;
   targetValue: number | null;
+  targetOperator?: string;
   highest: { name: string; value: number } | null;
   lowest: { name: string; value: number } | null;
 }
@@ -51,6 +52,7 @@ export interface DistrictHeatmapResult {
   colorStops: HeatmapColorStop[];
   gradientCss: string;
   targetPositionPercent: number | null;
+  targetOperator?: string;
 }
 
 export interface HeatmapColorPalette {
@@ -346,11 +348,15 @@ export class DistrictHeatmapEngine {
 
     const avg = validCount > 0 ? Math.round((sum / validCount) * 10) / 10 : null;
 
-    // 3. Menghitung peringkat (Rank): urutan 1 = nilai tertinggi
+    // 3. Menghitung peringkat (Rank): jika operator '<=' (lower is better), urutan 1 = nilai terendah
     const validEntries = extracted.filter((e) => e.val !== null) as (ExtractedEntry & {
       val: number;
     })[];
-    validEntries.sort((a, b) => b.val - a.val);
+    if (targetOperator === '<=') {
+      validEntries.sort((a, b) => a.val - b.val);
+    } else {
+      validEntries.sort((a, b) => b.val - a.val);
+    }
 
     const rankMap = new Map<string, number>();
     validEntries.forEach((entry, idx) => {
@@ -440,7 +446,14 @@ export class DistrictHeatmapEngine {
     for (let i = 0; i < stopsCount; i++) {
       const ratio = i / (stopsCount - 1);
       const stopVal = Math.round(scaleMin + ratio * scaleSpan);
-      const { fill } = this.getColorForValue(stopVal, scaleMin, scaleMax, targetValue, palette);
+      const { fill } = this.getColorForValue(
+        stopVal,
+        scaleMin,
+        scaleMax,
+        targetValue,
+        palette,
+        targetOperator,
+      );
       const percentage = stopVal;
 
       let label = `${stopVal}`;
@@ -455,7 +468,11 @@ export class DistrictHeatmapEngine {
       });
     }
 
-    // CSS Linear Gradient kontinu (merah-kuning-hijau dengan rentang 0-100 dan anchor target)
+    // CSS Linear Gradient kontinu (merah-kuning-hijau atau hijau-kuning-merah tergantung targetOperator)
+    const isLowerBetter = targetOperator === '<=';
+    const effectiveStartRgb = isLowerBetter ? palette.endRgb : palette.startRgb;
+    const effectiveEndRgb = isLowerBetter ? palette.startRgb : palette.endRgb;
+
     let gradientCss: string;
     if (palette.midRgb) {
       if (targetValue !== null) {
@@ -464,17 +481,17 @@ export class DistrictHeatmapEngine {
           Math.min(100, Math.round(targetValue)),
         );
         if (targetPercent > 0 && targetPercent < 100) {
-          gradientCss = `linear-gradient(to right, rgb(${palette.startRgb.join(',')}) 0%, rgb(${palette.midRgb.join(',')}) ${targetPercent}%, rgb(${palette.endRgb.join(',')}) 100%)`;
+          gradientCss = `linear-gradient(to right, rgb(${effectiveStartRgb.join(',')}) 0%, rgb(${palette.midRgb.join(',')}) ${targetPercent}%, rgb(${effectiveEndRgb.join(',')}) 100%)`;
         } else if (targetPercent <= 0) {
-          gradientCss = `linear-gradient(to right, rgb(${palette.midRgb.join(',')}) 0%, rgb(${palette.endRgb.join(',')}) 100%)`;
+          gradientCss = `linear-gradient(to right, rgb(${palette.midRgb.join(',')}) 0%, rgb(${effectiveEndRgb.join(',')}) 100%)`;
         } else {
-          gradientCss = `linear-gradient(to right, rgb(${palette.startRgb.join(',')}) 0%, rgb(${palette.midRgb.join(',')}) 100%)`;
+          gradientCss = `linear-gradient(to right, rgb(${effectiveStartRgb.join(',')}) 0%, rgb(${palette.midRgb.join(',')}) 100%)`;
         }
       } else {
-        gradientCss = `linear-gradient(to right, rgb(${palette.startRgb.join(',')}) 0%, rgb(${palette.midRgb.join(',')}) 50%, rgb(${palette.endRgb.join(',')}) 100%)`;
+        gradientCss = `linear-gradient(to right, rgb(${effectiveStartRgb.join(',')}) 0%, rgb(${palette.midRgb.join(',')}) 50%, rgb(${effectiveEndRgb.join(',')}) 100%)`;
       }
     } else {
-      gradientCss = `linear-gradient(to right, rgb(${palette.startRgb.join(',')}), rgb(${palette.endRgb.join(',')}))`;
+      gradientCss = `linear-gradient(to right, rgb(${effectiveStartRgb.join(',')}), rgb(${effectiveEndRgb.join(',')}))`;
     }
 
     let targetPositionPercent: number | null = null;
@@ -501,12 +518,14 @@ export class DistrictHeatmapEngine {
         max,
         avg,
         targetValue,
+        targetOperator,
         highest,
         lowest,
       },
       colorStops,
       gradientCss,
       targetPositionPercent,
+      targetOperator,
     };
   }
 }

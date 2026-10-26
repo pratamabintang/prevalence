@@ -2498,10 +2498,22 @@
                   </span>
                 </div>
 
-                <div class="rounded-lg border border-emerald-200 bg-emerald-50/50 p-2.5">
-                  <span class="text-[11px] font-medium text-emerald-700 block">Tertinggi</span>
+                <div
+                  class="rounded-lg border p-2.5"
+                  [class.border-emerald-200]="mapData.stats.targetOperator !== '<='"
+                  [class.bg-emerald-50/50]="mapData.stats.targetOperator !== '<='"
+                  [class.border-rose-200]="mapData.stats.targetOperator === '<='"
+                  [class.bg-rose-50/50]="mapData.stats.targetOperator === '<='"
+                >
                   <span
-                    class="text-base font-bold text-emerald-800 font-mono mt-0.5 block truncate"
+                    class="text-[11px] font-medium block"
+                    [class.text-emerald-700]="mapData.stats.targetOperator !== '<='"
+                    [class.text-rose-700]="mapData.stats.targetOperator === '<='"
+                  >Tertinggi</span>
+                  <span
+                    class="text-base font-bold font-mono mt-0.5 block truncate"
+                    [class.text-emerald-800]="mapData.stats.targetOperator !== '<='"
+                    [class.text-rose-800]="mapData.stats.targetOperator === '<='"
                     [title]="mapData.stats.highest?.name"
                   >
                     {{
@@ -2512,10 +2524,22 @@
                   </span>
                 </div>
 
-                <div class="rounded-lg border border-rose-200 bg-rose-50/50 p-2.5">
-                  <span class="text-[11px] font-medium text-rose-700 block">Terendah</span>
+                <div
+                  class="rounded-lg border p-2.5"
+                  [class.border-rose-200]="mapData.stats.targetOperator !== '<='"
+                  [class.bg-rose-50/50]="mapData.stats.targetOperator !== '<='"
+                  [class.border-emerald-200]="mapData.stats.targetOperator === '<='"
+                  [class.bg-emerald-50/50]="mapData.stats.targetOperator === '<='"
+                >
                   <span
-                    class="text-base font-bold text-rose-800 font-mono mt-0.5 block truncate"
+                    class="text-[11px] font-medium block"
+                    [class.text-rose-700]="mapData.stats.targetOperator !== '<='"
+                    [class.text-emerald-700]="mapData.stats.targetOperator === '<='"
+                  >Terendah</span>
+                  <span
+                    class="text-base font-bold font-mono mt-0.5 block truncate"
+                    [class.text-rose-800]="mapData.stats.targetOperator !== '<='"
+                    [class.text-emerald-800]="mapData.stats.targetOperator === '<='"
                     [title]="mapData.stats.lowest?.name"
                   >
                     {{
@@ -2696,7 +2720,7 @@
                             <div class="flex items-center gap-1.5">
                               <span class="h-2.5 w-2.5 rounded-full bg-slate-900"></span>
                               <span class="font-bold text-slate-800"
-                                >Target (≥ {{ mapData.stats.targetValue }})</span
+                                >Target ({{ mapData.stats.targetOperator || '≥' }} {{ mapData.stats.targetValue }})</span
                               >
                             </div>
                           }
@@ -2771,9 +2795,9 @@
                   <!-- RINGKASAN TOP 5 KABUPATEN/KOTA (DITEMPATKAN DI ATAS AGAR POSISI STABIL SAAT HOVER) -->
                   <div class="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
                     <div class="flex items-center justify-between mb-2">
-                      <span class="text-xs font-bold text-slate-700"
-                        >Peringkat Teratas (Top 5)</span
-                      >
+                      <span class="text-xs font-bold text-slate-700">
+                        {{ mapData.stats.targetOperator === '<=' ? 'Peringkat Terbaik (Prevalensi Terendah)' : 'Peringkat Teratas (Top 5)' }}
+                      </span>
                       <span class="text-[10px] text-slate-400">Jawa Tengah</span>
                     </div>
                     <div class="space-y-1.5">
@@ -2874,8 +2898,8 @@
                               <span class="text-slate-500">Selisih vs Rata-rata:</span>
                               <span
                                 class="font-semibold font-mono text-[11px]"
-                                [class.text-emerald-700]="hDist.diffFromAvg >= 0"
-                                [class.text-rose-700]="hDist.diffFromAvg < 0"
+                                [class.text-emerald-700]="mapData.stats.targetOperator === '<=' ? hDist.diffFromAvg <= 0 : hDist.diffFromAvg >= 0"
+                                [class.text-rose-700]="mapData.stats.targetOperator === '<=' ? hDist.diffFromAvg > 0 : hDist.diffFromAvg < 0"
                               >
                                 {{ hDist.diffFromAvg >= 0 ? '+' : '' }}{{ hDist.diffFromAvg }}
                               </span>
@@ -2891,8 +2915,12 @@
                             >
                               <svg class="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
                               <div>
-                                <span>Mencapai Target (≥ {{ mapData.stats.targetValue }})</span>
-                                @if (hDist.diffFromTarget !== null && hDist.diffFromTarget > 0) {
+                                <span>Mencapai Target ({{ mapData.stats.targetOperator || '≥' }} {{ mapData.stats.targetValue }})</span>
+                                @if (mapData.stats.targetOperator === '<=') {
+                                  <span class="block text-[10px] font-normal text-emerald-700">
+                                    {{ hDist.diffFromTarget !== null && hDist.diffFromTarget < 0 ? (Math.abs(hDist.diffFromTarget) + ' di bawah batas maksimal target') : 'Tepat pada target' }}
+                                  </span>
+                                } @else if (hDist.diffFromTarget !== null && hDist.diffFromTarget > 0) {
                                   <span class="block text-[10px] font-normal text-emerald-700">
                                     Melampaui target sebesar +{{ hDist.diffFromTarget }}
                                   </span>
@@ -2905,12 +2933,16 @@
                             >
                               <svg class="w-4 h-4 text-rose-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
                               <div>
-                                <span>Belum Mencapai Target</span>
-                                @if (hDist.diffFromTarget !== null) {
+                                <span>Belum Mencapai Target ({{ mapData.stats.targetOperator || '≥' }} {{ mapData.stats.targetValue }})</span>
+                                @if (mapData.stats.targetOperator === '<=') {
+                                  @if (hDist.diffFromTarget !== null) {
+                                    <span class="block text-[10px] font-normal text-rose-700">
+                                      Melebihi batas maksimal sebesar +{{ Math.abs(hDist.diffFromTarget) }}
+                                    </span>
+                                  }
+                                } @else if (hDist.diffFromTarget !== null) {
                                   <span class="block text-[10px] font-normal text-rose-700">
-                                    Kurang {{ Math.abs(hDist.diffFromTarget) }} dari target ({{
-                                      mapData.stats.targetValue
-                                    }})
+                                    Kurang {{ Math.abs(hDist.diffFromTarget) }} dari target
                                   </span>
                                 }
                               </div>
