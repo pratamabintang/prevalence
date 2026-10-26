@@ -139,6 +139,7 @@ export interface AggregatedEvaluationOptions {
   quarterWeight?: number;
   toleranceThresholdPercent?: number;
   calculationDataSource?: 'summary_row' | 'all_rows' | 'aggregated_rows';
+  isRegionalEvaluation?: boolean;
 }
 
 export interface RegionalEvaluationOptions extends AggregatedEvaluationOptions {
@@ -154,6 +155,7 @@ export interface EvaluatedRegionalScorecard {
   summary: StuntingKpiSummary;
   rows: EvaluatedStuntingRow[];
   activeQuarter: 1 | 2 | 3 | 4;
+  evaluationResult: StuntingEvaluationResult;
 }
 
 export interface StuntingEvaluationOptions {
@@ -893,7 +895,7 @@ export class StuntingEvaluationEngine {
           let sumNum: number | null = null;
           let sumDen: number | null = null;
 
-          const isSummaryMode = options.calculationDataSource === 'summary_row' || joinedRows.length <= 1;
+          const isSummaryMode = !options.isRegionalEvaluation && (options.calculationDataSource === 'summary_row' || joinedRows.length <= 1);
           if (isSummaryMode && directActualVal !== undefined && directActualVal !== null) {
             act = directActualVal;
             sumNum = directCountVal ?? null;
@@ -908,7 +910,7 @@ export class StuntingEvaluationEngine {
                 sumNum = this.sumColumnValues(joinedRows, targetSumCol);
               }
             }
-            if (sumNum === null && directCountVal !== undefined && directCountVal !== null) {
+            if (sumNum === null && !options.isRegionalEvaluation && directCountVal !== undefined && directCountVal !== null) {
               sumNum = directCountVal;
             }
 
@@ -926,7 +928,7 @@ export class StuntingEvaluationEngine {
                 const directVal = joinedRows[0][targetMeanCol];
                 act = IndicatorEvaluator.parseSmartNumber(directVal);
                 if (sumNum === null) {
-                  sumNum = directCountVal ?? (typeof directVal === 'number' && directVal > 100 ? directVal : null);
+                  sumNum = (!options.isRegionalEvaluation ? directCountVal : null) ?? (typeof directVal === 'number' && directVal > 100 ? directVal : null);
                 }
               } else if (joinedRows.length > 0) {
                 if (targetMeanCol && calcMode !== 'absolute') {
@@ -1191,6 +1193,7 @@ export class StuntingEvaluationEngine {
         ...options,
         activeQuarter: q,
         calculationDataSource: 'all_rows',
+        isRegionalEvaluation: true,
       });
 
       scorecards.push({
@@ -1199,6 +1202,7 @@ export class StuntingEvaluationEngine {
         summary: evalResult.summary,
         rows: evalResult.rows,
         activeQuarter: q,
+        evaluationResult: evalResult,
       });
     }
 

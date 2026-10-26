@@ -209,6 +209,10 @@ export class StuntingMonitoringComponent implements OnInit {
   toleranceThreshold = this.workflowEngine.toleranceThreshold;
   quarterWeight = this.workflowEngine.quarterWeight;
   evaluationResult = this.workflowEngine.evaluationResult;
+  selectedScope = this.workflowEngine.selectedScope;
+  selectedScopeLabel = this.workflowEngine.selectedScopeLabel;
+  activeDisplayScorecard = this.workflowEngine.activeDisplayScorecard;
+  rawRegionalScorecards = this.workflowEngine.regionalScorecards;
   availableQuarters = this.workflowEngine.availableQuarters;
   activeQuarter = this.workflowEngine.activeQuarter;
   searchQuery = signal<string>('');
@@ -276,6 +280,10 @@ export class StuntingMonitoringComponent implements OnInit {
     if (target?.value) {
       this.workflowEngine.setSelectedMatrixIndicator(target.value);
     }
+  }
+
+  setSelectedScope(scope: 'province' | string): void {
+    this.workflowEngine.setSelectedScope(scope);
   }
 
   @HostListener('window:keydown.escape')
@@ -1658,7 +1666,7 @@ export class StuntingMonitoringComponent implements OnInit {
   }
 
   filteredGroupedRows = computed(() => {
-    const res = this.evaluationResult();
+    const res = this.activeDisplayScorecard();
     if (!res) return [];
 
     const query = this.searchQuery().trim().toLowerCase();
@@ -1762,7 +1770,7 @@ export class StuntingMonitoringComponent implements OnInit {
     const fileName = StuntingExcelExporter.exportMonitoringReport({
       evaluationResult: res,
       availableQuarters: quartersToExport,
-      regionalScorecards: this.regionalScorecards(),
+      regionalScorecards: this.rawRegionalScorecards(),
       validJoinedRows:
         this.activeRegionRows().length > 0 ? this.activeRegionRows() : this.validJoinedRows(),
       primaryKeyColumn: this.primaryKeyCol(),

@@ -1393,15 +1393,98 @@
     @if (activeStep() === 3) {
       <div class="space-y-6">
 
-        @if (evaluationResult()) {
-          @let res = evaluationResult()!;
+        @if (activeDisplayScorecard()) {
+          @let res = activeDisplayScorecard()!;
+
+          <!-- Wilayah Selector Header Card -->
+          <div class="bg-white rounded-lg p-4 border border-slate-200 flex flex-wrap items-center justify-between gap-4 shadow-xs">
+            <div class="flex items-center gap-3">
+              <div
+                class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 border"
+                [class.bg-indigo-50]="selectedScope() === 'province'"
+                [class.border-indigo-200]="selectedScope() === 'province'"
+                [class.text-indigo-700]="selectedScope() === 'province'"
+                [class.bg-emerald-50]="selectedScope() !== 'province'"
+                [class.border-emerald-200]="selectedScope() !== 'province'"
+                [class.text-emerald-700]="selectedScope() !== 'province'"
+              >
+                @if (selectedScope() === 'province') {
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                } @else {
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                }
+              </div>
+              <div>
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Lingkup Evaluasi Kinerja</span>
+                <div class="flex items-center gap-2">
+                  <h2 class="text-base font-bold text-slate-900">{{ selectedScopeLabel() }}</h2>
+                  @if (selectedScope() !== 'province') {
+                    <span class="px-2 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full">
+                      Tingkat Kabupaten/Kota
+                    </span>
+                  } @else {
+                    <span class="px-2 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full">
+                      Agregat Tingkat Provinsi
+                    </span>
+                  }
+                </div>
+              </div>
+            </div>
+
+            <!-- Scope Switcher Control -->
+            <div class="flex items-center gap-2">
+              <label for="wilayahSelector" class="text-xs font-medium text-slate-600">Pilih Wilayah:</label>
+              <select
+                id="wilayahSelector"
+                [value]="selectedScope()"
+                (change)="setSelectedScope($any($event.target).value)"
+                class="text-xs font-semibold px-3 py-1.5 border border-slate-300 rounded-lg bg-white text-slate-800 shadow-xs focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 cursor-pointer"
+              >
+                <option value="province">🏛️ PROVINSI JAWA TENGAH (Agregat)</option>
+                @if (rawRegionalScorecards().length > 0) {
+                  <optgroup label="Kabupaten / Kota ({{ rawRegionalScorecards().length }} Wilayah)">
+                    @for (sc of rawRegionalScorecards(); track sc.regionId) {
+                      <option [value]="sc.regionId">{{ sc.regionName }}</option>
+                    }
+                  </optgroup>
+                }
+              </select>
+
+              @if (selectedScope() !== 'province') {
+                <button
+                  type="button"
+                  (click)="setSelectedScope('province')"
+                  class="px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1 border border-slate-200 cursor-pointer"
+                  title="Kembali ke tampilan agregat Provinsi Jawa Tengah"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  <span>Reset ke Provinsi</span>
+                </button>
+              }
+            </div>
+          </div>
 
           <!-- Main Monitoring Table Card with Integrated Header Toolbar -->
           <div class="bg-white rounded-lg p-5 border border-slate-200 space-y-4">
             <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200">
               <div>
-                <h3 class="text-sm font-semibold text-slate-900">Tabel Analisis Capaian Intervensi Spesifik</h3>
-                <p class="text-xs text-slate-500">Standar Laporan Dinas Kesehatan Provinsi Jawa Tengah (Lembar capaian intervensi spesifik).</p>
+                <h3 class="text-sm font-semibold text-slate-900">
+                  Tabel Analisis Capaian Intervensi Spesifik &mdash; {{ selectedScopeLabel() }}
+                </h3>
+                <p class="text-xs text-slate-500">
+                  @if (selectedScope() === 'province') {
+                    Standar Laporan Dinas Kesehatan Provinsi Jawa Tengah (Lembar capaian agregat 35 Kab/Kota).
+                  } @else {
+                    Rapor Kinerja Intervensi Penurunan Stunting Khusus {{ selectedScopeLabel() }}.
+                  }
+                </p>
               </div>
 
               <!-- Unified Toolbar Actions -->
@@ -1807,14 +1890,26 @@
                           <!-- Sticky Left Column: Regency Name -->
                           <td
                             class="px-3.5 py-2 font-medium text-slate-900 sticky left-0 z-10 bg-white group-hover:bg-indigo-50/70 border-r border-slate-200 whitespace-nowrap cursor-pointer"
-                            (click)="openRegionalDrilldown(sc.regionId)"
-                            title="Klik untuk membuka Kartu Rapor detail wilayah ini"
+                            (click)="setSelectedScope(sc.regionId)"
+                            title="Klik untuk menampilkan Tabel Analisis Capaian lengkap wilayah ini"
                           >
-                            <div class="flex items-center justify-between gap-1.5">
-                              <span class="group-hover:text-indigo-700 font-semibold">{{ sc.regionName }}</span>
-                              <svg class="w-3.5 h-3.5 text-slate-300 group-hover:text-indigo-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                              </svg>
+                            <div class="flex items-center justify-between gap-2">
+                              <span class="group-hover:text-indigo-700 font-semibold" [class.text-emerald-700]="selectedScope() === sc.regionId">{{ sc.regionName }}</span>
+                              <div class="flex items-center gap-1">
+                                @if (selectedScope() === sc.regionId) {
+                                  <span class="px-1.5 py-0.5 text-[9px] font-bold bg-emerald-100 text-emerald-800 rounded">Aktif</span>
+                                }
+                                <button
+                                  type="button"
+                                  (click)="$event.stopPropagation(); openRegionalDrilldown(sc.regionId)"
+                                  class="p-0.5 text-slate-400 hover:text-indigo-600 rounded transition-colors cursor-pointer"
+                                  title="Buka ringkasan kartu rapor samping"
+                                >
+                                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                  </svg>
+                                </button>
+                              </div>
                             </div>
                           </td>
 
@@ -1955,16 +2050,30 @@
                         </h2>
                       </div>
 
-                      <button
-                        type="button"
-                        (click)="closeRegionalDrilldown()"
-                        class="rounded-md p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors"
-                        title="Tutup Laci Rapor"
-                      >
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
+                      <div class="flex items-center gap-2">
+                        <button
+                          type="button"
+                          (click)="setSelectedScope(dsc.regionId); closeRegionalDrilldown()"
+                          class="px-2.5 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md transition-colors flex items-center gap-1 cursor-pointer"
+                          title="Tampilkan tabel 14 indikator lengkap untuk wilayah ini pada tabel utama"
+                        >
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                          <span>Buka di Tabel Utama</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          (click)="closeRegionalDrilldown()"
+                          class="rounded-md p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+                          title="Tutup Laci Rapor"
+                        >
+                          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
 
                     <!-- Drawer Content (Scrollable) -->

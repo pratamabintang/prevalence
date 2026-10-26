@@ -204,12 +204,12 @@ export class StuntingWorkflowEngine {
   });
 
   readonly onTrackCount = computed<number>(
-    () => this.evaluationResult()?.rows.filter((r) => r.status === 'on_track').length ?? 0,
+    () => this.activeDisplayScorecard()?.rows.filter((r) => r.status === 'on_track').length ?? 0,
   );
 
   readonly perluPercepatanCount = computed<number>(
     () =>
-      this.evaluationResult()?.rows.filter((r) => r.status === 'perlu_percepatan').length ?? 0,
+      this.activeDisplayScorecard()?.rows.filter((r) => r.status === 'perlu_percepatan').length ?? 0,
   );
 
   readonly perluPerhatianCount = computed<number>(() => 0);
@@ -225,7 +225,7 @@ export class StuntingWorkflowEngine {
 
   readonly regionalScorecards = computed<EvaluatedRegionalScorecard[]>(() => {
     const cats = this.categories();
-    const rows = this.validJoinedRows();
+    const rows = this.activeRegionRows().length > 0 ? this.activeRegionRows() : this.joinedRows();
     const pKey = this.primaryKeyCol();
 
     const hasSubCategories = cats.some((c) => c.subCategories.length > 0);
@@ -243,6 +243,30 @@ export class StuntingWorkflowEngine {
       sortQuarter: this.regionalSortQuarter() ?? undefined,
     });
   });
+
+  readonly selectedScope = signal<'province' | string>('province');
+
+  readonly selectedScopeLabel = computed<string>(() => {
+    const scope = this.selectedScope();
+    if (scope === 'province') {
+      return 'PROVINSI JAWA TENGAH (Agregat)';
+    }
+    const card = this.regionalScorecards().find((s) => s.regionId === scope || s.regionName === scope);
+    return card ? card.regionName : scope;
+  });
+
+  readonly activeDisplayScorecard = computed<StuntingEvaluationResult | null>(() => {
+    const scope = this.selectedScope();
+    if (scope === 'province') {
+      return this.evaluationResult();
+    }
+    const card = this.regionalScorecards().find((s) => s.regionId === scope || s.regionName === scope);
+    return card ? card.evaluationResult : this.evaluationResult();
+  });
+
+  setSelectedScope(scope: 'province' | string): void {
+    this.selectedScope.set(scope);
+  }
 
   readonly filteredRegionalScorecards = computed<EvaluatedRegionalScorecard[]>(() => {
     const scorecards = this.regionalScorecards();
@@ -770,8 +794,9 @@ export class StuntingWorkflowEngine {
       id: subId,
       no: sub?.no ?? String(existingCount + 1),
       name: sub?.name || numCol || 'Indikator Baru',
-      sumCol: prevCol || undefined,
-      meanCol: numCol || undefined,
+      sumCol: sub?.sumCol ?? (prevCol || undefined),
+      meanCol: sub?.meanCol ?? (numCol || undefined),
+      denominatorCol: sub?.denominatorCol,
       numeratorCol: numCol,
       dataCol: numCol,
       actualValue: directVal,
@@ -791,8 +816,9 @@ export class StuntingWorkflowEngine {
         (cleanedTarget.polarity !== 'positive' ? cleanedTarget.polarity : 'positive'),
       quarterColumns: sub?.quarterColumns ?? {
         [actQ]: {
-          sumCol: prevCol || undefined,
-          meanCol: numCol || undefined,
+          sumCol: sub?.sumCol ?? (prevCol || undefined),
+          meanCol: sub?.meanCol ?? (numCol || undefined),
+          denominatorCol: sub?.denominatorCol,
           numeratorCol: numCol || undefined,
           actualValue: directVal,
           countValue: countVal,
@@ -1421,6 +1447,8 @@ export class StuntingWorkflowEngine {
     this.manualActiveQuarter.set(null);
     this.toleranceThreshold.set(-5.0);
     this.quarterWeight.set(null);
+    this.selectedScope.set('province');
+    this.selectedRegionForDrilldown.set(null);
     this.loadStandardCategories();
   }
 }

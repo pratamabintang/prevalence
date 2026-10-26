@@ -1535,6 +1535,73 @@ describe('StuntingMonitoringComponent', () => {
       component.toggleRegionalSort('yoy', component.selectedMatrixIndicatorId() ?? undefined);
       expect(component.regionalSortBy()).toBe('yoy');
     });
+
+    it('should allow switching selectedScope between province and regency to display regency-specific table', () => {
+      component.workflowEngine.setJoinedDataset({
+        rows: [
+          {
+            __id: 'row-1',
+            'Kabupaten/Kota': 'Kabupaten Banyumas',
+            ttd_real: 850,
+            ttd_sasaran: 1000,
+          },
+          {
+            __id: 'row-2',
+            'Kabupaten/Kota': 'Kabupaten Cilacap',
+            ttd_real: 500,
+            ttd_sasaran: 1000,
+          },
+        ],
+        columns: ['Kabupaten/Kota', 'ttd_real', 'ttd_sasaran'],
+      });
+
+      const cat1 = component.categories()[0];
+      component.workflowEngine.addSubCategory(cat1.id, {
+        name: 'Rematri TTD',
+        numeratorCol: 'ttd_real',
+        denominatorCol: 'ttd_sasaran',
+        targetCurrentYear: 80,
+        polarity: 'positive',
+      });
+
+      component.goToStep(3);
+      fixture.detectChanges();
+
+      // Initially province
+      expect(component.selectedScope()).toBe('province');
+      expect(component.selectedScopeLabel()).toBe('PROVINSI JAWA TENGAH (Agregat)');
+      expect(component.filteredGroupedRows().length).toBeGreaterThan(0);
+
+      // Select Banyumas
+      component.setSelectedScope('row-1');
+      fixture.detectChanges();
+
+      expect(component.selectedScope()).toBe('row-1');
+      expect(component.selectedScopeLabel()).toBe('Kabupaten Banyumas');
+      const banyumasRows = component.filteredGroupedRows();
+      expect(banyumasRows[0].rows[0].activeActual).toBe(85);
+      expect(banyumasRows[0].rows[0].status).toBe('on_track');
+      expect(component.onTrackCount()).toBe(1);
+      expect(component.perluPercepatanCount()).toBe(0);
+
+      // Select Cilacap
+      component.setSelectedScope('row-2');
+      fixture.detectChanges();
+
+      expect(component.selectedScope()).toBe('row-2');
+      expect(component.selectedScopeLabel()).toBe('Kabupaten Cilacap');
+      const cilacapRows = component.filteredGroupedRows();
+      expect(cilacapRows[0].rows[0].activeActual).toBe(50);
+      expect(cilacapRows[0].rows[0].status).toBe('perlu_percepatan');
+      expect(component.onTrackCount()).toBe(0);
+      expect(component.perluPercepatanCount()).toBe(1);
+
+      // Reset to Province
+      component.setSelectedScope('province');
+      fixture.detectChanges();
+      expect(component.selectedScope()).toBe('province');
+      expect(component.selectedScopeLabel()).toBe('PROVINSI JAWA TENGAH (Agregat)');
+    });
   });
 });
 

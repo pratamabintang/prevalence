@@ -414,5 +414,117 @@ describe('StuntingWorkflowEngine', () => {
       expect(engine.activeRegionalDrilldownScorecard()?.regionName).toBe('Banyumas');
       expect(engine.activeRegionalDrilldownScorecard()?.summary.onTrackCount).toBe(1);
     });
+
+    it('should compute activeDisplayScorecard and switch between provincial aggregate and individual regency table', () => {
+      engine.setJoinedDataset({
+        rows: [
+          {
+            __id: 'row-0',
+            'Kabupaten/Kota': 'Cilacap',
+            'Sasaran K4': 100,
+            'Realisasi K4': 50, // 50% -> perlu percepatan
+          },
+          {
+            __id: 'row-1',
+            'Kabupaten/Kota': 'Banyumas',
+            'Sasaran K4': 100,
+            'Realisasi K4': 95, // 95% -> on track
+          },
+        ],
+        columns: ['Kabupaten/Kota', 'Sasaran K4', 'Realisasi K4'],
+      });
+
+      const cat1 = engine.categories()[0];
+      engine.addSubCategory(cat1.id, {
+        name: 'Cakupan K4',
+        numeratorCol: 'Realisasi K4',
+        denominatorCol: 'Sasaran K4',
+        targetCurrentYear: 90,
+      });
+
+      // Default scope is 'province'
+      expect(engine.selectedScope()).toBe('province');
+      expect(engine.selectedScopeLabel()).toBe('PROVINSI JAWA TENGAH (Agregat)');
+      const provScorecard = engine.activeDisplayScorecard();
+      expect(provScorecard).toBeDefined();
+      // Provincial aggregate: total realisasi = 145, total sasaran = 200 -> 72.5% -> perlu percepatan
+      expect(provScorecard?.rows[0].activeActual).toBe(72.5);
+
+      // Switch scope to Banyumas
+      engine.setSelectedScope('row-1');
+      expect(engine.selectedScope()).toBe('row-1');
+      expect(engine.selectedScopeLabel()).toBe('Banyumas');
+      const banyumasScorecard = engine.activeDisplayScorecard();
+      expect(banyumasScorecard).toBeDefined();
+      expect(banyumasScorecard?.rows[0].activeActual).toBe(95);
+      expect(banyumasScorecard?.rows[0].status).toBe('on_track');
+      expect(engine.onTrackCount()).toBe(1);
+      expect(engine.perluPercepatanCount()).toBe(0);
+
+      // Switch scope to Cilacap
+      engine.setSelectedScope('row-0');
+      expect(engine.selectedScope()).toBe('row-0');
+      expect(engine.selectedScopeLabel()).toBe('Cilacap');
+      const cilacapScorecard = engine.activeDisplayScorecard();
+      expect(cilacapScorecard).toBeDefined();
+      expect(cilacapScorecard?.rows[0].activeActual).toBe(50);
+      expect(cilacapScorecard?.rows[0].status).toBe('perlu_percepatan');
+      expect(engine.onTrackCount()).toBe(0);
+      expect(engine.perluPercepatanCount()).toBe(1);
+
+      // Switch back to province
+      engine.setSelectedScope('province');
+      expect(engine.selectedScopeLabel()).toBe('PROVINSI JAWA TENGAH (Agregat)');
+      expect(engine.activeDisplayScorecard()?.rows[0].activeActual).toBe(72.5);
+    });
+
+    it('should evaluate activeRegionRows when calculationDataSource is summary_row', () => {
+      engine.setJoinedDataset({
+        rows: [
+          {
+            __id: 'row-0',
+            'Kabupaten/Kota': 'Cilacap',
+            'Sasaran K4': 100,
+            'Realisasi K4': 50,
+          },
+          {
+            __id: 'row-1',
+            'Kabupaten/Kota': 'Banyumas',
+            'Sasaran K4': 100,
+            'Realisasi K4': 95,
+          },
+          {
+            __id: 'row-summary',
+            'Kabupaten/Kota': 'Rata-rata',
+            'Sasaran K4': 100,
+            'Realisasi K4': 72.5,
+          },
+        ],
+        columns: ['Kabupaten/Kota', 'Sasaran K4', 'Realisasi K4'],
+      });
+
+      // The engine automatically detects 'Rata-rata' as summary row and sets calculationDataSource to 'summary_row'
+      expect(engine.calculationDataSource()).toBe('summary_row');
+      expect(engine.summaryRowData()).toBeDefined();
+
+      const cat1 = engine.categories()[0];
+      engine.addSubCategory(cat1.id, {
+        name: 'Cakupan K4',
+        numeratorCol: 'Realisasi K4',
+        denominatorCol: 'Sasaran K4',
+        targetCurrentYear: 90,
+      });
+
+      // validJoinedRows for province uses summary row
+      expect(engine.validJoinedRows().length).toBe(1);
+
+      // activeRegionRows retains the 2 real regency rows
+      expect(engine.activeRegionRows().length).toBe(2);
+
+      // regionalScorecards must evaluate both regencies, NOT just the 1 summary row!
+      const regional = engine.regionalScorecards();
+      expect(regional.length).toBe(2);
+      expect(regional.map((r) => r.regionName).sort()).toEqual(['Banyumas', 'Cilacap']);
+    });
   });
 });
