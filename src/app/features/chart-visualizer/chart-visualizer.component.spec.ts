@@ -1883,5 +1883,62 @@ describe('ChartVisualizerComponent', () => {
       expect(compiled.textContent).toContain('2025 TW4');
       expect(compiled.textContent).toContain('26 / 35');
     });
+
+    it('should switch viewMode to overview and compute diverging bars and district leaderboard', () => {
+      component.dataSource.set('join');
+      component.categoryColumn.set('Kabupaten');
+      component.dataRows.set([
+        { Kabupaten: 'Kabupaten Cilacap', 'Stunting %': 12.0, 'Anemia %': 15.0 },
+        { Kabupaten: 'Kabupaten Banyumas', 'Stunting %': 16.5, 'Anemia %': 22.0 },
+        { Kabupaten: 'Kota Semarang', 'Stunting %': 8.5, 'Anemia %': 10.0 },
+        { Kabupaten: 'Rata-rata Jawa Tengah', 'Stunting %': 13.0, 'Anemia %': 16.0 },
+      ]);
+      component.selectedCategories.set([
+        'Kabupaten Cilacap',
+        'Kabupaten Banyumas',
+        'Kota Semarang',
+        'Rata-rata Jawa Tengah',
+      ]);
+      component.seriesList.set([
+        { key: 'Stunting %', label: 'Stunting %', color: '#dc2626' },
+        { key: 'Anemia %', label: 'Anemia %', color: '#ea580c' },
+      ]);
+      component.selectedSeriesKeys.set(['Stunting %', 'Anemia %']);
+      component.indicatorTargets.set({
+        'Stunting %': 14.0,
+        'Anemia %': 18.0,
+      });
+      component.indicatorTargetOperators.set({
+        'Stunting %': '<=',
+        'Anemia %': '<=',
+      });
+
+      component.setViewMode('overview');
+      fixture.detectChanges();
+
+      expect(component.viewMode()).toBe('overview');
+
+      const diverging = component.overviewDivergingResult();
+      expect(diverging).not.toBeNull();
+      expect(diverging?.totalTargeted).toBe(2);
+      expect(diverging?.items.length).toBe(2);
+
+      const leaderboard = component.overviewDistrictLeaderboard();
+      expect(leaderboard.totalDistricts).toBe(3); // excludes Rata-rata Jawa Tengah
+      expect(leaderboard.top5.length).toBe(3);
+      expect(leaderboard.top5[0].name).toBe('Kota Semarang');
+
+      // Diverging filter controls
+      component.setDivergingFilterMode('deficit-only');
+      expect(component.divergingFilterMode()).toBe('deficit-only');
+
+      // Diverging sort controls
+      component.setDivergingSortMode('achieved-first');
+      expect(component.divergingSortMode()).toBe('achieved-first');
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('[data-testid="overview-panel"]')).toBeTruthy();
+      expect(compiled.textContent).toContain('Analisis Kesenjangan Kinerja terhadap Target');
+    });
   });
 });

@@ -788,6 +788,30 @@
             <div
               class="inline-flex rounded-lg border border-[#6D8BC0]/30 bg-[#F2F5FA] p-0.5 text-xs font-semibold"
             >
+              <!-- 0. MODE OVERVIEW DASHBOARD -->
+              <button
+                type="button"
+                data-testid="tab-overview"
+                (click)="setViewMode('overview')"
+                class="flex items-center gap-1.5 rounded-md px-3 py-1.5 transition cursor-pointer"
+                [class.bg-white]="viewMode() === 'overview'"
+                [class.text-[#525AFF]]="viewMode() === 'overview'"
+                [class.shadow-xs]="viewMode() === 'overview'"
+                [class.text-slate-600]="viewMode() !== 'overview'"
+                [class.hover:text-[#525AFF]]="viewMode() !== 'overview'"
+                title="Ringkasan Eksekutif: KPI Utama, Diverging Bar Chart (Gap Target), Peta Ringkas, dan Leaderboard Daerah"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                  />
+                </svg>
+                <span class="font-bold">Overview</span>
+              </button>
+
               <button
                 type="button"
                 (click)="setViewMode('by-region')"
@@ -1310,7 +1334,35 @@
 
             <!-- KONTROL URUTAN WILAYAH & GRAFIK PER BARIS DALAM FILTER BAR -->
             <div class="flex flex-wrap items-center gap-3 shrink-0">
-              @if (viewMode() === 'by-region') {
+              @if (viewMode() === 'overview') {
+                <!-- FILTER STATUS GAP TARGET -->
+                <div class="flex items-center gap-1.5">
+                  <label class="text-xs text-slate-500 font-medium shrink-0">Status Target:</label>
+                  <select
+                    [value]="divergingFilterMode()"
+                    (change)="setDivergingFilterMode($any($event.target).value)"
+                    class="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:border-[#525AFF] focus:outline-none focus:ring-1 focus:ring-[#525AFF] cursor-pointer shadow-2xs"
+                  >
+                    <option value="all">Semua Indikator</option>
+                    <option value="deficit-only">Hanya Defisit (Kritis)</option>
+                    <option value="achieved-only">Hanya Tercapai</option>
+                  </select>
+                </div>
+
+                <!-- SELECT URUTAN GAP -->
+                <div class="flex items-center gap-1.5">
+                  <label class="text-xs text-slate-500 font-medium shrink-0">Urutan Analisis:</label>
+                  <select
+                    [value]="divergingSortMode()"
+                    (change)="setDivergingSortMode($any($event.target).value)"
+                    class="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:border-[#525AFF] focus:outline-none focus:ring-1 focus:ring-[#525AFF] cursor-pointer shadow-2xs"
+                  >
+                    <option value="deficit-first">Defisit Terbesar (Urgent First)</option>
+                    <option value="achieved-first">Capaian Terbaik First</option>
+                    <option value="default">Urutan Asli Kolom</option>
+                  </select>
+                </div>
+              } @else if (viewMode() === 'by-region') {
                 <!-- SELECT URUTAN WILAYAH -->
                 <div class="flex items-center gap-1.5">
                   <label
@@ -1479,6 +1531,455 @@
             >
               Pilih Semua Baris
             </button>
+          </div>
+        } @else if (viewMode() === 'overview') {
+          <!-- ============================================================ -->
+          <!-- 3.0 MODE OVERVIEW: EXECUTIVE COMMAND CENTER & GAP ANALYSIS   -->
+          <!-- ============================================================ -->
+          <div class="space-y-6" data-testid="overview-panel">
+            @if (overviewDivergingResult(); as divRes) {
+              @let lead = overviewDistrictLeaderboard();
+
+              <!-- 1. EXECUTIVE KPI SUMMARY CARDS -->
+              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <!-- KPI 1: RASIO PENCAPAIAN TARGET -->
+                <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs font-medium text-slate-500">Pencapaian Target</span>
+                    <span
+                      class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold"
+                      [class.bg-emerald-100]="divRes.overallAchievementRate >= 70"
+                      [class.text-emerald-800]="divRes.overallAchievementRate >= 70"
+                      [class.bg-amber-100]="divRes.overallAchievementRate < 70 && divRes.overallAchievementRate >= 50"
+                      [class.text-amber-800]="divRes.overallAchievementRate < 70 && divRes.overallAchievementRate >= 50"
+                      [class.bg-rose-100]="divRes.overallAchievementRate < 50"
+                      [class.text-rose-800]="divRes.overallAchievementRate < 50"
+                    >
+                      {{ divRes.overallAchievementRate }}%
+                    </span>
+                  </div>
+                  <div class="mt-2 flex items-baseline gap-1.5">
+                    <span class="text-2xl font-black font-mono text-slate-900">
+                      {{ divRes.achievedCount }}
+                    </span>
+                    <span class="text-xs text-slate-500">
+                      / {{ divRes.totalTargeted }} Indikator Tercapai
+                    </span>
+                  </div>
+                  <div class="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      class="h-full rounded-full transition-all duration-300"
+                      [class.bg-emerald-500]="divRes.overallAchievementRate >= 70"
+                      [class.bg-amber-500]="divRes.overallAchievementRate < 70 && divRes.overallAchievementRate >= 50"
+                      [class.bg-rose-500]="divRes.overallAchievementRate < 50"
+                      [style.width.%]="divRes.overallAchievementRate"
+                    ></div>
+                  </div>
+                </div>
+
+                <!-- KPI 2: KINERJA MELAMPAUI TARGET TERTINGGI (TOP PERFORMER) -->
+                <div class="rounded-xl border border-emerald-200/80 bg-emerald-50/30 p-4 shadow-2xs">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-emerald-800">Capaian Terbaik (Top Margin)</span>
+                    <span class="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">
+                      +{{ divRes.topPerformer?.performanceGap ?? 0 }}%
+                    </span>
+                  </div>
+                  <div class="mt-2">
+                    <p class="truncate text-sm font-bold text-slate-900" [title]="divRes.topPerformer?.label || '-'">
+                      {{ divRes.topPerformer?.label || '-' }}
+                    </p>
+                    <p class="mt-0.5 text-xs font-mono text-emerald-700">
+                      Realisasi: <strong>{{ divRes.topPerformer?.actualValue ?? '-' }}%</strong> vs Target {{ divRes.topPerformer?.targetOperator }} {{ divRes.topPerformer?.targetValue ?? '-' }}%
+                    </p>
+                  </div>
+                </div>
+
+                <!-- KPI 3: INDIKATOR PALING KRITIS / DEFISIT TERBESAR -->
+                <div class="rounded-xl border border-rose-200/80 bg-rose-50/30 p-4 shadow-2xs">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-rose-800">Perlu Akselerasi (Gap Terbesar)</span>
+                    <span class="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-800">
+                      {{ divRes.mostCriticalDeficit?.performanceGap ?? 0 }}%
+                    </span>
+                  </div>
+                  <div class="mt-2">
+                    <p class="truncate text-sm font-bold text-slate-900" [title]="divRes.mostCriticalDeficit?.label || '-'">
+                      {{ divRes.mostCriticalDeficit?.label || 'Seluruh Target Terpenuhi' }}
+                    </p>
+                    <p class="mt-0.5 text-xs font-mono text-rose-700">
+                      @if (divRes.mostCriticalDeficit) {
+                        Realisasi: <strong>{{ divRes.mostCriticalDeficit.actualValue }}%</strong> vs Target {{ divRes.mostCriticalDeficit.targetOperator }} {{ divRes.mostCriticalDeficit.targetValue }}%
+                      } @else {
+                        Semua indikator on track
+                      }
+                    </p>
+                  </div>
+                </div>
+
+                <!-- KPI 4: CAKUPAN OBSERVASI WILAYAH -->
+                <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs font-medium text-slate-500">Cakupan Wilayah</span>
+                    <span class="rounded bg-[#EEF0FF] px-1.5 py-0.5 text-[10px] font-bold text-[#525AFF]">
+                      Jawa Tengah
+                    </span>
+                  </div>
+                  <div class="mt-2 flex items-baseline gap-1.5">
+                    <span class="text-2xl font-black font-mono text-slate-900">
+                      {{ lead.totalDistricts }}
+                    </span>
+                    <span class="text-xs text-slate-500">Kabupaten & Kota Terdata</span>
+                  </div>
+                  <p class="mt-1 text-[11px] text-slate-400 truncate">
+                    Data tingkat provinsi & agregat wilayah aktif
+                  </p>
+                </div>
+              </div>
+
+              <!-- 2. DIVERGING BAR CHART (GAP-TO-TARGET PERFORMANCE ANALYSIS) -->
+              <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4">
+                  <div>
+                    <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                      <span>Analisis Kesenjangan Kinerja terhadap Target</span>
+                      <span class="text-xs font-normal text-slate-500">(Diverging Gap Chart)</span>
+                    </h3>
+                    <p class="text-xs text-slate-500 mt-0.5">
+                      Garis tengah <strong>0%</strong> merepresentasikan ambang batas target. Batang ke <strong>kanan (hijau)</strong> berarti memenuhi/melampaui target, batang ke <strong>kiri (merah)</strong> berarti defisit kinerja.
+                    </p>
+                  </div>
+
+                  <!-- LEGENDA GRAFIK DIVERGING -->
+                  <div class="flex items-center gap-4 text-xs font-medium shrink-0">
+                    <div class="flex items-center gap-1.5">
+                      <span class="h-3 w-3 rounded-xs bg-[#16a34a]"></span>
+                      <span class="text-slate-700">Tercapai / Menguntungkan (+)</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                      <span class="h-3 w-3 rounded-xs bg-[#dc2626]"></span>
+                      <span class="text-slate-700">Defisit / Perlu Perhatian (-)</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- SVG DIVERGING CHART CONTAINER -->
+                <div class="mt-4 overflow-x-auto">
+                  <div class="min-w-[760px]">
+                    <svg
+                      [attr.viewBox]="'0 0 ' + divRes.viewBoxWidth + ' ' + divRes.viewBoxHeight"
+                      class="w-full h-auto select-none font-sans"
+                    >
+                      <!-- GRIDLINES VERTIKAL & TICKS -->
+                      @for (tick of divRes.gridTicks; track tick.value) {
+                        @let isZero = tick.value === 0;
+                        <g>
+                          <line
+                            [attr.x1]="tick.x"
+                            [attr.y1]="25"
+                            [attr.x2]="tick.x"
+                            [attr.y2]="divRes.viewBoxHeight - 25"
+                            [attr.stroke]="isZero ? '#0f172a' : '#e2e8f0'"
+                            [attr.stroke-width]="isZero ? '1.5' : '1'"
+                            [attr.stroke-dasharray]="isZero ? 'none' : '3,3'"
+                          />
+                          <!-- Label Tick Atas & Bawah -->
+                          <text
+                            [attr.x]="tick.x"
+                            y="18"
+                            text-anchor="middle"
+                            class="text-[10px] font-mono"
+                            [attr.fill]="isZero ? '#0f172a' : '#64748b'"
+                            [attr.font-weight]="isZero ? 'bold' : 'normal'"
+                          >
+                            {{ isZero ? 'Target (0%)' : tick.label }}
+                          </text>
+                          <text
+                            [attr.x]="tick.x"
+                            [attr.y]="divRes.viewBoxHeight - 10"
+                            text-anchor="middle"
+                            class="text-[10px] font-mono"
+                            [attr.fill]="isZero ? '#0f172a' : '#94a3b8'"
+                            [attr.font-weight]="isZero ? 'bold' : 'normal'"
+                          >
+                            {{ tick.label }}
+                          </text>
+                        </g>
+                      }
+
+                      <!-- DIVERGING BARS PER INDIKATOR -->
+                      @for (item of divRes.items; track item.key) {
+                        @let isHovered = hoveredDivergingBar()?.key === item.key;
+                        <g
+                          class="cursor-pointer group"
+                          (mouseenter)="hoveredDivergingBar.set(item)"
+                          (mouseleave)="hoveredDivergingBar.set(null)"
+                        >
+                          <!-- Background Highlight Bar Row saat Hover -->
+                          <rect
+                            [attr.x]="divRes.plotX"
+                            [attr.y]="item.y - 18"
+                            [attr.width]="divRes.plotWidth"
+                            height="38"
+                            rx="6"
+                            fill="#f8fafc"
+                            class="opacity-0 group-hover:opacity-100 transition-opacity"
+                          />
+
+                          <!-- LABEL NAMA INDIKATOR PADA SUMBU Y (KIRI) -->
+                          <text
+                            [attr.x]="divRes.plotX - 12"
+                            [attr.y]="item.y - 4"
+                            text-anchor="end"
+                            class="text-xs font-semibold transition-colors"
+                            [attr.fill]="isHovered ? '#4348E6' : '#1e293b'"
+                          >
+                            {{ item.label }}
+                          </text>
+
+                          <!-- SUBTITLE TARGET & REALISASI -->
+                          <text
+                            [attr.x]="divRes.plotX - 12"
+                            [attr.y]="item.y + 11"
+                            text-anchor="end"
+                            class="text-[10px] font-mono fill-slate-500"
+                          >
+                            Target: {{ item.targetOperator }} {{ item.targetValue }}% | Realisasi: {{ item.actualValue }}%
+                          </text>
+
+                          <!-- BATANG DIVERGING (RECT) -->
+                          <rect
+                            [attr.x]="item.barX"
+                            [attr.y]="item.y - 12"
+                            [attr.width]="item.barWidth"
+                            height="24"
+                            rx="4"
+                            [attr.fill]="item.color"
+                            [attr.opacity]="isHovered ? '1' : '0.9'"
+                            class="transition-all duration-150"
+                          />
+
+                          <!-- LABEL ANGKA GAP PADA UJUNG BATANG -->
+                          <text
+                            [attr.x]="item.isPositive ? item.barX + item.barWidth + 8 : item.barX - 8"
+                            [attr.y]="item.y + 4"
+                            [attr.text-anchor]="item.isPositive ? 'start' : 'end'"
+                            class="text-xs font-bold font-mono"
+                            [attr.fill]="item.color"
+                          >
+                            {{ item.isPositive ? '+' : '' }}{{ item.performanceGap }}%
+                          </text>
+                        </g>
+                      }
+                    </svg>
+                  </div>
+                </div>
+
+                <!-- FLOATING HOVER CARD FOR DIVERGING BAR -->
+                @if (hoveredDivergingBar(); as hBar) {
+                  <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 flex flex-wrap items-center justify-between gap-3 text-xs animate-fadeIn">
+                    <div class="flex items-center gap-2">
+                      <span
+                        class="h-3 w-3 rounded-full shrink-0"
+                        [style.background]="hBar.color"
+                      ></span>
+                      <div>
+                        <strong class="text-slate-900">{{ hBar.label }}</strong>
+                        <span class="text-slate-500 ml-1.5 font-mono">
+                          (Target: {{ hBar.targetOperator }} {{ hBar.targetValue }}% | Rata-rata Jateng: {{ hBar.actualValue }}%)
+                        </span>
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <span
+                        class="rounded px-2 py-0.5 font-bold font-mono text-[11px]"
+                        [class.bg-emerald-100]="hBar.isAchieved"
+                        [class.text-emerald-800]="hBar.isAchieved"
+                        [class.bg-rose-100]="!hBar.isAchieved"
+                        [class.text-rose-800]="!hBar.isAchieved"
+                      >
+                        {{ hBar.statusText }}
+                      </span>
+                    </div>
+                  </div>
+                }
+              </div>
+
+              <!-- 3. DUAL COLUMN: SPATIAL MAP PREVIEW & REGIONAL LEADERBOARD -->
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                <!-- KOLOM KIRI: PETA SPASIAL RINGKAS JAWA TENGAH -->
+                <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col justify-between">
+                  <div>
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
+                      <div>
+                        <h4 class="text-sm font-bold text-slate-900">Sebaran Spasial Jawa Tengah</h4>
+                        <p class="text-xs text-slate-500">Peta sebaran 35 Kabupaten & Kota</p>
+                      </div>
+                      <button
+                        type="button"
+                        (click)="setViewMode('by-map')"
+                        class="text-xs font-semibold text-[#525AFF] hover:underline inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>Lihat Peta Penuh</span>
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                      </button>
+                    </div>
+
+                    <!-- SELECTOR INDIKATOR PETA CEPAT -->
+                    <div class="mb-3">
+                      <label class="block text-xs font-medium text-slate-600 mb-1">Pilih Indikator Peta:</label>
+                      <select
+                        [value]="activeMapIndicator()"
+                        (change)="setActiveMapIndicator($any($event.target).value)"
+                        class="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:border-[#525AFF] focus:outline-none focus:ring-1 focus:ring-[#525AFF] cursor-pointer"
+                      >
+                        @for (s of seriesList(); track s.key) {
+                          <option [value]="s.key">{{ s.label }}</option>
+                        }
+                      </select>
+                    </div>
+
+                    <!-- MINI SVG MAP PREVIEW -->
+                    @if (mapHeatmapResult(); as mRes) {
+                      <div class="rounded-xl border border-slate-200 bg-slate-50/60 p-2 overflow-hidden relative">
+                        <svg
+                          viewBox="0 0 800 480"
+                          class="w-full h-auto max-h-[300px] select-none"
+                        >
+                          @for (nbr of neighborProvinces; track nbr.name) {
+                            <path
+                              [attr.d]="nbr.pathD"
+                              fill="#f1f5f9"
+                              stroke="#cbd5e1"
+                              stroke-width="1"
+                              stroke-dasharray="3,3"
+                            />
+                          }
+                          @for (item of mRes.items; track item.district.id) {
+                            @let isHov = hoveredMapDistrict()?.district?.id === item.district.id;
+                            <path
+                              [attr.d]="item.district.pathD"
+                              [attr.fill]="item.fillColor"
+                              [attr.stroke]="isHov ? '#0f172a' : item.strokeColor"
+                              [attr.stroke-width]="isHov ? '2' : '0.7'"
+                              class="cursor-pointer transition-colors"
+                              (mouseenter)="hoveredMapDistrict.set(item)"
+                              (mouseleave)="hoveredMapDistrict.set(null)"
+                            />
+                          }
+                        </svg>
+
+                        <!-- MINI STATUS HOVER -->
+                        @if (hoveredMapDistrict(); as hov) {
+                          <div class="absolute bottom-2 left-2 right-2 rounded-lg bg-white/95 backdrop-blur-xs border border-slate-300 px-3 py-1.5 text-xs flex items-center justify-between shadow-xs">
+                            <span class="font-bold text-slate-900">{{ hov.displayName }}</span>
+                            <span class="font-mono font-bold text-slate-800">
+                              {{ hov.formattedValue }}
+                              <span
+                                class="ml-1 text-[10px] font-semibold"
+                                [class.text-emerald-700]="hov.status === 'achieved'"
+                                [class.text-rose-700]="hov.status === 'unachieved'"
+                              >
+                                ({{ hov.status === 'achieved' ? 'OK' : 'Belum Capai' }})
+                              </span>
+                            </span>
+                          </div>
+                        }
+                      </div>
+
+                      <!-- MINI LEGENDA STATUS -->
+                      <div class="mt-2.5 flex items-center justify-between text-[11px] text-slate-500">
+                        <span>Tercapai: <strong>{{ mRes.stats.achievedCount }}</strong> / {{ mRes.stats.validCount }} Kab/Kota</span>
+                        <div class="flex items-center gap-2">
+                          <span class="inline-block w-2.5 h-2.5 rounded-full bg-[#16a34a]"></span>
+                          <span>Capai</span>
+                          <span class="inline-block w-2.5 h-2.5 rounded-full bg-[#dc2626]"></span>
+                          <span>Belum</span>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </div>
+
+                <!-- KOLOM KANAN: LEADERBOARD KINERJA DAERAH (TOP 5 VS PRIORITAS PENDAMPINGAN) -->
+                <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
+                  <div class="border-b border-slate-100 pb-3 mb-3">
+                    <h4 class="text-sm font-bold text-slate-900">Urgensi & Leaderboard Wilayah</h4>
+                    <p class="text-xs text-slate-500">Pemetaan 5 daerah berkinerja terbaik vs 5 daerah prioritas pendampingan</p>
+                  </div>
+
+                  <div class="space-y-4">
+                    <!-- 5 WILAYAH TERBAIK -->
+                    <div>
+                      <h5 class="text-xs font-bold text-emerald-800 flex items-center gap-1.5 mb-2">
+                        <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        <span>Top 5 Wilayah Berkinerja Terbaik</span>
+                      </h5>
+                      <div class="space-y-1.5">
+                        @for (item of lead.top5; track item.name) {
+                          <div class="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg bg-emerald-50/50 border border-emerald-100">
+                            <div class="flex items-center gap-2 truncate">
+                              <span class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-200 text-emerald-900 text-[10px] font-bold">
+                                {{ $index + 1 }}
+                              </span>
+                              <span class="font-medium text-slate-900 truncate">{{ item.name }}</span>
+                            </div>
+                            <div class="flex items-center gap-2 shrink-0 font-mono text-emerald-800 font-bold">
+                              <span>{{ item.achievedCount }}/{{ item.validCount }} Tercapai</span>
+                              <span class="text-[10px] text-emerald-600">({{ item.rate }}%)</span>
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    </div>
+
+                    <!-- 5 WILAYAH PRIORITAS PENDAMPINGAN -->
+                    <div>
+                      <h5 class="text-xs font-bold text-rose-800 flex items-center gap-1.5 mb-2">
+                        <svg class="w-3.5 h-3.5 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                        <span>5 Wilayah Prioritas Pendampingan (Defisit Terbanyak)</span>
+                      </h5>
+                      <div class="space-y-1.5">
+                        @for (item of lead.bottom5; track item.name) {
+                          <div class="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg bg-rose-50/50 border border-rose-100">
+                            <div class="flex items-center gap-2 truncate">
+                              <span class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-rose-200 text-rose-900 text-[10px] font-bold">
+                                {{ $index + 1 }}
+                              </span>
+                              <span class="font-medium text-slate-900 truncate">{{ item.name }}</span>
+                            </div>
+                            <div class="flex items-center gap-2 shrink-0 font-mono text-rose-800 font-bold">
+                              <span>{{ item.achievedCount }}/{{ item.validCount }} Tercapai</span>
+                              <span class="text-[10px] text-rose-600">({{ item.rate }}%)</span>
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 4. REKOMENDASI KEBIJAKAN & AKSI CEPAT (ACTIONABLE BRIEF) -->
+              <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-xs text-slate-700">
+                <div class="flex items-center gap-2 font-bold text-slate-900 mb-1.5">
+                  <svg class="w-4 h-4 text-[#525AFF]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  <span>Ringkasan Eksekutif &amp; Rekomendasi Program</span>
+                </div>
+                <p class="leading-relaxed text-slate-600">
+                  @if (divRes.mostCriticalDeficit) {
+                    Berdasarkan evaluasi gap-to-target lintas wilayah, prioritas intervensi utama perlu difokuskan pada <strong>{{ divRes.mostCriticalDeficit.label }}</strong> dengan kesenjangan <strong>{{ divRes.mostCriticalDeficit.performanceGap }}%</strong> terhadap target. Diperlukan supervisi terarah bagi 5 kabupaten/kota pada daftar prioritas pendampingan di atas untuk mempercepat penurunan angka defisit indikator.
+                  } @else {
+                    Seluruh indikator program berada dalam batas target yang ditetapkan. Fokus operasional dapat dialihkan pada pemeliharaan kesinambungan mutu layanan posyandu dan fasilitas kesehatan di seluruh 35 kabupaten/kota.
+                  }
+                </p>
+              </div>
+            } @else {
+              <div class="py-12 text-center">
+                <h3 class="text-base font-bold text-slate-700">Memuat Data Overview...</h3>
+                <p class="mt-1 text-xs text-slate-500">Pastikan data hasil join atau file Excel telah berhasil dimuat.</p>
+              </div>
+            }
           </div>
         } @else if (viewMode() === 'by-region') {
           <!-- AKSI GRAFIK WILAYAH: TARGET PER INDIKATOR & UNDUH SVG/PNG -->

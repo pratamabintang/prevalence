@@ -41,6 +41,11 @@ import {
 } from '../../core/chart/indicator-stunting-knowledge';
 import { IndicatorEvaluator } from '../../core/evaluation/indicator-evaluator';
 import {
+  DivergingBarEngine,
+  DivergingBarItem,
+  DivergingBarResult,
+} from '../../core/chart/diverging-bar-engine';
+import {
   ChartSlicingEngine,
   IndicatorChartGroup,
   IndicatorStats,
@@ -188,8 +193,120 @@ export class ChartVisualizerComponent {
   originalDataRows = signal<ChartDataRow[]>([]);
   targetValue = signal<number | null>(null);
 
-  // Mode Tampilan: 'by-region' | 'by-indicator' | 'by-map' | 'by-correlation' | 'by-quadrant' | 'by-trends'
-  viewMode = signal<'by-region' | 'by-indicator' | 'by-map' | 'by-correlation' | 'by-quadrant' | 'by-trends'>('by-region');
+  // Mode Tampilan: 'overview' | 'by-region' | 'by-indicator' | 'by-map' | 'by-correlation' | 'by-quadrant' | 'by-trends'
+  viewMode = signal<
+    | 'overview'
+    | 'by-region'
+    | 'by-indicator'
+    | 'by-map'
+    | 'by-correlation'
+    | 'by-quadrant'
+    | 'by-trends'
+  >('by-region');
+
+  // ============================================================
+  // MODE 0: OVERVIEW DASHBOARD & DIVERGING BAR CHART (GAP-TO-TARGET)
+  // ============================================================
+  divergingSortMode = signal<'deficit-first' | 'achieved-first' | 'default'>('deficit-first');
+  divergingFilterMode = signal<'all' | 'deficit-only' | 'achieved-only'>('all');
+  hoveredDivergingBar = signal<DivergingBarItem | null>(null);
+
+  setDivergingSortMode(mode: 'deficit-first' | 'achieved-first' | 'default'): void {
+    this.divergingSortMode.set(mode);
+  }
+
+  setDivergingFilterMode(mode: 'all' | 'deficit-only' | 'achieved-only'): void {
+    this.divergingFilterMode.set(mode);
+  }
+
+  overviewDivergingResult = computed<DivergingBarResult | null>(() => {
+    const series = this.filteredChartSeries();
+    const rows = this.dataRows();
+    const catCol = this.categoryColumn();
+    if (series.length === 0 || rows.length === 0 || !catCol) return null;
+
+    return DivergingBarEngine.computeDivergingBars({
+      seriesList: series,
+      rows,
+      categoryColumn: catCol,
+      indicatorTargets: this.indicatorTargets(),
+      indicatorTargetOperators: this.indicatorTargetOperators(),
+      defaultTarget: this.targetValue(),
+      defaultOperator: this.targetOperator(),
+      sortMode: this.divergingSortMode(),
+      filterMode: this.divergingFilterMode(),
+      width: 860,
+      rowHeight: 46,
+      margin: { top: 35, right: 90, bottom: 35, left: 260 },
+    });
+  });
+
+  overviewDistrictLeaderboard = computed(() => {
+    const rows = this.dataRows();
+    const catCol = this.categoryColumn();
+    const series = this.filteredChartSeries();
+    const targets = this.indicatorTargets();
+    const ops = this.indicatorTargetOperators();
+    const defaultTgt = this.targetValue() ?? 50;
+    const defaultOp = this.targetOperator() || '>=';
+
+    if (rows.length === 0 || series.length === 0 || !catCol) {
+      return { top5: [], bottom5: [], totalDistricts: 0 };
+    }
+
+    const ranked = rows
+      .map((r) => {
+        const rawName = String(r[catCol] ?? '').trim();
+        if (!rawName) return null;
+        const lower = rawName.toLowerCase();
+        if (
+          lower.includes('total') ||
+          lower.includes('rata-rata') ||
+          lower.includes('target') ||
+          lower === 'provinsi'
+        ) {
+          return null;
+        }
+
+        let achievedCount = 0;
+        let validCount = 0;
+        let sumScore = 0;
+
+        for (const s of series) {
+          const num = IndicatorEvaluator.parseSmartNumber(r[s.key]);
+          if (num === null) continue;
+          validCount++;
+
+          const tgt = targets[s.key] ?? targets[s.label] ?? defaultTgt;
+          const op = ops[s.key] ?? ops[s.label] ?? defaultOp;
+
+          const isAchieved = op === '<=' ? num <= tgt : num >= tgt;
+          if (isAchieved) achievedCount++;
+
+          const gap = op === '<=' ? tgt - num : num - tgt;
+          sumScore += gap;
+        }
+
+        const rate = validCount > 0 ? Math.round((achievedCount / validCount) * 1000) / 10 : 0;
+        const avgGap = validCount > 0 ? Math.round((sumScore / validCount) * 10) / 10 : 0;
+
+        return {
+          name: rawName,
+          achievedCount,
+          validCount,
+          rate,
+          avgGap,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
+
+    ranked.sort((a, b) => b.rate - a.rate || b.avgGap - a.avgGap);
+
+    const top5 = ranked.slice(0, 5);
+    const bottom5 = [...ranked].reverse().slice(0, 5);
+
+    return { top5, bottom5, totalDistricts: ranked.length };
+  });
 
   // ============================================================
   // MODE 6: TREN LINTAS PERIODE (SERVER SQLITE ANALYTICS)
@@ -496,6 +613,7 @@ export class ChartVisualizerComponent {
 
   setViewMode(
     mode:
+      | 'overview'
       | 'by-region'
       | 'by-indicator'
       | 'by-map'

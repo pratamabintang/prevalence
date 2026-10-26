@@ -10,7 +10,7 @@ export interface TransferredChartData {
   targetOperator?: string;
   indicatorTargets?: Record<string, number | null>;
   indicatorTargetOperators?: Record<string, string>;
-  defaultViewMode?: 'by-region' | 'by-indicator';
+  defaultViewMode?: 'overview' | 'by-region' | 'by-indicator';
   percentageColumns?: string[];
   nonNumericColumns?: string[];
 }
@@ -52,7 +52,7 @@ export interface PublishJoinedChartSpec {
   indicatorTargetOperators?: Record<string, string>;
   targetValue?: number | null;
   targetOperator?: string;
-  defaultViewMode?: 'by-region' | 'by-indicator';
+  defaultViewMode?: 'overview' | 'by-region' | 'by-indicator';
 }
 
 export interface PublishJoinedStuntingSpec {
