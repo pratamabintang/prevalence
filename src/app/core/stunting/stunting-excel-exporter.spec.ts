@@ -138,6 +138,8 @@ describe('StuntingExcelExporter', () => {
     const regionalSheet = sheets.find((s: any) => s.sheetName === 'Komparasi Kab-Kota');
     expect(regionalSheet).toBeDefined();
     expect(sheets.map((s: any) => s.sheetName)).toContain('Komparasi Kab-Kota');
+    expect(sheets.map((s: any) => s.sheetName)).toContain('Kabupaten Banyumas');
+    expect(sheets).toHaveLength(4);
   });
 
   it('should export joined data using ExcelEngine.exportStyledTable', () => {

@@ -1401,14 +1401,18 @@
             <div class="flex items-center gap-3">
               <div
                 class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 border"
-                [class.bg-indigo-50]="selectedScope() === 'province'"
-                [class.border-indigo-200]="selectedScope() === 'province'"
-                [class.text-indigo-700]="selectedScope() === 'province'"
-                [class.bg-emerald-50]="selectedScope() !== 'province'"
-                [class.border-emerald-200]="selectedScope() !== 'province'"
-                [class.text-emerald-700]="selectedScope() !== 'province'"
+                [class.bg-indigo-50]="selectedScope() === 'province' || tableDisplayMode() === 'all'"
+                [class.border-indigo-200]="selectedScope() === 'province' || tableDisplayMode() === 'all'"
+                [class.text-indigo-700]="selectedScope() === 'province' || tableDisplayMode() === 'all'"
+                [class.bg-emerald-50]="selectedScope() !== 'province' && tableDisplayMode() === 'single'"
+                [class.border-emerald-200]="selectedScope() !== 'province' && tableDisplayMode() === 'single'"
+                [class.text-emerald-700]="selectedScope() !== 'province' && tableDisplayMode() === 'single'"
               >
-                @if (selectedScope() === 'province') {
+                @if (tableDisplayMode() === 'all') {
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                } @else if (selectedScope() === 'province') {
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                   </svg>
@@ -1422,8 +1426,14 @@
               <div>
                 <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Lingkup Evaluasi Kinerja</span>
                 <div class="flex items-center gap-2">
-                  <h2 class="text-base font-bold text-slate-900">{{ selectedScopeLabel() }}</h2>
-                  @if (selectedScope() !== 'province') {
+                  <h2 class="text-base font-bold text-slate-900">
+                    {{ tableDisplayMode() === 'all' ? 'Seluruh Jawa Tengah (' + allDisplayTables().length + ' Tabel Wilayah)' : selectedScopeLabel() }}
+                  </h2>
+                  @if (tableDisplayMode() === 'all') {
+                    <span class="px-2 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full">
+                      Mode Batch (1 Provinsi + {{ rawRegionalScorecards().length }} Kab/Kota)
+                    </span>
+                  } @else if (selectedScope() !== 'province') {
                     <span class="px-2 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full">
                       Tingkat Kabupaten/Kota
                     </span>
@@ -1436,37 +1446,77 @@
               </div>
             </div>
 
-            <!-- Scope Switcher Control -->
-            <div class="flex items-center gap-2">
-              <label for="wilayahSelector" class="text-xs font-medium text-slate-600">Pilih Wilayah:</label>
-              <select
-                id="wilayahSelector"
-                [value]="selectedScope()"
-                (change)="setSelectedScope($any($event.target).value)"
-                class="text-xs font-semibold px-3 py-1.5 border border-slate-300 rounded-lg bg-white text-slate-800 shadow-xs focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 cursor-pointer"
-              >
-                <option value="province">🏛️ PROVINSI JAWA TENGAH (Agregat)</option>
-                @if (rawRegionalScorecards().length > 0) {
-                  <optgroup label="Kabupaten / Kota ({{ rawRegionalScorecards().length }} Wilayah)">
-                    @for (sc of rawRegionalScorecards(); track sc.regionId) {
-                      <option [value]="sc.regionId">{{ sc.regionName }}</option>
-                    }
-                  </optgroup>
-                }
-              </select>
-
-              @if (selectedScope() !== 'province') {
+            <!-- View Mode & Scope Switcher Controls -->
+            <div class="flex flex-wrap items-center gap-3">
+              <!-- Segmented View Mode Toggle -->
+              <div class="inline-flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
                 <button
                   type="button"
-                  (click)="setSelectedScope('province')"
-                  class="px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1 border border-slate-200 cursor-pointer"
-                  title="Kembali ke tampilan agregat Provinsi Jawa Tengah"
+                  (click)="setTableDisplayMode('single')"
+                  class="px-2.5 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1 cursor-pointer"
+                  [class.bg-white]="tableDisplayMode() === 'single'"
+                  [class.text-slate-900]="tableDisplayMode() === 'single'"
+                  [class.shadow-xs]="tableDisplayMode() === 'single'"
+                  [class.text-slate-600]="tableDisplayMode() !== 'single'"
+                  title="Tampilkan satu tabel wilayah terpilih (Fokus)"
                 >
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
-                  <span>Reset ke Provinsi</span>
+                  <span>Fokus 1 Wilayah</span>
                 </button>
+
+                <button
+                  type="button"
+                  (click)="setTableDisplayMode('all')"
+                  class="px-2.5 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1 cursor-pointer"
+                  [class.bg-white]="tableDisplayMode() === 'all'"
+                  [class.text-slate-900]="tableDisplayMode() === 'all'"
+                  [class.shadow-xs]="tableDisplayMode() === 'all'"
+                  [class.text-slate-600]="tableDisplayMode() !== 'all'"
+                  title="Tampilkan tabel lengkap seluruh {{ rawRegionalScorecards().length }} Kabupaten/Kota + 1 Provinsi sekaligus"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                  </svg>
+                  <span>Semua Tabel ({{ rawRegionalScorecards().length + 1 }})</span>
+                </button>
+              </div>
+
+              <!-- Scope Switcher Control (Available in single mode) -->
+              @if (tableDisplayMode() === 'single') {
+                <div class="flex items-center gap-2">
+                  <label for="wilayahSelector" class="text-xs font-medium text-slate-600">Pilih:</label>
+                  <select
+                    id="wilayahSelector"
+                    [value]="selectedScope()"
+                    (change)="setSelectedScope($any($event.target).value)"
+                    class="text-xs font-semibold px-2.5 py-1.5 border border-slate-300 rounded-lg bg-white text-slate-800 shadow-xs focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 cursor-pointer"
+                  >
+                    <option value="province">🏛️ PROVINSI JAWA TENGAH (Agregat)</option>
+                    @if (rawRegionalScorecards().length > 0) {
+                      <optgroup label="Kabupaten / Kota ({{ rawRegionalScorecards().length }} Wilayah)">
+                        @for (sc of rawRegionalScorecards(); track sc.regionId) {
+                          <option [value]="sc.regionId">{{ sc.regionName }}</option>
+                        }
+                      </optgroup>
+                    }
+                  </select>
+
+                  @if (selectedScope() !== 'province') {
+                    <button
+                      type="button"
+                      (click)="setSelectedScope('province')"
+                      class="px-2 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1 border border-slate-200 cursor-pointer"
+                      title="Kembali ke tampilan agregat Provinsi Jawa Tengah"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      <span>Reset</span>
+                    </button>
+                  }
+                </div>
               }
             </div>
           </div>
@@ -1476,10 +1526,16 @@
             <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200">
               <div>
                 <h3 class="text-sm font-semibold text-slate-900">
-                  Tabel Analisis Capaian Intervensi Spesifik &mdash; {{ selectedScopeLabel() }}
+                  @if (tableDisplayMode() === 'all') {
+                    Tabel Analisis Capaian Intervensi Spesifik &mdash; Seluruh Wilayah (1 Provinsi + {{ rawRegionalScorecards().length }} Kab/Kota)
+                  } @else {
+                    Tabel Analisis Capaian Intervensi Spesifik &mdash; {{ selectedScopeLabel() }}
+                  }
                 </h3>
                 <p class="text-xs text-slate-500">
-                  @if (selectedScope() === 'province') {
+                  @if (tableDisplayMode() === 'all') {
+                    Daftar seluruh tabel rapor kinerja intervensi stunting untuk Provinsi Jawa Tengah dan 35 Kabupaten/Kota.
+                  } @else if (selectedScope() === 'province') {
                     Standar Laporan Dinas Kesehatan Provinsi Jawa Tengah (Lembar capaian agregat 35 Kab/Kota).
                   } @else {
                     Rapor Kinerja Intervensi Penurunan Stunting Khusus {{ selectedScopeLabel() }}.
@@ -1573,119 +1629,302 @@
             </div>
 
             <!-- Table Layout matching Format Analisas Intervensi Spesifik -->
-            <div class="overflow-x-auto border border-slate-200 rounded">
-              <table class="w-full text-xs text-left">
-                <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200 sticky top-0 z-10 shadow-xs">
-                  <tr>
-                    <th rowspan="2" class="px-3 py-2.5 text-center w-12 bg-slate-100 border-b border-slate-200">No</th>
-                    <th rowspan="2" class="px-3.5 py-2.5 text-left min-w-[280px] bg-slate-100 border-b border-slate-200">
-                      Intervensi Percepatan Penurunan Stunting
-                    </th>
-                    <th rowspan="2" class="px-3 py-2.5 text-right whitespace-nowrap bg-slate-100 border-b border-slate-200">
-                      Target Tahun Lalu
-                    </th>
-                    <th rowspan="2" class="px-3 py-2.5 text-right whitespace-nowrap bg-slate-100 border-b border-slate-200">
-                      Capaian Tahun Lalu
-                    </th>
-                    <th rowspan="2" class="px-3 py-2.5 text-right whitespace-nowrap bg-slate-100 border-b border-slate-200">
-                      Target Tahun Ini
-                    </th>
-                    @for (q of displayedQuarters(); track q) {
-                      <th
-                        colspan="2"
-                        class="px-3 py-1.5 text-center border-l font-semibold bg-slate-200/70 text-slate-800 border-slate-300"
-                      >
-                        Triwulan {{ q }}
+            @if (tableDisplayMode() === 'single') {
+              <div class="overflow-x-auto border border-slate-200 rounded">
+                <table class="w-full text-xs text-left">
+                  <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200 sticky top-0 z-10 shadow-xs">
+                    <tr>
+                      <th rowspan="2" class="px-3 py-2.5 text-center w-12 bg-slate-100 border-b border-slate-200">No</th>
+                      <th rowspan="2" class="px-3.5 py-2.5 text-left min-w-[280px] bg-slate-100 border-b border-slate-200">
+                        Intervensi Percepatan Penurunan Stunting
                       </th>
-                    }
-                    <th rowspan="2" class="px-3.5 py-2.5 text-center border-l border-b border-slate-200 bg-slate-100">Status</th>
-                  </tr>
-                  <tr class="bg-slate-50 text-slate-600 text-[11px] border-b border-slate-200">
-                    @for (q of displayedQuarters(); track q) {
-                      <th class="px-3 py-1.5 text-right font-medium border-l border-slate-200 text-slate-700 whitespace-nowrap">
-                        Jumlah
+                      <th rowspan="2" class="px-3 py-2.5 text-right whitespace-nowrap bg-slate-100 border-b border-slate-200">
+                        Target Tahun Lalu
                       </th>
-                      <th class="px-3 py-1.5 text-right font-medium text-slate-800 whitespace-nowrap">
-                        Capaian (%)
+                      <th rowspan="2" class="px-3 py-2.5 text-right whitespace-nowrap bg-slate-100 border-b border-slate-200">
+                        Capaian Tahun Lalu
                       </th>
-                    }
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                  @for (group of filteredGroupedRows(); track group.categoryName) {
-                    <!-- Group Header Row -->
-                    <tr
-                      class="bg-slate-100/70 font-semibold text-slate-800 cursor-pointer hover:bg-slate-100 transition-colors"
-                      (click)="toggleCategoryCollapse(group.categoryName)"
-                    >
-                      <td [attr.colspan]="6 + (displayedQuarters().length * 2)" class="px-3.5 py-2">
-                        <span class="mr-1.5 text-slate-500 font-mono">{{ collapsedCategories()[group.categoryName] ? '+' : '-' }}</span>
-                        <span>{{ group.categoryName }}</span>
-                        <span class="ml-2 font-normal text-slate-500 text-[11px]">({{ group.rows.length }} indikator)</span>
-                      </td>
+                      <th rowspan="2" class="px-3 py-2.5 text-right whitespace-nowrap bg-slate-100 border-b border-slate-200">
+                        Target Tahun Ini
+                      </th>
+                      @for (q of displayedQuarters(); track q) {
+                        <th
+                          colspan="2"
+                          class="px-3 py-1.5 text-center border-l font-semibold bg-slate-200/70 text-slate-800 border-slate-300"
+                        >
+                          Triwulan {{ q }}
+                        </th>
+                      }
+                      <th rowspan="2" class="px-3.5 py-2.5 text-center border-l border-b border-slate-200 bg-slate-100">Status</th>
                     </tr>
+                    <tr class="bg-slate-50 text-slate-600 text-[11px] border-b border-slate-200">
+                      @for (q of displayedQuarters(); track q) {
+                        <th class="px-3 py-1.5 text-right font-medium border-l border-slate-200 text-slate-700 whitespace-nowrap">
+                          Jumlah
+                        </th>
+                        <th class="px-3 py-1.5 text-right font-medium text-slate-800 whitespace-nowrap">
+                          Capaian (%)
+                        </th>
+                      }
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100">
+                    @for (group of filteredGroupedRows(); track group.categoryName) {
+                      <!-- Group Header Row -->
+                      <tr
+                        class="bg-slate-100/70 font-semibold text-slate-800 cursor-pointer hover:bg-slate-100 transition-colors"
+                        (click)="toggleCategoryCollapse(group.categoryName)"
+                      >
+                        <td [attr.colspan]="6 + (displayedQuarters().length * 2)" class="px-3.5 py-2">
+                          <span class="mr-1.5 text-slate-500 font-mono">{{ collapsedCategories()[group.categoryName] ? '+' : '-' }}</span>
+                          <span>{{ group.categoryName }}</span>
+                          <span class="ml-2 font-normal text-slate-500 text-[11px]">({{ group.rows.length }} indikator)</span>
+                        </td>
+                      </tr>
 
-                    @if (!collapsedCategories()[group.categoryName]) {
-                      @for (row of group.rows; track row.id) {
-                        <tr class="hover:bg-slate-50 transition-colors">
-                          <td class="px-3 py-2 text-center text-slate-700 font-mono font-bold text-xs">{{ row.no }}</td>
-                          <td class="px-3.5 py-2 font-medium text-slate-900 text-xs">
-                            <div class="flex items-center gap-1.5">
-                              <span>{{ row.name }}</span>
-                              @if (row.polarity === 'negative') {
-                                <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-rose-50 text-rose-700 border border-rose-200">
-                                  Kasus
-                                </span>
-                              }
-                            </div>
-                          </td>
-                          <td class="px-3 py-2 text-right font-mono text-slate-700 text-xs whitespace-nowrap">
-                            {{ row.targetPrevYear !== null && row.targetPrevYear !== undefined ? row.targetPrevYear + '%' : '-' }}
-                          </td>
-                          <td class="px-3 py-2 text-right font-mono text-slate-700 text-xs whitespace-nowrap">
-                            {{ row.actualPrevYear !== null && row.actualPrevYear !== undefined ? row.actualPrevYear + '%' : '-' }}
-                          </td>
-                          <td class="px-3 py-2 text-right font-mono font-semibold text-indigo-950 text-xs whitespace-nowrap">
-                            {{ row.targetCurrentYear !== null && row.targetCurrentYear !== undefined ? row.targetCurrentYear + '%' : '-' }}
-                          </td>
-
-                          @for (q of displayedQuarters(); track q) {
-                            @let qData = row.quarters[q];
-                            <td class="px-3 py-2 text-right font-mono text-slate-700 border-l border-slate-100 text-xs whitespace-nowrap">
-                              {{ qData.sumNumerator !== null && qData.sumNumerator !== undefined ? (qData.sumNumerator | number) : '-' }}
+                      @if (!collapsedCategories()[group.categoryName]) {
+                        @for (row of group.rows; track row.id) {
+                          <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="px-3 py-2 text-center text-slate-700 font-mono font-bold text-xs">{{ row.no }}</td>
+                            <td class="px-3.5 py-2 font-medium text-slate-900 text-xs">
+                              <div class="flex items-center gap-1.5">
+                                <span>{{ row.name }}</span>
+                                @if (row.polarity === 'negative') {
+                                  <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-rose-50 text-rose-700 border border-rose-200">
+                                    Kasus
+                                  </span>
+                                }
+                              </div>
                             </td>
-                            <td class="px-3 py-2 text-right font-mono font-bold text-slate-900 text-xs whitespace-nowrap">
-                              @if (qData.hasData && qData.actualAchievement !== null && qData.actualAchievement !== undefined) {
-                                {{ qData.actualAchievement | number:'1.2-2' }}{{ row.calculationMode === 'absolute' ? '' : '%' }}
-                              } @else {
-                                <span class="text-slate-400 font-normal italic" title="Data triwulan ini belum diinput">-</span>
-                              }
+                            <td class="px-3 py-2 text-right font-mono text-slate-700 text-xs whitespace-nowrap">
+                              {{ row.targetPrevYear !== null && row.targetPrevYear !== undefined ? row.targetPrevYear + '%' : '-' }}
                             </td>
-                          }
+                            <td class="px-3 py-2 text-right font-mono text-slate-700 text-xs whitespace-nowrap">
+                              {{ row.actualPrevYear !== null && row.actualPrevYear !== undefined ? row.actualPrevYear + '%' : '-' }}
+                            </td>
+                            <td class="px-3 py-2 text-right font-mono font-semibold text-indigo-950 text-xs whitespace-nowrap">
+                              {{ row.targetCurrentYear !== null && row.targetCurrentYear !== undefined ? row.targetCurrentYear + '%' : '-' }}
+                            </td>
 
-                          <td
-                            class="px-3.5 py-2 text-center border-l border-slate-100 whitespace-nowrap font-semibold text-[11px]"
-                            [ngClass]="{
-                              'bg-emerald-50 text-emerald-700': row.status === 'on_track',
-                              'bg-rose-50 text-rose-700': row.status === 'perlu_percepatan',
-                              'bg-slate-50 text-slate-600': row.status !== 'on_track' && row.status !== 'perlu_percepatan'
-                            }"
-                          >
-                            @if (row.status === 'on_track') {
-                              On Track
-                            } @else if (row.status === 'perlu_percepatan') {
-                              Percepatan
-                            } @else {
-                              Belum Dinilai
+                            @for (q of displayedQuarters(); track q) {
+                              @let qData = row.quarters[q];
+                              <td class="px-3 py-2 text-right font-mono text-slate-700 border-l border-slate-100 text-xs whitespace-nowrap">
+                                {{ qData.sumNumerator !== null && qData.sumNumerator !== undefined ? (qData.sumNumerator | number) : '-' }}
+                              </td>
+                              <td class="px-3 py-2 text-right font-mono font-bold text-slate-900 text-xs whitespace-nowrap">
+                                @if (qData.hasData && qData.actualAchievement !== null && qData.actualAchievement !== undefined) {
+                                  {{ qData.actualAchievement | number:'1.2-2' }}{{ row.calculationMode === 'absolute' ? '' : '%' }}
+                                } @else {
+                                  <span class="text-slate-400 font-normal italic" title="Data triwulan ini belum diinput">-</span>
+                                }
+                              </td>
                             }
-                          </td>
-                        </tr>
+
+                            <td
+                              class="px-3.5 py-2 text-center border-l border-slate-100 whitespace-nowrap font-semibold text-[11px]"
+                              [ngClass]="{
+                                'bg-emerald-50 text-emerald-700': row.status === 'on_track',
+                                'bg-rose-50 text-rose-700': row.status === 'perlu_percepatan',
+                                'bg-slate-50 text-slate-600': row.status !== 'on_track' && row.status !== 'perlu_percepatan'
+                              }"
+                            >
+                              @if (row.status === 'on_track') {
+                                On Track
+                              } @else if (row.status === 'perlu_percepatan') {
+                                Percepatan
+                              } @else {
+                                Belum Dinilai
+                              }
+                            </td>
+                          </tr>
+                        }
                       }
                     }
+                  </tbody>
+                </table>
+              </div>
+            } @else {
+              <!-- ALL TABLES MODE: 1 PROVINSI + N KABUPATEN/KOTA -->
+              <div class="space-y-6">
+                <!-- Sticky Quick Wilayah Navigator -->
+                <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200 shadow-xs flex flex-wrap items-center gap-1.5 sticky top-2 z-20 backdrop-blur-md">
+                  <span class="text-xs font-semibold text-slate-500 mr-1.5">Lompat Cepat:</span>
+                  <button
+                    type="button"
+                    (click)="scrollToTable('table-province')"
+                    class="px-2.5 py-1 text-xs font-bold rounded-md bg-indigo-100 text-indigo-800 border border-indigo-200 hover:bg-indigo-200 transition-colors cursor-pointer"
+                  >
+                    🏛️ Provinsi Jateng
+                  </button>
+                  @for (tbl of allDisplayTables().slice(1); track tbl.id) {
+                    <button
+                      type="button"
+                      (click)="scrollToTable('table-' + tbl.id)"
+                      class="px-2 py-0.5 text-xs font-medium rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer"
+                    >
+                      {{ tbl.label }}
+                    </button>
                   }
-                </tbody>
-              </table>
-            </div>
+                </div>
+
+                @for (tbl of allDisplayTables(); track tbl.id; let tblIdx = $index) {
+                  <div [id]="'table-' + tbl.id" class="border border-slate-200 rounded-lg p-4 bg-white space-y-3 shadow-xs scroll-mt-14">
+                    <div class="flex flex-wrap items-center justify-between gap-3 pb-2.5 border-b border-slate-200">
+                      <div class="flex items-center gap-2.5">
+                        <span
+                          class="w-7 h-7 rounded-md flex items-center justify-center font-mono font-bold text-xs"
+                          [class.bg-indigo-100]="tbl.isProvince"
+                          [class.text-indigo-800]="tbl.isProvince"
+                          [class.bg-slate-100]="!tbl.isProvince"
+                          [class.text-slate-700]="!tbl.isProvince"
+                        >
+                          {{ tbl.isProvince ? '🏛️' : tblIdx }}
+                        </span>
+                        <div>
+                          <div class="flex items-center gap-2">
+                            <h4 class="text-sm font-bold text-slate-900">
+                              Tabel Analisis Capaian Intervensi Spesifik &mdash; {{ tbl.label }}
+                            </h4>
+                            @if (tbl.isProvince) {
+                              <span class="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 rounded-full">
+                                Agregat Provinsi
+                              </span>
+                            }
+                          </div>
+                          <p class="text-xs text-slate-500">
+                            {{ tbl.isProvince ? 'Standar Laporan Capaian Intervensi Spesifik Agregat Jawa Tengah' : 'Rapor Kinerja Intervensi Penurunan Stunting Wilayah ' + tbl.label }}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div class="flex items-center gap-2">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          {{ tbl.summary.onTrackCount }} On Track
+                        </span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                          {{ tbl.summary.perluPercepatanCount }} Perlu Percepatan
+                        </span>
+                        <button
+                          type="button"
+                          (click)="setSelectedScope(tbl.id); setTableDisplayMode('single')"
+                          class="px-2.5 py-1 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-md border border-slate-200 transition-colors flex items-center gap-1 cursor-pointer"
+                          title="Fokus tampilan hanya pada wilayah ini"
+                        >
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          <span>Fokus Wilayah</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="overflow-x-auto border border-slate-200 rounded">
+                      <table class="w-full text-xs text-left">
+                        <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                          <tr>
+                            <th rowspan="2" class="px-3 py-2.5 text-center w-12 bg-slate-100 border-b border-slate-200">No</th>
+                            <th rowspan="2" class="px-3.5 py-2.5 text-left min-w-[280px] bg-slate-100 border-b border-slate-200">
+                              Intervensi Percepatan Penurunan Stunting
+                            </th>
+                            <th rowspan="2" class="px-3 py-2.5 text-right whitespace-nowrap bg-slate-100 border-b border-slate-200">
+                              Target Tahun Lalu
+                            </th>
+                            <th rowspan="2" class="px-3 py-2.5 text-right whitespace-nowrap bg-slate-100 border-b border-slate-200">
+                              Capaian Tahun Lalu
+                            </th>
+                            <th rowspan="2" class="px-3 py-2.5 text-right whitespace-nowrap bg-slate-100 border-b border-slate-200">
+                              Target Tahun Ini
+                            </th>
+                            @for (q of displayedQuarters(); track q) {
+                              <th
+                                colspan="2"
+                                class="px-3 py-1.5 text-center border-l font-semibold bg-slate-200/70 text-slate-800 border-slate-300"
+                              >
+                                Triwulan {{ q }}
+                              </th>
+                            }
+                            <th rowspan="2" class="px-3.5 py-2.5 text-center border-l border-b border-slate-200 bg-slate-100">Status</th>
+                          </tr>
+                          <tr class="bg-slate-50 text-slate-600 text-[11px] border-b border-slate-200">
+                            @for (q of displayedQuarters(); track q) {
+                              <th class="px-3 py-1.5 text-right font-medium border-l border-slate-200 text-slate-700 whitespace-nowrap">
+                                Jumlah
+                              </th>
+                              <th class="px-3 py-1.5 text-right font-medium text-slate-800 whitespace-nowrap">
+                                Capaian (%)
+                              </th>
+                            }
+                          </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                          @for (group of tbl.groupedRows; track group.categoryName) {
+                            <tr class="bg-slate-100/70 font-semibold text-slate-800">
+                              <td [attr.colspan]="6 + (displayedQuarters().length * 2)" class="px-3.5 py-2">
+                                <span>{{ group.categoryName }}</span>
+                                <span class="ml-2 font-normal text-slate-500 text-[11px]">({{ group.rows.length }} indikator)</span>
+                              </td>
+                            </tr>
+                            @for (row of group.rows; track row.id) {
+                              <tr class="hover:bg-slate-50 transition-colors">
+                                <td class="px-3 py-2 text-center text-slate-700 font-mono font-bold text-xs">{{ row.no }}</td>
+                                <td class="px-3.5 py-2 font-medium text-slate-900 text-xs">
+                                  <div class="flex items-center gap-1.5">
+                                    <span>{{ row.name }}</span>
+                                    @if (row.polarity === 'negative') {
+                                      <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-rose-50 text-rose-700 border border-rose-200">
+                                        Kasus
+                                      </span>
+                                    }
+                                  </div>
+                                </td>
+                                <td class="px-3 py-2 text-right font-mono text-slate-700 text-xs whitespace-nowrap">
+                                  {{ row.targetPrevYear !== null && row.targetPrevYear !== undefined ? row.targetPrevYear + '%' : '-' }}
+                                </td>
+                                <td class="px-3 py-2 text-right font-mono text-slate-700 text-xs whitespace-nowrap">
+                                  {{ row.actualPrevYear !== null && row.actualPrevYear !== undefined ? row.actualPrevYear + '%' : '-' }}
+                                </td>
+                                <td class="px-3 py-2 text-right font-mono font-semibold text-indigo-950 text-xs whitespace-nowrap">
+                                  {{ row.targetCurrentYear !== null && row.targetCurrentYear !== undefined ? row.targetCurrentYear + '%' : '-' }}
+                                </td>
+                                @for (q of displayedQuarters(); track q) {
+                                  @let qData = row.quarters[q];
+                                  <td class="px-3 py-2 text-right font-mono text-slate-700 border-l border-slate-100 text-xs whitespace-nowrap">
+                                    {{ qData.sumNumerator !== null && qData.sumNumerator !== undefined ? (qData.sumNumerator | number) : '-' }}
+                                  </td>
+                                  <td class="px-3 py-2 text-right font-mono font-bold text-slate-900 text-xs whitespace-nowrap">
+                                    @if (qData.hasData && qData.actualAchievement !== null && qData.actualAchievement !== undefined) {
+                                      {{ qData.actualAchievement | number:'1.2-2' }}{{ row.calculationMode === 'absolute' ? '' : '%' }}
+                                    } @else {
+                                      <span class="text-slate-400 font-normal italic">-</span>
+                                    }
+                                  </td>
+                                }
+                                <td
+                                  class="px-3.5 py-2 text-center border-l border-slate-100 whitespace-nowrap font-semibold text-[11px]"
+                                  [ngClass]="{
+                                    'bg-emerald-50 text-emerald-700': row.status === 'on_track',
+                                    'bg-rose-50 text-rose-700': row.status === 'perlu_percepatan',
+                                    'bg-slate-50 text-slate-600': row.status !== 'on_track' && row.status !== 'perlu_percepatan'
+                                  }"
+                                >
+                                  @if (row.status === 'on_track') {
+                                    On Track
+                                  } @else if (row.status === 'perlu_percepatan') {
+                                    Percepatan
+                                  } @else {
+                                    Belum Dinilai
+                                  }
+                                </td>
+                              </tr>
+                            }
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
 
             <!-- ============================================================ -->
             <!-- MATRIKS KOMPARASI ANTAR-WILAYAH (KABUPATEN/KOTA) -->

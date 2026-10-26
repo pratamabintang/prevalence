@@ -268,6 +268,12 @@ export class StuntingWorkflowEngine {
     this.selectedScope.set(scope);
   }
 
+  readonly tableDisplayMode = signal<'single' | 'all'>('single');
+
+  setTableDisplayMode(mode: 'single' | 'all'): void {
+    this.tableDisplayMode.set(mode);
+  }
+
   readonly filteredRegionalScorecards = computed<EvaluatedRegionalScorecard[]>(() => {
     const scorecards = this.regionalScorecards();
     const filter = this.matrixStatusFilter();
@@ -1449,6 +1455,7 @@ export class StuntingWorkflowEngine {
     this.quarterWeight.set(null);
     this.selectedScope.set('province');
     this.selectedRegionForDrilldown.set(null);
+    this.tableDisplayMode.set('single');
     this.loadStandardCategories();
   }
 }

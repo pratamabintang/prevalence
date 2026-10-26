@@ -48,110 +48,7 @@ export class StuntingExcelExporter {
     const qStr = availableQuarters.map((q) => `TW${q}`).join('_');
     const fileName = spec.fileName || `Monitoring_Stunting_${qStr}_${dateStr}.xlsx`;
 
-    const columnsRekap: ColumnHeaderMeta[] = [
-      { key: 'Kategori', layers: ['Kategori Intervensi', 'Kategori Intervensi'] },
-      { key: 'No', layers: ['No', 'No'] },
-      { key: 'Intervensi', layers: ['Intervensi Percepatan Penurunan Stunting', 'Intervensi Percepatan Penurunan Stunting'] },
-      { key: 'TargetPrev', layers: ['Target Tahun Lalu', 'Target Tahun Lalu'] },
-      { key: 'CapaianPrev', layers: ['Capaian Tahun Lalu', 'Capaian Tahun Lalu'] },
-      { key: 'TargetCurr', layers: ['Target Tahun Ini', 'Target Tahun Ini'] },
-    ];
-
-    for (const q of availableQuarters) {
-      columnsRekap.push({ key: `JumlahTW${q}`, layers: [`Triwulan ${q}`, 'Jumlah (SUM)'] });
-      columnsRekap.push({ key: `CapaianTW${q}`, layers: [`Triwulan ${q}`, 'Capaian (MEAN %)'] });
-    }
-
-    columnsRekap.push({ key: 'Status', layers: ['Status Evaluasi', 'Status Evaluasi'] });
-
-    const exportRows = evaluationResult.rows.map((r: EvaluatedStuntingRow) => {
-      const rowObj: Record<string, any> = {
-        Kategori: r.category,
-        No: r.no,
-        Intervensi: r.name,
-        TargetPrev: r.targetPrevYear !== null && r.targetPrevYear !== undefined ? `${r.targetPrevYear}%` : '-',
-        CapaianPrev: r.actualPrevYear !== null && r.actualPrevYear !== undefined ? `${r.actualPrevYear}%` : '-',
-        TargetCurr: r.targetCurrentYear !== null && r.targetCurrentYear !== undefined ? `${r.targetCurrentYear}%` : '-',
-      };
-
-      for (const q of availableQuarters) {
-        const qData = r.quarters[q as 1 | 2 | 3 | 4];
-        rowObj[`JumlahTW${q}`] =
-          qData?.sumNumerator !== null && qData?.sumNumerator !== undefined
-            ? qData.sumNumerator
-            : '-';
-        rowObj[`CapaianTW${q}`] =
-          qData?.actualAchievement !== null && qData?.actualAchievement !== undefined
-            ? `${qData.actualAchievement}${r.calculationMode === 'absolute' ? '' : '%'}`
-            : '-';
-      }
-
-      rowObj['Status'] = this.formatStatusLabel(r.status);
-      return rowObj;
-    });
-
-    const wsRekap = ExcelEngine.buildStyledWorksheet({
-      sheetName: 'Rekap Kinerja',
-      columns: columnsRekap,
-      dataRows: exportRows,
-      cellStyler: (_row, colKey, val) => {
-        if (colKey === 'Kategori') {
-          return {
-            alignment: { vertical: 'center', horizontal: 'left', wrapText: true },
-          };
-        }
-        if (colKey === 'Status') {
-          const s = String(val);
-          if (s === 'On Track') {
-            return {
-              fill: { fgColor: { rgb: 'D1FAE5' } },
-              font: { color: { rgb: '065F46' }, bold: true },
-            };
-          }
-          if (s === 'Perlu Percepatan') {
-            return {
-              fill: { fgColor: { rgb: 'FFE4E6' } },
-              font: { color: { rgb: '9F1239' }, bold: true },
-            };
-          }
-          return {
-            fill: { fgColor: { rgb: 'F1F5F9' } },
-            font: { color: { rgb: '475569' } },
-          };
-        }
-        return undefined;
-      },
-    });
-
-    // Merge consecutive identical Category cells in column A (index 0)
-    const merges: any[] = wsRekap['!merges'] || [];
-    let startRow = 2; // Data rows start at index 2 (after 2-row multi-layer header)
-    let currentCategory = exportRows.length > 0 ? exportRows[0]['Kategori'] : null;
-    let count = 0;
-
-    for (let i = 0; i < exportRows.length; i++) {
-      const cat = exportRows[i]['Kategori'];
-      if (cat === currentCategory) {
-        count++;
-      } else {
-        if (count > 1) {
-          merges.push({
-            s: { r: startRow, c: 0 },
-            e: { r: startRow + count - 1, c: 0 },
-          });
-        }
-        startRow = startRow + count;
-        currentCategory = cat;
-        count = 1;
-      }
-    }
-    if (count > 1) {
-      merges.push({
-        s: { r: startRow, c: 0 },
-        e: { r: startRow + count - 1, c: 0 },
-      });
-    }
-    wsRekap['!merges'] = merges;
+    const wsRekap = this.buildEvaluationWorksheet('Rekap Kinerja', evaluationResult.rows, availableQuarters);
 
     // Sheet Komparasi Antar-Wilayah (Kabupaten/Kota)
     let wsKomparasi: ReturnType<typeof ExcelEngine.buildStyledWorksheet> | null = null;
@@ -246,6 +143,27 @@ export class StuntingExcelExporter {
     if (wsKomparasi) {
       sheetsToExport.push({ sheetName: 'Komparasi Kab-Kota', worksheet: wsKomparasi });
     }
+
+    // Add individual worksheet for each Kabupaten/Kota with the identical 14-indicator format
+    const usedSheetNames = new Set<string>(['Rekap Kinerja', 'Komparasi Kab-Kota']);
+    for (const sc of regionalScorecards) {
+      let cleanName = sc.regionName
+        .replace(/[:\\/?*\[\]]/g, '')
+        .trim();
+      if (cleanName.length > 28) {
+        cleanName = cleanName.slice(0, 28);
+      }
+      let finalName = cleanName;
+      let counter = 1;
+      while (usedSheetNames.has(finalName)) {
+        finalName = `${cleanName.slice(0, 25)}_${counter++}`;
+      }
+      usedSheetNames.add(finalName);
+
+      const wsDistrict = this.buildEvaluationWorksheet(finalName, sc.rows, availableQuarters);
+      sheetsToExport.push({ sheetName: finalName, worksheet: wsDistrict });
+    }
+
     if (wsWilayah) {
       sheetsToExport.push({ sheetName: 'Data Riil Wilayah', worksheet: wsWilayah });
     }
@@ -253,6 +171,129 @@ export class StuntingExcelExporter {
     ExcelEngine.exportMultiSheetTable(fileName, sheetsToExport);
 
     return fileName;
+  }
+
+  /**
+   * Membangun worksheet standar Dinkes Jateng (14 indikator) untuk satu wilayah (Provinsi atau Kabupaten/Kota).
+   */
+  static buildEvaluationWorksheet(
+    sheetName: string,
+    rows: EvaluatedStuntingRow[],
+    availableQuarters: number[],
+  ): ReturnType<typeof ExcelEngine.buildStyledWorksheet> {
+    const columnsRekap: ColumnHeaderMeta[] = [
+      { key: 'Kategori', layers: ['Kategori Intervensi', 'Kategori Intervensi'] },
+      { key: 'No', layers: ['No', 'No'] },
+      { key: 'Intervensi', layers: ['Intervensi Percepatan Penurunan Stunting', 'Intervensi Percepatan Penurunan Stunting'] },
+      { key: 'TargetPrev', layers: ['Target Tahun Lalu', 'Target Tahun Lalu'] },
+      { key: 'CapaianPrev', layers: ['Capaian Tahun Lalu', 'Capaian Tahun Lalu'] },
+      { key: 'TargetCurr', layers: ['Target Tahun Ini', 'Target Tahun Ini'] },
+    ];
+
+    for (const q of availableQuarters) {
+      columnsRekap.push({ key: `JumlahTW${q}`, layers: [`Triwulan ${q}`, 'Jumlah (SUM)'] });
+      columnsRekap.push({ key: `CapaianTW${q}`, layers: [`Triwulan ${q}`, 'Capaian (MEAN %)'] });
+    }
+
+    columnsRekap.push({ key: 'Status', layers: ['Status Evaluasi', 'Status Evaluasi'] });
+
+    const exportRows = rows.map((r: EvaluatedStuntingRow) => {
+      const rowObj: Record<string, any> = {
+        Kategori: r.category,
+        No: r.no,
+        Intervensi: r.name,
+        TargetPrev: r.targetPrevYear !== null && r.targetPrevYear !== undefined ? `${r.targetPrevYear}%` : '-',
+        CapaianPrev: r.actualPrevYear !== null && r.actualPrevYear !== undefined ? `${r.actualPrevYear}%` : '-',
+        TargetCurr: r.targetCurrentYear !== null && r.targetCurrentYear !== undefined ? `${r.targetCurrentYear}%` : '-',
+      };
+
+      for (const q of availableQuarters) {
+        const qData = r.quarters?.[q as 1 | 2 | 3 | 4];
+        const actualVal =
+          qData?.actualAchievement !== null && qData?.actualAchievement !== undefined
+            ? qData.actualAchievement
+            : r.activeActual !== undefined
+              ? r.activeActual
+              : null;
+
+        rowObj[`JumlahTW${q}`] =
+          qData?.sumNumerator !== null && qData?.sumNumerator !== undefined
+            ? qData.sumNumerator
+            : '-';
+        rowObj[`CapaianTW${q}`] =
+          actualVal !== null
+            ? `${actualVal}${r.calculationMode === 'absolute' ? '' : '%'}`
+            : '-';
+      }
+
+      rowObj['Status'] = this.formatStatusLabel(r.status);
+      return rowObj;
+    });
+
+    const wsRekap = ExcelEngine.buildStyledWorksheet({
+      sheetName,
+      columns: columnsRekap,
+      dataRows: exportRows,
+      cellStyler: (_row, colKey, val) => {
+        if (colKey === 'Kategori') {
+          return {
+            alignment: { vertical: 'center', horizontal: 'left', wrapText: true },
+          };
+        }
+        if (colKey === 'Status') {
+          const s = String(val);
+          if (s === 'On Track') {
+            return {
+              fill: { fgColor: { rgb: 'D1FAE5' } },
+              font: { color: { rgb: '065F46' }, bold: true },
+            };
+          }
+          if (s === 'Perlu Percepatan') {
+            return {
+              fill: { fgColor: { rgb: 'FFE4E6' } },
+              font: { color: { rgb: '9F1239' }, bold: true },
+            };
+          }
+          return {
+            fill: { fgColor: { rgb: 'F1F5F9' } },
+            font: { color: { rgb: '475569' } },
+          };
+        }
+        return undefined;
+      },
+    });
+
+    // Merge consecutive identical Category cells in column A (index 0)
+    const merges: any[] = wsRekap['!merges'] || [];
+    let startRow = 2; // Data rows start at index 2 (after 2-row multi-layer header)
+    let currentCategory = exportRows.length > 0 ? exportRows[0]['Kategori'] : null;
+    let count = 0;
+
+    for (let i = 0; i < exportRows.length; i++) {
+      const cat = exportRows[i]['Kategori'];
+      if (cat === currentCategory) {
+        count++;
+      } else {
+        if (count > 1) {
+          merges.push({
+            s: { r: startRow, c: 0 },
+            e: { r: startRow + count - 1, c: 0 },
+          });
+        }
+        startRow = startRow + count;
+        currentCategory = cat;
+        count = 1;
+      }
+    }
+    if (count > 1) {
+      merges.push({
+        s: { r: startRow, c: 0 },
+        e: { r: startRow + count - 1, c: 0 },
+      });
+    }
+    wsRekap['!merges'] = merges;
+
+    return wsRekap;
   }
 
   /**

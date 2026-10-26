@@ -1602,6 +1602,64 @@ describe('StuntingMonitoringComponent', () => {
       expect(component.selectedScope()).toBe('province');
       expect(component.selectedScopeLabel()).toBe('PROVINSI JAWA TENGAH (Agregat)');
     });
+
+    it('should support tableDisplayMode "all" rendering n regency tables + 1 provincial table simultaneously', () => {
+      component.workflowEngine.setJoinedDataset({
+        rows: [
+          {
+            __id: 'row-1',
+            'Kabupaten/Kota': 'Kabupaten Banyumas',
+            ttd_real: 850,
+            ttd_sasaran: 1000,
+          },
+          {
+            __id: 'row-2',
+            'Kabupaten/Kota': 'Kabupaten Cilacap',
+            ttd_real: 500,
+            ttd_sasaran: 1000,
+          },
+        ],
+        columns: ['Kabupaten/Kota', 'ttd_real', 'ttd_sasaran'],
+      });
+
+      const cat1 = component.categories()[0];
+      component.workflowEngine.addSubCategory(cat1.id, {
+        name: 'Rematri TTD',
+        numeratorCol: 'ttd_real',
+        denominatorCol: 'ttd_sasaran',
+        targetCurrentYear: 80,
+        polarity: 'positive',
+      });
+
+      component.goToStep(3);
+      fixture.detectChanges();
+
+      // Default mode is 'single'
+      expect(component.tableDisplayMode()).toBe('single');
+
+      // Switch to 'all' mode
+      component.setTableDisplayMode('all');
+      fixture.detectChanges();
+      expect(component.tableDisplayMode()).toBe('all');
+
+      // allDisplayTables must contain 1 Provincial table + 2 Regency tables = 3 tables!
+      const tables = component.allDisplayTables();
+      expect(tables.length).toBe(3);
+      expect(tables[0].id).toBe('province');
+      expect(tables[0].isProvince).toBe(true);
+      expect(tables[0].label).toContain('PROVINSI JAWA TENGAH');
+      expect(tables[0].groupedRows.length).toBeGreaterThan(0);
+
+      const banyumas = tables.find((t) => t.label === 'Kabupaten Banyumas')!;
+      expect(banyumas).toBeDefined();
+      expect(banyumas.isProvince).toBe(false);
+      expect(banyumas.groupedRows[0].rows[0].activeActual).toBe(85);
+
+      const cilacap = tables.find((t) => t.label === 'Kabupaten Cilacap')!;
+      expect(cilacap).toBeDefined();
+      expect(cilacap.isProvince).toBe(false);
+      expect(cilacap.groupedRows[0].rows[0].activeActual).toBe(50);
+    });
   });
 });
 

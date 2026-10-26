@@ -11,6 +11,9 @@ import {
   IndicatorPolarity,
   StuntingCategoryConfig,
   StuntingEvaluationEngine,
+  StuntingEvaluationResult,
+  StuntingKpiSummary,
+  StuntingLifecycleCategory,
   StuntingQuarterInputConfig,
   StuntingSubCategoryConfig,
 } from '../../core/stunting/stunting-evaluation-engine';
@@ -213,6 +216,7 @@ export class StuntingMonitoringComponent implements OnInit {
   selectedScopeLabel = this.workflowEngine.selectedScopeLabel;
   activeDisplayScorecard = this.workflowEngine.activeDisplayScorecard;
   rawRegionalScorecards = this.workflowEngine.regionalScorecards;
+  tableDisplayMode = this.workflowEngine.tableDisplayMode;
   availableQuarters = this.workflowEngine.availableQuarters;
   activeQuarter = this.workflowEngine.activeQuarter;
   searchQuery = signal<string>('');
@@ -284,6 +288,17 @@ export class StuntingMonitoringComponent implements OnInit {
 
   setSelectedScope(scope: 'province' | string): void {
     this.workflowEngine.setSelectedScope(scope);
+  }
+
+  setTableDisplayMode(mode: 'single' | 'all'): void {
+    this.workflowEngine.setTableDisplayMode(mode);
+  }
+
+  scrollToTable(elementId: string): void {
+    const el = document.getElementById(elementId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }
 
   @HostListener('window:keydown.escape')
@@ -1698,6 +1713,90 @@ export class StuntingMonitoringComponent implements OnInit {
         };
       })
       .filter((g) => g.rows.length > 0);
+  });
+
+  allDisplayTables = computed<
+    Array<{
+      id: string;
+      label: string;
+      isProvince: boolean;
+      summary: StuntingKpiSummary;
+      groupedRows: Array<{
+        categoryName: string;
+        canonicalCategory: StuntingLifecycleCategory;
+        rows: EvaluatedStuntingRow[];
+      }>;
+    }>
+  >(() => {
+    const prov = this.evaluationResult();
+    const regionCards = this.rawRegionalScorecards();
+    const list: Array<{
+      id: string;
+      label: string;
+      isProvince: boolean;
+      summary: StuntingKpiSummary;
+      groupedRows: Array<{
+        categoryName: string;
+        canonicalCategory: StuntingLifecycleCategory;
+        rows: EvaluatedStuntingRow[];
+      }>;
+    }> = [];
+
+    const query = this.searchQuery().trim().toLowerCase();
+    const filter = this.activeFilter();
+
+    const filterGroups = (groups: StuntingEvaluationResult['groupedRows']) => {
+      return groups
+        .map((group) => {
+          const filtered = group.rows.filter((r) => {
+            const matchQuery =
+              !query ||
+              r.name.toLowerCase().includes(query) ||
+              r.category.toLowerCase().includes(query);
+            if (!matchQuery) return false;
+
+            if (filter === 'all') return true;
+            if (filter === 'on_track') return r.status === 'on_track';
+            if (filter === 'perlu_percepatan') return r.status === 'perlu_percepatan';
+            if (filter === 'belum_dinilai') return r.status === 'belum_dinilai';
+            if (filter === 'target_tercapai') return r.isTargetReached;
+            if (filter === 'meningkat') return r.isImproved;
+            if (filter === 'menurun') return r.isDeclined;
+
+            return r.pattern === filter;
+          });
+
+          return {
+            ...group,
+            rows: filtered,
+          };
+        })
+        .filter((g) => g.rows.length > 0);
+    };
+
+    if (prov) {
+      list.push({
+        id: 'province',
+        label: 'PROVINSI JAWA TENGAH (Agregat)',
+        isProvince: true,
+        summary: prov.summary,
+        groupedRows: filterGroups(prov.groupedRows),
+      });
+    }
+
+    for (const sc of regionCards) {
+      if (sc.evaluationResult) {
+        list.push({
+          id: sc.regionId,
+          label: sc.regionName,
+          isProvince: false,
+          summary: sc.summary,
+          groupedRows: filterGroups(sc.evaluationResult.groupedRows),
+        });
+      }
+    }
+
+    return list;
   });
 
   setActiveQuarter(q: number): void {
