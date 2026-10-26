@@ -265,8 +265,37 @@
           </span>
         </div>
         <p class="text-xs text-slate-500 max-w-lg mx-auto">
-          Unggah berkas mentah Excel (.xlsx) untuk langsung diekstrak otomatis menggunakan template konfigurasi resmi Dinkes (5 sheet indikator capaian).
+          Unggah berkas mentah Excel (.xlsx) untuk langsung diekstrak otomatis menggunakan template konfigurasi resmi Dinkes.
         </p>
+        <div class="mt-3 flex items-center justify-center gap-2" (click)="$event.stopPropagation()">
+          <span class="text-xs text-slate-500 font-medium">Pilihan Template:</span>
+          <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-xs">
+            <button
+              type="button"
+              (click)="applyTemplate('intervensi-spesifik')"
+              [class.bg-white]="!isMasalahGizi()"
+              [class.text-indigo-950]="!isMasalahGizi()"
+              [class.font-semibold]="!isMasalahGizi()"
+              [class.shadow-2xs]="!isMasalahGizi()"
+              [class.text-slate-600]="isMasalahGizi()"
+              class="rounded-md px-2.5 py-1 transition-all cursor-pointer"
+            >
+              Intervensi Spesifik (28 Kolom)
+            </button>
+            <button
+              type="button"
+              (click)="applyTemplate('masalah-gizi')"
+              [class.bg-white]="isMasalahGizi()"
+              [class.text-indigo-950]="isMasalahGizi()"
+              [class.font-semibold]="isMasalahGizi()"
+              [class.shadow-2xs]="isMasalahGizi()"
+              [class.text-slate-600]="!isMasalahGizi()"
+              class="rounded-md px-2.5 py-1 transition-all cursor-pointer"
+            >
+              Masalah Gizi (20 Kolom)
+            </button>
+          </div>
+        </div>
         <div class="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#525AFF] px-4 py-2 text-xs font-semibold text-white shadow-xs group-hover:bg-[#4348E6] transition">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -988,7 +1017,12 @@
               <div>
                 <div class="flex items-center gap-2">
                   <h2 class="font-semibold text-slate-900">Hasil Join</h2>
-                  @if (isDefaultData()) {
+                  @if (isMasalahGizi()) {
+                    <span class="inline-flex items-center gap-1 rounded-full bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 text-xs font-medium text-indigo-800">
+                      <span class="h-1.5 w-1.5 rounded-full bg-indigo-600"></span>
+                      Template: Masalah Gizi
+                    </span>
+                  } @else if (isDefaultData()) {
                     <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
                       <span class="h-1.5 w-1.5 rounded-full bg-emerald-600"></span>
                       Default: Format Intervensi Spesifik TW3
@@ -996,7 +1030,36 @@
                   }
                 </div>
 
-                <div class="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+                <div class="mt-2 flex flex-wrap items-center gap-3">
+                  <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-xs">
+                    <button
+                      type="button"
+                      (click)="applyTemplate('intervensi-spesifik')"
+                      [class.bg-white]="!isMasalahGizi()"
+                      [class.text-indigo-950]="!isMasalahGizi()"
+                      [class.font-semibold]="!isMasalahGizi()"
+                      [class.shadow-2xs]="!isMasalahGizi()"
+                      [class.text-slate-600]="isMasalahGizi()"
+                      class="rounded-md px-2.5 py-1 transition-all cursor-pointer"
+                    >
+                      Intervensi Spesifik (28 Kolom)
+                    </button>
+                    <button
+                      type="button"
+                      (click)="applyTemplate('masalah-gizi')"
+                      [class.bg-white]="isMasalahGizi()"
+                      [class.text-indigo-950]="isMasalahGizi()"
+                      [class.font-semibold]="isMasalahGizi()"
+                      [class.shadow-2xs]="isMasalahGizi()"
+                      [class.text-slate-600]="!isMasalahGizi()"
+                      class="rounded-md px-2.5 py-1 transition-all cursor-pointer"
+                    >
+                      Masalah Gizi (20 Kolom)
+                    </button>
+                  </div>
+                </div>
+
+                <div class="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-500">
                   <span>{{ resultRows().length }} baris · {{ resultColumns().length }} kolom</span>
 
                   @if (resultRows().length < originalResultRows().length) {
@@ -1040,31 +1103,33 @@
                   <span>{{ showColumnSettings() ? 'Tutup Pengaturan' : 'Pengaturan Kolom' }}</span>
                 </button>
 
-                <!-- VISUALISASIKAN GRAFIK BUTTON -->
-                <button
-                  type="button"
-                  (click)="visualizeInChart()"
-                  class="flex items-center gap-1.5 rounded-lg border border-[#6D8BC0]/40 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-[#F2F5FA] hover:text-[#525AFF] transition-colors cursor-pointer"
-                  title="Visualisasikan data hasil join ini ke dalam grafik batang horizontal"
-                >
-                  <svg class="w-3.5 h-3.5 text-[#6D8BC0]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                  <span>Visualisasikan Grafik</span>
-                </button>
+                @if (!isMasalahGizi()) {
+                  <!-- VISUALISASIKAN GRAFIK BUTTON -->
+                  <button
+                    type="button"
+                    (click)="visualizeInChart()"
+                    class="flex items-center gap-1.5 rounded-lg border border-[#6D8BC0]/40 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-[#F2F5FA] hover:text-[#525AFF] transition-colors cursor-pointer"
+                    title="Visualisasikan data hasil join ini ke dalam grafik batang horizontal"
+                  >
+                    <svg class="w-3.5 h-3.5 text-[#6D8BC0]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    <span>Visualisasikan Grafik</span>
+                  </button>
 
-                <!-- BAWA KE PEMANTAUAN STUNTING BUTTON -->
-                <button
-                  type="button"
-                  (click)="transferToStuntingMonitoring()"
-                  class="flex items-center gap-1.5 rounded-lg border border-[#525AFF]/30 bg-[#EEF0FF] px-3 py-1.5 text-xs font-semibold text-[#525AFF] hover:bg-[#E0E4FF] hover:border-[#525AFF]/50 transition-colors cursor-pointer"
-                  title="Bawa data hasil join ini langsung ke Modul Pemantauan Stunting"
-                >
-                  <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                  </svg>
-                  <span>Pemantauan Stunting</span>
-                </button>
+                  <!-- BAWA KE PEMANTAUAN STUNTING BUTTON -->
+                  <button
+                    type="button"
+                    (click)="transferToStuntingMonitoring()"
+                    class="flex items-center gap-1.5 rounded-lg border border-[#525AFF]/30 bg-[#EEF0FF] px-3 py-1.5 text-xs font-semibold text-[#525AFF] hover:bg-[#E0E4FF] hover:border-[#525AFF]/50 transition-colors cursor-pointer"
+                    title="Bawa data hasil join ini langsung ke Modul Pemantauan Stunting"
+                  >
+                    <svg class="w-3.5 h-3.5 text-[#525AFF]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                    <span>Pemantauan Stunting</span>
+                  </button>
+                }
 
                 <!-- DOWNLOAD EXCEL BUTTON -->
                 <button

@@ -1,0 +1,487 @@
+import { JoinConfigurationPreset } from '../../core/storage/configuration-workspace';
+
+export const MASALAH_GIZI_JOIN_CONFIG: JoinConfigurationPreset = {
+  version: '1.0',
+  name: 'Konfigurasi - Tabel Masalah Gizi',
+  savedAt: '2026-10-27T00:00:00.000Z',
+  outputHeaderFormat: 'concat',
+  includeSheetPrefix: true,
+  joinBy: 'Kabupaten/Kota',
+  stripKabupaten: true,
+  sheets: [
+    {
+      sheetName: 'anak',
+      headerStartRow: 3,
+      headerEndRow: 5,
+      dataStartRow: 7,
+      joinColumn: 'Kabupaten/Kota',
+      variables: [
+        'Bayi baru lahir - Persentase bayi dengan berat badan lahir rendah (berat badan < 2500 gram) - Jumlah bayi BBLR',
+        'Bayi baru lahir - Persentase bayi dengan berat badan lahir rendah (berat badan < 2500 gram) - %',
+      ],
+    },
+    {
+      sheetName: 'gizi',
+      headerStartRow: 3,
+      headerEndRow: 5,
+      dataStartRow: 7,
+      joinColumn: 'Kabupaten/Kota',
+      variables: [
+        'Pemantauan Pertumbuhan dan Perkembangan - Pemantauan Pertumbuhan - Jumlah balita tidak naik berat badannya (T) (avg)',
+        'Pemantauan Pertumbuhan dan Perkembangan - Pemantauan Pertumbuhan - % (2)',
+        'ASI Eksklusif dan MPASI - Persentase balita underweight (berat badan kurang dan sangat kurang) pada balita - Jumlah balita underweight (avg)',
+        'ASI Eksklusif dan MPASI - Persentase balita underweight (berat badan kurang dan sangat kurang) pada balita - %',
+        'Masalah gizi - Persentase balita wasting (gizi kurang dan gizi buruk) pada balita - Jumlah balita wasting (avg)',
+        'Masalah gizi - Persentase balita wasting (gizi kurang dan gizi buruk) pada balita - %',
+        'Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi buruk mendapat tata laksana - Jumlah kasus gizi buruk bayi 6-59 Bulan sampai TW ini',
+        'Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi buruk mendapat tata laksana - % (4)',
+        'Masalah gizi - Persentase balita stunting (pendek dan sangat pendek) pada balita - Jumlah balita stunting (avg)',
+        'Masalah gizi - Persentase balita stunting (pendek dan sangat pendek) pada balita - %',
+        'Tatalaksana Balita Bermasalah Gizi - Persentase balita stunting dirujuk PKM ke RS - Jumlah insiden balita stunting',
+        'Tatalaksana Balita Bermasalah Gizi - Persentase balita stunting dirujuk PKM ke RS - Jumlah balita stunting dirujuk Puskesmas ke RS',
+      ],
+    },
+    {
+      sheetName: 'BUMIL',
+      headerStartRow: 3,
+      headerEndRow: 5,
+      dataStartRow: 7,
+      joinColumn: 'Kabupaten/Kota',
+      variables: [
+        'Persentase ibu hamil kurang energi kronik - Jumlah ibu hamil risiko KEK/KEK sampai TW ini',
+        'Persentase ibu hamil kurang energi kronik - %',
+        'Persentase anemia pada ibu hamil - Jumlah ibu hamil anemia sampai TW ini',
+        'Persentase anemia pada ibu hamil - %',
+      ],
+    },
+    {
+      sheetName: 'remaja',
+      headerStartRow: 3,
+      headerEndRow: 5,
+      dataStartRow: 7,
+      joinColumn: 'Kabupaten/Kota',
+      variables: [
+        'Persentase remaja putri teridentifikasi anemia - Jumlah remaja putri kelas 7 dan 10 di satuan pendidikan yang teridentifikasi anemia sampai TW ini',
+        'Persentase remaja putri teridentifikasi anemia - % (3)',
+      ],
+    },
+  ],
+  enableTarget: true,
+  enableCapaian: false,
+  enableJumlah: true,
+  enableAverage: true,
+  columnTargets: {
+    'Kabupaten/Kota': { enabled: false, operator: '>=', value: null },
+
+    'anak - Bayi baru lahir - Persentase bayi dengan berat badan lahir rendah (berat badan < 2500 gram) - Jumlah bayi BBLR': { enabled: false, operator: '>=', value: null },
+    'Bayi baru lahir - Persentase bayi dengan berat badan lahir rendah (berat badan < 2500 gram) - Jumlah bayi BBLR': { enabled: false, operator: '>=', value: null },
+    'BBLR - Jumlah': { enabled: false, operator: '>=', value: null },
+
+    'anak - Bayi baru lahir - Persentase bayi dengan berat badan lahir rendah (berat badan < 2500 gram) - %': { enabled: true, operator: '<=', value: 5.5 },
+    'Bayi baru lahir - Persentase bayi dengan berat badan lahir rendah (berat badan < 2500 gram) - %': { enabled: true, operator: '<=', value: 5.5 },
+    'BBLR - %': { enabled: true, operator: '<=', value: 5.5 },
+
+    'gizi - Pemantauan Pertumbuhan dan Perkembangan - Pemantauan Pertumbuhan - Jumlah balita tidak naik berat badannya (T) (avg)': { enabled: false, operator: '>=', value: null },
+    'Pemantauan Pertumbuhan dan Perkembangan - Pemantauan Pertumbuhan - Jumlah balita tidak naik berat badannya (T) (avg)': { enabled: false, operator: '>=', value: null },
+    'BB Tidak Naik - Jumlah': { enabled: false, operator: '>=', value: null },
+
+    'gizi - Pemantauan Pertumbuhan dan Perkembangan - Pemantauan Pertumbuhan - % (2)': { enabled: true, operator: '<=', value: 40 },
+    'Pemantauan Pertumbuhan dan Perkembangan - Pemantauan Pertumbuhan - % (2)': { enabled: true, operator: '<=', value: 40 },
+    'BB Tidak Naik - %': { enabled: true, operator: '<=', value: 40 },
+
+    'gizi - ASI Eksklusif dan MPASI - Persentase balita underweight (berat badan kurang dan sangat kurang) pada balita - Jumlah balita underweight (avg)': { enabled: false, operator: '>=', value: null },
+    'ASI Eksklusif dan MPASI - Persentase balita underweight (berat badan kurang dan sangat kurang) pada balita - Jumlah balita underweight (avg)': { enabled: false, operator: '>=', value: null },
+    'BB Kurang - Jumlah': { enabled: false, operator: '>=', value: null },
+
+    'gizi - ASI Eksklusif dan MPASI - Persentase balita underweight (berat badan kurang dan sangat kurang) pada balita - %': { enabled: true, operator: '<=', value: 14 },
+    'ASI Eksklusif dan MPASI - Persentase balita underweight (berat badan kurang dan sangat kurang) pada balita - %': { enabled: true, operator: '<=', value: 14 },
+    'BB Kurang - %': { enabled: true, operator: '<=', value: 14 },
+
+    'gizi - Masalah gizi - Persentase balita wasting (gizi kurang dan gizi buruk) pada balita - Jumlah balita wasting (avg)': { enabled: false, operator: '>=', value: null },
+    'Masalah gizi - Persentase balita wasting (gizi kurang dan gizi buruk) pada balita - Jumlah balita wasting (avg)': { enabled: false, operator: '>=', value: null },
+    'Gizi Kurang - Jumlah': { enabled: false, operator: '>=', value: null },
+
+    'gizi - Masalah gizi - Persentase balita wasting (gizi kurang dan gizi buruk) pada balita - %': { enabled: true, operator: '<=', value: 7.5 },
+    'Masalah gizi - Persentase balita wasting (gizi kurang dan gizi buruk) pada balita - %': { enabled: true, operator: '<=', value: 7.5 },
+    'Gizi Kurang - %': { enabled: true, operator: '<=', value: 7.5 },
+
+    'gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi buruk mendapat tata laksana - Jumlah kasus gizi buruk bayi 6-59 Bulan sampai TW ini': { enabled: false, operator: '>=', value: null },
+    'Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi buruk mendapat tata laksana - Jumlah kasus gizi buruk bayi 6-59 Bulan sampai TW ini': { enabled: false, operator: '>=', value: null },
+    'Gizi Buruk - Jumlah': { enabled: false, operator: '>=', value: null },
+
+    'gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi buruk mendapat tata laksana - % (4)': { enabled: true, operator: '<=', value: 0.5 },
+    'Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi buruk mendapat tata laksana - % (4)': { enabled: true, operator: '<=', value: 0.5 },
+    'Gizi Buruk - %': { enabled: true, operator: '<=', value: 0.5 },
+
+    'gizi - Masalah gizi - Persentase balita stunting (pendek dan sangat pendek) pada balita - Jumlah balita stunting (avg)': { enabled: false, operator: '>=', value: null },
+    'Masalah gizi - Persentase balita stunting (pendek dan sangat pendek) pada balita - Jumlah balita stunting (avg)': { enabled: false, operator: '>=', value: null },
+    'Stunting - Jumlah': { enabled: false, operator: '>=', value: null },
+
+    'gizi - Masalah gizi - Persentase balita stunting (pendek dan sangat pendek) pada balita - %': { enabled: true, operator: '<=', value: 14 },
+    'Masalah gizi - Persentase balita stunting (pendek dan sangat pendek) pada balita - %': { enabled: true, operator: '<=', value: 14 },
+    'Stunting - %': { enabled: true, operator: '<=', value: 14 },
+
+    'gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita stunting dirujuk PKM ke RS - Jumlah insiden balita stunting': { enabled: false, operator: '>=', value: null },
+    'Tatalaksana Balita Bermasalah Gizi - Persentase balita stunting dirujuk PKM ke RS - Jumlah insiden balita stunting': { enabled: false, operator: '>=', value: null },
+    'Insiden Stunting - Jumlah': { enabled: false, operator: '>=', value: null },
+
+    'gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita stunting dirujuk PKM ke RS - Jumlah balita stunting dirujuk Puskesmas ke RS': { enabled: true, operator: '<=', value: 2.3 },
+    'Tatalaksana Balita Bermasalah Gizi - Persentase balita stunting dirujuk PKM ke RS - Jumlah balita stunting dirujuk Puskesmas ke RS': { enabled: true, operator: '<=', value: 2.3 },
+    'Insiden Stunting - %': { enabled: true, operator: '<=', value: 2.3 },
+
+    'BUMIL - Persentase ibu hamil kurang energi kronik - Jumlah ibu hamil risiko KEK/KEK sampai TW ini': { enabled: false, operator: '>=', value: null },
+    'Persentase ibu hamil kurang energi kronik - Jumlah ibu hamil risiko KEK/KEK sampai TW ini': { enabled: false, operator: '>=', value: null },
+    'Bumil KEK/Risiko KEK - Jumlah': { enabled: false, operator: '>=', value: null },
+
+    'BUMIL - Persentase ibu hamil kurang energi kronik - %': { enabled: true, operator: '<=', value: 13 },
+    'Persentase ibu hamil kurang energi kronik - %': { enabled: true, operator: '<=', value: 13 },
+    'Bumil KEK/Risiko KEK - %': { enabled: true, operator: '<=', value: 13 },
+
+    'BUMIL - Persentase anemia pada ibu hamil - Jumlah ibu hamil anemia sampai TW ini': { enabled: false, operator: '>=', value: null },
+    'Persentase anemia pada ibu hamil - Jumlah ibu hamil anemia sampai TW ini': { enabled: false, operator: '>=', value: null },
+    'Bumil Anemia - Jumlah': { enabled: false, operator: '>=', value: null },
+
+    'BUMIL - Persentase anemia pada ibu hamil - %': { enabled: true, operator: '<=', value: 23 },
+    'Persentase anemia pada ibu hamil - %': { enabled: true, operator: '<=', value: 23 },
+    'Bumil Anemia - %': { enabled: true, operator: '<=', value: 23 },
+
+    'remaja - Persentase remaja putri teridentifikasi anemia - Jumlah remaja putri kelas 7 dan 10 di satuan pendidikan yang teridentifikasi anemia sampai TW ini': { enabled: false, operator: '>=', value: null },
+    'Persentase remaja putri teridentifikasi anemia - Jumlah remaja putri kelas 7 dan 10 di satuan pendidikan yang teridentifikasi anemia sampai TW ini': { enabled: false, operator: '>=', value: null },
+    'Rematri Anemia - Jumlah': { enabled: false, operator: '>=', value: null },
+
+    'remaja - Persentase remaja putri teridentifikasi anemia - % (3)': { enabled: true, operator: '<=', value: 25 },
+    'Persentase remaja putri teridentifikasi anemia - % (3)': { enabled: true, operator: '<=', value: 25 },
+    'Rematri Anemia - %': { enabled: true, operator: '<=', value: 25 },
+  },
+  columnConfigs: {
+    'Kabupaten/Kota': { dataType: 'string', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+
+    'anak - Bayi baru lahir - Persentase bayi dengan berat badan lahir rendah (berat badan < 2500 gram) - Jumlah bayi BBLR': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+    'Bayi baru lahir - Persentase bayi dengan berat badan lahir rendah (berat badan < 2500 gram) - Jumlah bayi BBLR': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+    'BBLR - Jumlah': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+
+    'anak - Bayi baru lahir - Persentase bayi dengan berat badan lahir rendah (berat badan < 2500 gram) - %': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+    'Bayi baru lahir - Persentase bayi dengan berat badan lahir rendah (berat badan < 2500 gram) - %': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+    'BBLR - %': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+
+    'gizi - Pemantauan Pertumbuhan dan Perkembangan - Pemantauan Pertumbuhan - Jumlah balita tidak naik berat badannya (T) (avg)': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+    'Pemantauan Pertumbuhan dan Perkembangan - Pemantauan Pertumbuhan - Jumlah balita tidak naik berat badannya (T) (avg)': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+    'BB Tidak Naik - Jumlah': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+
+    'gizi - Pemantauan Pertumbuhan dan Perkembangan - Pemantauan Pertumbuhan - % (2)': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+    'Pemantauan Pertumbuhan dan Perkembangan - Pemantauan Pertumbuhan - % (2)': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+    'BB Tidak Naik - %': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+
+    'gizi - ASI Eksklusif dan MPASI - Persentase balita underweight (berat badan kurang dan sangat kurang) pada balita - Jumlah balita underweight (avg)': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+    'ASI Eksklusif dan MPASI - Persentase balita underweight (berat badan kurang dan sangat kurang) pada balita - Jumlah balita underweight (avg)': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+    'BB Kurang - Jumlah': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+
+    'gizi - ASI Eksklusif dan MPASI - Persentase balita underweight (berat badan kurang dan sangat kurang) pada balita - %': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+    'ASI Eksklusif dan MPASI - Persentase balita underweight (berat badan kurang dan sangat kurang) pada balita - %': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+    'BB Kurang - %': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+
+    'gizi - Masalah gizi - Persentase balita wasting (gizi kurang dan gizi buruk) pada balita - Jumlah balita wasting (avg)': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+    'Masalah gizi - Persentase balita wasting (gizi kurang dan gizi buruk) pada balita - Jumlah balita wasting (avg)': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+    'Gizi Kurang - Jumlah': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+
+    'gizi - Masalah gizi - Persentase balita wasting (gizi kurang dan gizi buruk) pada balita - %': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+    'Masalah gizi - Persentase balita wasting (gizi kurang dan gizi buruk) pada balita - %': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+    'Gizi Kurang - %': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+
+    'gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi buruk mendapat tata laksana - Jumlah kasus gizi buruk bayi 6-59 Bulan sampai TW ini': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+    'Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi buruk mendapat tata laksana - Jumlah kasus gizi buruk bayi 6-59 Bulan sampai TW ini': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+    'Gizi Buruk - Jumlah': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+
+    'gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi buruk mendapat tata laksana - % (4)': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+    'Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi buruk mendapat tata laksana - % (4)': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+    'Gizi Buruk - %': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+
+    'gizi - Masalah gizi - Persentase balita stunting (pendek dan sangat pendek) pada balita - Jumlah balita stunting (avg)': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+    'Masalah gizi - Persentase balita stunting (pendek dan sangat pendek) pada balita - Jumlah balita stunting (avg)': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+    'Stunting - Jumlah': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+
+    'gizi - Masalah gizi - Persentase balita stunting (pendek dan sangat pendek) pada balita - %': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+    'Masalah gizi - Persentase balita stunting (pendek dan sangat pendek) pada balita - %': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+    'Stunting - %': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+
+    'gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita stunting dirujuk PKM ke RS - Jumlah insiden balita stunting': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+    'Tatalaksana Balita Bermasalah Gizi - Persentase balita stunting dirujuk PKM ke RS - Jumlah insiden balita stunting': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+    'Insiden Stunting - Jumlah': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+
+    'gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita stunting dirujuk PKM ke RS - Jumlah balita stunting dirujuk Puskesmas ke RS': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+    'Tatalaksana Balita Bermasalah Gizi - Persentase balita stunting dirujuk PKM ke RS - Jumlah balita stunting dirujuk Puskesmas ke RS': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+    'Insiden Stunting - %': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+
+    'BUMIL - Persentase ibu hamil kurang energi kronik - Jumlah ibu hamil risiko KEK/KEK sampai TW ini': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+    'Persentase ibu hamil kurang energi kronik - Jumlah ibu hamil risiko KEK/KEK sampai TW ini': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+    'Bumil KEK/Risiko KEK - Jumlah': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+
+    'BUMIL - Persentase ibu hamil kurang energi kronik - %': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+    'Persentase ibu hamil kurang energi kronik - %': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+    'Bumil KEK/Risiko KEK - %': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+
+    'BUMIL - Persentase anemia pada ibu hamil - Jumlah ibu hamil anemia sampai TW ini': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+    'Persentase anemia pada ibu hamil - Jumlah ibu hamil anemia sampai TW ini': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+    'Bumil Anemia - Jumlah': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+
+    'BUMIL - Persentase anemia pada ibu hamil - %': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+    'Persentase anemia pada ibu hamil - %': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+    'Bumil Anemia - %': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+
+    'remaja - Persentase remaja putri teridentifikasi anemia - Jumlah remaja putri kelas 7 dan 10 di satuan pendidikan yang teridentifikasi anemia sampai TW ini': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+    'Persentase remaja putri teridentifikasi anemia - Jumlah remaja putri kelas 7 dan 10 di satuan pendidikan yang teridentifikasi anemia sampai TW ini': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+    'Rematri Anemia - Jumlah': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+
+    'remaja - Persentase remaja putri teridentifikasi anemia - % (3)': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+    'Persentase remaja putri teridentifikasi anemia - % (3)': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+    'Rematri Anemia - %': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
+  },
+  sumColumns: {
+    'Kabupaten/Kota': false,
+    'anak - Bayi baru lahir - Persentase bayi dengan berat badan lahir rendah (berat badan < 2500 gram) - Jumlah bayi BBLR': true,
+    'Bayi baru lahir - Persentase bayi dengan berat badan lahir rendah (berat badan < 2500 gram) - Jumlah bayi BBLR': true,
+    'BBLR - Jumlah': true,
+    'anak - Bayi baru lahir - Persentase bayi dengan berat badan lahir rendah (berat badan < 2500 gram) - %': false,
+    'Bayi baru lahir - Persentase bayi dengan berat badan lahir rendah (berat badan < 2500 gram) - %': false,
+    'BBLR - %': false,
+
+    'gizi - Pemantauan Pertumbuhan dan Perkembangan - Pemantauan Pertumbuhan - Jumlah balita tidak naik berat badannya (T) (avg)': true,
+    'Pemantauan Pertumbuhan dan Perkembangan - Pemantauan Pertumbuhan - Jumlah balita tidak naik berat badannya (T) (avg)': true,
+    'BB Tidak Naik - Jumlah': true,
+    'gizi - Pemantauan Pertumbuhan dan Perkembangan - Pemantauan Pertumbuhan - % (2)': false,
+    'Pemantauan Pertumbuhan dan Perkembangan - Pemantauan Pertumbuhan - % (2)': false,
+    'BB Tidak Naik - %': false,
+
+    'gizi - ASI Eksklusif dan MPASI - Persentase balita underweight (berat badan kurang dan sangat kurang) pada balita - Jumlah balita underweight (avg)': true,
+    'ASI Eksklusif dan MPASI - Persentase balita underweight (berat badan kurang dan sangat kurang) pada balita - Jumlah balita underweight (avg)': true,
+    'BB Kurang - Jumlah': true,
+    'gizi - ASI Eksklusif dan MPASI - Persentase balita underweight (berat badan kurang dan sangat kurang) pada balita - %': false,
+    'ASI Eksklusif dan MPASI - Persentase balita underweight (berat badan kurang dan sangat kurang) pada balita - %': false,
+    'BB Kurang - %': false,
+
+    'gizi - Masalah gizi - Persentase balita wasting (gizi kurang dan gizi buruk) pada balita - Jumlah balita wasting (avg)': true,
+    'Masalah gizi - Persentase balita wasting (gizi kurang dan gizi buruk) pada balita - Jumlah balita wasting (avg)': true,
+    'Gizi Kurang - Jumlah': true,
+    'gizi - Masalah gizi - Persentase balita wasting (gizi kurang dan gizi buruk) pada balita - %': false,
+    'Masalah gizi - Persentase balita wasting (gizi kurang dan gizi buruk) pada balita - %': false,
+    'Gizi Kurang - %': false,
+
+    'gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi buruk mendapat tata laksana - Jumlah kasus gizi buruk bayi 6-59 Bulan sampai TW ini': true,
+    'Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi buruk mendapat tata laksana - Jumlah kasus gizi buruk bayi 6-59 Bulan sampai TW ini': true,
+    'Gizi Buruk - Jumlah': true,
+    'gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi buruk mendapat tata laksana - % (4)': false,
+    'Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi buruk mendapat tata laksana - % (4)': false,
+    'Gizi Buruk - %': false,
+
+    'gizi - Masalah gizi - Persentase balita stunting (pendek dan sangat pendek) pada balita - Jumlah balita stunting (avg)': true,
+    'Masalah gizi - Persentase balita stunting (pendek dan sangat pendek) pada balita - Jumlah balita stunting (avg)': true,
+    'Stunting - Jumlah': true,
+    'gizi - Masalah gizi - Persentase balita stunting (pendek dan sangat pendek) pada balita - %': false,
+    'Masalah gizi - Persentase balita stunting (pendek dan sangat pendek) pada balita - %': false,
+    'Stunting - %': false,
+
+    'gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita stunting dirujuk PKM ke RS - Jumlah insiden balita stunting': true,
+    'Tatalaksana Balita Bermasalah Gizi - Persentase balita stunting dirujuk PKM ke RS - Jumlah insiden balita stunting': true,
+    'Insiden Stunting - Jumlah': true,
+    'gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita stunting dirujuk PKM ke RS - Jumlah balita stunting dirujuk Puskesmas ke RS': false,
+    'Tatalaksana Balita Bermasalah Gizi - Persentase balita stunting dirujuk PKM ke RS - Jumlah balita stunting dirujuk Puskesmas ke RS': false,
+    'Insiden Stunting - %': false,
+
+    'BUMIL - Persentase ibu hamil kurang energi kronik - Jumlah ibu hamil risiko KEK/KEK sampai TW ini': true,
+    'Persentase ibu hamil kurang energi kronik - Jumlah ibu hamil risiko KEK/KEK sampai TW ini': true,
+    'Bumil KEK/Risiko KEK - Jumlah': true,
+    'BUMIL - Persentase ibu hamil kurang energi kronik - %': false,
+    'Persentase ibu hamil kurang energi kronik - %': false,
+    'Bumil KEK/Risiko KEK - %': false,
+
+    'BUMIL - Persentase anemia pada ibu hamil - Jumlah ibu hamil anemia sampai TW ini': true,
+    'Persentase anemia pada ibu hamil - Jumlah ibu hamil anemia sampai TW ini': true,
+    'Bumil Anemia - Jumlah': true,
+    'BUMIL - Persentase anemia pada ibu hamil - %': false,
+    'Persentase anemia pada ibu hamil - %': false,
+    'Bumil Anemia - %': false,
+
+    'remaja - Persentase remaja putri teridentifikasi anemia - Jumlah remaja putri kelas 7 dan 10 di satuan pendidikan yang teridentifikasi anemia sampai TW ini': true,
+    'Persentase remaja putri teridentifikasi anemia - Jumlah remaja putri kelas 7 dan 10 di satuan pendidikan yang teridentifikasi anemia sampai TW ini': true,
+    'Rematri Anemia - Jumlah': true,
+    'remaja - Persentase remaja putri teridentifikasi anemia - % (3)': false,
+    'Persentase remaja putri teridentifikasi anemia - % (3)': false,
+    'Rematri Anemia - %': false,
+  },
+  avgColumns: {
+    'Kabupaten/Kota': false,
+    'anak - Bayi baru lahir - Persentase bayi dengan berat badan lahir rendah (berat badan < 2500 gram) - Jumlah bayi BBLR': false,
+    'Bayi baru lahir - Persentase bayi dengan berat badan lahir rendah (berat badan < 2500 gram) - Jumlah bayi BBLR': false,
+    'BBLR - Jumlah': false,
+    'anak - Bayi baru lahir - Persentase bayi dengan berat badan lahir rendah (berat badan < 2500 gram) - %': true,
+    'Bayi baru lahir - Persentase bayi dengan berat badan lahir rendah (berat badan < 2500 gram) - %': true,
+    'BBLR - %': true,
+
+    'gizi - Pemantauan Pertumbuhan dan Perkembangan - Pemantauan Pertumbuhan - Jumlah balita tidak naik berat badannya (T) (avg)': false,
+    'Pemantauan Pertumbuhan dan Perkembangan - Pemantauan Pertumbuhan - Jumlah balita tidak naik berat badannya (T) (avg)': false,
+    'BB Tidak Naik - Jumlah': false,
+    'gizi - Pemantauan Pertumbuhan dan Perkembangan - Pemantauan Pertumbuhan - % (2)': true,
+    'Pemantauan Pertumbuhan dan Perkembangan - Pemantauan Pertumbuhan - % (2)': true,
+    'BB Tidak Naik - %': true,
+
+    'gizi - ASI Eksklusif dan MPASI - Persentase balita underweight (berat badan kurang dan sangat kurang) pada balita - Jumlah balita underweight (avg)': false,
+    'ASI Eksklusif dan MPASI - Persentase balita underweight (berat badan kurang dan sangat kurang) pada balita - Jumlah balita underweight (avg)': false,
+    'BB Kurang - Jumlah': false,
+    'gizi - ASI Eksklusif dan MPASI - Persentase balita underweight (berat badan kurang dan sangat kurang) pada balita - %': true,
+    'ASI Eksklusif dan MPASI - Persentase balita underweight (berat badan kurang dan sangat kurang) pada balita - %': true,
+    'BB Kurang - %': true,
+
+    'gizi - Masalah gizi - Persentase balita wasting (gizi kurang dan gizi buruk) pada balita - Jumlah balita wasting (avg)': false,
+    'Masalah gizi - Persentase balita wasting (gizi kurang dan gizi buruk) pada balita - Jumlah balita wasting (avg)': false,
+    'Gizi Kurang - Jumlah': false,
+    'gizi - Masalah gizi - Persentase balita wasting (gizi kurang dan gizi buruk) pada balita - %': true,
+    'Masalah gizi - Persentase balita wasting (gizi kurang dan gizi buruk) pada balita - %': true,
+    'Gizi Kurang - %': true,
+
+    'gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi buruk mendapat tata laksana - Jumlah kasus gizi buruk bayi 6-59 Bulan sampai TW ini': false,
+    'Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi buruk mendapat tata laksana - Jumlah kasus gizi buruk bayi 6-59 Bulan sampai TW ini': false,
+    'Gizi Buruk - Jumlah': false,
+    'gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi buruk mendapat tata laksana - % (4)': true,
+    'Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi buruk mendapat tata laksana - % (4)': true,
+    'Gizi Buruk - %': true,
+
+    'gizi - Masalah gizi - Persentase balita stunting (pendek dan sangat pendek) pada balita - Jumlah balita stunting (avg)': false,
+    'Masalah gizi - Persentase balita stunting (pendek dan sangat pendek) pada balita - Jumlah balita stunting (avg)': false,
+    'Stunting - Jumlah': false,
+    'gizi - Masalah gizi - Persentase balita stunting (pendek dan sangat pendek) pada balita - %': true,
+    'Masalah gizi - Persentase balita stunting (pendek dan sangat pendek) pada balita - %': true,
+    'Stunting - %': true,
+
+    'gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita stunting dirujuk PKM ke RS - Jumlah insiden balita stunting': false,
+    'Tatalaksana Balita Bermasalah Gizi - Persentase balita stunting dirujuk PKM ke RS - Jumlah insiden balita stunting': false,
+    'Insiden Stunting - Jumlah': false,
+    'gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita stunting dirujuk PKM ke RS - Jumlah balita stunting dirujuk Puskesmas ke RS': true,
+    'Tatalaksana Balita Bermasalah Gizi - Persentase balita stunting dirujuk PKM ke RS - Jumlah balita stunting dirujuk Puskesmas ke RS': true,
+    'Insiden Stunting - %': true,
+
+    'BUMIL - Persentase ibu hamil kurang energi kronik - Jumlah ibu hamil risiko KEK/KEK sampai TW ini': false,
+    'Persentase ibu hamil kurang energi kronik - Jumlah ibu hamil risiko KEK/KEK sampai TW ini': false,
+    'Bumil KEK/Risiko KEK - Jumlah': false,
+    'BUMIL - Persentase ibu hamil kurang energi kronik - %': true,
+    'Persentase ibu hamil kurang energi kronik - %': true,
+    'Bumil KEK/Risiko KEK - %': true,
+
+    'BUMIL - Persentase anemia pada ibu hamil - Jumlah ibu hamil anemia sampai TW ini': false,
+    'Persentase anemia pada ibu hamil - Jumlah ibu hamil anemia sampai TW ini': false,
+    'Bumil Anemia - Jumlah': false,
+    'BUMIL - Persentase anemia pada ibu hamil - %': true,
+    'Persentase anemia pada ibu hamil - %': true,
+    'Bumil Anemia - %': true,
+
+    'remaja - Persentase remaja putri teridentifikasi anemia - Jumlah remaja putri kelas 7 dan 10 di satuan pendidikan yang teridentifikasi anemia sampai TW ini': false,
+    'Persentase remaja putri teridentifikasi anemia - Jumlah remaja putri kelas 7 dan 10 di satuan pendidikan yang teridentifikasi anemia sampai TW ini': false,
+    'Rematri Anemia - Jumlah': false,
+    'remaja - Persentase remaja putri teridentifikasi anemia - % (3)': true,
+    'Persentase remaja putri teridentifikasi anemia - % (3)': true,
+    'Rematri Anemia - %': true,
+  },
+  customColumnNames: {
+    'anak - Bayi baru lahir - Persentase bayi dengan berat badan lahir rendah (berat badan < 2500 gram) - Jumlah bayi BBLR': 'BBLR - Jumlah',
+    'Bayi baru lahir - Persentase bayi dengan berat badan lahir rendah (berat badan < 2500 gram) - Jumlah bayi BBLR': 'BBLR - Jumlah',
+    'BBLR - Jumlah': 'BBLR - Jumlah',
+
+    'anak - Bayi baru lahir - Persentase bayi dengan berat badan lahir rendah (berat badan < 2500 gram) - %': 'BBLR - %',
+    'Bayi baru lahir - Persentase bayi dengan berat badan lahir rendah (berat badan < 2500 gram) - %': 'BBLR - %',
+    'BBLR - %': 'BBLR - %',
+
+    'gizi - Pemantauan Pertumbuhan dan Perkembangan - Pemantauan Pertumbuhan - Jumlah balita tidak naik berat badannya (T) (avg)': 'BB Tidak Naik - Jumlah',
+    'Pemantauan Pertumbuhan dan Perkembangan - Pemantauan Pertumbuhan - Jumlah balita tidak naik berat badannya (T) (avg)': 'BB Tidak Naik - Jumlah',
+    'BB Tidak Naik - Jumlah': 'BB Tidak Naik - Jumlah',
+
+    'gizi - Pemantauan Pertumbuhan dan Perkembangan - Pemantauan Pertumbuhan - % (2)': 'BB Tidak Naik - %',
+    'Pemantauan Pertumbuhan dan Perkembangan - Pemantauan Pertumbuhan - % (2)': 'BB Tidak Naik - %',
+    'BB Tidak Naik - %': 'BB Tidak Naik - %',
+
+    'gizi - ASI Eksklusif dan MPASI - Persentase balita underweight (berat badan kurang dan sangat kurang) pada balita - Jumlah balita underweight (avg)': 'BB Kurang - Jumlah',
+    'ASI Eksklusif dan MPASI - Persentase balita underweight (berat badan kurang dan sangat kurang) pada balita - Jumlah balita underweight (avg)': 'BB Kurang - Jumlah',
+    'BB Kurang - Jumlah': 'BB Kurang - Jumlah',
+
+    'gizi - ASI Eksklusif dan MPASI - Persentase balita underweight (berat badan kurang dan sangat kurang) pada balita - %': 'BB Kurang - %',
+    'ASI Eksklusif dan MPASI - Persentase balita underweight (berat badan kurang dan sangat kurang) pada balita - %': 'BB Kurang - %',
+    'BB Kurang - %': 'BB Kurang - %',
+
+    'gizi - Masalah gizi - Persentase balita wasting (gizi kurang dan gizi buruk) pada balita - Jumlah balita wasting (avg)': 'Gizi Kurang - Jumlah',
+    'Masalah gizi - Persentase balita wasting (gizi kurang dan gizi buruk) pada balita - Jumlah balita wasting (avg)': 'Gizi Kurang - Jumlah',
+    'Gizi Kurang - Jumlah': 'Gizi Kurang - Jumlah',
+
+    'gizi - Masalah gizi - Persentase balita wasting (gizi kurang dan gizi buruk) pada balita - %': 'Gizi Kurang - %',
+    'Masalah gizi - Persentase balita wasting (gizi kurang dan gizi buruk) pada balita - %': 'Gizi Kurang - %',
+    'Gizi Kurang - %': 'Gizi Kurang - %',
+
+    'gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi buruk mendapat tata laksana - Jumlah kasus gizi buruk bayi 6-59 Bulan sampai TW ini': 'Gizi Buruk - Jumlah',
+    'Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi buruk mendapat tata laksana - Jumlah kasus gizi buruk bayi 6-59 Bulan sampai TW ini': 'Gizi Buruk - Jumlah',
+    'Gizi Buruk - Jumlah': 'Gizi Buruk - Jumlah',
+
+    'gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi buruk mendapat tata laksana - % (4)': 'Gizi Buruk - %',
+    'Tatalaksana Balita Bermasalah Gizi - Persentase balita gizi buruk mendapat tata laksana - % (4)': 'Gizi Buruk - %',
+    'Gizi Buruk - %': 'Gizi Buruk - %',
+
+    'gizi - Masalah gizi - Persentase balita stunting (pendek dan sangat pendek) pada balita - Jumlah balita stunting (avg)': 'Stunting - Jumlah',
+    'Masalah gizi - Persentase balita stunting (pendek dan sangat pendek) pada balita - Jumlah balita stunting (avg)': 'Stunting - Jumlah',
+    'Stunting - Jumlah': 'Stunting - Jumlah',
+
+    'gizi - Masalah gizi - Persentase balita stunting (pendek dan sangat pendek) pada balita - %': 'Stunting - %',
+    'Masalah gizi - Persentase balita stunting (pendek dan sangat pendek) pada balita - %': 'Stunting - %',
+    'Stunting - %': 'Stunting - %',
+
+    'gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita stunting dirujuk PKM ke RS - Jumlah insiden balita stunting': 'Insiden Stunting - Jumlah',
+    'Tatalaksana Balita Bermasalah Gizi - Persentase balita stunting dirujuk PKM ke RS - Jumlah insiden balita stunting': 'Insiden Stunting - Jumlah',
+    'Insiden Stunting - Jumlah': 'Insiden Stunting - Jumlah',
+
+    'gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita stunting dirujuk PKM ke RS - Jumlah balita stunting dirujuk Puskesmas ke RS': 'Insiden Stunting - %',
+    'Tatalaksana Balita Bermasalah Gizi - Persentase balita stunting dirujuk PKM ke RS - Jumlah balita stunting dirujuk Puskesmas ke RS': 'Insiden Stunting - %',
+    'Insiden Stunting - %': 'Insiden Stunting - %',
+
+    'BUMIL - Persentase ibu hamil kurang energi kronik - Jumlah ibu hamil risiko KEK/KEK sampai TW ini': 'Bumil KEK/Risiko KEK - Jumlah',
+    'Persentase ibu hamil kurang energi kronik - Jumlah ibu hamil risiko KEK/KEK sampai TW ini': 'Bumil KEK/Risiko KEK - Jumlah',
+    'Bumil KEK/Risiko KEK - Jumlah': 'Bumil KEK/Risiko KEK - Jumlah',
+
+    'BUMIL - Persentase ibu hamil kurang energi kronik - %': 'Bumil KEK/Risiko KEK - %',
+    'Persentase ibu hamil kurang energi kronik - %': 'Bumil KEK/Risiko KEK - %',
+    'Bumil KEK/Risiko KEK - %': 'Bumil KEK/Risiko KEK - %',
+
+    'BUMIL - Persentase anemia pada ibu hamil - Jumlah ibu hamil anemia sampai TW ini': 'Bumil Anemia - Jumlah',
+    'Persentase anemia pada ibu hamil - Jumlah ibu hamil anemia sampai TW ini': 'Bumil Anemia - Jumlah',
+    'Bumil Anemia - Jumlah': 'Bumil Anemia - Jumlah',
+
+    'BUMIL - Persentase anemia pada ibu hamil - %': 'Bumil Anemia - %',
+    'Persentase anemia pada ibu hamil - %': 'Bumil Anemia - %',
+    'Bumil Anemia - %': 'Bumil Anemia - %',
+
+    'remaja - Persentase remaja putri teridentifikasi anemia - Jumlah remaja putri kelas 7 dan 10 di satuan pendidikan yang teridentifikasi anemia sampai TW ini': 'Rematri Anemia - Jumlah',
+    'Persentase remaja putri teridentifikasi anemia - Jumlah remaja putri kelas 7 dan 10 di satuan pendidikan yang teridentifikasi anemia sampai TW ini': 'Rematri Anemia - Jumlah',
+    'Rematri Anemia - Jumlah': 'Rematri Anemia - Jumlah',
+
+    'remaja - Persentase remaja putri teridentifikasi anemia - % (3)': 'Rematri Anemia - %',
+    'Persentase remaja putri teridentifikasi anemia - % (3)': 'Rematri Anemia - %',
+    'Rematri Anemia - %': 'Rematri Anemia - %',
+  },
+  columnOrder: [
+    'Kabupaten/Kota',
+    'BBLR - Jumlah',
+    'BBLR - %',
+    'BB Tidak Naik - Jumlah',
+    'BB Tidak Naik - %',
+    'BB Kurang - Jumlah',
+    'BB Kurang - %',
+    'Gizi Kurang - Jumlah',
+    'Gizi Kurang - %',
+    'Gizi Buruk - Jumlah',
+    'Gizi Buruk - %',
+    'Stunting - Jumlah',
+    'Stunting - %',
+    'Insiden Stunting - Jumlah',
+    'Insiden Stunting - %',
+    'Bumil KEK/Risiko KEK - Jumlah',
+    'Bumil KEK/Risiko KEK - %',
+    'Bumil Anemia - Jumlah',
+    'Bumil Anemia - %',
+    'Rematri Anemia - Jumlah',
+    'Rematri Anemia - %',
+  ],
+};

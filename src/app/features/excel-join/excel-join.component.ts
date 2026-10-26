@@ -42,6 +42,7 @@ import {
   SheetConfigPreset,
 } from '../../core/storage/configuration-workspace';
 import { DEFAULT_JOIN_CONFIG } from './default-join-config';
+import { MASALAH_GIZI_JOIN_CONFIG } from './masalah-gizi-join-config';
 import { ExcelJoinStore, ExcelJoinStoredState } from './excel-join-store';
 import { environment } from '../../../environments/environment';
 
@@ -500,6 +501,10 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   preservedPreset: JoinConfigurationPreset | null = null;
   preservedPresetName: string | null = null;
   activePresetName = signal<string>('');
+  readonly isMasalahGizi = computed(() => {
+    const name = this.activePresetName();
+    return (name && name.toLowerCase().includes('masalah gizi')) || false;
+  });
   configNotification = signal<{
     type: 'success' | 'warning' | 'info';
     message: string;
@@ -2758,6 +2763,26 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   }
 
   // ============================================================
+  // TEMPLATE SELECTION (INTERVENSI SPESIFIK & MASALAH GIZI)
+  // ============================================================
+
+  applyTemplate(templateType: 'intervensi-spesifik' | 'masalah-gizi'): void {
+    if (templateType === 'masalah-gizi') {
+      this.pendingPreset = MASALAH_GIZI_JOIN_CONFIG;
+      this.applyConfiguration(
+        MASALAH_GIZI_JOIN_CONFIG,
+        MASALAH_GIZI_JOIN_CONFIG.name || 'Template Masalah Gizi',
+      );
+    } else {
+      this.pendingPreset = DEFAULT_JOIN_CONFIG;
+      this.applyConfiguration(
+        DEFAULT_JOIN_CONFIG,
+        DEFAULT_JOIN_CONFIG.name || 'Konfigurasi Standar TW3',
+      );
+    }
+  }
+
+  // ============================================================
   // EXPORT TO EXCEL
   // ============================================================
 
@@ -2766,7 +2791,16 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       return;
     }
 
+    const isGizi = this.isMasalahGizi();
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const fileName = isGizi
+      ? `Hasil_Join_Masalah_Gizi_${dateStr}.xlsx`
+      : `Hasil_Join_Excel_${dateStr}.xlsx`;
+    const sheetName = isGizi ? 'MASALAH GIZI' : 'Hasil Join';
+
     ExcelJoinEngine.exportJoinedWorkbook({
+      fileName,
+      sheetName,
       resultRows: this.resultRows(),
       resultColumns: this.resultColumns(),
       resultColumnsMeta: this.resultColumnsMeta(),

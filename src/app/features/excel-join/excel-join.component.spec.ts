@@ -6,6 +6,8 @@ import { ExcelJoinStore, ExcelJoinStoredState } from './excel-join-store';
 import { ExcelResilientMatcher } from '../../core/excel/excel-resilient-matcher';
 import { JoinConfigurationPreset } from '../../core/storage/configuration-workspace';
 import { DEFAULT_JOIN_CONFIG } from './default-join-config';
+import { MASALAH_GIZI_JOIN_CONFIG } from './masalah-gizi-join-config';
+import { ExcelJoinEngine } from '../../core/excel/excel-join-engine';
 import * as XLSX from 'xlsx-js-style';
 import { environment } from '../../../environments/environment';
 import { GasStorageService } from '../../core/storage/gas-storage.service';
@@ -2196,6 +2198,72 @@ describe('ExcelJoinComponent', () => {
       expect(DEFAULT_JOIN_CONFIG.enableCapaian).toBe(true);
       expect(DEFAULT_JOIN_CONFIG.columnOrder?.length).toBe(29);
       expect(Object.keys(DEFAULT_JOIN_CONFIG.customColumnNames || {}).length).toBeGreaterThanOrEqual(28);
+    });
+
+    describe('Template Masalah Gizi', () => {
+      it('harus memiliki struktur preset MASALAH_GIZI_JOIN_CONFIG yang valid dan lengkap', () => {
+        expect(MASALAH_GIZI_JOIN_CONFIG.sheets.length).toBe(4);
+        const sheetNames = MASALAH_GIZI_JOIN_CONFIG.sheets.map((s) => s.sheetName);
+        expect(sheetNames).toEqual(['anak', 'gizi', 'BUMIL', 'remaja']);
+
+        const totalVars = MASALAH_GIZI_JOIN_CONFIG.sheets.reduce((acc, s) => acc + s.variables.length, 0);
+        expect(totalVars).toBe(20);
+        expect(MASALAH_GIZI_JOIN_CONFIG.columnOrder?.length).toBe(21);
+        expect(MASALAH_GIZI_JOIN_CONFIG.enableJumlah).toBe(true);
+        expect(MASALAH_GIZI_JOIN_CONFIG.enableAverage).toBe(true);
+        expect(MASALAH_GIZI_JOIN_CONFIG.enableTarget).toBe(true);
+
+        // Verifikasi target batas maksimal (<=) untuk indikator masalah gizi
+        expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['BBLR - %']?.operator).toBe('<=');
+        expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['BBLR - %']?.value).toBe(5.5);
+        expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['BB Tidak Naik - %']?.operator).toBe('<=');
+        expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['BB Tidak Naik - %']?.value).toBe(40);
+        expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['BB Kurang - %']?.operator).toBe('<=');
+        expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['BB Kurang - %']?.value).toBe(14);
+        expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['Gizi Kurang - %']?.operator).toBe('<=');
+        expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['Gizi Kurang - %']?.value).toBe(7.5);
+        expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['Gizi Buruk - %']?.operator).toBe('<=');
+        expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['Gizi Buruk - %']?.value).toBe(0.5);
+        expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['Stunting - %']?.operator).toBe('<=');
+        expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['Stunting - %']?.value).toBe(14);
+        expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['Insiden Stunting - %']?.operator).toBe('<=');
+        expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['Insiden Stunting - %']?.value).toBe(2.3);
+        expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['Bumil KEK/Risiko KEK - %']?.operator).toBe('<=');
+        expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['Bumil KEK/Risiko KEK - %']?.value).toBe(13);
+        expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['Bumil Anemia - %']?.operator).toBe('<=');
+        expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['Bumil Anemia - %']?.value).toBe(23);
+        expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['Rematri Anemia - %']?.operator).toBe('<=');
+        expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['Rematri Anemia - %']?.value).toBe(25);
+      });
+
+      it('harus dapat berpindah template antara Intervensi Spesifik dan Masalah Gizi', () => {
+        expect(component.isMasalahGizi()).toBe(false);
+
+        component.applyTemplate('masalah-gizi');
+        expect(component.isMasalahGizi()).toBe(true);
+        expect(component.activePresetName()).toContain('Masalah Gizi');
+        expect(component.pendingPreset).toBe(MASALAH_GIZI_JOIN_CONFIG);
+
+        component.applyTemplate('intervensi-spesifik');
+        expect(component.isMasalahGizi()).toBe(false);
+        expect(component.pendingPreset).toBe(DEFAULT_JOIN_CONFIG);
+      });
+
+      it('harus mengekspor dengan nama file dan sheet MASALAH GIZI saat template Masalah Gizi aktif', () => {
+        const exportSpy = vi.spyOn(ExcelJoinEngine, 'exportJoinedWorkbook');
+
+        component.resultRows.set([{ 'Kabupaten/Kota': 'CILACAP', 'BBLR - Jumlah': 571 }]);
+        component.resultColumns.set(['Kabupaten/Kota', 'BBLR - Jumlah']);
+
+        component.applyTemplate('masalah-gizi');
+        component.exportToExcel();
+
+        expect(exportSpy).toHaveBeenCalled();
+        const callArgs = exportSpy.mock.calls[0][0];
+        expect(callArgs.sheetName).toBe('MASALAH GIZI');
+        expect(callArgs.fileName).toContain('Hasil_Join_Masalah_Gizi_');
+        exportSpy.mockRestore();
+      });
     });
   });
 });

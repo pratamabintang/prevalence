@@ -38,6 +38,10 @@ _Avoid_: Merged header, header bertingkat tak beraturan
 Kolom identifikasi bersama yang dijadikan rujukan dalam operasi penggabungan (Left Join) antar-sheet Excel.
 _Avoid_: Kolom kunci mentah, primary key
 
+**Tabel Masalah Gizi (Nutritional Problems Table)**:
+Tabel hasil penggabungan multi-sheet yang menyajikan 10 kondisi status gizi masyarakat (BBLR, Balita BB Tidak Naik, Balita Underweight/BB Kurang, Balita Wasting/Gizi Kurang, Balita Gizi Buruk, Balita Stunting, Insiden Stunting, Bumil KEK/Risiko KEK, Bumil Anemia, dan Rematri Anemia) dalam 20 kolom terstandarisasi (pasangan Jumlah absolut dan Persentase capaian) bersumber dari lembar kerja `anak`, `gizi`, `BUMIL`, dan `remaja`.
+_Avoid_: Tabel status gizi mentah, sheet masalah gizi, rekap gizi acak
+
 ### Visualisasi & Evaluasi Indikator
 **Mesin Pengiris Grafik (Chart Slicing Engine)**:
 Modul logika domain-presentasi yang memproses pemotongan multi-dimensi dataset Dinkes (memilah per-indikator vs per-wilayah), mengkalkulasi ringkasan statistik kesehatan (angka valid, missing/non-numerik, angka 0, kelulusan target, rata-rata, capaian ekstrem tertinggi dan terendah), mengurutkan data sesuai mode peringkat (*sort mode*), dan mendelegasikan penyusunan tata letak ke Mesin Tata Letak Grafik (`ChartLayoutEngine`).
