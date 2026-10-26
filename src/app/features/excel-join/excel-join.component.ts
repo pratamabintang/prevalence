@@ -1692,7 +1692,11 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
 
         if (dataType === 'number' || dataType === 'percentage') {
           const num = IndicatorEvaluator.parseSmartNumber(rawVal);
-          return { ...row, [col]: num !== null ? num : rawVal };
+          if (num !== null) {
+            const rounded = Number.isInteger(num) ? num : Math.round(num * 100) / 100;
+            return { ...row, [col]: rounded };
+          }
+          return { ...row, [col]: rawVal };
         } else if (dataType === 'string') {
           return { ...row, [col]: String(rawVal) };
         } else {
@@ -1702,7 +1706,11 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
             /^-?\d+([.,]\d+)?%?$/.test(rawVal.trim()) &&
             num !== null
           ) {
-            return { ...row, [col]: num };
+            const rounded = Number.isInteger(num) ? num : Math.round(num * 100) / 100;
+            return { ...row, [col]: rounded };
+          }
+          if (typeof rawVal === 'number' && !Number.isInteger(rawVal) && num !== null) {
+            return { ...row, [col]: Math.round(num * 100) / 100 };
           }
           return { ...row, [col]: rawVal };
         }

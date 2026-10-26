@@ -225,24 +225,37 @@ export class IndicatorEvaluator {
 
   /**
    * Memformat nilai sel sesuai tipe data kolom (angka / persen / string).
+   * Nilai desimal dibatasi maksimal 2 angka di belakang koma.
    */
   static formatCellValue(val: unknown, config?: ColumnConfig): string {
     if (val === null || val === undefined || String(val).trim() === '') {
       return '-';
     }
 
-    if (config?.dataType === 'percentage') {
+    const isPercentage =
+      config?.dataType === 'percentage' ||
+      (typeof val === 'string' && val.trim().endsWith('%'));
+
+    if (isPercentage) {
       const num = this.parseSmartNumber(val);
       if (num !== null) {
-        return `${num}%`;
+        const rounded = Number.isInteger(num) ? num : Math.round(num * 100) / 100;
+        return `${rounded}%`;
       }
     }
 
     if (config?.dataType === 'number') {
       const num = this.parseSmartNumber(val);
       if (num !== null) {
-        return String(num);
+        const rounded = Number.isInteger(num) ? num : Math.round(num * 100) / 100;
+        return String(rounded);
       }
+    }
+
+    const num = this.parseSmartNumber(val);
+    if (num !== null && typeof val === 'number') {
+      const rounded = Number.isInteger(num) ? num : Math.round(num * 100) / 100;
+      return String(rounded);
     }
 
     return String(val);

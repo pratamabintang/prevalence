@@ -2264,6 +2264,18 @@ describe('ExcelJoinComponent', () => {
         expect(callArgs.fileName).toContain('Hasil_Join_Masalah_Gizi_');
         exportSpy.mockRestore();
       });
+
+      it('harus membatasi desimal pada nilai persentase maksimal 2 angka di belakang koma saat formatCellValue dipanggil', () => {
+        component.columnConfigs.set({
+          'BB Tidak Naik - %': { dataType: 'percentage', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+          'BBLR - %': { dataType: 'percentage', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+        });
+
+        // 42.845907960830075 harus menjadi 42.85%
+        expect(component.formatCellValue(42.845907960830075, 'BB Tidak Naik - %')).toBe('42.85%');
+        expect(component.formatCellValue(6.53, 'BBLR - %')).toBe('6.53%');
+        expect(component.formatCellValue(70, 'BBLR - %')).toBe('70%');
+      });
     });
   });
 });

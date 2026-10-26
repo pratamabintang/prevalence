@@ -299,7 +299,12 @@ export class ExcelJoinEngine {
           continue;
         }
         const outCol = outputColMap.get(`${masterSheet.name}:::${variable}`) || variable;
-        result[outCol] = row[actualHeader] ?? null;
+        const rawVal = row[actualHeader] ?? null;
+        if (typeof rawVal === 'number' && !Number.isInteger(rawVal)) {
+          result[outCol] = Math.round(rawVal * 100) / 100;
+        } else {
+          result[outCol] = rawVal;
+        }
       }
 
       joinedMap.set(key, result);
@@ -338,7 +343,12 @@ export class ExcelJoinEngine {
             continue;
           }
           const outCol = outputColMap.get(`${sheet.name}:::${variable}`) || variable;
-          existing[outCol] = row[actualHeader] ?? null;
+          const rawVal = row[actualHeader] ?? null;
+          if (typeof rawVal === 'number' && !Number.isInteger(rawVal)) {
+            existing[outCol] = Math.round(rawVal * 100) / 100;
+          } else {
+            existing[outCol] = rawVal;
+          }
         }
       }
     }
@@ -464,7 +474,11 @@ export class ExcelJoinEngine {
             rowValues[col.key] = rawVal !== null && rawVal !== undefined ? String(rawVal) : '';
           } else {
             const num = IndicatorEvaluator.parseSmartNumber(rawVal);
-            rowValues[col.key] = num !== null ? num : (rawVal ?? '');
+            if (num !== null) {
+              rowValues[col.key] = Number.isInteger(num) ? num : Math.round(num * 100) / 100;
+            } else {
+              rowValues[col.key] = rawVal ?? '';
+            }
           }
         }
       }
@@ -487,7 +501,11 @@ export class ExcelJoinEngine {
         } else {
           if (sumColumns[col.key]) {
             const sum = IndicatorEvaluator.calculateColumnSum(resultRows, col.key);
-            jumlahValues[col.key] = sum !== null ? sum : '-';
+            if (sum !== null) {
+              jumlahValues[col.key] = Number.isInteger(sum) ? sum : Math.round(sum * 100) / 100;
+            } else {
+              jumlahValues[col.key] = '-';
+            }
           } else {
             jumlahValues[col.key] = '-';
           }
@@ -520,7 +538,11 @@ export class ExcelJoinEngine {
         } else {
           if (avgColumns[col.key]) {
             const avg = IndicatorEvaluator.calculateColumnAverage(resultRows, col.key);
-            avgValues[col.key] = avg !== null ? avg : '-';
+            if (avg !== null) {
+              avgValues[col.key] = Number.isInteger(avg) ? avg : Math.round(avg * 100) / 100;
+            } else {
+              avgValues[col.key] = '-';
+            }
           } else {
             avgValues[col.key] = '-';
           }
@@ -829,7 +851,13 @@ export class ExcelJoinEngine {
         __id: String(r['__id'] ?? `row-${idx}`),
       };
       for (const col of rawCols) {
-        rowObj[resolveName(col)] = r[col];
+        const val = r[col];
+        const resCol = resolveName(col);
+        if (typeof val === 'number' && !Number.isInteger(val)) {
+          rowObj[resCol] = Math.round(val * 100) / 100;
+        } else {
+          rowObj[resCol] = val;
+        }
       }
       if (
         preset.stripKabupaten !== false &&

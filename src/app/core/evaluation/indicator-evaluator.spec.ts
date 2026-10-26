@@ -66,6 +66,25 @@ describe('IndicatorEvaluator', () => {
     });
   });
 
+  describe('formatCellValue', () => {
+    it('should format percentage values with at most 2 decimal places', () => {
+      expect(IndicatorEvaluator.formatCellValue(42.845907960830075, { dataType: 'percentage', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null })).toBe('42.85%');
+      expect(IndicatorEvaluator.formatCellValue(6.5, { dataType: 'percentage', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null })).toBe('6.5%');
+      expect(IndicatorEvaluator.formatCellValue(75, { dataType: 'percentage', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null })).toBe('75%');
+      expect(IndicatorEvaluator.formatCellValue('42.845907960830075%')).toBe('42.85%');
+    });
+
+    it('should format numeric values with at most 2 decimal places', () => {
+      expect(IndicatorEvaluator.formatCellValue(42.845907960830075, { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null })).toBe('42.85');
+      expect(IndicatorEvaluator.formatCellValue(100, { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null })).toBe('100');
+    });
+
+    it('should return dash for empty or null values', () => {
+      expect(IndicatorEvaluator.formatCellValue(null)).toBe('-');
+      expect(IndicatorEvaluator.formatCellValue('')).toBe('-');
+    });
+  });
+
   describe('getCapaianFormatClass', () => {
     it('should return empty string if min or max is null or min equals max', () => {
       expect(IndicatorEvaluator.getCapaianFormatClass(5, { min: null, max: null })).toBe('');
