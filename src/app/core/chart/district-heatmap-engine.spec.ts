@@ -180,7 +180,7 @@ describe('DistrictHeatmapEngine', () => {
     expect(stats.lowest).toEqual({ name: 'Cilacap', value: 60 });
   });
 
-  it('generates 5 color scale legend stops spanning min to max, continuous gradient CSS, and target position', () => {
+  it('generates 5 color scale legend stops spanning 0 to 100, continuous gradient CSS, and target position', () => {
     const rows = [
       { Daerah: 'Cilacap', val: 50 },
       { Daerah: 'Banyumas', val: 90 },
@@ -195,20 +195,82 @@ describe('DistrictHeatmapEngine', () => {
     });
 
     expect(result.colorStops.length).toBe(5);
-    expect(result.colorStops[0].value).toBe(50);
+    expect(result.colorStops[0].value).toBe(0);
     expect(result.colorStops[0].label).toContain('Min');
-    expect(result.colorStops[4].value).toBe(90);
+    expect(result.colorStops[4].value).toBe(100);
     expect(result.colorStops[4].label).toContain('Maks');
-    expect(result.colorStops[2].value).toBe(70); // midpoint (50 + 90) / 2
+    expect(result.colorStops[2].value).toBe(50); // midpoint on 0-100 scale
 
     // Continuous gradient CSS
     expect(result.gradientCss).toContain('linear-gradient(to right,');
-    expect(result.targetPositionPercent).toBe(50); // 70 is exactly at 50% between 50 and 90
+    expect(result.targetPositionPercent).toBe(70); // 70 is at 70% on 0-100 scale
 
-    // Ratio percent on items
+    // Ratio percent on items (relative to 0-100 scale)
     const cilacap = result.items.find((i) => i.district.id === '33-01')!;
-    expect(cilacap.ratioPercent).toBe(0);
+    expect(cilacap.ratioPercent).toBe(50);
     const banyumas = result.items.find((i) => i.district.id === '33-02')!;
-    expect(banyumas.ratioPercent).toBe(100);
+    expect(banyumas.ratioPercent).toBe(90);
+  });
+
+  it('applies red-yellow-green scheme where below target is red, at target is yellow, and above target is green', () => {
+    // Test getColorForValue directly on 0-100 scale
+    const below = DistrictHeatmapEngine.getColorForValue(0, 0, 100, 80);
+    expect(below.fill).toBe('rgb(220, 38, 38)'); // pure Red at scale min (0)
+
+    const atTarget = DistrictHeatmapEngine.getColorForValue(80, 0, 100, 80);
+    expect(atTarget.fill).toBe('rgb(234, 179, 8)'); // pure Yellow at target level (80)
+
+    const above = DistrictHeatmapEngine.getColorForValue(100, 0, 100, 80);
+    expect(above.fill).toBe('rgb(22, 163, 74)'); // pure Green at scale max (100)
+
+    // Test computeHeatmap item colors
+    const rows = [
+      { Daerah: 'Cilacap', val: 0 },   // Scale min (red)
+      { Daerah: 'Banyumas', val: 80 }, // Exactly at target (yellow)
+      { Daerah: 'Kabupaten Magelang', val: 100 }, // Scale max (green)
+    ];
+
+    const result = DistrictHeatmapEngine.computeHeatmap({
+      districts: dummyDistricts,
+      rows,
+      categoryColumn: 'Daerah',
+      series: { key: 'val', label: 'Nilai', color: '#525AFF' },
+      targetValue: 80,
+    });
+
+    const cilacap = result.items.find((i) => i.district.id === '33-01')!;
+    const banyumas = result.items.find((i) => i.district.id === '33-02')!;
+    const magelang = result.items.find((i) => i.district.id === '33-08')!;
+
+    expect(cilacap.fillColor).toBe('rgb(220, 38, 38)'); // Red (scale min)
+    expect(banyumas.fillColor).toBe('rgb(234, 179, 8)'); // Yellow (at target)
+    expect(magelang.fillColor).toBe('rgb(22, 163, 74)'); // Green (at max 100)
+
+    // Check gradient CSS anchors target at 80% on 0-100 scale
+    expect(result.gradientCss).toContain('rgb(220,38,38) 0%');
+    expect(result.gradientCss).toContain('rgb(234,179,8) 80%');
+    expect(result.gradientCss).toContain('rgb(22,163,74) 100%');
+  });
+
+  it('caps indicator values exceeding 100 at maximum value 100', () => {
+    const rows = [
+      { Daerah: 'Cilacap', val: 115.5 },
+      { Daerah: 'Banyumas', val: 80 },
+    ];
+
+    const result = DistrictHeatmapEngine.computeHeatmap({
+      districts: dummyDistricts,
+      rows,
+      categoryColumn: 'Daerah',
+      series: { key: 'val', label: 'Nilai', color: '#525AFF' },
+      targetValue: 80,
+    });
+
+    const cilacap = result.items.find((i) => i.district.id === '33-01')!;
+    expect(cilacap.value).toBe(100);
+    expect(cilacap.formattedValue).toBe('100');
+    expect(cilacap.ratioPercent).toBe(100);
+    expect(cilacap.fillColor).toBe('rgb(22, 163, 74)'); // Pure green
+    expect(result.stats.max).toBe(100);
   });
 });

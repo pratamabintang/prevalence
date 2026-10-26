@@ -1,3 +1,4 @@
+import { describe, it, expect, beforeEach } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import * as XLSX from 'xlsx-js-style';
 import { StuntingWorkflowEngine } from './stunting-workflow-engine';
@@ -366,6 +367,52 @@ describe('StuntingWorkflowEngine', () => {
       // Change tolerance threshold
       engine.toleranceThreshold.set(-10.0);
       expect(engine.toleranceThreshold()).toBe(-10.0);
+    });
+
+    it('should compute regionalScorecards reactively and support district drilldown', () => {
+      engine.setJoinedDataset({
+        rows: [
+          {
+            __id: 'row-0',
+            'Kabupaten/Kota': 'Cilacap',
+            'Sasaran K4': 100,
+            'Realisasi K4': 50, // 50% -> perlu percepatan (target 90)
+          },
+          {
+            __id: 'row-1',
+            'Kabupaten/Kota': 'Banyumas',
+            'Sasaran K4': 100,
+            'Realisasi K4': 95, // 95% -> on track (target 90)
+          },
+        ],
+        columns: ['Kabupaten/Kota', 'Sasaran K4', 'Realisasi K4'],
+      });
+
+      const cat1 = engine.categories()[0];
+      engine.addSubCategory(cat1.id, {
+        name: 'Cakupan K4',
+        numeratorCol: 'Realisasi K4',
+        denominatorCol: 'Sasaran K4',
+        targetCurrentYear: 90,
+      });
+
+      const regional = engine.regionalScorecards();
+      expect(regional.length).toBe(2);
+
+      // Default sorting: lagging regions first (Cilacap has 1 perlu percepatan, Banyumas has 0)
+      expect(regional[0].regionName).toBe('Cilacap');
+      expect(regional[0].summary.perluPercepatanCount).toBe(1);
+      expect(regional[1].regionName).toBe('Banyumas');
+      expect(regional[1].summary.onTrackCount).toBe(1);
+
+      // Select for drilldown
+      expect(engine.selectedRegionForDrilldown()).toBeNull();
+      expect(engine.activeRegionalDrilldownScorecard()).toBeNull();
+
+      engine.selectedRegionForDrilldown.set('Banyumas');
+      expect(engine.activeRegionalDrilldownScorecard()).toBeDefined();
+      expect(engine.activeRegionalDrilldownScorecard()?.regionName).toBe('Banyumas');
+      expect(engine.activeRegionalDrilldownScorecard()?.summary.onTrackCount).toBe(1);
     });
   });
 });

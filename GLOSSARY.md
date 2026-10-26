@@ -133,6 +133,18 @@ _Avoid_: Kolom capaian mentah, sum atas
 Akumulasi penjumlahan (`SUM`) dari kolom sasaran riil populasi di tingkat wilayah/Puskesmas sebagai dasar pembagi persentase cakupan.
 _Avoid_: Kolom target riil, sum bawah
 
+**Evaluasi Kinerja Wilayah (Regional Performance Evaluation)**:
+Evaluasi capaian indikator kesehatan dan klasifikasi status kinerja 4-tingkat (*On Track*, *Perlu Percepatan*, *Belum Dapat Dinilai*) yang dihitung secara independen untuk setiap Kategori Wilayah (Kabupaten/Kota) pada baris data valid, menggunakan target tahun berjalan yang seragam serta baseline riil tahun sebelumnya per-wilayah.
+_Avoid_: Nilai rapor kab/kota, sub-evaluasi wilayah, kalkulasi baris per baris
+
+**Matriks Komparasi Antar-Wilayah (Cross-District Comparative Matrix)**:
+Struktur presentasi tabuler komparatif di Langkah 3 modul Pemantauan Stunting yang menyandingkan seluruh 35 Kabupaten/Kota sebagai baris dengan indikator/triwulan terpilih sebagai kolom, dilengkapi lencana status kinerja, selisih capaian terhadap target triwulan, dan navigasi inspeksi mendalam per-wilayah.
+_Avoid_: Tabel rekap biasa, tabel per-kabupaten, grid join mentah
+
+**Kartu Rapor Wilayah (District Performance Scorecard)**:
+Tampilan hasil evaluasi terperinci untuk satu Kategori Wilayah spesifik yang menampilkan ringkasan metrik KPI, matriks klasifikasi kinerja, dan rincian capaian triwulan per indikator sebagaimana tampilan tingkat provinsi.
+_Avoid_: Modal wilayah, detail pop-up, drilldown mentah
+
 ### Penyimpanan & Persistensi Eksternal
 **Ruang Kerja Konfigurasi (Configuration Workspace)**:
 Modul domain terpusat untuk mengelola siklus hidup persistensi konfigurasi preset Dinkes (penggabungan Excel, pemantauan stunting, dan visualisasi grafik). Menyediakan validasi skema JSON, persistensi media lokal (`localStorage` / memori), penamaan berkas unduh otomatis, serta memisahkan persistensi dari algoritma pencocokan fuzzy kolom spreadsheet (`ExcelResilientMatcher`).

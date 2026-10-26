@@ -305,7 +305,7 @@ export class ChartVisualizerComponent {
   }
 
   readonly heatmapPalettes = HEATMAP_PALETTES;
-  selectedHeatmapPaletteId = signal<string>('yellow-red');
+  selectedHeatmapPaletteId = signal<string>('red-yellow-green');
 
   mapHeatmapResult = computed<DistrictHeatmapResult | null>(() => {
     const s = this.activeMapSeries();
@@ -2005,7 +2005,7 @@ export class ChartVisualizerComponent {
 
     const viewBoxStr = svg.getAttribute('viewBox') || '';
     const parts = viewBoxStr.split(' ').map(Number);
-    const width = parts.length === 4 && parts[2] > 0 ? parts[2] : 960;
+    const width = parts.length === 4 && parts[2] > 0 ? parts[2] : 780;
     const height = parts.length === 4 && parts[3] > 0 ? parts[3] : 600;
     const scale = 2;
 
@@ -2225,6 +2225,9 @@ export class ChartVisualizerComponent {
       sortMode: this.regionSortMode(),
       targetValue: this.targetValue(),
       indicatorTargets,
+      width: 780,
+      rowHeight: 22,
+      gapWidth: 5,
     });
   });
 
@@ -2247,6 +2250,9 @@ export class ChartVisualizerComponent {
       categoryColumn: this.categoryColumn(),
       sortMode: this.indicatorSortMode(),
       indicatorTargets,
+      width: 780,
+      rowHeight: 22,
+      gapWidth: 5,
     });
   });
 

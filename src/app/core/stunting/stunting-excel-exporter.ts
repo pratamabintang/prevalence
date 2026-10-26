@@ -1,5 +1,6 @@
 import { ColumnHeaderMeta, ExcelEngine } from '../../shared/excel';
 import {
+  EvaluatedRegionalScorecard,
   EvaluatedStuntingRow,
   StuntingEvaluationResult,
 } from './stunting-evaluation-engine';
@@ -7,6 +8,7 @@ import {
 export interface StuntingExportReportSpec {
   evaluationResult: StuntingEvaluationResult;
   availableQuarters: number[];
+  regionalScorecards?: EvaluatedRegionalScorecard[];
   validJoinedRows?: Record<string, unknown>[];
   primaryKeyColumn?: string;
   joinedColumns?: string[];
@@ -36,6 +38,7 @@ export class StuntingExcelExporter {
     const {
       evaluationResult,
       availableQuarters,
+      regionalScorecards = [],
       validJoinedRows = [],
       primaryKeyColumn = 'Wilayah',
       joinedColumns = [],
@@ -150,6 +153,75 @@ export class StuntingExcelExporter {
     }
     wsRekap['!merges'] = merges;
 
+    // Sheet Komparasi Antar-Wilayah (Kabupaten/Kota)
+    let wsKomparasi: any = null;
+    if (regionalScorecards.length > 0) {
+      const columnsKomparasi: ColumnHeaderMeta[] = [
+        { key: 'Wilayah', layers: ['Wilayah Administratif', primaryKeyColumn] },
+        { key: 'OnTrack', layers: ['Ringkasan Status', 'Total On Track'] },
+        { key: 'Percepatan', layers: ['Ringkasan Status', 'Total Percepatan'] },
+      ];
+
+      for (const r of evaluationResult.rows) {
+        columnsKomparasi.push({
+          key: `Ind_${r.id}_Actual`,
+          layers: [r.name, `Capaian TW ${evaluationResult.activeQuarter} (%)`],
+        });
+        columnsKomparasi.push({
+          key: `Ind_${r.id}_Status`,
+          layers: [r.name, 'Status Evaluasi'],
+        });
+      }
+
+      const komparasiRows = regionalScorecards.map((sc) => {
+        const rowObj: Record<string, any> = {
+          Wilayah: sc.regionName,
+          OnTrack: sc.summary.onTrackCount,
+          Percepatan: sc.summary.perluPercepatanCount,
+        };
+        for (const r of sc.rows) {
+          rowObj[`Ind_${r.id}_Actual`] =
+            r.activeActual !== null && r.activeActual !== undefined
+              ? `${r.activeActual}${r.calculationMode === 'absolute' ? '' : '%'}`
+              : '-';
+          rowObj[`Ind_${r.id}_Status`] = this.formatStatusLabel(r.status);
+        }
+        return rowObj;
+      });
+
+      wsKomparasi = ExcelEngine.buildStyledWorksheet({
+        sheetName: 'Komparasi Kab-Kota',
+        columns: columnsKomparasi,
+        dataRows: komparasiRows,
+        cellStyler: (_row, colKey, val) => {
+          if (colKey === 'Wilayah') {
+            return { font: { bold: true } };
+          }
+          if (colKey.endsWith('_Status')) {
+            const s = String(val);
+            if (s === 'On Track') {
+              return {
+                fill: { fgColor: { rgb: 'D1FAE5' } },
+                font: { color: { rgb: '065F46' }, bold: true },
+              };
+            }
+            if (s === 'Perlu Percepatan') {
+              return {
+                fill: { fgColor: { rgb: 'FFE4E6' } },
+                font: { color: { rgb: '9F1239' }, bold: true },
+              };
+            }
+            return {
+              fill: { fgColor: { rgb: 'F1F5F9' } },
+              font: { color: { rgb: '475569' } },
+            };
+          }
+          return undefined;
+        },
+      });
+    }
+
+    let wsWilayah: any = null;
     if (validJoinedRows.length > 0) {
       const columnsWilayah: ColumnHeaderMeta[] = [];
       if (primaryKeyColumn) {
@@ -161,21 +233,24 @@ export class StuntingExcelExporter {
         }
       }
 
-      const wsWilayah = ExcelEngine.buildStyledWorksheet({
+      wsWilayah = ExcelEngine.buildStyledWorksheet({
         sheetName: 'Data Riil Wilayah',
         columns: columnsWilayah,
         dataRows: validJoinedRows,
       });
-
-      ExcelEngine.exportMultiSheetTable(fileName, [
-        { sheetName: 'Rekap Kinerja', worksheet: wsRekap },
-        { sheetName: 'Data Riil Wilayah', worksheet: wsWilayah },
-      ]);
-    } else {
-      ExcelEngine.exportMultiSheetTable(fileName, [
-        { sheetName: 'Rekap Kinerja', worksheet: wsRekap },
-      ]);
     }
+
+    const sheetsToExport: { sheetName: string; worksheet: any }[] = [
+      { sheetName: 'Rekap Kinerja', worksheet: wsRekap },
+    ];
+    if (wsKomparasi) {
+      sheetsToExport.push({ sheetName: 'Komparasi Kab-Kota', worksheet: wsKomparasi });
+    }
+    if (wsWilayah) {
+      sheetsToExport.push({ sheetName: 'Data Riil Wilayah', worksheet: wsWilayah });
+    }
+
+    ExcelEngine.exportMultiSheetTable(fileName, sheetsToExport);
 
     return fileName;
   }

@@ -212,5 +212,64 @@ describe('ChartLayoutEngine', () => {
     const layout = ChartLayoutEngine.computeLayout(specWithHighCategoryTarget);
     expect(layout.maxValue).toBeGreaterThanOrEqual(120);
   });
+
+  it('eliminates gaps between category bars when gapWidth is set to 0', () => {
+    const zeroGapSpec: ChartLayoutSpec = {
+      categoryColumn: 'wilayah',
+      categories: ['Kab. Magelang', 'Kota Magelang', 'Kab. Banyumas'],
+      series: [{ key: 'tw1', label: 'Triwulan 1', color: '#3b82f6' }],
+      rows: [
+        { wilayah: 'Kab. Magelang', tw1: 70 },
+        { wilayah: 'Kota Magelang', tw1: 80 },
+        { wilayah: 'Kab. Banyumas', tw1: 90 },
+      ],
+      rowHeight: 38,
+      gapWidth: 0,
+    };
+
+    const layout = ChartLayoutEngine.computeLayout(zeroGapSpec);
+    expect(layout.gapWidth).toBe(0);
+
+    const group0 = layout.categoryGroups[0];
+    const group1 = layout.categoryGroups[1];
+    const group2 = layout.categoryGroups[2];
+
+    // Bar fills full row height
+    expect(group0.bars[0].height).toBe(38);
+    expect(group1.bars[0].height).toBe(38);
+    expect(group2.bars[0].height).toBe(38);
+
+    // No gap between group 0 bar bottom and group 1 bar top
+    const group0Bottom = group0.bars[0].y + group0.bars[0].height;
+    expect(group1.bars[0].y).toBe(group0Bottom);
+
+    // No gap between group 1 bar bottom and group 2 bar top
+    const group1Bottom = group1.bars[0].y + group1.bars[0].height;
+    expect(group2.bars[0].y).toBe(group1Bottom);
+  });
+
+  it('tightens gap between category bars to a 1–2 px gap when gapWidth is set to 5', () => {
+    const tightGapSpec: ChartLayoutSpec = {
+      categoryColumn: 'wilayah',
+      categories: ['Kab. Magelang', 'Kota Magelang'],
+      series: [{ key: 'tw1', label: 'Triwulan 1', color: '#3b82f6' }],
+      rows: [
+        { wilayah: 'Kab. Magelang', tw1: 70 },
+        { wilayah: 'Kota Magelang', tw1: 80 },
+      ],
+      rowHeight: 36,
+      gapWidth: 5,
+    };
+
+    const layout = ChartLayoutEngine.computeLayout(tightGapSpec);
+    const group0 = layout.categoryGroups[0];
+    const group1 = layout.categoryGroups[1];
+
+    const group0Bottom = group0.bars[0].y + group0.bars[0].height;
+    const gap = group1.bars[0].y - group0Bottom;
+
+    expect(gap).toBeGreaterThanOrEqual(1.0);
+    expect(gap).toBeLessThanOrEqual(2.0);
+  });
 });
 

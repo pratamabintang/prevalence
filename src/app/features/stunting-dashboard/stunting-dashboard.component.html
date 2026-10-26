@@ -581,28 +581,30 @@
 
         <!-- PALET GRADIEN 2 WARNA & SEARCH INPUT -->
         <div class="flex flex-wrap items-center gap-2.5">
-          <div class="flex items-center gap-1 bg-slate-100/80 border border-slate-200 rounded-lg p-1">
-            <span class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-1">Gradien:</span>
-            @for (pal of heatmapPalettes; track pal.id) {
-              <button
-                type="button"
-                (click)="selectedHeatmapPaletteId.set(pal.id)"
-                class="flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors cursor-pointer"
-                [class.bg-white]="selectedHeatmapPaletteId() === pal.id"
-                [class.shadow-2xs]="selectedHeatmapPaletteId() === pal.id"
-                [class.font-semibold]="selectedHeatmapPaletteId() === pal.id"
-                [class.text-slate-900]="selectedHeatmapPaletteId() === pal.id"
-                [class.text-slate-600]="selectedHeatmapPaletteId() !== pal.id"
-                [title]="pal.name"
-              >
-                <span
-                  class="w-3 h-3 rounded-full border border-slate-300 shrink-0"
-                  [style.background]="'linear-gradient(to right, ' + pal.startHex + ', ' + pal.endHex + ')'"
-                ></span>
-                <span class="text-[11px] hidden md:inline">{{ pal.name.split(' ')[0] }}</span>
-              </button>
-            }
-          </div>
+          @if (heatmapPalettes.length > 1) {
+            <div class="flex items-center gap-1 bg-slate-100/80 border border-slate-200 rounded-lg p-1">
+              <span class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-1">Gradien:</span>
+              @for (pal of heatmapPalettes; track pal.id) {
+                <button
+                  type="button"
+                  (click)="selectedHeatmapPaletteId.set(pal.id)"
+                  class="flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors cursor-pointer"
+                  [class.bg-white]="selectedHeatmapPaletteId() === pal.id"
+                  [class.shadow-2xs]="selectedHeatmapPaletteId() === pal.id"
+                  [class.font-semibold]="selectedHeatmapPaletteId() === pal.id"
+                  [class.text-slate-900]="selectedHeatmapPaletteId() === pal.id"
+                  [class.text-slate-600]="selectedHeatmapPaletteId() !== pal.id"
+                  [title]="pal.name"
+                >
+                  <span
+                    class="w-3 h-3 rounded-full border border-slate-300 shrink-0"
+                    [style.background]="'linear-gradient(to right, ' + pal.startHex + ', ' + pal.endHex + ')'"
+                  ></span>
+                  <span class="text-[11px] hidden md:inline">{{ pal.name.split(' ')[0] }}</span>
+                </button>
+              }
+            </div>
+          }
 
           <div class="w-full sm:w-56">
             <input

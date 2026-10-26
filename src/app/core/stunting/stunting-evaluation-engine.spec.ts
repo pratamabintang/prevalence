@@ -643,4 +643,131 @@ describe('StuntingEvaluationEngine', () => {
     expect(row2.quarters[3].sumNumerator).toBe(88202);
     expect(row2.quarters[3].sumDenominator).toBeNull();
   });
+
+  describe('evaluateRegionalScorecards', () => {
+    const mockCategories: any[] = [
+      {
+        id: 'cat-1',
+        name: 'Intervensi sebelum kelahiran',
+        subCategories: [
+          {
+            id: 'sub-1',
+            name: 'Rematri TTD',
+            numeratorCol: 'ttd_real',
+            denominatorCol: 'ttd_sasaran',
+            targetCurrentYear: 80,
+            prevNumeratorCol: 'ttd_prev_real',
+            prevDenominatorCol: 'ttd_prev_sasaran',
+            polarity: 'positive',
+          },
+          {
+            id: 'sub-2',
+            name: 'Prevalensi Stunting',
+            numeratorCol: 'stunting_kasus',
+            denominatorCol: 'stunting_balita',
+            targetCurrentYear: 14,
+            prevNumeratorCol: 'stunting_prev_kasus',
+            prevDenominatorCol: 'stunting_prev_balita',
+            polarity: 'negative',
+          },
+        ],
+      },
+    ];
+
+    const mockRows: Record<string, unknown>[] = [
+      {
+        __id: 'row-1',
+        'Kabupaten/Kota': 'Kabupaten Banyumas',
+        ttd_real: 850,
+        ttd_sasaran: 1000, // 85% -> on track (target 80)
+        ttd_prev_real: 700,
+        ttd_prev_sasaran: 1000, // 70% -> YoY +15%
+        stunting_kasus: 120,
+        stunting_balita: 1000, // 12% -> on track (target 14%, negative polarity)
+        stunting_prev_kasus: 150,
+        stunting_prev_balita: 1000, // 15% -> YoY -3% (improved)
+      },
+      {
+        __id: 'row-2',
+        'Kabupaten/Kota': 'Kabupaten Cilacap',
+        ttd_real: 500,
+        ttd_sasaran: 1000, // 50% -> perlu percepatan (target 80)
+        ttd_prev_real: 600,
+        ttd_prev_sasaran: 1000, // 60% -> YoY -10%
+        stunting_kasus: 200,
+        stunting_balita: 1000, // 20% -> perlu percepatan (target 14%, negative polarity)
+        stunting_prev_kasus: 180,
+        stunting_prev_balita: 1000, // 18% -> YoY +2% (worse)
+      },
+      {
+        __id: 'row-3',
+        'Kabupaten/Kota': 'Kabupaten Brebes',
+        ttd_real: null,
+        ttd_sasaran: 0, // Zero sasaran -> belum dinilai
+        ttd_prev_real: null,
+        ttd_prev_sasaran: 0,
+        stunting_kasus: 100,
+        stunting_balita: 1000, // 10% -> on track
+        stunting_prev_kasus: 120,
+        stunting_prev_balita: 1000,
+      },
+    ];
+
+    it('should evaluate individual scorecards for each active regency row', () => {
+      const scorecards = StuntingEvaluationEngine.evaluateRegionalScorecards(
+        mockCategories,
+        mockRows,
+        'Kabupaten/Kota',
+        { activeQuarter: 4 },
+      );
+
+      expect(scorecards.length).toBe(3);
+
+      const banyumas = scorecards.find((s) => s.regionName === 'Kabupaten Banyumas')!;
+      expect(banyumas).toBeDefined();
+      expect(banyumas.summary.totalIndicators).toBe(2);
+      expect(banyumas.summary.onTrackCount).toBe(2);
+      expect(banyumas.summary.perluPercepatanCount).toBe(0);
+
+      const cilacap = scorecards.find((s) => s.regionName === 'Kabupaten Cilacap')!;
+      expect(cilacap).toBeDefined();
+      expect(cilacap.summary.onTrackCount).toBe(0);
+      expect(cilacap.summary.perluPercepatanCount).toBe(2);
+
+      const brebes = scorecards.find((s) => s.regionName === 'Kabupaten Brebes')!;
+      expect(brebes).toBeDefined();
+      expect(brebes.summary.onTrackCount).toBe(1);
+      expect(brebes.summary.belumDinilaiCount).toBe(1);
+      const brebesTtd = brebes.rows.find((r) => r.name === 'Rematri TTD')!;
+      expect(brebesTtd.status).toBe('belum_dinilai');
+      expect(brebesTtd.statusReason).toContain('Sasaran 0');
+    });
+
+    it('should sort lagging regions first by default (highest perluPercepatanCount)', () => {
+      const scorecards = StuntingEvaluationEngine.evaluateRegionalScorecards(
+        mockCategories,
+        mockRows,
+        'Kabupaten/Kota',
+        { activeQuarter: 4 },
+      );
+
+      // Cilacap has 2 perlu percepatan, Brebes has 0 (1 belum dinilai), Banyumas has 0
+      expect(scorecards[0].regionName).toBe('Kabupaten Cilacap');
+    });
+
+    it('should support sorting by region name', () => {
+      const scorecards = StuntingEvaluationEngine.evaluateRegionalScorecards(
+        mockCategories,
+        mockRows,
+        'Kabupaten/Kota',
+        { activeQuarter: 4, sortBy: 'name', sortDirection: 'asc' },
+      );
+
+      expect(scorecards.map((s) => s.regionName)).toEqual([
+        'Kabupaten Banyumas',
+        'Kabupaten Brebes',
+        'Kabupaten Cilacap',
+      ]);
+    });
+  });
 });

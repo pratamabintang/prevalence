@@ -1,6 +1,8 @@
 import { Injectable, computed, signal, Signal } from '@angular/core';
 import {
+  EvaluatedRegionalScorecard,
   IndicatorPolarity,
+  RegionalEvaluationOptions,
   StuntingCategoryConfig,
   StuntingEvaluationEngine,
   StuntingEvaluationResult,
@@ -211,6 +213,44 @@ export class StuntingWorkflowEngine {
   );
 
   readonly perluPerhatianCount = computed<number>(() => 0);
+
+  // ============================================================
+  // REGIONAL PERFORMANCE EVALUATION STATE (Kabupaten/Kota)
+  // ============================================================
+  readonly regionalSortBy = signal<'need_acceleration' | 'on_track' | 'name' | 'percentage'>('need_acceleration');
+  readonly regionalSortDirection = signal<'asc' | 'desc'>('desc');
+  readonly regionalSortIndicatorId = signal<string | null>(null);
+
+  readonly regionalScorecards = computed<EvaluatedRegionalScorecard[]>(() => {
+    const cats = this.categories();
+    const rows = this.validJoinedRows();
+    const pKey = this.primaryKeyCol();
+
+    const hasSubCategories = cats.some((c) => c.subCategories.length > 0);
+    if (!hasSubCategories || rows.length === 0) {
+      return [];
+    }
+
+    return StuntingEvaluationEngine.evaluateRegionalScorecards(cats, rows, pKey, {
+      activeQuarter: this.activeQuarter(),
+      toleranceThresholdPercent: this.toleranceThreshold(),
+      quarterWeight: this.quarterWeight() ?? undefined,
+      sortBy: this.regionalSortBy(),
+      sortDirection: this.regionalSortDirection(),
+      sortIndicatorId: this.regionalSortIndicatorId() ?? undefined,
+    });
+  });
+
+  readonly selectedRegionForDrilldown = signal<string | null>(null);
+
+  readonly activeRegionalDrilldownScorecard = computed<EvaluatedRegionalScorecard | null>(() => {
+    const regId = this.selectedRegionForDrilldown();
+    if (!regId) return null;
+    return this.regionalScorecards().find((s) => s.regionId === regId || s.regionName === regId) ?? null;
+  });
+
+  readonly matrixViewMode = signal<'all_indicators' | 'single_indicator'>('all_indicators');
+  readonly selectedMatrixIndicatorId = signal<string | null>(null);
 
   constructor() {
     this.loadStandardCategories();

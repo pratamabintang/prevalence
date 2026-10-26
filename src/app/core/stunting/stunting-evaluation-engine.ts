@@ -141,6 +141,20 @@ export interface AggregatedEvaluationOptions {
   calculationDataSource?: 'summary_row' | 'all_rows' | 'aggregated_rows';
 }
 
+export interface RegionalEvaluationOptions extends AggregatedEvaluationOptions {
+  sortBy?: 'need_acceleration' | 'on_track' | 'name' | 'percentage';
+  sortDirection?: 'asc' | 'desc';
+  sortIndicatorId?: string;
+}
+
+export interface EvaluatedRegionalScorecard {
+  regionId: string;
+  regionName: string;
+  summary: StuntingKpiSummary;
+  rows: EvaluatedStuntingRow[];
+  activeQuarter: 1 | 2 | 3 | 4;
+}
+
 export interface StuntingEvaluationOptions {
   activeQuarter: 1 | 2 | 3 | 4;
   toleranceThresholdPercent?: number; // default -5.0%
@@ -786,14 +800,16 @@ export class StuntingEvaluationEngine {
 
         // Previous Year Actual Calculation
         let actualPrev: number | null = null;
-        if (sub.prevYearMode === 'columns' && sub.prevNumeratorCol) {
+        if ((sub.prevYearMode === 'columns' || sub.prevNumeratorCol) && sub.prevNumeratorCol) {
           const prevSumNum = this.sumColumnValues(joinedRows, sub.prevNumeratorCol);
           const prevSumDen = sub.prevDenominatorCol ? this.sumColumnValues(joinedRows, sub.prevDenominatorCol) : null;
           if (prevSumNum !== null) {
-            if (calcMode === 'absolute' || prevSumDen === null || prevSumDen === 0) {
+            if (calcMode === 'absolute' || prevSumDen === null) {
               actualPrev = prevSumNum;
-            } else {
+            } else if (prevSumDen > 0) {
               actualPrev = Math.round((prevSumNum / prevSumDen) * 10000) / 100;
+            } else {
+              actualPrev = null;
             }
           }
         } else if (sub.actualPrevYear !== null && sub.actualPrevYear !== undefined && String(sub.actualPrevYear).trim() !== '') {
@@ -970,13 +986,20 @@ export class StuntingEvaluationEngine {
         const yoyChange = this.calculateYoYChange(activeActual, actualPrev);
 
         // Status & Pattern
-        const { status, reason: statusReason } = this.evaluateStatus(
+        let { status, reason: statusReason } = this.evaluateStatus(
           activeActual,
           activeExpected,
           yoyChange,
           tolerance,
           polarity,
         );
+        if (status === 'belum_dinilai') {
+          if (activeSumDen === 0) {
+            statusReason = 'Sasaran 0 (Data Belum Tersedia)';
+          } else if (activeActual === null) {
+            statusReason = 'Data Belum Dilaporkan';
+          }
+        }
         const pattern = this.classifyPattern(activeActual, targetCurrent, actualPrev, status, polarity);
 
         const isTargetReached =
@@ -1141,5 +1164,72 @@ export class StuntingEvaluationEngine {
       activeQuarter: effectiveActiveQuarter,
       availableQuarters,
     };
+  }
+
+  /**
+   * Mengevaluasi dataset indikator stunting secara per-wilayah (per baris Kabupaten/Kota).
+   * Menghasilkan rapor kinerja (scorecard) independen untuk setiap wilayah.
+   */
+  static evaluateRegionalScorecards(
+    categories: StuntingCategoryConfig[],
+    validJoinedRows: Record<string, unknown>[],
+    primaryKeyCol: string,
+    options: RegionalEvaluationOptions = {},
+  ): EvaluatedRegionalScorecard[] {
+    const q = options.activeQuarter || 1;
+    const scorecards: EvaluatedRegionalScorecard[] = [];
+
+    for (let i = 0; i < validJoinedRows.length; i++) {
+      const row = validJoinedRows[i];
+      const regionId = String(row['__id'] ?? row[primaryKeyCol] ?? `region-${i}`);
+      const rawName = row[primaryKeyCol];
+      const regionName = rawName !== undefined && rawName !== null ? String(rawName).trim() : `Wilayah ${i + 1}`;
+
+      // Evaluasi baris tunggal wilayah ini dengan konfigurasi target yang seragam
+      const evalResult = this.evaluateAggregatedDataset(categories, [row], {
+        ...options,
+        activeQuarter: q,
+        calculationDataSource: 'all_rows',
+      });
+
+      scorecards.push({
+        regionId,
+        regionName,
+        summary: evalResult.summary,
+        rows: evalResult.rows,
+        activeQuarter: q,
+      });
+    }
+
+    // Pengurutan (Sorting)
+    const sortBy = options.sortBy || 'need_acceleration';
+    const sortDirection = options.sortDirection || 'desc';
+
+    scorecards.sort((a, b) => {
+      let cmp = 0;
+      if (sortBy === 'need_acceleration') {
+        // Prioritaskan wilayah dengan perluPercepatanCount tertinggi
+        cmp = a.summary.perluPercepatanCount - b.summary.perluPercepatanCount;
+        if (cmp === 0) {
+          // Fallback: onTrackCount terendah
+          cmp = b.summary.onTrackCount - a.summary.onTrackCount;
+        }
+      } else if (sortBy === 'on_track') {
+        cmp = a.summary.onTrackCount - b.summary.onTrackCount;
+      } else if (sortBy === 'name') {
+        cmp = a.regionName.localeCompare(b.regionName, 'id', { sensitivity: 'base' });
+        return sortDirection === 'desc' ? -cmp : cmp;
+      } else if (sortBy === 'percentage' && options.sortIndicatorId) {
+        const rowA = a.rows.find((r) => r.id === options.sortIndicatorId);
+        const rowB = b.rows.find((r) => r.id === options.sortIndicatorId);
+        const valA = rowA?.activeActual ?? -9999;
+        const valB = rowB?.activeActual ?? -9999;
+        cmp = valA - valB;
+      }
+
+      return sortDirection === 'desc' ? -cmp : cmp;
+    });
+
+    return scorecards;
   }
 }

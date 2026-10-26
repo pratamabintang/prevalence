@@ -1604,6 +1604,395 @@
               </table>
             </div>
 
+            <!-- ============================================================ -->
+            <!-- MATRIKS KOMPARASI ANTAR-WILAYAH (KABUPATEN/KOTA) -->
+            <!-- ============================================================ -->
+            @if (regionalScorecards().length > 0) {
+              <div class="bg-white rounded-lg p-5 border border-slate-200 space-y-4">
+                <!-- Matrix Header & Toolbar -->
+                <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200">
+                  <div>
+                    <div class="flex items-center gap-2">
+                      <h3 class="text-sm font-semibold text-slate-900">Matriks Komparasi Antar-Wilayah (Kabupaten/Kota)</h3>
+                      <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        {{ regionalScorecards().length }} Wilayah
+                      </span>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-0.5">
+                      Evaluasi performa komparatif seluruh Kabupaten/Kota di Jawa Tengah. Klik nama wilayah untuk membuka Kartu Rapor detail.
+                    </p>
+                  </div>
+
+                  <!-- Dual-Mode Toggle & Options -->
+                  <div class="flex flex-wrap items-center gap-2">
+                    <div class="inline-flex items-center rounded-lg border border-slate-200 p-0.5 bg-slate-50">
+                      <button
+                        type="button"
+                        (click)="setMatrixViewMode('all_indicators')"
+                        class="px-3 py-1 text-xs font-medium rounded-md transition-all cursor-pointer"
+                        [class.bg-white]="matrixViewMode() === 'all_indicators'"
+                        [class.text-slate-900]="matrixViewMode() === 'all_indicators'"
+                        [class.shadow-sm]="matrixViewMode() === 'all_indicators'"
+                        [class.text-slate-500]="matrixViewMode() !== 'all_indicators'"
+                      >
+                        Semua Indikator (TW {{ activeQuarter() }})
+                      </button>
+                      <button
+                        type="button"
+                        (click)="setMatrixViewMode('single_indicator')"
+                        class="px-3 py-1 text-xs font-medium rounded-md transition-all cursor-pointer"
+                        [class.bg-white]="matrixViewMode() === 'single_indicator'"
+                        [class.text-slate-900]="matrixViewMode() === 'single_indicator'"
+                        [class.shadow-sm]="matrixViewMode() === 'single_indicator'"
+                        [class.text-slate-500]="matrixViewMode() !== 'single_indicator'"
+                      >
+                        Longitudinal (1 Indikator)
+                      </button>
+                    </div>
+
+                    <!-- Dropdown selector when in single_indicator mode -->
+                    @if (matrixViewMode() === 'single_indicator') {
+                      <select
+                        [value]="selectedMatrixIndicatorId() ?? ''"
+                        (change)="setSelectedMatrixIndicator($any($event.target).value)"
+                        class="text-xs border border-slate-300 rounded px-2.5 py-1.5 bg-white text-slate-800 font-medium focus:ring-1 focus:ring-indigo-500 max-w-[260px] truncate"
+                      >
+                        @for (sub of allConfiguredSubCategories(); track sub.id) {
+                          <option [value]="sub.id">{{ sub.name }}</option>
+                        }
+                      </select>
+                    }
+                  </div>
+                </div>
+
+                <!-- Matrix Table Container with Sticky Column -->
+                <div class="overflow-x-auto border border-slate-200 rounded-lg max-h-[550px] overflow-y-auto">
+                  <table class="w-full text-left border-collapse text-xs">
+                    <thead class="bg-slate-50 text-slate-700 sticky top-0 z-20 shadow-sm border-b border-slate-200">
+                      <tr>
+                        <!-- Sticky Left Wilayah Column -->
+                        <th
+                          scope="col"
+                          class="px-3.5 py-2.5 font-semibold text-slate-900 sticky left-0 z-30 bg-slate-50 border-r border-slate-200 min-w-[180px] cursor-pointer hover:bg-slate-100 transition-colors"
+                          (click)="toggleRegionalSort('name')"
+                          title="Klik untuk mengurutkan nama wilayah"
+                        >
+                          <div class="flex items-center justify-between gap-1">
+                            <span>Kabupaten / Kota</span>
+                            <span class="text-slate-400 text-[10px]">
+                              @if (regionalSortBy() === 'name') {
+                                {{ regionalSortDirection() === 'asc' ? '▲' : '▼' }}
+                              } @else {
+                                ↕
+                              }
+                            </span>
+                          </div>
+                        </th>
+
+                        <!-- Summary KPI Counts Column -->
+                        <th
+                          scope="col"
+                          class="px-3 py-2.5 font-semibold text-center border-r border-slate-200 min-w-[130px] cursor-pointer hover:bg-slate-100 transition-colors"
+                          (click)="toggleRegionalSort('need_acceleration')"
+                          title="Klik untuk mengurutkan wilayah yang paling butuh percepatan"
+                        >
+                          <div class="flex items-center justify-center gap-1">
+                            <span>Status Rapor</span>
+                            <span class="text-slate-400 text-[10px]">
+                              @if (regionalSortBy() === 'need_acceleration') {
+                                {{ regionalSortDirection() === 'desc' ? '▼ (Prioritas)' : '▲' }}
+                              } @else {
+                                ↕
+                              }
+                            </span>
+                          </div>
+                        </th>
+
+                        <!-- Dynamic Columns based on Mode -->
+                        @if (matrixViewMode() === 'all_indicators') {
+                          @for (sub of allConfiguredSubCategories(); track sub.id) {
+                            <th
+                              scope="col"
+                              class="px-3 py-2 font-medium text-center border-r border-slate-200 min-w-[140px] max-w-[180px] cursor-pointer hover:bg-slate-100 transition-colors"
+                              (click)="toggleRegionalSort('percentage', sub.id)"
+                              [title]="'Klik untuk mengurutkan capaian: ' + sub.name"
+                            >
+                              <div class="flex flex-col items-center">
+                                <span class="truncate w-full font-semibold text-slate-800" [title]="sub.name">{{ sub.name }}</span>
+                                <div class="flex items-center gap-1 text-[10px] text-slate-500 font-normal">
+                                  <span>Tgt: {{ sub.targetCurrentYear ?? '-' }}{{ sub.calculationMode === 'absolute' ? '' : '%' }}</span>
+                                  @if (regionalSortBy() === 'percentage' && regionalSortIndicatorId() === sub.id) {
+                                    <span class="font-bold text-indigo-600">{{ regionalSortDirection() === 'asc' ? '▲' : '▼' }}</span>
+                                  }
+                                </div>
+                              </div>
+                            </th>
+                          }
+                        } @else {
+                          <!-- Longitudinal View Columns (TW1..TW4 + YoY) -->
+                          <th scope="col" class="px-3 py-2 text-center font-medium border-r border-slate-200 min-w-[90px]">TW 1</th>
+                          <th scope="col" class="px-3 py-2 text-center font-medium border-r border-slate-200 min-w-[90px]">TW 2</th>
+                          <th scope="col" class="px-3 py-2 text-center font-medium border-r border-slate-200 min-w-[90px]">TW 3</th>
+                          <th scope="col" class="px-3 py-2 text-center font-medium border-r border-slate-200 min-w-[90px]">TW 4</th>
+                          <th scope="col" class="px-3 py-2 text-center font-medium border-r border-slate-200 min-w-[90px]">YoY (%)</th>
+                          <th scope="col" class="px-3 py-2 text-center font-medium min-w-[110px]">Status Aktif</th>
+                        }
+                      </tr>
+                    </thead>
+
+                    <tbody class="divide-y divide-slate-100 bg-white">
+                      @for (sc of regionalScorecards(); track sc.regionId; let idx = $index) {
+                        <tr class="hover:bg-indigo-50/40 transition-colors group">
+                          <!-- Sticky Left Column: Regency Name -->
+                          <td
+                            class="px-3.5 py-2 font-medium text-slate-900 sticky left-0 z-10 bg-white group-hover:bg-indigo-50/70 border-r border-slate-200 whitespace-nowrap cursor-pointer"
+                            (click)="openRegionalDrilldown(sc.regionId)"
+                            title="Klik untuk membuka Kartu Rapor detail wilayah ini"
+                          >
+                            <div class="flex items-center justify-between gap-1.5">
+                              <span class="group-hover:text-indigo-700 font-semibold">{{ sc.regionName }}</span>
+                              <svg class="w-3.5 h-3.5 text-slate-300 group-hover:text-indigo-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                              </svg>
+                            </div>
+                          </td>
+
+                          <!-- KPI Summary Badges -->
+                          <td class="px-3 py-2 border-r border-slate-200 text-center whitespace-nowrap">
+                            <div class="flex items-center justify-center gap-1.5">
+                              <span
+                                class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold"
+                                [ngClass]="sc.summary.onTrackCount > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400'"
+                                [title]="sc.summary.onTrackCount + ' Indikator On Track'"
+                              >
+                                {{ sc.summary.onTrackCount }} OT
+                              </span>
+                              <span
+                                class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold"
+                                [ngClass]="sc.summary.perluPercepatanCount > 0 ? 'bg-rose-100 text-rose-800 font-extrabold' : 'bg-slate-100 text-slate-400'"
+                                [title]="sc.summary.perluPercepatanCount + ' Indikator Perlu Percepatan'"
+                              >
+                                {{ sc.summary.perluPercepatanCount }} PP
+                              </span>
+                            </div>
+                          </td>
+
+                          <!-- Mode 1: All Indicators in Active Quarter -->
+                          @if (matrixViewMode() === 'all_indicators') {
+                            @for (sub of allConfiguredSubCategories(); track sub.id; let sIdx = $index) {
+                              @let rowItem = sc.rows[sIdx];
+                              <td class="px-3 py-2 text-center border-r border-slate-100 whitespace-nowrap">
+                                @if (rowItem) {
+                                  <div class="flex flex-col items-center">
+                                    <div class="font-mono font-bold text-slate-800">
+                                      @if (rowItem.activeActual !== null && rowItem.activeActual !== undefined) {
+                                        {{ rowItem.activeActual | number:'1.1-2' }}{{ rowItem.calculationMode === 'absolute' ? '' : '%' }}
+                                      } @else {
+                                        <span class="text-slate-400 font-normal italic">-</span>
+                                      }
+                                    </div>
+                                    <span
+                                      class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-semibold"
+                                      [ngClass]="{
+                                        'bg-emerald-100 text-emerald-800': rowItem.status === 'on_track',
+                                        'bg-rose-100 text-rose-800': rowItem.status === 'perlu_percepatan',
+                                        'bg-slate-100 text-slate-600': rowItem.status === 'belum_dinilai'
+                                      }"
+                                    >
+                                      {{ rowItem.status === 'on_track' ? 'On Track' : (rowItem.status === 'perlu_percepatan' ? 'Percepatan' : 'Belum Dinilai') }}
+                                    </span>
+                                  </div>
+                                } @else {
+                                  <span class="text-slate-300">-</span>
+                                }
+                              </td>
+                            }
+                          } @else {
+                            <!-- Mode 2: Longitudinal View for Selected Indicator -->
+                            @let singleRow = getScorecardRowForIndicator(sc, selectedMatrixIndicatorId());
+                            @if (singleRow) {
+                              @for (qNum of allFourQuarters; track qNum) {
+                                @let qData = singleRow.quarters[qNum];
+                                <td class="px-3 py-2 text-right border-r border-slate-100 font-mono text-xs whitespace-nowrap">
+                                  @if (qData && qData.actualAchievement !== null && qData.actualAchievement !== undefined) {
+                                    <span class="font-bold text-slate-800">{{ qData.actualAchievement | number:'1.1-2' }}%</span>
+                                  } @else {
+                                    <span class="text-slate-400 italic">-</span>
+                                  }
+                                </td>
+                              }
+                              <!-- YoY Change -->
+                              <td class="px-3 py-2 text-right border-r border-slate-100 font-mono text-xs whitespace-nowrap">
+                                @if (singleRow.yoyChange !== null && singleRow.yoyChange !== undefined) {
+                                  <span
+                                    class="font-semibold"
+                                    [class.text-emerald-600]="singleRow.polarity === 'negative' ? singleRow.yoyChange < 0 : singleRow.yoyChange > 0"
+                                    [class.text-rose-600]="singleRow.polarity === 'negative' ? singleRow.yoyChange > 0 : singleRow.yoyChange < 0"
+                                  >
+                                    {{ singleRow.yoyChange > 0 ? '+' : '' }}{{ singleRow.yoyChange | number:'1.1-2' }}%
+                                  </span>
+                                } @else {
+                                  <span class="text-slate-400 italic">-</span>
+                                }
+                              </td>
+                              <!-- Active Status -->
+                              <td class="px-3 py-2 text-center whitespace-nowrap">
+                                <span
+                                  class="inline-block px-2 py-0.5 rounded text-[10px] font-bold"
+                                  [ngClass]="{
+                                    'bg-emerald-100 text-emerald-800': singleRow.status === 'on_track',
+                                    'bg-rose-100 text-rose-800': singleRow.status === 'perlu_percepatan',
+                                    'bg-slate-100 text-slate-600': singleRow.status === 'belum_dinilai'
+                                  }"
+                                >
+                                  {{ singleRow.status === 'on_track' ? 'On Track' : (singleRow.status === 'perlu_percepatan' ? 'Percepatan' : 'Belum Dinilai') }}
+                                </span>
+                              </td>
+                            }
+                          }
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            }
+
+            <!-- ============================================================ -->
+            <!-- SLIDE-OUT DRAWER: KARTU RAPOR WILAYAH DETAIL -->
+            <!-- ============================================================ -->
+            @if (activeRegionalDrilldownScorecard(); as dsc) {
+              <div class="fixed inset-0 z-50 overflow-hidden" aria-labelledby="slide-over-title" role="dialog" aria-modal="true">
+                <!-- Backdrop -->
+                <div
+                  class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
+                  (click)="closeRegionalDrilldown()"
+                ></div>
+
+                <div class="fixed inset-y-0 right-0 pl-10 max-w-full flex">
+                  <div class="w-screen max-w-2xl bg-white shadow-2xl flex flex-col border-l border-slate-200">
+                    <!-- Drawer Header -->
+                    <div class="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-4">
+                      <div>
+                        <div class="flex items-center gap-2">
+                          <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700">
+                            Kartu Rapor Wilayah
+                          </span>
+                          <span class="text-xs text-slate-400">Triwulan {{ dsc.activeQuarter }}</span>
+                        </div>
+                        <h2 class="text-lg font-bold text-slate-900 mt-1" id="slide-over-title">
+                          {{ dsc.regionName }}
+                        </h2>
+                      </div>
+
+                      <button
+                        type="button"
+                        (click)="closeRegionalDrilldown()"
+                        class="rounded-md p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors"
+                        title="Tutup Laci Rapor"
+                      >
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    <!-- Drawer Content (Scrollable) -->
+                    <div class="flex-1 overflow-y-auto p-5 space-y-5">
+                      <!-- Mini KPI Summary Cards -->
+                      <div class="grid grid-cols-3 gap-3">
+                        <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center">
+                          <div class="text-xs font-semibold text-emerald-800">On Track</div>
+                          <div class="text-2xl font-extrabold text-emerald-700 mt-1">{{ dsc.summary.onTrackCount }}</div>
+                          <div class="text-[10px] text-emerald-600 mt-0.5">Memenuhi Target</div>
+                        </div>
+
+                        <div class="bg-rose-50 border border-rose-200 rounded-lg p-3 text-center">
+                          <div class="text-xs font-semibold text-rose-800">Perlu Percepatan</div>
+                          <div class="text-2xl font-extrabold text-rose-700 mt-1">{{ dsc.summary.perluPercepatanCount }}</div>
+                          <div class="text-[10px] text-rose-600 mt-0.5">Di Bawah Target</div>
+                        </div>
+
+                        <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
+                          <div class="text-xs font-semibold text-slate-700">Belum Dinilai</div>
+                          <div class="text-2xl font-extrabold text-slate-600 mt-1">{{ dsc.summary.belumDinilaiCount }}</div>
+                          <div class="text-[10px] text-slate-500 mt-0.5">Data Belum Lengkap</div>
+                        </div>
+                      </div>
+
+                      <!-- Indicator Evaluation Detail Table -->
+                      <div class="border border-slate-200 rounded-lg overflow-hidden">
+                        <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-200 font-semibold text-xs text-slate-800">
+                          Rincian Indikator Kinerja ({{ dsc.rows.length }} Indikator)
+                        </div>
+                        <table class="w-full text-xs text-left border-collapse">
+                          <thead class="bg-slate-100 text-slate-600 text-[11px] border-b border-slate-200">
+                            <tr>
+                              <th class="px-3 py-2 font-medium">Nama Indikator</th>
+                              <th class="px-2.5 py-2 text-right font-medium">Target</th>
+                              <th class="px-2.5 py-2 text-right font-medium">Capaian</th>
+                              <th class="px-2.5 py-2 text-right font-medium">Gap</th>
+                              <th class="px-2.5 py-2 text-center font-medium">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody class="divide-y divide-slate-100">
+                            @for (r of dsc.rows; track r.id) {
+                              <tr class="hover:bg-slate-50/80">
+                                <td class="px-3 py-2 text-slate-900 font-medium max-w-[200px]">
+                                  {{ r.name }}
+                                </td>
+                                <td class="px-2.5 py-2 text-right font-mono text-slate-600">
+                                  {{ r.targetCurrentYear ?? '-' }}%
+                                </td>
+                                <td class="px-2.5 py-2 text-right font-mono font-bold text-slate-900">
+                                  {{ r.activeActual !== null ? (r.activeActual | number:'1.1-2') + '%' : '-' }}
+                                </td>
+                                <td class="px-2.5 py-2 text-right font-mono text-xs">
+                                  @if (r.activeGap !== null) {
+                                    <span [class.text-emerald-600]="r.activeGap >= 0" [class.text-rose-600]="r.activeGap < 0">
+                                      {{ r.activeGap > 0 ? '+' : '' }}{{ r.activeGap | number:'1.1-2' }}%
+                                    </span>
+                                  } @else {
+                                    <span class="text-slate-400">-</span>
+                                  }
+                                </td>
+                                <td class="px-2.5 py-2 text-center">
+                                  <span
+                                    class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold"
+                                    [ngClass]="{
+                                      'bg-emerald-100 text-emerald-800': r.status === 'on_track',
+                                      'bg-rose-100 text-rose-800': r.status === 'perlu_percepatan',
+                                      'bg-slate-100 text-slate-600': r.status === 'belum_dinilai'
+                                    }"
+                                    [title]="r.statusReason"
+                                  >
+                                    {{ r.status === 'on_track' ? 'On Track' : (r.status === 'perlu_percepatan' ? 'Percepatan' : 'Belum Dinilai') }}
+                                  </span>
+                                </td>
+                              </tr>
+                            }
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <!-- Drawer Footer -->
+                    <div class="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end">
+                      <button
+                        type="button"
+                        uiButton
+                        variant="secondary"
+                        size="sm"
+                        (click)="closeRegionalDrilldown()"
+                      >
+                        Tutup
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            }
+
             <!-- Step 3 Bottom Navigation Bar -->
             <div class="pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
               <button

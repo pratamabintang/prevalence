@@ -48,6 +48,7 @@ export interface RegionSlicingSpec {
   width?: number;
   rowHeight?: number;
   margin?: { top: number; right: number; bottom: number; left: number };
+  gapWidth?: number;
 }
 
 export interface IndicatorSlicingSpec {
@@ -60,6 +61,7 @@ export interface IndicatorSlicingSpec {
   width?: number;
   rowHeight?: number;
   margin?: { top: number; right: number; bottom: number; left: number };
+  gapWidth?: number;
 }
 
 /**
@@ -159,9 +161,10 @@ export class ChartSlicingEngine {
       });
     }
 
-    const width = spec.width ?? 960;
-    const rowHeight = spec.rowHeight ?? 38;
-    const margin = spec.margin ?? { top: 60, right: 95, bottom: 58, left: 200 };
+    const width = spec.width ?? 780;
+    const rowHeight = spec.rowHeight ?? 22;
+    const margin = spec.margin ?? { top: 60, right: 65, bottom: 58, left: 130 };
+    const gapWidth = spec.gapWidth ?? 5;
 
     return cats.map((catName) => {
       const r = rowMap.get(catName.trim().toLowerCase());
@@ -190,6 +193,7 @@ export class ChartSlicingEngine {
         width,
         rowHeight,
         margin,
+        gapWidth,
       });
 
       return {
@@ -221,9 +225,10 @@ export class ChartSlicingEngine {
       }
     }
 
-    const width = spec.width ?? 960;
-    const rowHeight = spec.rowHeight ?? 38;
-    const margin = spec.margin ?? { top: 60, right: 95, bottom: 58, left: 200 };
+    const width = spec.width ?? 780;
+    const rowHeight = spec.rowHeight ?? 22;
+    const margin = spec.margin ?? { top: 60, right: 65, bottom: 58, left: 130 };
+    const gapWidth = spec.gapWidth ?? 5;
 
     return series.map((s) => {
       let cats = [...rawCats];
@@ -285,6 +290,7 @@ export class ChartSlicingEngine {
         width,
         rowHeight,
         margin,
+        gapWidth,
       });
 
       return {

@@ -1445,6 +1445,69 @@ describe('StuntingMonitoringComponent', () => {
       expect(ttdSub!.quarterColumns?.[2]?.meanCol).toBe('% Konsumsi TTD');
     });
   });
+
+  describe('Regional Performance Evaluation (Kabupaten/Kota) in Step 3', () => {
+    it('should render comparative matrix and support sorting, view mode toggle, and drilldown drawer', async () => {
+      // Setup dataset with 2 regencies
+      component.workflowEngine.setJoinedDataset({
+        rows: [
+          {
+            __id: 'row-0',
+            'Kabupaten/Kota': 'Kabupaten Cilacap',
+            'Sasaran K4': 100,
+            'Realisasi K4': 50,
+          },
+          {
+            __id: 'row-1',
+            'Kabupaten/Kota': 'Kabupaten Banyumas',
+            'Sasaran K4': 100,
+            'Realisasi K4': 95,
+          },
+        ],
+        columns: ['Kabupaten/Kota', 'Sasaran K4', 'Realisasi K4'],
+      });
+
+      const cat1 = component.categories()[0];
+      component.workflowEngine.addSubCategory(cat1.id, {
+        name: 'Cakupan K4',
+        numeratorCol: 'Realisasi K4',
+        denominatorCol: 'Sasaran K4',
+        targetCurrentYear: 90,
+      });
+
+      component.goToStep(3);
+      fixture.detectChanges();
+
+      // Check regional scorecards computation
+      const regional = component.regionalScorecards();
+      expect(regional.length).toBe(2);
+      expect(regional[0].regionName).toBe('Kabupaten Cilacap'); // Needs acceleration first
+
+      // Toggle sort by name
+      component.toggleRegionalSort('name');
+      expect(component.regionalSortBy()).toBe('name');
+      expect(component.regionalSortDirection()).toBe('asc');
+      expect(component.regionalScorecards()[0].regionName).toBe('Kabupaten Banyumas');
+
+      // Toggle matrix view mode to single_indicator
+      component.setMatrixViewMode('single_indicator');
+      expect(component.matrixViewMode()).toBe('single_indicator');
+      expect(component.selectedMatrixIndicatorId()).toBeDefined();
+
+      // Open drilldown drawer
+      expect(component.activeRegionalDrilldownScorecard()).toBeNull();
+      component.openRegionalDrilldown('row-0');
+      fixture.detectChanges();
+
+      expect(component.activeRegionalDrilldownScorecard()).not.toBeNull();
+      expect(component.activeRegionalDrilldownScorecard()?.regionName).toBe('Kabupaten Cilacap');
+
+      // Close drilldown drawer
+      component.closeRegionalDrilldown();
+      fixture.detectChanges();
+      expect(component.activeRegionalDrilldownScorecard()).toBeNull();
+    });
+  });
 });
 
 

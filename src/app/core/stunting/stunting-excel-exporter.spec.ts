@@ -99,6 +99,47 @@ describe('StuntingExcelExporter', () => {
     expect(sheets[0].sheetName).toBe('Rekap Kinerja');
   });
 
+  it('should include "Komparasi Kab-Kota" sheet when regionalScorecards are provided', () => {
+    const multiSheetSpy = vi
+      .spyOn(ExcelEngine, 'exportMultiSheetTable')
+      .mockImplementation(() => {});
+
+    const mockScorecards = [
+      {
+        regionId: 'row-1',
+        regionName: 'Kabupaten Banyumas',
+        summary: {
+          totalIndicators: 1,
+          onTrackCount: 1,
+          perluPerhatianCount: 0,
+          perluPercepatanCount: 0,
+          belumDinilaiCount: 0,
+        },
+        rows: [
+          {
+            id: 'sub-1',
+            name: 'Remaja Putri Dapat TTD',
+            status: 'on_track',
+            activeActual: 85.0,
+          },
+        ],
+        activeQuarter: 1,
+      },
+    ] as any;
+
+    const fileName = StuntingExcelExporter.exportMonitoringReport({
+      evaluationResult: mockEvaluation,
+      availableQuarters: [1],
+      regionalScorecards: mockScorecards,
+      validJoinedRows: [{ Puskesmas: 'Puskesmas A' }],
+    });
+
+    const sheets = multiSheetSpy.mock.calls[0][1];
+    const regionalSheet = sheets.find((s: any) => s.sheetName === 'Komparasi Kab-Kota');
+    expect(regionalSheet).toBeDefined();
+    expect(sheets.map((s: any) => s.sheetName)).toContain('Komparasi Kab-Kota');
+  });
+
   it('should export joined data using ExcelEngine.exportStyledTable', () => {
     const styledTableSpy = vi
       .spyOn(ExcelEngine, 'exportStyledTable')

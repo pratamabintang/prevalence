@@ -152,7 +152,7 @@ export class StuntingDashboardComponent {
   }
 
   readonly heatmapPalettes = HEATMAP_PALETTES;
-  readonly selectedHeatmapPaletteId = signal<string>('yellow-red');
+  readonly selectedHeatmapPaletteId = signal<string>('red-yellow-green');
 
   get activeHeatmapGradientCss(): string {
     const palette =

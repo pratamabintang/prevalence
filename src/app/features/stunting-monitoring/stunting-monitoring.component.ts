@@ -6,6 +6,8 @@ import { HealthDataExchange } from '../../core/domain/health-data-exchange';
 import { RegionNormalizer } from '../../core/domain/region-normalizer';
 import { IndicatorEvaluator } from '../../core/evaluation/indicator-evaluator';
 import {
+  EvaluatedRegionalScorecard,
+  EvaluatedStuntingRow,
   IndicatorPolarity,
   StuntingCategoryConfig,
   StuntingEvaluationEngine,
@@ -214,6 +216,7 @@ export class StuntingMonitoringComponent implements OnInit {
   collapsedCategories = signal<Record<string, boolean>>({});
   viewMode = signal<'auto' | 'single_quarter' | 'all_quarters'>('all_quarters');
   subActiveQuarter = signal<Record<string, 1 | 2 | 3 | 4>>({});
+  readonly allFourQuarters: (1 | 2 | 3 | 4)[] = [1, 2, 3, 4];
 
   displayedQuarters = computed<(1 | 2 | 3 | 4)[]>(() => {
     const mode = this.viewMode();
@@ -226,6 +229,79 @@ export class StuntingMonitoringComponent implements OnInit {
   onTrackCount = this.workflowEngine.onTrackCount;
   perluPercepatanCount = this.workflowEngine.perluPercepatanCount;
   perluPerhatianCount = this.workflowEngine.perluPerhatianCount;
+
+  // Regional Performance Evaluation
+  regionalScorecards = this.workflowEngine.regionalScorecards;
+  regionalSortBy = this.workflowEngine.regionalSortBy;
+  regionalSortDirection = this.workflowEngine.regionalSortDirection;
+  regionalSortIndicatorId = this.workflowEngine.regionalSortIndicatorId;
+  selectedRegionForDrilldown = this.workflowEngine.selectedRegionForDrilldown;
+  activeRegionalDrilldownScorecard = this.workflowEngine.activeRegionalDrilldownScorecard;
+  matrixViewMode = this.workflowEngine.matrixViewMode;
+  selectedMatrixIndicatorId = this.workflowEngine.selectedMatrixIndicatorId;
+
+  allConfiguredSubCategories = computed<StuntingSubCategoryConfig[]>(() => {
+    const cats = this.categories();
+    const subs: StuntingSubCategoryConfig[] = [];
+    for (const c of cats) {
+      for (const s of c.subCategories) {
+        subs.push(s);
+      }
+    }
+    return subs;
+  });
+
+  toggleRegionalSort(col: 'need_acceleration' | 'on_track' | 'name' | 'percentage', indicatorId?: string): void {
+    const currentSort = this.regionalSortBy();
+    const currentDir = this.regionalSortDirection();
+    const currentIndId = this.regionalSortIndicatorId();
+
+    if (col === 'percentage' && indicatorId) {
+      if (currentSort === 'percentage' && currentIndId === indicatorId) {
+        this.workflowEngine.regionalSortDirection.set(currentDir === 'asc' ? 'desc' : 'asc');
+      } else {
+        this.workflowEngine.regionalSortBy.set('percentage');
+        this.workflowEngine.regionalSortIndicatorId.set(indicatorId);
+        this.workflowEngine.regionalSortDirection.set('desc');
+      }
+      return;
+    }
+
+    if (currentSort === col) {
+      this.workflowEngine.regionalSortDirection.set(currentDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      this.workflowEngine.regionalSortBy.set(col);
+      this.workflowEngine.regionalSortIndicatorId.set(null);
+      this.workflowEngine.regionalSortDirection.set(col === 'name' ? 'asc' : 'desc');
+    }
+  }
+
+  openRegionalDrilldown(regionId: string): void {
+    this.workflowEngine.selectedRegionForDrilldown.set(regionId);
+  }
+
+  closeRegionalDrilldown(): void {
+    this.workflowEngine.selectedRegionForDrilldown.set(null);
+  }
+
+  setMatrixViewMode(mode: 'all_indicators' | 'single_indicator'): void {
+    this.workflowEngine.matrixViewMode.set(mode);
+    if (mode === 'single_indicator' && !this.selectedMatrixIndicatorId()) {
+      const first = this.allConfiguredSubCategories()[0];
+      if (first) {
+        this.workflowEngine.selectedMatrixIndicatorId.set(first.id);
+      }
+    }
+  }
+
+  setSelectedMatrixIndicator(indicatorId: string): void {
+    this.workflowEngine.selectedMatrixIndicatorId.set(indicatorId);
+  }
+
+  getScorecardRowForIndicator(sc: EvaluatedRegionalScorecard, indicatorId: string | null): EvaluatedStuntingRow | undefined {
+    if (!indicatorId) return sc.rows[0];
+    return sc.rows.find((r) => r.id === indicatorId) ?? sc.rows[0];
+  }
 
   setViewMode(mode: 'auto' | 'single_quarter' | 'all_quarters'): void {
     this.viewMode.set(mode);
@@ -1699,6 +1775,7 @@ export class StuntingMonitoringComponent implements OnInit {
     const fileName = StuntingExcelExporter.exportMonitoringReport({
       evaluationResult: res,
       availableQuarters: quartersToExport,
+      regionalScorecards: this.regionalScorecards(),
       validJoinedRows:
         this.activeRegionRows().length > 0 ? this.activeRegionRows() : this.validJoinedRows(),
       primaryKeyColumn: this.primaryKeyCol(),

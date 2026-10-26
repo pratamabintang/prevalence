@@ -57,43 +57,23 @@ export interface HeatmapColorPalette {
   id: string;
   name: string;
   startRgb: [number, number, number];
+  midRgb?: [number, number, number];
   endRgb: [number, number, number];
   startHex: string;
+  midHex?: string;
   endHex: string;
 }
 
 export const HEATMAP_PALETTES: HeatmapColorPalette[] = [
   {
-    id: 'yellow-red',
-    name: 'Kuning ke Merah (Yellow-Red)',
-    startRgb: [254, 240, 138], // #fef08a
-    endRgb: [185, 28, 28],     // #b91c1c
-    startHex: '#fef08a',
-    endHex: '#b91c1c',
-  },
-  {
-    id: 'teal-rose',
-    name: 'Teal ke Rose (Teal-Rose)',
-    startRgb: [153, 246, 228], // #99f6e4
-    endRgb: [190, 18, 60],     // #be123c
-    startHex: '#99f6e4',
-    endHex: '#be123c',
-  },
-  {
-    id: 'sky-indigo',
-    name: 'Biru Muda ke Indigo (Sky-Indigo)',
-    startRgb: [186, 230, 253], // #bae6fd
-    endRgb: [67, 56, 202],     // #4338ca
-    startHex: '#bae6fd',
-    endHex: '#4338ca',
-  },
-  {
-    id: 'emerald-amber',
-    name: 'Hijau ke Amber (Emerald-Amber)',
-    startRgb: [187, 247, 208], // #bbf7d0
-    endRgb: [194, 65, 12],     // #c2410c
-    startHex: '#bbf7d0',
-    endHex: '#c2410c',
+    id: 'red-yellow-green',
+    name: 'Merah - Kuning - Hijau (Red-Yellow-Green)',
+    startRgb: [220, 38, 38], // #dc2626 (Merah - Di bawah target)
+    midRgb: [234, 179, 8],   // #eab308 (Kuning - Level target)
+    endRgb: [22, 163, 74],   // #16a34a (Hijau - Di atas target)
+    startHex: '#dc2626',
+    midHex: '#eab308',
+    endHex: '#16a34a',
   },
 ];
 
@@ -165,12 +145,12 @@ export class DistrictHeatmapEngine {
   }
 
   /**
-   * Menghitung gradasi kontinu 2 warna berbasis interpolasi linear RGB dengan kontras teks otomatis
+   * Menghitung gradasi kontinu berbasis interpolasi linear RGB dengan kontras teks otomatis
    */
   static interpolateRgb(
     ratio: number,
-    startRgb: [number, number, number] = HEATMAP_PALETTES[0].startRgb,
-    endRgb: [number, number, number] = HEATMAP_PALETTES[0].endRgb,
+    startRgb: [number, number, number] = [220, 38, 38],
+    endRgb: [number, number, number] = [22, 163, 74],
   ): { fill: string; text: string } {
     const clamped = Math.max(0, Math.min(1, ratio));
     const r = Math.round(startRgb[0] + clamped * (endRgb[0] - startRgb[0]));
@@ -186,8 +166,67 @@ export class DistrictHeatmapEngine {
   }
 
   /**
+   * Menghitung warna untuk suatu nilai berdasarkan min, max, targetValue, dan palet warna.
+   * Mendukung skema gradien merah-kuning-hijau:
+   * - Nilai di bawah target -> gradasi merah (mendekati target bergradasi ke kuning)
+   * - Nilai pada target -> kuning murni
+   * - Nilai di atas target -> gradasi hijau (dari kuning target menuju hijau optimal)
+   */
+  static getColorForValue(
+    val: number,
+    min: number = 0,
+    max: number = 100,
+    targetValue: number | null,
+    palette: HeatmapColorPalette = HEATMAP_PALETTES[0],
+  ): { fill: string; text: string } {
+    const clampedVal = Math.max(min, Math.min(max, val));
+    if (palette.midRgb) {
+      if (targetValue !== null && min < max) {
+        if (targetValue > min && targetValue < max) {
+          if (clampedVal <= targetValue) {
+            const ratio = targetValue === min ? 1 : Math.max(0, Math.min(1, (clampedVal - min) / (targetValue - min)));
+            return this.interpolateRgb(ratio, palette.startRgb, palette.midRgb);
+          } else {
+            const ratio = max === targetValue ? 0 : Math.max(0, Math.min(1, (clampedVal - targetValue) / (max - targetValue)));
+            return this.interpolateRgb(ratio, palette.midRgb, palette.endRgb);
+          }
+        } else if (targetValue <= min) {
+          // Seluruh nilai berada pada atau di atas target
+          const ratio = max === min ? 1 : Math.max(0, Math.min(1, (clampedVal - min) / (max - min)));
+          return this.interpolateRgb(ratio, palette.midRgb, palette.endRgb);
+        } else {
+          // targetValue >= max: seluruh nilai berada pada atau di bawah target
+          const ratio = max === min ? 0 : Math.max(0, Math.min(1, (clampedVal - min) / (max - min)));
+          return this.interpolateRgb(ratio, palette.startRgb, palette.midRgb);
+        }
+      } else if (targetValue !== null && min === max) {
+        if (clampedVal < targetValue) {
+          return { fill: `rgb(${palette.startRgb.join(',')})`, text: '#ffffff' };
+        } else if (clampedVal === targetValue) {
+          return { fill: `rgb(${palette.midRgb.join(',')})`, text: '#0f172a' };
+        } else {
+          return { fill: `rgb(${palette.endRgb.join(',')})`, text: '#ffffff' };
+        }
+      } else {
+        // targetValue bernilai null: gunakan titik tengah 50% sebagai transisi kuning
+        const ratio = min === max ? 0.5 : Math.max(0, Math.min(1, (clampedVal - min) / (max - min)));
+        if (ratio <= 0.5) {
+          const localRatio = ratio * 2;
+          return this.interpolateRgb(localRatio, palette.startRgb, palette.midRgb);
+        } else {
+          const localRatio = (ratio - 0.5) * 2;
+          return this.interpolateRgb(localRatio, palette.midRgb, palette.endRgb);
+        }
+      }
+    }
+
+    // Fallback untuk palet 2 warna klasik
+    const ratio = min === max ? 0.5 : Math.max(0, Math.min(1, (clampedVal - min) / (max - min)));
+    return this.interpolateRgb(ratio, palette.startRgb, palette.endRgb);
+  }
+
+  /**
    * Menghitung warna gradasi kontinu berdasarkan rasio nilai (0.0 = min, 1.0 = max)
-   * Menggunakan gradien 2 warna (bukan monokrom)
    */
   static getColorForRatio(
     ratio: number,
@@ -197,7 +236,7 @@ export class DistrictHeatmapEngine {
     if (Array.isArray(startRgbOrHue) && Array.isArray(endRgb)) {
       return this.interpolateRgb(ratio, startRgbOrHue, endRgb);
     }
-    return this.interpolateRgb(ratio, HEATMAP_PALETTES[0].startRgb, HEATMAP_PALETTES[0].endRgb);
+    return this.interpolateRgb(ratio, [254, 240, 138], [185, 28, 28]);
   }
 
   /**
@@ -254,7 +293,8 @@ export class DistrictHeatmapEngine {
       if (match) {
         matchedRow = match.row;
         rawCat = match.rawCat;
-        val = IndicatorEvaluator.parseSmartNumber(match.row[series.key]);
+        const parsed = IndicatorEvaluator.parseSmartNumber(match.row[series.key]);
+        val = parsed !== null && parsed > 100 ? 100 : parsed;
       }
 
       if (val !== null) {
@@ -305,8 +345,10 @@ export class DistrictHeatmapEngine {
       rankMap.set(entry.district.id, idx + 1);
     });
 
-    // 4. Hitung warna dan status per distrik
-    const valueSpan = max !== null && min !== null && max !== min ? max - min : 1;
+    // 4. Hitung warna dan status per distrik (Rentang gradien warna tetap 0 - 100)
+    const scaleMin = 0;
+    const scaleMax = 100;
+    const scaleSpan = 100;
 
     const items: DistrictHeatmapItem[] = extracted.map((entry) => {
       const { district, matchedRow, rawCat, val } = entry;
@@ -335,10 +377,16 @@ export class DistrictHeatmapEngine {
         };
       }
 
-      const rawRatio = (val - (min ?? 0)) / valueSpan;
+      const rawRatio = (val - scaleMin) / scaleSpan;
       const clampedRatio = Math.max(0, Math.min(1, rawRatio));
       const ratioPercent = Math.round(clampedRatio * 100);
-      const { fill, text } = this.getColorForRatio(clampedRatio, palette.startRgb, palette.endRgb);
+      const { fill, text } = this.getColorForValue(
+        val,
+        scaleMin,
+        scaleMax,
+        targetValue,
+        palette,
+      );
 
       let status: 'achieved' | 'unachieved' | 'none' = 'none';
       let diffFromTarget: number | null = null;
@@ -372,36 +420,52 @@ export class DistrictHeatmapEngine {
       };
     });
 
-    // 5. Generate Legend Color Stops & Continuous Gradient CSS
+    // 5. Generate Legend Color Stops & Continuous Gradient CSS (Rentang 0–100)
     const colorStops: HeatmapColorStop[] = [];
-    if (min !== null && max !== null) {
-      const stopsCount = 5;
-      for (let i = 0; i < stopsCount; i++) {
-        const ratio = i / (stopsCount - 1);
-        const { fill } = this.getColorForRatio(ratio, palette.startRgb, palette.endRgb);
-        const stopVal = Math.round((min + ratio * valueSpan) * 10) / 10;
-        const percentage = Math.round(ratio * 100);
+    const stopsCount = 5;
+    for (let i = 0; i < stopsCount; i++) {
+      const ratio = i / (stopsCount - 1);
+      const stopVal = Math.round(scaleMin + ratio * scaleSpan);
+      const { fill } = this.getColorForValue(stopVal, scaleMin, scaleMax, targetValue, palette);
+      const percentage = stopVal;
 
-        let label = `${stopVal}`;
-        if (i === 0) label = `Min (${stopVal})`;
-        else if (i === stopsCount - 1) label = `Maks (${stopVal})`;
+      let label = `${stopVal}`;
+      if (i === 0) label = `0 (Min)`;
+      else if (i === stopsCount - 1) label = `100 (Maks)`;
 
-        colorStops.push({
-          percentage,
-          color: fill,
-          label,
-          value: stopVal,
-        });
-      }
+      colorStops.push({
+        percentage,
+        color: fill,
+        label,
+        value: stopVal,
+      });
     }
 
-    // CSS Linear Gradient kontinu 2 warna untuk bilah warna pada peta
-    const gradientCss = `linear-gradient(to right, rgb(${palette.startRgb.join(',')}), rgb(${palette.endRgb.join(',')}))`;
+    // CSS Linear Gradient kontinu (merah-kuning-hijau dengan rentang 0-100 dan anchor target)
+    let gradientCss: string;
+    if (palette.midRgb) {
+      if (targetValue !== null) {
+        const targetPercent = Math.max(
+          0,
+          Math.min(100, Math.round(targetValue)),
+        );
+        if (targetPercent > 0 && targetPercent < 100) {
+          gradientCss = `linear-gradient(to right, rgb(${palette.startRgb.join(',')}) 0%, rgb(${palette.midRgb.join(',')}) ${targetPercent}%, rgb(${palette.endRgb.join(',')}) 100%)`;
+        } else if (targetPercent <= 0) {
+          gradientCss = `linear-gradient(to right, rgb(${palette.midRgb.join(',')}) 0%, rgb(${palette.endRgb.join(',')}) 100%)`;
+        } else {
+          gradientCss = `linear-gradient(to right, rgb(${palette.startRgb.join(',')}) 0%, rgb(${palette.midRgb.join(',')}) 100%)`;
+        }
+      } else {
+        gradientCss = `linear-gradient(to right, rgb(${palette.startRgb.join(',')}) 0%, rgb(${palette.midRgb.join(',')}) 50%, rgb(${palette.endRgb.join(',')}) 100%)`;
+      }
+    } else {
+      gradientCss = `linear-gradient(to right, rgb(${palette.startRgb.join(',')}), rgb(${palette.endRgb.join(',')}))`;
+    }
 
     let targetPositionPercent: number | null = null;
-    if (targetValue !== null && min !== null && max !== null && max !== min) {
-      const tRatio = (targetValue - min) / valueSpan;
-      targetPositionPercent = Math.max(0, Math.min(100, Math.round(tRatio * 100)));
+    if (targetValue !== null) {
+      targetPositionPercent = Math.max(0, Math.min(100, Math.round(targetValue)));
     }
 
     const rankedItems = items

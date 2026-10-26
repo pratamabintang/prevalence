@@ -169,5 +169,39 @@ describe('ChartSlicingEngine', () => {
       const categoriesInAsc = groupAsc.layout.categoryGroups.map((cg) => cg.categoryName);
       expect(categoriesInAsc).toEqual(['Banyumas', 'Cilacap', 'Purbalingga']);
     });
+
+    it('should set slender bar height (~20px with rowHeight 22) and tight 1–2 px gap by default', () => {
+      const regionGroups = ChartSlicingEngine.computeRegionGroups({
+        categories: sampleCategories,
+        series: sampleSeries,
+        rows: sampleRows,
+        categoryColumn: 'Wilayah',
+      });
+      const regionLayout = regionGroups[0].layout;
+      expect(regionLayout.gapWidth).toBe(5);
+      expect(regionLayout.viewBoxWidth).toBe(780);
+      expect(regionLayout.categoryGroups[0].height).toBe(22);
+      expect(regionLayout.categoryGroups[0].bars[0].height).toBeCloseTo(20.5, 0);
+      const r0Bottom = regionLayout.categoryGroups[0].bars[0].y + regionLayout.categoryGroups[0].bars[0].height;
+      const regionGap = regionLayout.categoryGroups[1].bars[0].y - r0Bottom;
+      expect(regionGap).toBeGreaterThanOrEqual(1.0);
+      expect(regionGap).toBeLessThanOrEqual(2.0);
+
+      const indicatorGroups = ChartSlicingEngine.computeIndicatorGroups({
+        categories: sampleCategories,
+        series: [sampleSeries[0]],
+        rows: sampleRows,
+        categoryColumn: 'Wilayah',
+      });
+      const indLayout = indicatorGroups[0].layout;
+      expect(indLayout.gapWidth).toBe(5);
+      expect(indLayout.viewBoxWidth).toBe(780);
+      expect(indLayout.categoryGroups[0].height).toBe(22);
+      expect(indLayout.categoryGroups[0].bars[0].height).toBeCloseTo(20.5, 0);
+      const i0Bottom = indLayout.categoryGroups[0].bars[0].y + indLayout.categoryGroups[0].bars[0].height;
+      const indGap = indLayout.categoryGroups[1].bars[0].y - i0Bottom;
+      expect(indGap).toBeGreaterThanOrEqual(1.0);
+      expect(indGap).toBeLessThanOrEqual(2.0);
+    });
   });
 });

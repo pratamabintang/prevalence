@@ -65,6 +65,7 @@ export interface ChartLayoutSpec {
   columns?: number;
   categoryColors?: Record<string, string>;
   categoryTargets?: Record<string, number | null>;
+  gapWidth?: number;
 }
 
 export interface ChartLayoutResult {
@@ -84,6 +85,7 @@ export interface ChartLayoutResult {
   columnLayouts: ChartColumnLayout[];
   dividerX?: number | null;
   hasCategoryTargets?: boolean;
+  gapWidth?: number;
 }
 
 /**
@@ -136,8 +138,11 @@ export class ChartLayoutEngine {
 
     if (maxVal <= 0) {
       maxVal = 100;
+    } else if (maxVal <= 100) {
+      // Maksimalkan skala sisi kanan ke 100 (tidak membengkak ke 120) untuk mengeliminasi ruang kosong
+      maxVal = 100;
     } else {
-      // Pembulatan ke kelipatan terdekat agar skala terlihat profesional
+      // Pembulatan ke kelipatan terdekat jika nilai riil melebihi 100
       maxVal = this.computeNiceMax(maxVal);
     }
 
@@ -152,7 +157,7 @@ export class ChartLayoutEngine {
       spec.margin ||
       (numColumns === 2
         ? { top: 75, right: 20, bottom: 58, left: 20 }
-        : { top: 40, right: 90, bottom: 40, left: 190 });
+        : { top: 40, right: 65, bottom: 40, left: 130 });
 
     const plotHeight = Math.max(60, rowCount * calculatedRowHeight);
     const viewBoxHeight = margin.top + margin.bottom + plotHeight;
@@ -283,13 +288,25 @@ export class ChartLayoutEngine {
     const targetLineX = columnLayouts[0]?.targetLineX ?? null;
 
     // 4. Hitung Geometri Kelompok Batang per Kategori Wilayah
-    const barSpacing = 3;
-    const groupPadding = 10;
-    const availableBarSpace = calculatedRowHeight - groupPadding * 2;
-    const barHeight = Math.max(
-      8,
-      Math.min(22, (availableBarSpace - (seriesCount - 1) * barSpacing) / seriesCount),
-    );
+    const isZeroGap = spec.gapWidth === 0;
+    let barHeight: number;
+    let groupPadding: number;
+    let barSpacing: number;
+
+    if (isZeroGap) {
+      barSpacing = 0;
+      groupPadding = 0;
+      barHeight = calculatedRowHeight / seriesCount;
+    } else {
+      // Gap persentase relatif terhadap rowHeight: menjamin gap presisi 1.5–2px pada bar chart
+      const gapWidthVal = spec.gapWidth ?? 5;
+      const gapRatio = gapWidthVal / 100;
+      const calculatedGap = calculatedRowHeight * (gapRatio / (seriesCount + gapRatio));
+      const totalGap = seriesCount === 1 ? Math.max(1.5, Math.min(2.0, calculatedGap)) : calculatedGap;
+      groupPadding = totalGap / 2;
+      barSpacing = seriesCount > 1 ? Math.max(1, totalGap / (seriesCount - 1)) : 0;
+      barHeight = (calculatedRowHeight - totalGap) / seriesCount;
+    }
 
     const categoryGroups: ChartCategoryGroup[] = [];
 
@@ -416,6 +433,7 @@ export class ChartLayoutEngine {
       columnLayouts,
       dividerX,
       hasCategoryTargets,
+      gapWidth: spec.gapWidth ?? 5,
     };
   }
 
