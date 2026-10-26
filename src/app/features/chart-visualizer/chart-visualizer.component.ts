@@ -313,6 +313,7 @@ export class ChartVisualizerComponent {
     const catCol = this.categoryColumn();
     const rows = this.dataRows();
     const target = this.getIndicatorTarget(s.key);
+    const targetOperator = this.getIndicatorOperator(s.key);
 
     return DistrictHeatmapEngine.computeHeatmap({
       districts: this.centralJavaDistricts,
@@ -320,6 +321,7 @@ export class ChartVisualizerComponent {
       categoryColumn: catCol,
       series: s,
       targetValue: target,
+      targetOperator,
       paletteId: this.selectedHeatmapPaletteId(),
     });
   });
@@ -553,6 +555,8 @@ export class ChartVisualizerComponent {
 
   // Nilai Target Khusus Per-Indikator
   indicatorTargets = signal<Record<string, number | null>>({});
+  indicatorTargetOperators = signal<Record<string, string>>({});
+  targetOperator = signal<string>('>=');
 
   getIndicatorTarget(seriesKey: string): number | null {
     const specific = this.indicatorTargets()[seriesKey];
@@ -561,6 +565,18 @@ export class ChartVisualizerComponent {
     }
     const globalTgt = this.targetValue();
     return globalTgt !== null && globalTgt >= 0 ? globalTgt : null;
+  }
+
+  getIndicatorOperator(seriesKey: string): string {
+    const specific = this.indicatorTargetOperators()[seriesKey];
+    if (specific) return specific;
+    const lowerKey = seriesKey.trim().toLowerCase();
+    for (const [k, op] of Object.entries(this.indicatorTargetOperators())) {
+      if (k.trim().toLowerCase() === lowerKey && op) {
+        return op;
+      }
+    }
+    return this.targetOperator() || '>=';
   }
 
   setIndicatorTarget(seriesKey: string, val: number | null): void {
@@ -629,6 +645,8 @@ export class ChartVisualizerComponent {
 
   clearAllIndicatorTargets(): void {
     this.indicatorTargets.set({});
+    this.indicatorTargetOperators.set({});
+    this.targetOperator.set('>=');
     this.targetValue.set(null);
   }
 
@@ -724,6 +742,14 @@ export class ChartVisualizerComponent {
 
     if (transferred.indicatorTargets) {
       this.indicatorTargets.set({ ...transferred.indicatorTargets });
+    }
+
+    if (transferred.indicatorTargetOperators) {
+      this.indicatorTargetOperators.set({ ...transferred.indicatorTargetOperators });
+    }
+
+    if (transferred.targetOperator) {
+      this.targetOperator.set(transferred.targetOperator);
     }
 
     if (transferred.targetValue !== undefined) {
@@ -860,6 +886,8 @@ export class ChartVisualizerComponent {
     this.selectedCategories.set([]);
     this.seriesList.set([]);
     this.indicatorTargets.set({});
+    this.indicatorTargetOperators.set({});
+    this.targetOperator.set('>=');
     this.targetValue.set(null);
     this.dataSource.set('empty');
     this.showRegionFilterModal.set(false);
@@ -1538,9 +1566,13 @@ export class ChartVisualizerComponent {
           ? bar.targetVal
           : this.getIndicatorTarget(bar.seriesKey);
 
+    const targetOp = this.getIndicatorOperator(bar.seriesKey);
+
     if (target !== null && bar.numericVal !== null) {
       diff = Math.round((bar.numericVal - target) * 10) / 10;
-      status = bar.numericVal >= target ? 'achieved' : 'unachieved';
+      status = targetOp === '<='
+        ? (bar.numericVal <= target ? 'achieved' : 'unachieved')
+        : (bar.numericVal >= target ? 'achieved' : 'unachieved');
     }
 
     const seriesLabel = indicatorLabelOverride || bar.seriesLabel;
@@ -1634,6 +1666,8 @@ export class ChartVisualizerComponent {
       regionGridColumns: this.regionGridColumns(),
       regionSortMode: this.regionSortMode(),
       indicatorTargets: { ...this.indicatorTargets() },
+      indicatorTargetOperators: { ...this.indicatorTargetOperators() },
+      targetOperator: this.targetOperator(),
     };
 
     ConfigurationWorkspace.chart.savePreset(preset, true);
@@ -1717,6 +1751,12 @@ export class ChartVisualizerComponent {
 
     if (preset.indicatorTargets) {
       this.indicatorTargets.set({ ...preset.indicatorTargets });
+    }
+    if (preset.indicatorTargetOperators) {
+      this.indicatorTargetOperators.set({ ...preset.indicatorTargetOperators });
+    }
+    if (preset.targetOperator) {
+      this.targetOperator.set(preset.targetOperator);
     }
 
     if (!this.workbook || this.sheetNames().length === 0) {
@@ -2213,8 +2253,10 @@ export class ChartVisualizerComponent {
   regionLayouts = computed<RegionChartGroup[]>(() => {
     const series = this.filteredChartSeries();
     const indicatorTargets: Record<string, number | null> = {};
+    const indicatorTargetOperators: Record<string, string> = {};
     for (const s of series) {
       indicatorTargets[s.key] = this.getIndicatorTarget(s.key);
+      indicatorTargetOperators[s.key] = this.getIndicatorOperator(s.key);
     }
 
     return ChartSlicingEngine.computeRegionGroups({
@@ -2224,7 +2266,9 @@ export class ChartVisualizerComponent {
       categoryColumn: this.categoryColumn(),
       sortMode: this.regionSortMode(),
       targetValue: this.targetValue(),
+      targetOperator: this.targetOperator(),
       indicatorTargets,
+      indicatorTargetOperators,
       width: 780,
       rowHeight: 22,
       gapWidth: 5,
@@ -2239,8 +2283,10 @@ export class ChartVisualizerComponent {
   indicatorLayouts = computed<IndicatorChartGroup[]>(() => {
     const series = this.seriesList();
     const indicatorTargets: Record<string, number | null> = {};
+    const indicatorTargetOperators: Record<string, string> = {};
     for (const s of series) {
       indicatorTargets[s.key] = this.getIndicatorTarget(s.key);
+      indicatorTargetOperators[s.key] = this.getIndicatorOperator(s.key);
     }
 
     return ChartSlicingEngine.computeIndicatorGroups({
@@ -2249,7 +2295,9 @@ export class ChartVisualizerComponent {
       rows: this.dataRows(),
       categoryColumn: this.categoryColumn(),
       sortMode: this.indicatorSortMode(),
+      targetOperator: this.targetOperator(),
       indicatorTargets,
+      indicatorTargetOperators,
       width: 780,
       rowHeight: 22,
       gapWidth: 5,

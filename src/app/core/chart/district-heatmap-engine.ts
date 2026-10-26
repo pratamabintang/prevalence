@@ -83,6 +83,7 @@ export interface ComputeDistrictHeatmapOptions {
   categoryColumn: string;
   series: ChartSeriesConfig;
   targetValue: number | null;
+  targetOperator?: string;
   /**
    * Base hue for sequential HSL gradient (e.g. 225 for indigo/blue, 160 for emerald, etc.)
    * Default is 228 (brand blue/indigo #525AFF).
@@ -178,51 +179,58 @@ export class DistrictHeatmapEngine {
     max: number = 100,
     targetValue: number | null,
     palette: HeatmapColorPalette = HEATMAP_PALETTES[0],
+    targetOperator: string = '>=',
   ): { fill: string; text: string } {
     const clampedVal = Math.max(min, Math.min(max, val));
+    const isLowerBetter = targetOperator === '<=';
+
+    const effectiveStartRgb = isLowerBetter ? palette.endRgb : palette.startRgb;
+    const effectiveEndRgb = isLowerBetter ? palette.startRgb : palette.endRgb;
+
     if (palette.midRgb) {
       if (targetValue !== null && min < max) {
         if (targetValue > min && targetValue < max) {
           if (clampedVal <= targetValue) {
             const ratio = targetValue === min ? 1 : Math.max(0, Math.min(1, (clampedVal - min) / (targetValue - min)));
-            return this.interpolateRgb(ratio, palette.startRgb, palette.midRgb);
+            return this.interpolateRgb(ratio, effectiveStartRgb, palette.midRgb);
           } else {
             const ratio = max === targetValue ? 0 : Math.max(0, Math.min(1, (clampedVal - targetValue) / (max - targetValue)));
-            return this.interpolateRgb(ratio, palette.midRgb, palette.endRgb);
+            return this.interpolateRgb(ratio, palette.midRgb, effectiveEndRgb);
           }
         } else if (targetValue <= min) {
           // Seluruh nilai berada pada atau di atas target
           const ratio = max === min ? 1 : Math.max(0, Math.min(1, (clampedVal - min) / (max - min)));
-          return this.interpolateRgb(ratio, palette.midRgb, palette.endRgb);
+          return this.interpolateRgb(ratio, palette.midRgb, effectiveEndRgb);
         } else {
           // targetValue >= max: seluruh nilai berada pada atau di bawah target
           const ratio = max === min ? 0 : Math.max(0, Math.min(1, (clampedVal - min) / (max - min)));
-          return this.interpolateRgb(ratio, palette.startRgb, palette.midRgb);
+          return this.interpolateRgb(ratio, effectiveStartRgb, palette.midRgb);
         }
       } else if (targetValue !== null && min === max) {
-        if (clampedVal < targetValue) {
-          return { fill: `rgb(${palette.startRgb.join(',')})`, text: '#ffffff' };
-        } else if (clampedVal === targetValue) {
+        const isAchieved = isLowerBetter ? clampedVal <= targetValue : clampedVal >= targetValue;
+        if (clampedVal === targetValue) {
           return { fill: `rgb(${palette.midRgb.join(',')})`, text: '#0f172a' };
+        } else if (isAchieved) {
+          return { fill: `rgb(${effectiveEndRgb.join(',')})`, text: '#ffffff' };
         } else {
-          return { fill: `rgb(${palette.endRgb.join(',')})`, text: '#ffffff' };
+          return { fill: `rgb(${effectiveStartRgb.join(',')})`, text: '#ffffff' };
         }
       } else {
         // targetValue bernilai null: gunakan titik tengah 50% sebagai transisi kuning
         const ratio = min === max ? 0.5 : Math.max(0, Math.min(1, (clampedVal - min) / (max - min)));
         if (ratio <= 0.5) {
           const localRatio = ratio * 2;
-          return this.interpolateRgb(localRatio, palette.startRgb, palette.midRgb);
+          return this.interpolateRgb(localRatio, effectiveStartRgb, palette.midRgb);
         } else {
           const localRatio = (ratio - 0.5) * 2;
-          return this.interpolateRgb(localRatio, palette.midRgb, palette.endRgb);
+          return this.interpolateRgb(localRatio, palette.midRgb, effectiveEndRgb);
         }
       }
     }
 
     // Fallback untuk palet 2 warna klasik
     const ratio = min === max ? 0.5 : Math.max(0, Math.min(1, (clampedVal - min) / (max - min)));
-    return this.interpolateRgb(ratio, palette.startRgb, palette.endRgb);
+    return this.interpolateRgb(ratio, effectiveStartRgb, effectiveEndRgb);
   }
 
   /**
@@ -244,6 +252,7 @@ export class DistrictHeatmapEngine {
    */
   static computeHeatmap(options: ComputeDistrictHeatmapOptions): DistrictHeatmapResult {
     const { districts, rows, categoryColumn, series, targetValue } = options;
+    const targetOperator = options.targetOperator || '>=';
     const palette =
       HEATMAP_PALETTES.find((p) => p.id === options.paletteId) ?? HEATMAP_PALETTES[0];
     const hue =
@@ -317,7 +326,10 @@ export class DistrictHeatmapEngine {
           lowest = { name: districtLabel, value: val };
         }
 
-        if (targetValue !== null && val >= targetValue) {
+        const isAchieved =
+          targetValue !== null &&
+          (targetOperator === '<=' ? val <= targetValue : val >= targetValue);
+        if (isAchieved) {
           achievedCount++;
         }
       } else {
@@ -386,13 +398,15 @@ export class DistrictHeatmapEngine {
         scaleMax,
         targetValue,
         palette,
+        targetOperator,
       );
 
       let status: 'achieved' | 'unachieved' | 'none' = 'none';
       let diffFromTarget: number | null = null;
       if (targetValue !== null) {
         diffFromTarget = Math.round((val - targetValue) * 10) / 10;
-        status = val >= targetValue ? 'achieved' : 'unachieved';
+        const isEntryAchieved = targetOperator === '<=' ? val <= targetValue : val >= targetValue;
+        status = isEntryAchieved ? 'achieved' : 'unachieved';
       }
 
       const diffFromAvg = avg !== null ? Math.round((val - avg) * 10) / 10 : null;

@@ -7,7 +7,9 @@ export interface TransferredChartData {
   columns: string[];
   rows: Record<string, unknown>[];
   targetValue?: number | null;
+  targetOperator?: string;
   indicatorTargets?: Record<string, number | null>;
+  indicatorTargetOperators?: Record<string, string>;
   defaultViewMode?: 'by-region' | 'by-indicator';
   percentageColumns?: string[];
   nonNumericColumns?: string[];
@@ -47,7 +49,9 @@ export interface PublishJoinedChartSpec {
     }
   >;
   indicatorTargets?: Record<string, number | null>;
+  indicatorTargetOperators?: Record<string, string>;
   targetValue?: number | null;
+  targetOperator?: string;
   defaultViewMode?: 'by-region' | 'by-indicator';
 }
 
@@ -238,6 +242,7 @@ export class HealthDataExchange {
 
     // Target acuan: gunakan spec.targetValue jika diberikan, atau target pertama yang tersedia dari columnTargets, atau fallback default 50
     let resolvedTarget = spec.targetValue;
+    let resolvedOperator = spec.targetOperator;
     if (resolvedTarget === undefined || resolvedTarget === null) {
       for (const c of columns) {
         if (c === catCol) continue;
@@ -245,14 +250,19 @@ export class HealthDataExchange {
         const tgt = this.findMatchingColumnTarget(columnTargets, c, displayName);
         if (tgt && tgt.enabled !== false && tgt.value !== null && tgt.value !== undefined) {
           resolvedTarget = tgt.value;
+          if (!resolvedOperator && tgt.operator) {
+            resolvedOperator = tgt.operator;
+          }
           break;
         }
       }
     }
     const targetValue = resolvedTarget !== undefined && resolvedTarget !== null ? resolvedTarget : 50;
+    const targetOperator = resolvedOperator || '>=';
 
     // Target khusus per indikator (mengikuti nilai target tiap kolom indikator bila tersedia, bila tidak kembalikan ke default 50)
     const indicatorTargets: Record<string, number | null> = { ...(spec.indicatorTargets || {}) };
+    const indicatorTargetOperators: Record<string, string> = { ...(spec.indicatorTargetOperators || {}) };
     const percentageColumns: string[] = [];
     const nonNumericColumns: string[] = [];
 
@@ -267,6 +277,10 @@ export class HealthDataExchange {
       if (tgt && tgt.enabled !== false && tgt.value !== null && tgt.value !== undefined) {
         indicatorTargets[displayName] = tgt.value;
         indicatorTargets[c] = tgt.value;
+        if (tgt.operator) {
+          indicatorTargetOperators[displayName] = tgt.operator;
+          indicatorTargetOperators[c] = tgt.operator;
+        }
       } else {
         // Bila target tidak tersedia di excel join, kembalikan ke nilai default 50
         if (indicatorTargets[displayName] === undefined) {
@@ -313,7 +327,9 @@ export class HealthDataExchange {
       columns: displayCols,
       rows: mappedRows,
       targetValue,
+      targetOperator,
       indicatorTargets,
+      indicatorTargetOperators,
       defaultViewMode: spec.defaultViewMode ?? 'by-indicator',
       percentageColumns,
       nonNumericColumns: nonNumericColumns.length > 0 ? nonNumericColumns : undefined,

@@ -273,4 +273,37 @@ describe('DistrictHeatmapEngine', () => {
     expect(cilacap.fillColor).toBe('rgb(22, 163, 74)'); // Pure green
     expect(result.stats.max).toBe(100);
   });
+
+  it('inverts color palette and marks achieved when value <= targetValue for targetOperator "<=" (Masalah Gizi)', () => {
+    // For Masalah Gizi: at scale min 0% prevalence is ideal (green), at target 14% is yellow, at max 100% is red
+    const atMin = DistrictHeatmapEngine.getColorForValue(0, 0, 100, 14, undefined, '<=');
+    expect(atMin.fill).toBe('rgb(22, 163, 74)'); // Green at 0% prevalence
+
+    const atTarget = DistrictHeatmapEngine.getColorForValue(14, 0, 100, 14, undefined, '<=');
+    expect(atTarget.fill).toBe('rgb(234, 179, 8)'); // Yellow at target
+
+    const atMax = DistrictHeatmapEngine.getColorForValue(100, 0, 100, 14, undefined, '<=');
+    expect(atMax.fill).toBe('rgb(220, 38, 38)'); // Red at 100% prevalence
+
+    const rows = [
+      { Daerah: 'Cilacap', val: 10 }, // 10 <= 14 -> achieved!
+      { Daerah: 'Banyumas', val: 20 }, // 20 > 14 -> unachieved!
+    ];
+
+    const result = DistrictHeatmapEngine.computeHeatmap({
+      districts: dummyDistricts,
+      rows,
+      categoryColumn: 'Daerah',
+      series: { key: 'val', label: 'Stunting %', color: '#ef4444' },
+      targetValue: 14,
+      targetOperator: '<=',
+    });
+
+    const cilacap = result.items.find((i) => i.district.id === '33-01')!;
+    const banyumas = result.items.find((i) => i.district.id === '33-02')!;
+
+    expect(cilacap.status).toBe('achieved');
+    expect(banyumas.status).toBe('unachieved');
+    expect(result.stats.achievedCount).toBe(1);
+  });
 });

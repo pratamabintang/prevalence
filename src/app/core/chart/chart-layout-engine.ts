@@ -59,12 +59,14 @@ export interface ChartLayoutSpec {
   rows: ChartDataRow[];
   categoryColumn: string;
   targetValue?: number | null;
+  targetOperator?: string;
   width?: number;
   rowHeight?: number;
   margin?: { top: number; right: number; bottom: number; left: number };
   columns?: number;
   categoryColors?: Record<string, string>;
   categoryTargets?: Record<string, number | null>;
+  categoryTargetOperators?: Record<string, string>;
   gapWidth?: number;
 }
 
@@ -377,11 +379,26 @@ export class ChartLayoutEngine {
           targetVal = spec.targetValue;
         }
 
+        let targetOp = spec.targetOperator || '>=';
+        if (spec.categoryTargetOperators) {
+          if (spec.categoryTargetOperators[catName] !== undefined) {
+            targetOp = spec.categoryTargetOperators[catName];
+          } else {
+            const lowerCat = catName.trim().toLowerCase();
+            const matchedKey = Object.keys(spec.categoryTargetOperators).find(
+              (k) => k.trim().toLowerCase() === lowerCat,
+            );
+            if (matchedKey && spec.categoryTargetOperators[matchedKey] !== undefined) {
+              targetOp = spec.categoryTargetOperators[matchedKey];
+            }
+          }
+        }
+
         if (targetVal !== null && targetVal !== undefined) {
           const clampedVal = Math.max(0, targetVal);
           targetX = groupPlotX + (clampedVal / maxVal) * groupPlotWidth;
           if (numericVal !== null) {
-            isAchieved = numericVal >= targetVal;
+            isAchieved = targetOp === '<=' ? numericVal <= targetVal : numericVal >= targetVal;
           }
         }
 

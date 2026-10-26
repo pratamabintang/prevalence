@@ -248,6 +248,58 @@ describe('ChartLayoutEngine', () => {
     expect(group2.bars[0].y).toBe(group1Bottom);
   });
 
+  it('evaluates isAchieved as true when value <= targetVal for targetOperator "<=" (Masalah Gizi)', () => {
+    const spec: ChartLayoutSpec = {
+      categoryColumn: 'wilayah',
+      categories: ['Kab. Cilacap', 'Kab. Banyumas'],
+      series: [{ key: 'stunting', label: 'Stunting %', color: '#ef4444' }],
+      rows: [
+        { wilayah: 'Kab. Cilacap', stunting: 12.5 },
+        { wilayah: 'Kab. Banyumas', stunting: 16.0 },
+      ],
+      targetValue: 14.0,
+      targetOperator: '<=',
+    };
+
+    const layout = ChartLayoutEngine.computeLayout(spec);
+    const barCilacap = layout.categoryGroups[0].bars[0];
+    const barBanyumas = layout.categoryGroups[1].bars[0];
+
+    // Cilacap (12.5 <= 14.0) -> achieved!
+    expect(barCilacap.isAchieved).toBe(true);
+    // Banyumas (16.0 > 14.0) -> unachieved!
+    expect(barBanyumas.isAchieved).toBe(false);
+  });
+
+  it('supports categoryTargetOperators with mixed operators', () => {
+    const spec: ChartLayoutSpec = {
+      categoryColumn: 'indikator',
+      categories: ['BBLR - %', 'Imunisasi - %'],
+      series: [{ key: 'val', label: 'Capaian', color: '#525AFF' }],
+      rows: [
+        { indikator: 'BBLR - %', val: 5.0 },
+        { indikator: 'Imunisasi - %', val: 75.0 },
+      ],
+      categoryTargets: {
+        'BBLR - %': 5.5,
+        'Imunisasi - %': 80.0,
+      },
+      categoryTargetOperators: {
+        'BBLR - %': '<=',
+        'Imunisasi - %': '>=',
+      },
+    };
+
+    const layout = ChartLayoutEngine.computeLayout(spec);
+    const barBblr = layout.categoryGroups[0].bars[0];
+    const barImun = layout.categoryGroups[1].bars[0];
+
+    // BBLR: 5.0 <= 5.5 -> achieved!
+    expect(barBblr.isAchieved).toBe(true);
+    // Imunisasi: 75.0 < 80.0 -> unachieved!
+    expect(barImun.isAchieved).toBe(false);
+  });
+
   it('tightens gap between category bars to a 1–2 px gap when gapWidth is set to 5', () => {
     const tightGapSpec: ChartLayoutSpec = {
       categoryColumn: 'wilayah',

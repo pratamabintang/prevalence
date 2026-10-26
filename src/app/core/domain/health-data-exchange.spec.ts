@@ -145,6 +145,30 @@ describe('HealthDataExchange', () => {
 
       expect(exchange.chartData()).toEqual(result);
     });
+
+    it('should transfer targetOperator and indicatorTargetOperators for Masalah Gizi', () => {
+      const result = exchange.publishJoinedToChart({
+        title: 'Visualisasi Data Masalah Gizi',
+        columns: ['Kabupaten/Kota', 'BBLR - %', 'Stunting - %'],
+        rows: [
+          { 'Kabupaten/Kota': 'Cilacap', 'BBLR - %': 4.2, 'Stunting - %': 12.5 },
+          { 'Kabupaten/Kota': 'Banyumas', 'BBLR - %': 6.8, 'Stunting - %': 16.0 },
+        ],
+        categoryColumn: 'Kabupaten/Kota',
+        columnTargets: {
+          'BBLR - %': { enabled: true, operator: '<=', value: 5.5 },
+          'Stunting - %': { enabled: true, operator: '<=', value: 14.0 },
+        },
+      });
+
+      expect(result.title).toBe('Visualisasi Data Masalah Gizi');
+      expect(result.targetOperator).toBe('<=');
+      expect(result.targetValue).toBe(5.5);
+      expect(result.indicatorTargetOperators?.['BBLR - %']).toBe('<=');
+      expect(result.indicatorTargetOperators?.['Stunting - %']).toBe('<=');
+      expect(result.indicatorTargets?.['BBLR - %']).toBe(5.5);
+      expect(result.indicatorTargets?.['Stunting - %']).toBe(14.0);
+    });
   });
 
   describe('clearData methods', () => {

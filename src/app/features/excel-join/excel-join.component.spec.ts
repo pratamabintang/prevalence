@@ -2276,6 +2276,34 @@ describe('ExcelJoinComponent', () => {
         expect(component.formatCellValue(6.53, 'BBLR - %')).toBe('6.53%');
         expect(component.formatCellValue(70, 'BBLR - %')).toBe('70%');
       });
+
+      it('harus mempublikasikan data grafik dengan judul Masalah Gizi dan operator <= saat visualizeInChart dipanggil', () => {
+        const publishSpy = vi.spyOn(component['healthDataExchange'], 'publishJoinedToChart');
+        const routerSpy = vi.spyOn(component['router'], 'navigate').mockResolvedValue(true);
+
+        component.applyTemplate('masalah-gizi');
+        component.resultRows.set([
+          { 'Kabupaten/Kota': 'Cilacap', 'BBLR - %': 5.2, 'Stunting - %': 13.5 },
+        ]);
+        component.resultColumns.set(['Kabupaten/Kota', 'BBLR - %', 'Stunting - %']);
+        component.enableTarget.set(true);
+        component.columnTargets.set({
+          'BBLR - %': { enabled: true, operator: '<=', value: 5.5 },
+          'Stunting - %': { enabled: true, operator: '<=', value: 14.0 },
+        });
+
+        component.visualizeInChart();
+
+        expect(publishSpy).toHaveBeenCalled();
+        const callArgs = publishSpy.mock.calls[0][0];
+        expect(callArgs.title).toBe('Visualisasi Data Masalah Gizi');
+        expect(callArgs.targetOperator).toBe('<=');
+        expect(callArgs.targetValue).toBe(5.5);
+        expect(routerSpy).toHaveBeenCalledWith(['/chart']);
+
+        publishSpy.mockRestore();
+        routerSpy.mockRestore();
+      });
     });
   });
 });

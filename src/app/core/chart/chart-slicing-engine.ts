@@ -44,7 +44,9 @@ export interface RegionSlicingSpec {
   categoryColumn: string;
   sortMode?: 'desc' | 'asc' | 'default';
   targetValue?: number | null;
+  targetOperator?: string;
   indicatorTargets?: Record<string, number | null>;
+  indicatorTargetOperators?: Record<string, string>;
   width?: number;
   rowHeight?: number;
   margin?: { top: number; right: number; bottom: number; left: number };
@@ -57,7 +59,10 @@ export interface IndicatorSlicingSpec {
   rows: ChartDataRow[];
   categoryColumn: string;
   sortMode?: 'desc' | 'asc' | 'default';
+  targetValue?: number | null;
+  targetOperator?: string;
   indicatorTargets?: Record<string, number | null>;
+  indicatorTargetOperators?: Record<string, string>;
   width?: number;
   rowHeight?: number;
   margin?: { top: number; right: number; bottom: number; left: number };
@@ -81,6 +86,7 @@ export class ChartSlicingEngine {
     const sortMode = spec.sortMode ?? 'default';
     const target = spec.targetValue ?? null;
     const indicatorTargets = spec.indicatorTargets ?? {};
+    const indicatorTargetOperators = spec.indicatorTargetOperators ?? {};
 
     const rowMap = new Map<string, ChartDataRow>();
     for (const r of rows) {
@@ -110,6 +116,11 @@ export class ChartSlicingEngine {
         const raw = r ? r[s.key] : null;
         const num = IndicatorEvaluator.parseSmartNumber(raw);
         const indTarget = indicatorTargets[s.key] !== undefined ? indicatorTargets[s.key] : null;
+        const targetOp =
+          indicatorTargetOperators[s.key] ||
+          indicatorTargetOperators[s.label] ||
+          spec.targetOperator ||
+          '>=';
 
         if (indTarget !== null) {
           totalTargeted++;
@@ -121,7 +132,9 @@ export class ChartSlicingEngine {
           validCount++;
           sum += num;
           if (num === 0) zeroCount++;
-          if (indTarget !== null && num >= indTarget) achievedCount++;
+          const isAchieved =
+            indTarget !== null && (targetOp === '<=' ? num <= indTarget : num >= indTarget);
+          if (isAchieved) achievedCount++;
 
           if (highest === null || num > highest.value) {
             highest = { label: s.label, value: num };
@@ -177,10 +190,16 @@ export class ChartSlicingEngine {
 
       const categoryColors: Record<string, string> = {};
       const categoryTargets: Record<string, number | null> = {};
+      const categoryTargetOperators: Record<string, string> = {};
       for (const s of series) {
         categoryColors[s.label] = s.color;
         categoryTargets[s.label] =
           indicatorTargets[s.key] !== undefined ? indicatorTargets[s.key] : null;
+        categoryTargetOperators[s.label] =
+          indicatorTargetOperators[s.key] ||
+          indicatorTargetOperators[s.label] ||
+          spec.targetOperator ||
+          '>=';
       }
 
       const layout = ChartLayoutEngine.computeLayout({
@@ -190,6 +209,7 @@ export class ChartSlicingEngine {
         rows: indicatorRows,
         categoryColors,
         categoryTargets,
+        categoryTargetOperators,
         width,
         rowHeight,
         margin,
@@ -214,6 +234,7 @@ export class ChartSlicingEngine {
     const rows = spec.rows;
     const sortMode = spec.sortMode ?? 'default';
     const indicatorTargets = spec.indicatorTargets ?? {};
+    const indicatorTargetOperators = spec.indicatorTargetOperators ?? {};
 
     const rowMap = new Map<string, ChartDataRow>();
     for (const r of rows) {
@@ -233,6 +254,11 @@ export class ChartSlicingEngine {
     return series.map((s) => {
       let cats = [...rawCats];
       const target = indicatorTargets[s.key] !== undefined ? indicatorTargets[s.key] : null;
+      const targetOp =
+        indicatorTargetOperators[s.key] ||
+        indicatorTargetOperators[s.label] ||
+        spec.targetOperator ||
+        '>=';
 
       if (sortMode === 'desc' || sortMode === 'asc') {
         cats.sort((a, b) => {
@@ -268,7 +294,9 @@ export class ChartSlicingEngine {
           validCount++;
           sum += num;
           if (num === 0) zeroCount++;
-          if (target !== null && num >= target) achievedCount++;
+          const isAchieved =
+            target !== null && (targetOp === '<=' ? num <= target : num >= target);
+          if (isAchieved) achievedCount++;
 
           if (highest === null || num > highest.value) {
             highest = { name: cat, value: num };
@@ -287,6 +315,7 @@ export class ChartSlicingEngine {
         series: [s],
         rows,
         targetValue: target,
+        targetOperator: targetOp,
         width,
         rowHeight,
         margin,

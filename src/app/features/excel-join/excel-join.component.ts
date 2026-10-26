@@ -430,11 +430,13 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     const isTargetEnabled = this.enableTarget();
     const targets = isTargetEnabled ? this.columnTargets() : {};
     let firstTarget: number | null = null;
+    let firstOperator: string | undefined = undefined;
     if (isTargetEnabled) {
       for (const col of this.resultColumns()) {
         const t = targets[col];
         if (t && t.enabled !== false && t.value !== null && t.value !== undefined) {
           firstTarget = t.value;
+          firstOperator = t.operator;
           break;
         }
       }
@@ -442,8 +444,12 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
 
     const resolvedTarget = firstTarget !== null ? firstTarget : isTargetEnabled ? undefined : 50;
 
+    const chartTitle = this.isMasalahGizi()
+      ? (this.file() ? `Visualisasi Masalah Gizi - ${this.file()!.name}` : 'Visualisasi Data Masalah Gizi')
+      : (this.file() ? `Grafik Hasil Join - ${this.file()!.name}` : 'Grafik Hasil Join Excel');
+
     this.healthDataExchange.publishJoinedToChart({
-      title: this.file() ? `Grafik Hasil Join - ${this.file()!.name}` : 'Grafik Hasil Join Excel',
+      title: chartTitle,
       rows: this.resultRows(),
       columns: this.resultColumns(),
       categoryColumn: this.resultColumns()[0],
@@ -451,6 +457,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       columnTargets: isTargetEnabled ? this.columnTargets() : undefined,
       columnConfigs: this.columnConfigs(),
       targetValue: resolvedTarget,
+      targetOperator: firstOperator,
     });
 
     this.router.navigate(['/chart']);

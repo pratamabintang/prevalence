@@ -133,6 +133,8 @@ export interface ChartConfigurationPreset {
   regionGridColumns?: 1 | 2 | 3;
   regionSortMode?: 'default' | 'desc' | 'asc';
   indicatorTargets?: Record<string, number | null>;
+  indicatorTargetOperators?: Record<string, string>;
+  targetOperator?: string;
 }
 
 // ==========================================
