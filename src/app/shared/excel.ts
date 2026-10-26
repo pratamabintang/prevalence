@@ -702,20 +702,6 @@ export class ExcelEngine {
   }
 
   /**
-   * Mengurai referensi rentang Excel (misal: 'A1:C10') menjadi objek Range SheetJS.
-   */
-  static decodeRange(rangeRef: string): XLSX.Range {
-    return XLSX.utils.decode_range(rangeRef);
-  }
-
-  /**
-   * Mengonversi koordinat baris dan kolom menjadi alamat sel Excel (misal: {r: 0, c: 0} -> 'A1').
-   */
-  static encodeCell(cell: { r: number; c: number }): string {
-    return XLSX.utils.encode_cell(cell);
-  }
-
-  /**
    * Alias untuk writeWorkbookToBuffer.
    */
   static writeToBuffer(workbook: XLSX.WorkBook): ArrayBuffer {
@@ -810,14 +796,6 @@ export class ExcelEngine {
     }
 
     return workbook;
-  }
-
-  /**
-   * Mengekspor kumpulan lembar tabel tabular ke berkas Excel (.xlsx).
-   */
-  static exportTabularSheets(fileName: string, sheets: TabularSheetSpec[]): void {
-    const workbook = this.createTabularWorkbook(sheets);
-    this.writeWorkbook(workbook, fileName);
   }
 
   /**

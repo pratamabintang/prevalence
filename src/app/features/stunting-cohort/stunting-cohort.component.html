@@ -1436,30 +1436,19 @@
                     }
                   </td>
 
-                  <!-- STATUS TRANSISI DENGAN BADGE KONSISTEN -->
-                  <td class="border border-slate-300 px-3 py-2 text-center whitespace-nowrap text-xs">
-                    @switch (child.status) {
-                      @case (CohortTransitionStatus.PERSISTENT) {
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-                          {{ child.statusLabel }}
-                        </span>
-                      }
-                      @case (CohortTransitionStatus.RECOVERED) {
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          {{ child.statusLabel }}
-                        </span>
-                      }
-                      @case (CohortTransitionStatus.NEW_CASE) {
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                          {{ child.statusLabel }}
-                        </span>
-                      }
-                      @case (CohortTransitionStatus.AGED_OUT) {
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-                          {{ child.statusLabel }}
-                        </span>
-                      }
-                    }
+                  <!-- STATUS TRANSISI DENGAN BACKGROUND SEL -->
+                  <td
+                    class="border border-slate-300 px-3 py-2 text-center whitespace-nowrap text-xs font-semibold"
+                    [class.bg-rose-50]="child.status === CohortTransitionStatus.PERSISTENT"
+                    [class.text-rose-700]="child.status === CohortTransitionStatus.PERSISTENT"
+                    [class.bg-emerald-50]="child.status === CohortTransitionStatus.RECOVERED"
+                    [class.text-emerald-700]="child.status === CohortTransitionStatus.RECOVERED"
+                    [class.bg-amber-50]="child.status === CohortTransitionStatus.NEW_CASE"
+                    [class.text-amber-700]="child.status === CohortTransitionStatus.NEW_CASE"
+                    [class.bg-slate-100]="child.status === CohortTransitionStatus.AGED_OUT"
+                    [class.text-slate-700]="child.status === CohortTransitionStatus.AGED_OUT"
+                  >
+                    {{ child.statusLabel }}
                   </td>
 
                   <!-- ANTHROPOMETRIC COLUMNS BY INDICATOR -->
@@ -1503,28 +1492,26 @@
                       }
                     </td>
 
-                    <!-- PERTUMBUHAN (DELTA TB): CLEAN BADGES -->
-                    <td class="whitespace-nowrap border border-slate-300 px-3 py-2 text-center text-xs font-mono">
+                    <!-- PERTUMBUHAN (DELTA TB): BACKGROUND SEL -->
+                    <td
+                      class="whitespace-nowrap border border-slate-300 px-3 py-2 text-center text-xs font-mono"
+                      [class.bg-emerald-50]="child.heightGain !== null && child.heightGain !== undefined && child.heightGain >= 6.0"
+                      [class.text-emerald-800]="child.heightGain !== null && child.heightGain !== undefined && child.heightGain >= 6.0"
+                      [class.font-bold]="child.heightGain !== null && child.heightGain !== undefined && (child.heightGain >= 6.0 || child.heightGain < 0)"
+                      [class.bg-blue-50]="child.heightGain !== null && child.heightGain !== undefined && child.heightGain >= 3.0 && child.heightGain < 6.0"
+                      [class.text-blue-800]="child.heightGain !== null && child.heightGain !== undefined && child.heightGain >= 3.0 && child.heightGain < 6.0"
+                      [class.font-semibold]="child.heightGain !== null && child.heightGain !== undefined && child.heightGain >= 3.0 && child.heightGain < 6.0"
+                      [class.bg-amber-50]="child.heightGain !== null && child.heightGain !== undefined && child.heightGain >= 0 && child.heightGain < 3.0"
+                      [class.text-amber-800]="child.heightGain !== null && child.heightGain !== undefined && child.heightGain >= 0 && child.heightGain < 3.0"
+                      [class.font-medium]="child.heightGain !== null && child.heightGain !== undefined && child.heightGain >= 0 && child.heightGain < 3.0"
+                      [class.bg-rose-50]="child.heightGain !== null && child.heightGain !== undefined && child.heightGain < 0"
+                      [class.text-rose-800]="child.heightGain !== null && child.heightGain !== undefined && child.heightGain < 0"
+                      [class.text-slate-400]="child.heightGain === null || child.heightGain === undefined"
+                    >
                       @if (child.heightGain !== null && child.heightGain !== undefined) {
-                        @if (child.heightGain >= 6.0) {
-                          <span class="inline-flex items-center px-2 py-0.5 rounded font-bold text-xs bg-emerald-50 text-emerald-800 border border-emerald-200">
-                            +{{ child.heightGain }} cm
-                          </span>
-                        } @else if (child.heightGain >= 3.0) {
-                          <span class="inline-flex items-center px-2 py-0.5 rounded font-semibold text-xs bg-blue-50 text-blue-800 border border-blue-200">
-                            +{{ child.heightGain }} cm
-                          </span>
-                        } @else if (child.heightGain >= 0) {
-                          <span class="inline-flex items-center px-2 py-0.5 rounded font-medium text-xs bg-amber-50 text-amber-800 border border-amber-200">
-                            +{{ child.heightGain }} cm
-                          </span>
-                        } @else {
-                          <span class="inline-flex items-center px-2 py-0.5 rounded font-bold text-xs bg-rose-50 text-rose-800 border border-rose-200">
-                            {{ child.heightGain }} cm
-                          </span>
-                        }
+                        {{ child.heightGain >= 0 ? '+' : '' }}{{ child.heightGain }} cm
                       } @else {
-                        <span class="text-slate-400">-</span>
+                        -
                       }
                     </td>
                   } @else if (activeIndicator() === 'underweight') {
@@ -1567,24 +1554,23 @@
                       }
                     </td>
 
-                    <!-- PERUBAHAN (DELTA BB): CLEAN BADGES -->
-                    <td class="whitespace-nowrap border border-slate-300 px-3 py-2 text-center text-xs font-mono">
+                    <!-- PERUBAHAN (DELTA BB): BACKGROUND SEL -->
+                    <td
+                      class="whitespace-nowrap border border-slate-300 px-3 py-2 text-center text-xs font-mono"
+                      [class.bg-emerald-50]="child.weightGain !== null && child.weightGain !== undefined && child.weightGain >= 0.5"
+                      [class.text-emerald-800]="child.weightGain !== null && child.weightGain !== undefined && child.weightGain >= 0.5"
+                      [class.font-bold]="child.weightGain !== null && child.weightGain !== undefined && (child.weightGain >= 0.5 || child.weightGain < 0)"
+                      [class.bg-blue-50]="child.weightGain !== null && child.weightGain !== undefined && child.weightGain >= 0 && child.weightGain < 0.5"
+                      [class.text-blue-800]="child.weightGain !== null && child.weightGain !== undefined && child.weightGain >= 0 && child.weightGain < 0.5"
+                      [class.font-semibold]="child.weightGain !== null && child.weightGain !== undefined && child.weightGain >= 0 && child.weightGain < 0.5"
+                      [class.bg-rose-50]="child.weightGain !== null && child.weightGain !== undefined && child.weightGain < 0"
+                      [class.text-rose-800]="child.weightGain !== null && child.weightGain !== undefined && child.weightGain < 0"
+                      [class.text-slate-400]="child.weightGain === null || child.weightGain === undefined"
+                    >
                       @if (child.weightGain !== null && child.weightGain !== undefined) {
-                        @if (child.weightGain >= 0.5) {
-                          <span class="inline-flex items-center px-2 py-0.5 rounded font-bold text-xs bg-emerald-50 text-emerald-800 border border-emerald-200">
-                            +{{ child.weightGain }} kg
-                          </span>
-                        } @else if (child.weightGain >= 0) {
-                          <span class="inline-flex items-center px-2 py-0.5 rounded font-semibold text-xs bg-blue-50 text-blue-800 border border-blue-200">
-                            +{{ child.weightGain }} kg
-                          </span>
-                        } @else {
-                          <span class="inline-flex items-center px-2 py-0.5 rounded font-bold text-xs bg-rose-50 text-rose-800 border border-rose-200">
-                            {{ child.weightGain }} kg
-                          </span>
-                        }
+                        {{ child.weightGain >= 0 ? '+' : '' }}{{ child.weightGain }} kg
                       } @else {
-                        <span class="text-slate-400">-</span>
+                        -
                       }
                     </td>
                   } @else {

@@ -3,7 +3,8 @@ import { provideRouter, Router } from '@angular/router';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { ExcelJoinComponent, SheetInfo } from './excel-join.component';
 import { ExcelJoinStore, ExcelJoinStoredState } from './excel-join-store';
-import { PresetStore, JoinConfigurationPreset } from './preset-store';
+import { ExcelResilientMatcher } from '../../core/excel/excel-resilient-matcher';
+import { JoinConfigurationPreset } from '../../core/storage/configuration-workspace';
 import { DEFAULT_JOIN_CONFIG } from './default-join-config';
 import * as XLSX from 'xlsx-js-style';
 import { environment } from '../../../environments/environment';
@@ -248,7 +249,7 @@ describe('ExcelJoinComponent', () => {
         { sheetName: 'BUMIL', variables: ['Var B'] },
       ];
 
-      const matched = PresetStore.matchSheets(availableSheets, presetSheets);
+      const matched = ExcelResilientMatcher.matchSheets(availableSheets, presetSheets);
 
       expect(matched.size).toBe(3);
       expect(matched.get('anak')?.sheetName).toBe('anak');
@@ -258,14 +259,14 @@ describe('ExcelJoinComponent', () => {
       expect(matched.has('grafik bumil')).toBe(false);
     });
 
-    it('should tolerate adjusted duplicate suffix count in PresetStore.findMatchingHeader', () => {
+    it('should tolerate adjusted duplicate suffix count in ExcelResilientMatcher.findMatchingHeader', () => {
       const cols = [
         { colIndex: 0, colLetter: 'AY', header: 'ASI Eksklusif dan MPASI - Persentase Anak 6-23 bulan mendapat MPASI - %', leafHeader: '%', layers: [] },
         { colIndex: 1, colLetter: 'BA', header: 'ASI Eksklusif dan MPASI - Persentase Anak 6-23 bulan mendapat MPASI - % (2)', leafHeader: '%', layers: [] },
         { colIndex: 2, colLetter: 'BC', header: 'ASI Eksklusif dan MPASI - Persentase Anak 6-23 bulan mendapat MPASI - % (3)', leafHeader: '%', layers: [] },
       ];
 
-      const matched = PresetStore.findMatchingHeader(
+      const matched = ExcelResilientMatcher.findMatchingHeader(
         'ASI Eksklusif dan MPASI - Persentase Anak 6-23 bulan mendapat MPASI - % (4)',
         cols,
       );
@@ -1132,7 +1133,7 @@ describe('ExcelJoinComponent', () => {
   });
 
   describe('Google Drive reload and save default', () => {
-    it('should reload data and config from Google Drive via reloadFromDrive()', async () => {
+    it('should reload data and config from Google Drive via resetToDefaultData()', async () => {
       const gasService = TestBed.inject(GasStorageService);
       const store = TestBed.inject(ExcelJoinStore);
       const clearStateSpy = vi.spyOn(store, 'clearState');
@@ -1163,7 +1164,7 @@ describe('ExcelJoinComponent', () => {
         },
       });
 
-      await component.reloadFromDrive();
+      await component.resetToDefaultData();
 
       expect(clearStateSpy).toHaveBeenCalled();
       expect(component.file()?.name).toBe('drive-data.xlsx');

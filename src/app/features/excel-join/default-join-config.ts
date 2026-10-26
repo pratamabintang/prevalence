@@ -1,4 +1,4 @@
-import { JoinConfigurationPreset } from './preset-store';
+import { JoinConfigurationPreset } from '../../core/storage/configuration-workspace';
 
 export const DEFAULT_JOIN_CONFIG: JoinConfigurationPreset = {
   "version": "1.0",

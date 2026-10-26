@@ -360,11 +360,11 @@ describe('StuntingWorkflowEngine', () => {
       expect(engine.activeQuarter()).toBe(1);
 
       // Manually change active quarter
-      engine.setManualActiveQuarter(2);
+      engine.manualActiveQuarter.set(2);
       expect(engine.activeQuarter()).toBe(2);
 
       // Change tolerance threshold
-      engine.setToleranceThreshold(-10.0);
+      engine.toleranceThreshold.set(-10.0);
       expect(engine.toleranceThreshold()).toBe(-10.0);
     });
   });

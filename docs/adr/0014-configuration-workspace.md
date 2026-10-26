@@ -31,9 +31,8 @@ Diputuskan untuk mengonsolidasikan pengelolaan persistensi preset konfigurasi (J
 2. **Pemisahan Tegas `ExcelResilientMatcher`**:
    - Seluruh logika pencocokan fuzzy header dan sheet Excel dikembalikan ke modul asalnya: `ExcelResilientMatcher` (`src/app/core/excel/excel-resilient-matcher.ts`).
    - Komponen antarmuka pengguna memanggil `ExcelResilientMatcher` langsung ketika memetakan kolom spreadsheet, tanpa melalui toko penyimpanan.
-3. **Strategi Fasad Kompatibilitas ke Belakang (Zero-Breakage Re-exports)**:
-   - Berkas fitur (`features/excel-join/preset-store.ts`, `features/stunting-monitoring/stunting-preset-store.ts`, `features/chart-visualizer/chart-preset-store.ts`) mempertahankan ekspor antarmuka dan mengekspor instansiasi toko yang mendelegasikan ke `ConfigurationWorkspace` dan `ExcelResilientMatcher`.
-   - Seluruh pengujian unit dan import eksisting tetap berjalan tanpa galat kompilasi.
+3. **Penghapusan Total Toko Preset Pasif di Lapisan Fitur**:
+   - Berkas *pass-through* di lapisan fitur (`features/excel-join/preset-store.ts`, `features/stunting-monitoring/stunting-preset-store.ts`, `features/chart-visualizer/chart-preset-store.ts`) dihapus sepenuhnya dan seluruh komponen serta pengujian unit diarahkan langsung ke `ConfigurationWorkspace` dan `ExcelResilientMatcher`.
 
 ### Konsekuensi & Keuntungan
 - **Lokalitas Tunggal**: Skema konfigurasi, validasi JSON, dan kunci penyimpanan browser kini terpusat dalam satu modul konfigurasi yang jelas.

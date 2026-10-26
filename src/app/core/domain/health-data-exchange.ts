@@ -174,15 +174,6 @@ export class HealthDataExchange {
     this.stuntingDataSignal.set(this.readStuntingInitialData());
   }
 
-  /**
-   * Mengatur adapter penyimpanan secara eksplisit (misal untuk unit test tanpa TestBed).
-   */
-  setStorageAdapter(adapter: SessionStorageAdapter): void {
-    this.storage = adapter;
-    this.chartDataSignal.set(this.readChartInitialData());
-    this.stuntingDataSignal.set(this.readStuntingInitialData());
-  }
-
   // ============================================================
   // CHART CHANNEL
   // ============================================================

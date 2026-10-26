@@ -9,16 +9,12 @@ import {
   IndicatorPolarity,
   StuntingCategoryConfig,
   StuntingEvaluationEngine,
-  StuntingEvaluationResult,
   StuntingQuarterInputConfig,
   StuntingSubCategoryConfig,
 } from '../../core/stunting/stunting-evaluation-engine';
 import { ColumnInfo, ExcelEngine } from '../../shared/excel';
 import { StuntingExcelExporter } from '../../core/stunting/stunting-excel-exporter';
 import { StuntingWorkflowEngine } from '../../core/stunting/stunting-workflow-engine';
-import { ExcelJoinEngine } from '../../core/excel/excel-join-engine';
-import { DinkesSpreadsheetParser } from '../../core/excel/dinkes-spreadsheet-parser';
-import { DEFAULT_JOIN_CONFIG } from '../excel-join/default-join-config';
 import {
   GasPeriodItem,
   GasStorageService,
@@ -27,10 +23,10 @@ import {
 import { PeriodPartitionWorkspace } from '../../core/storage/period-partition-workspace';
 import {
   AnyStuntingPreset,
+  ConfigurationWorkspace,
   StuntingConfigurationPreset,
   StuntingPipelinePreset,
-  StuntingPresetStore,
-} from './stunting-preset-store';
+} from '../../core/storage/configuration-workspace';
 import { NgClass } from '@angular/common';
 
 export interface SecondarySheetSetup {
@@ -126,10 +122,6 @@ export class StuntingMonitoringComponent implements OnInit {
   isMultiQuarterCloudMode = signal<boolean>(false);
 
   hasAnyGasConfigured = computed<boolean>(() => this.periodPartitionWorkspace.isStorageConfigured());
-
-  selectedQuartersCount = computed<number>(() => {
-    return this.quarterOptions.filter((q) => this.selectedQuarterSlots()[q.value]).length;
-  });
 
   selectedQuartersWithDataCount = computed<number>(() => {
     return this.quarterOptions.filter((q) => {
@@ -241,7 +233,7 @@ export class StuntingMonitoringComponent implements OnInit {
 
   // Preset State
   pendingPreset: AnyStuntingPreset | null = null;
-  hasSavedConfig = signal<boolean>(StuntingPresetStore.hasSavedPreset());
+  hasSavedConfig = signal<boolean>(ConfigurationWorkspace.stunting.hasSavedPreset());
   activePresetName = signal<string>('');
   configNotification = signal<{
     type: 'success' | 'warning' | 'info';
@@ -260,107 +252,6 @@ export class StuntingMonitoringComponent implements OnInit {
 
   constructor() {
     this.loadStandardCategories();
-  }
-
-  // ============================================================
-  // STEP 1 HANDLERS: FILE UPLOAD & SHEET SETUP
-  // ============================================================
-
-  async onPrimaryFileSelected(event: Event): Promise<void> {
-    const input = event.target as HTMLInputElement;
-    if (!input.files?.length) return;
-    const file = input.files[0];
-
-    if (!file.name.toLowerCase().endsWith('.xlsx')) {
-      this.notificationMessage.set('File harus berformat .xlsx');
-      input.value = '';
-      return;
-    }
-
-    this.file.set(file);
-    this.showSettings.set(false);
-
-    try {
-      const buffer = await file.arrayBuffer();
-      const wb = ExcelEngine.readWorkbook(buffer);
-      this.workbook = wb;
-      this.refreshAvailableSheets();
-
-      if (this.pendingPreset) {
-        const p = this.pendingPreset;
-        this.pendingPreset = null;
-        this.applyConfiguration(p, this.activePresetName() || 'Konfigurasi Terpilih');
-      } else if (wb.SheetNames.length > 0) {
-        this.selectPrimarySheet(wb.SheetNames[0]);
-        if (this.isHasilJoinFormat()) {
-          const details: string[] = [
-            `Wilayah: ${this.activeRegionRows().length} Kabupaten/Kota`,
-            'Format Standar Dinkes (Hasil Join) terdeteksi & 14 indikator terkonfigurasi otomatis.',
-          ];
-          if (this.summaryRowData()) {
-            details.push(`Capaian %: ${this.summaryRowData()![this.primaryKeyCol()]}`);
-          }
-          if (this.totalRowData()) {
-            details.push(`Numerator (Kasus): ${this.totalRowData()![this.primaryKeyCol()]}`);
-          }
-          if (this.targetRowData()) {
-            details.push(`Target: ${this.targetRowData()![this.primaryKeyCol()]}`);
-          }
-          this.configNotification.set({
-            type: 'success',
-            message: `Berkas "${file.name}" berhasil dimuat! Format Standar Dinkes terdeteksi.`,
-            details,
-          });
-          this.notificationMessage.set(null);
-        } else {
-          this.configNotification.set({
-            type: 'success',
-            message: `Berkas "${file.name}" berhasil dimuat (${this.activeRegionRows().length} wilayah).`,
-          });
-          this.notificationMessage.set(null);
-        }
-      }
-    } catch (err) {
-      console.error('File Error:', err);
-      this.notificationMessage.set(
-        `Gagal membaca berkas: ${err instanceof Error ? err.message : 'Format tidak didukung.'}`,
-      );
-    } finally {
-      input.value = '';
-    }
-  }
-
-  async loadSampleHasilJoin(): Promise<void> {
-    try {
-      const response = await fetch('/Hasil_Join_Excel_2026-10-15.xlsx');
-      if (!response.ok) {
-        throw new Error('Berkas contoh tidak dapat diakses.');
-      }
-      const buffer = await response.arrayBuffer();
-      const wb = ExcelEngine.readWorkbook(buffer);
-      this.workbook = wb;
-      this.file.set(new File([buffer], 'Hasil_Join_Excel_2026-10-15.xlsx'));
-      this.showSettings.set(false);
-      this.refreshAvailableSheets();
-      if (wb.SheetNames.length > 0) {
-        this.selectPrimarySheet(wb.SheetNames[0]);
-      }
-      this.configNotification.set({
-        type: 'success',
-        message:
-          'Contoh data Hasil Join standar Dinkes (35 Kabupaten/Kota Jawa Tengah) berhasil dimuat!',
-        details: [
-          `Wilayah: ${this.activeRegionRows().length} Kabupaten/Kota`,
-          '14 pasangan indikator serta baris acuan Rata-rata dan Target Dinkes otomatis terkonfigurasi.',
-        ],
-      });
-      this.notificationMessage.set(null);
-    } catch (err) {
-      console.error('Sample Load Error:', err);
-      this.notificationMessage.set(
-        `Gagal memuat contoh berkas: ${err instanceof Error ? err.message : 'Kesalahan jaringan.'}`,
-      );
-    }
   }
 
   // ============================================================
@@ -581,33 +472,6 @@ export class StuntingMonitoringComponent implements OnInit {
     } finally {
       this.isLoadingCloudData.set(false);
     }
-  }
-
-  private extractDatasetFromBuffer(
-    buffer: ArrayBuffer,
-    config?: unknown,
-  ): {
-    rows: Record<string, unknown>[];
-    columns: string[];
-    keyCol: string;
-    summaryRow: Record<string, unknown> | null;
-    targetRow: Record<string, unknown> | null;
-    totalRow: Record<string, unknown> | null;
-  } {
-    const parsed = DinkesSpreadsheetParser.parse(buffer, {
-      preset:
-        config && typeof config === 'object' && 'sheets' in config ? (config as any) : undefined,
-      stripKabupaten: this.stripKabupaten(),
-    });
-
-    return {
-      rows: parsed.regionRows,
-      columns: parsed.columns,
-      keyCol: parsed.keyCol,
-      summaryRow: parsed.summaryRow,
-      targetRow: parsed.targetRow,
-      totalRow: parsed.totalRow,
-    };
   }
 
   private processMergedQuarterDatasets(loadedQuarters: LoadedQuarterItem[], year: number): void {
@@ -1168,38 +1032,7 @@ export class StuntingMonitoringComponent implements OnInit {
   }
 
   toggleRowExclusion(rowId: string): void {
-    const row = this.joinedRows().find((r) => r['__id'] === rowId);
-    const rawKey = row
-      ? String(row[this.primaryKeyCol()] ?? '')
-          .trim()
-          .toLowerCase()
-      : '';
-
-    this.excludedRowIds.update((set) => {
-      const next = new Set(set);
-      if (next.has(rowId)) {
-        // Re-activate row
-        next.delete(rowId);
-        if (rawKey) {
-          this.manualExcludedKeys.update((mSet) => {
-            const mNext = new Set(mSet);
-            mNext.delete(rawKey);
-            return mNext;
-          });
-        }
-      } else {
-        // Deactivate row
-        next.add(rowId);
-        if (rawKey) {
-          this.manualExcludedKeys.update((mSet) => {
-            const mNext = new Set(mSet);
-            mNext.add(rawKey);
-            return mNext;
-          });
-        }
-      }
-      return next;
-    });
+    this.workflowEngine.toggleRowExclusion(rowId);
   }
 
   setAllRowsActive(active: boolean): void {
@@ -1491,38 +1324,20 @@ export class StuntingMonitoringComponent implements OnInit {
   // ============================================================
 
   loadStandardCategories(): void {
-    this.categories.set([
-      {
-        id: 'cat-1',
-        name: 'Intervensi untuk remaja putri dan ibu hamil (sebelum kelahiran)',
-        subCategories: [],
-      },
-      {
-        id: 'cat-2',
-        name: 'Intervensi untuk balita (setelah kelahiran)',
-        subCategories: [],
-      },
-      {
-        id: 'cat-3',
-        name: 'Intervensi lintas siklus hidup',
-        subCategories: [],
-      },
-    ]);
+    this.workflowEngine.loadStandardCategories();
   }
 
   addCategory(name = ''): void {
-    const id = `cat-${Date.now()}`;
-    const newCatName = name.trim() || `Kategori Intervensi ${this.categories().length + 1}`;
-    this.categories.update((cats) => [...cats, { id, name: newCatName, subCategories: [] }]);
+    this.workflowEngine.addCategory(name);
   }
 
   removeCategory(catId: string): void {
-    this.categories.update((cats) => cats.filter((c) => c.id !== catId));
+    this.workflowEngine.removeCategory(catId);
   }
 
   updateCategoryName(catId: string, event: Event): void {
     const val = (event.target as HTMLInputElement).value;
-    this.categories.update((cats) => cats.map((c) => (c.id === catId ? { ...c, name: val } : c)));
+    this.workflowEngine.updateCategoryName(catId, val);
   }
 
   addSubCategory(catId: string): void {
@@ -1698,35 +1513,12 @@ export class StuntingMonitoringComponent implements OnInit {
     return false;
   }
 
-  getQuarterNumeratorCol(sub: StuntingSubCategoryConfig, q: number): string {
-    const quarter = (q >= 1 && q <= 4 ? q : 1) as 1 | 2 | 3 | 4;
-    if (sub.quarterColumns?.[quarter]?.numeratorCol !== undefined) {
-      return sub.quarterColumns[quarter]!.numeratorCol || '';
-    }
-    // Fallback for single/legacy config
-    if (
-      (!sub.quarterColumns || Object.keys(sub.quarterColumns).length === 0) &&
-      quarter === this.activeQuarter()
-    ) {
-      return sub.numeratorCol || '';
-    }
-    return '';
-  }
-
   updateSubCategory(
     catId: string,
     subId: string,
     updates: Partial<StuntingSubCategoryConfig>,
   ): void {
-    this.categories.update((cats) =>
-      cats.map((c) => {
-        if (c.id !== catId) return c;
-        return {
-          ...c,
-          subCategories: c.subCategories.map((s) => (s.id === subId ? { ...s, ...updates } : s)),
-        };
-      }),
-    );
+    this.workflowEngine.updateSubCategory(catId, subId, updates);
   }
 
   toggleSubPolarity(catId: string, subId: string): void {
@@ -1960,7 +1752,7 @@ export class StuntingMonitoringComponent implements OnInit {
       toleranceThreshold: this.toleranceThreshold(),
     };
 
-    StuntingPresetStore.savePreset(preset, true);
+    ConfigurationWorkspace.stunting.savePreset(preset, true);
     this.hasSavedConfig.set(true);
     this.activePresetName.set(preset.name || 'Preset Tersimpan');
 
@@ -1979,7 +1771,7 @@ export class StuntingMonitoringComponent implements OnInit {
     reader.onload = (e) => {
       try {
         const text = e.target?.result as string;
-        const preset = StuntingPresetStore.parsePresetJson(text);
+        const preset = ConfigurationWorkspace.stunting.parsePresetJson(text);
         this.applyConfiguration(preset, file.name);
       } catch (err) {
         this.configNotification.set({
@@ -1995,7 +1787,7 @@ export class StuntingMonitoringComponent implements OnInit {
   }
 
   loadSavedConfigurationFromStorage(): void {
-    const preset = StuntingPresetStore.loadLastPreset();
+    const preset = ConfigurationWorkspace.stunting.loadLastPreset();
     if (!preset) {
       this.configNotification.set({
         type: 'info',
@@ -2011,7 +1803,7 @@ export class StuntingMonitoringComponent implements OnInit {
   }
 
   applyConfiguration(preset: AnyStuntingPreset, sourceName: string): void {
-    StuntingPresetStore.savePreset(preset, false);
+    ConfigurationWorkspace.stunting.savePreset(preset, false);
     this.hasSavedConfig.set(true);
     this.activePresetName.set(preset.name || sourceName);
 

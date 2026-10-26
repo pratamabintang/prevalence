@@ -529,18 +529,6 @@ export class StuntingWorkflowEngine {
     });
   }
 
-  setRowExclusion(rowId: string, exclude: boolean): void {
-    this.excludedRowIds.update((set) => {
-      const next = new Set(set);
-      if (exclude) {
-        next.add(rowId);
-      } else {
-        next.delete(rowId);
-      }
-      return next;
-    });
-  }
-
   setCalculationDataSource(source: 'summary_row' | 'all_rows'): void {
     this.calculationDataSource.set(source);
   }
@@ -1277,21 +1265,6 @@ export class StuntingWorkflowEngine {
     }
 
     return { sumNum, sumDen, actualPercentage };
-  }
-
-  // ============================================================
-  // STEP 3 SETTERS
-  // ============================================================
-  setManualActiveQuarter(quarter: 1 | 2 | 3 | 4 | null): void {
-    this.manualActiveQuarter.set(quarter);
-  }
-
-  setToleranceThreshold(val: number): void {
-    this.toleranceThreshold.set(val);
-  }
-
-  setQuarterWeight(val: number | null): void {
-    this.quarterWeight.set(val);
   }
 
   reset(): void {

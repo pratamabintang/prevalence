@@ -22,20 +22,6 @@ export class ExcelResilientMatcher {
   }
 
   /**
-   * Memeriksa apakah dua nama sheet secara wajar merujuk pada sheet yang sama.
-   */
-  static isSheetMatch(nameA: string, nameB: string): boolean {
-    if (!nameA || !nameB) return false;
-    if (nameA === nameB) return true;
-    const normA = this.normalizeKey(nameA);
-    const normB = this.normalizeKey(nameB);
-    if (normA === normB) return true;
-    const cleanA = this.cleanAlphanumeric(normA);
-    const cleanB = this.cleanAlphanumeric(normB);
-    return cleanA.length > 0 && cleanA === cleanB;
-  }
-
-  /**
    * Mencari kecocokan nama sheet tunggal dari daftar sheet yang tersedia.
    * Multi-pass:
    * 1. Exact match

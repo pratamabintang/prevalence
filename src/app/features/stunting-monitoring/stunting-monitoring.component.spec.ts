@@ -8,9 +8,9 @@ import { GasStorageService } from '../../core/storage/gas-storage.service';
 import { BackendStorageService } from '../../core/storage/backend-storage.service';
 import { StuntingExcelExporter } from '../../core/stunting/stunting-excel-exporter';
 import {
+  ConfigurationWorkspace,
   StuntingPipelinePreset,
-  StuntingPresetStore,
-} from './stunting-preset-store';
+} from '../../core/storage/configuration-workspace';
 
 describe('StuntingMonitoringComponent', () => {
   let component: StuntingMonitoringComponent;
@@ -379,7 +379,7 @@ describe('StuntingMonitoringComponent', () => {
     expect(component.configNotification()?.type).toBe('success');
     expect(component.hasSavedConfig()).toBe(true);
 
-    const saved = StuntingPresetStore.loadLastPreset();
+    const saved = ConfigurationWorkspace.stunting.loadLastPreset();
     expect(saved).not.toBeNull();
     expect(saved?.version).toBe('2.0');
     expect((saved as StuntingPipelinePreset).primarySheet).toBe('data_remaja');
@@ -478,7 +478,7 @@ describe('StuntingMonitoringComponent', () => {
     component.primaryDataStartRow.set(3);
 
     component.exportConfiguration();
-    const saved = StuntingPresetStore.loadLastPreset() as StuntingPipelinePreset;
+    const saved = ConfigurationWorkspace.stunting.loadLastPreset() as StuntingPipelinePreset;
     expect(saved).not.toBeNull();
     expect(saved.primaryHeaderStartRow).toBe(1);
     expect(saved.primaryHeaderEndRow).toBe(2);

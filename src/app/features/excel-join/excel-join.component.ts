@@ -35,7 +35,12 @@ import {
   ExcelWorkbookAdapter,
   HeaderGridCell,
 } from '../../shared/excel';
-import { JoinConfigurationPreset, PresetStore, SheetConfigPreset } from './preset-store';
+import { ExcelResilientMatcher } from '../../core/excel/excel-resilient-matcher';
+import {
+  ConfigurationWorkspace,
+  JoinConfigurationPreset,
+  SheetConfigPreset,
+} from '../../core/storage/configuration-workspace';
 import { DEFAULT_JOIN_CONFIG } from './default-join-config';
 import { ExcelJoinStore, ExcelJoinStoredState } from './excel-join-store';
 import { environment } from '../../../environments/environment';
@@ -416,16 +421,6 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     await this.loadDefaultDataAndConfig(true);
   }
 
-  async reloadFromDrive(): Promise<void> {
-    this.preservedPreset = null;
-    this.preservedPresetName = null;
-    this.excelJoinStore.clearState();
-    this.clearFile();
-    this.preservedPreset = null;
-    this.preservedPresetName = null;
-    await this.loadDefaultDataAndConfig(true);
-  }
-
   visualizeInChart(): void {
     if (this.resultRows().length === 0 || this.resultColumns().length === 0) {
       return;
@@ -789,7 +784,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
         for (let i = 0; i < candidates.length; i++) {
           const candidate = candidates[i];
           const isLast = i === candidates.length - 1;
-          const matchedSheetMap = PresetStore.matchSheets(
+          const matchedSheetMap = ExcelResilientMatcher.matchSheets(
             this.sheets().map((s) => s.name),
             candidate.preset.sheets,
           );
@@ -805,7 +800,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
 
           const nextMatches =
             !isLast &&
-            PresetStore.matchSheets(
+            ExcelResilientMatcher.matchSheets(
               this.sheets().map((s) => s.name),
               candidates[i + 1].preset.sheets,
             ).size > 0;
@@ -1984,7 +1979,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     }
 
     const preset = this.getCurrentPreset();
-    PresetStore.savePreset(preset, true);
+    ConfigurationWorkspace.excelJoin.savePreset(preset, true);
     this.activePresetName.set(preset.name || 'Konfigurasi Tersimpan');
 
     this.configNotification.set({
@@ -2333,7 +2328,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     reader.onload = (e) => {
       try {
         const text = e.target?.result as string;
-        const preset = PresetStore.parsePresetJson(text);
+        const preset = ConfigurationWorkspace.excelJoin.parsePresetJson(text);
         this.applyConfiguration(preset, file.name);
       } catch (err) {
         this.configNotification.set({
@@ -2361,7 +2356,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       return;
     }
 
-    PresetStore.savePreset(preset, false);
+    ConfigurationWorkspace.excelJoin.savePreset(preset, false);
     this.activePresetName.set(sourceName);
 
     if (!this.workbook || this.sheets().length === 0) {
@@ -2388,7 +2383,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     }
 
     // Pemetaan 1-ke-1 sheet workbook dengan preset sheets
-    const matchedSheetMap = PresetStore.matchSheets(
+    const matchedSheetMap = ExcelResilientMatcher.matchSheets(
       availableSheets.map((s) => s.name),
       preset.sheets,
     );
@@ -2424,7 +2419,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
 
       for (const presetVar of ps.variables) {
         totalPresetVarCount++;
-        const matchedHeader = PresetStore.findMatchingHeader(presetVar, columns);
+        const matchedHeader = ExcelResilientMatcher.findMatchingHeader(presetVar, columns);
         if (matchedHeader) {
           selectedVars.push(matchedHeader);
           matchedVarCount++;
@@ -2436,9 +2431,11 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       const defaultJoin = this.detectDefaultJoinColumn(columns);
       let matchedJoinCol = defaultJoin;
       if (ps.joinColumn) {
-        matchedJoinCol = PresetStore.findMatchingHeader(ps.joinColumn, columns) || defaultJoin;
+        matchedJoinCol =
+          ExcelResilientMatcher.findMatchingHeader(ps.joinColumn, columns) || defaultJoin;
       } else if (preset.joinBy) {
-        matchedJoinCol = PresetStore.findMatchingHeader(preset.joinBy, columns) || defaultJoin;
+        matchedJoinCol =
+          ExcelResilientMatcher.findMatchingHeader(preset.joinBy, columns) || defaultJoin;
       }
 
       matchedSheetsOrdered.push({
@@ -2469,7 +2466,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     this.sheets.set(updatedSheets);
 
     const commonCols = this.commonJoinColumns();
-    const matchedJoinBy = PresetStore.findMatchingJoinKey(preset.joinBy, commonCols);
+    const matchedJoinBy = ExcelResilientMatcher.findMatchingJoinKey(preset.joinBy, commonCols);
     if (matchedJoinBy) {
       this.joinBy.set(matchedJoinBy);
     } else if (commonCols.length > 0) {
@@ -2852,12 +2849,5 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     this.isCloudDefault.set(false);
     this.showSettings.set(true);
     this.reset();
-  }
-
-  formatValue(value: unknown): string {
-    if (value === null || value === undefined) {
-      return '-';
-    }
-    return String(value);
   }
 }

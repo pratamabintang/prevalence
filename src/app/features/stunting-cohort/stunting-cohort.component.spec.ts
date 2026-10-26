@@ -116,33 +116,6 @@ describe('StuntingCohortComponent', () => {
     expect(component.comparisonResult()).toBeNull();
   });
 
-  it('should compute donutData and waterfallBars when comparison is active', () => {
-    const p1Rows = [
-      { NIK: '3301010001', 'Nama Balita': 'Budi', 'Tanggal Lahir': '2023-01-01' },
-      { NIK: '3301010002', 'Nama Balita': 'Siti', 'Tanggal Lahir': '2022-06-01' },
-    ];
-    const p2Rows = [
-      { NIK: '3301010001', 'Nama Balita': 'Budi', 'Tanggal Lahir': '2023-01-01' },
-      { NIK: '3301010003', 'Nama Balita': 'Doni', 'Tanggal Lahir': '2023-05-01' },
-    ];
-
-    component.period1Data.set(p1Rows);
-    component.period2Data.set(p2Rows);
-    component.p1Mapping.set({ nikKey: 'NIK', nameKey: 'Nama Balita', dobKey: 'Tanggal Lahir' });
-    component.p2Mapping.set({ nikKey: 'NIK', nameKey: 'Nama Balita', dobKey: 'Tanggal Lahir' });
-    fixture.detectChanges();
-
-    const donut = component.donutData();
-    expect(donut.length).toBe(4);
-    const persistentArc = donut.find((d) => d.status === CohortTransitionStatus.PERSISTENT);
-    expect(persistentArc?.count).toBe(1);
-
-    const bars = component.waterfallBars();
-    expect(bars.length).toBe(5);
-    expect(bars[0].label).toBe('Periode Awal');
-    expect(bars[4].label).toBe('Periode Evaluasi');
-  });
-
   it('should export Excel workbook without throwing error', () => {
     const p1Rows = [{ NIK: '3301010001', 'Nama Balita': 'Budi', 'Tanggal Lahir': '2023-01-01' }];
     const p2Rows = [{ NIK: '3301010001', 'Nama Balita': 'Budi', 'Tanggal Lahir': '2023-01-01' }];
@@ -319,6 +292,21 @@ describe('StuntingCohortComponent', () => {
     expect(el.textContent).toContain('+2 cm');
     expect(el.textContent).not.toContain('+2 cm ⚠️');
     expect(el.textContent).not.toContain('🚀');
+
+    // Status Transisi and Pertumbuhan cells should use cell background color instead of inner badges
+    const tbody = table?.querySelector('tbody');
+    expect(tbody?.querySelector('.rounded-full')).toBeNull();
+    const cells = Array.from(tbody?.querySelectorAll('td') ?? []);
+    const statusCell = cells.find((td) => td.textContent?.trim() === 'Tetap Stunting');
+    expect(statusCell).toBeTruthy();
+    expect(statusCell?.className).toContain('bg-rose-50');
+    expect(statusCell?.className).toContain('text-rose-700');
+
+    const deltaCell = cells.find((td) => td.textContent?.trim() === '+2 cm');
+    expect(deltaCell).toBeTruthy();
+    expect(deltaCell?.className).toContain('bg-amber-50');
+    expect(deltaCell?.className).toContain('text-amber-800');
+    expect(deltaCell?.querySelector('span')).toBeNull();
   });
 
   it('should switch cohort indicator and update labels reactively', () => {

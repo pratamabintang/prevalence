@@ -6,8 +6,6 @@ import { HealthDataExchange } from '../../core/domain/health-data-exchange';
 import {
   ChartBarItem,
   ChartDataRow,
-  ChartLayoutEngine,
-  ChartLayoutResult,
   ChartSeriesConfig,
 } from '../../core/chart/chart-layout-engine';
 import {
@@ -57,7 +55,11 @@ import {
   ExcelWorkSheet,
   TabularSheetSpec,
 } from '../../shared/excel';
-import { ChartConfigurationPreset, ChartPresetStore } from './chart-preset-store';
+import { ExcelResilientMatcher } from '../../core/excel/excel-resilient-matcher';
+import {
+  ChartConfigurationPreset,
+  ConfigurationWorkspace,
+} from '../../core/storage/configuration-workspace';
 import {
   BackendStorageService,
   BackendTrendPoint,
@@ -138,7 +140,7 @@ export class ChartVisualizerComponent {
 
   // Fitur Simpan & Muat Konfigurasi Preset
   pendingPreset: ChartConfigurationPreset | null = null;
-  hasSavedConfig = signal<boolean>(ChartPresetStore.hasSavedPreset());
+  hasSavedConfig = signal<boolean>(ConfigurationWorkspace.chart.hasSavedPreset());
   activePresetName = signal<string>('');
   configNotification = signal<{
     type: 'success' | 'warning' | 'info';
@@ -330,16 +332,12 @@ export class ChartVisualizerComponent {
 
   // Tata Letak Kolom Grafik pada Mode Per Wilayah (1, 2, atau 3 grafik per baris)
   regionGridColumns = signal<1 | 2 | 3>(2);
-  regionColumns = signal<1 | 2>(2);
 
   // Pengurutan Wilayah pada Mode Per Wilayah ('default' | 'desc' | 'asc')
   regionSortMode = signal<'default' | 'desc' | 'asc'>('default');
 
   // Tata Letak Kolom Grafik pada Mode Per Indikator (1, 2, atau 3 grafik per baris)
   indicatorGridColumns = signal<1 | 2 | 3>(2);
-
-  // Ukuran Kanvas Grafik pada Mode Per Wilayah (Ukuran Penuh 'full')
-  regionChartWidth = signal<'compact' | 'medium' | 'full'>('full');
 
   // Pengurutan Wilayah pada Mode Per Indikator
   indicatorSortMode = signal<'default' | 'desc' | 'asc'>('default');
@@ -482,24 +480,8 @@ export class ChartVisualizerComponent {
     };
   });
 
-  setQuadrantMetricX(metric: string): void {
-    this.quadrantMetricX.set(metric);
-  }
-
-  setQuadrantMetricY(metric: string): void {
-    this.quadrantMetricY.set(metric);
-  }
-
   setQuadrantThresholdMode(mode: QuadrantThresholdMode): void {
     this.quadrantThresholdMode.set(mode);
-  }
-
-  setQuadrantCustomThreshX(val: number): void {
-    this.quadrantCustomThreshX.set(val);
-  }
-
-  setQuadrantCustomThreshY(val: number): void {
-    this.quadrantCustomThreshY.set(val);
   }
 
   setQuadrantFilter(filter: 1 | 2 | 3 | 4 | 'all'): void {
@@ -525,15 +507,9 @@ export class ChartVisualizerComponent {
     }
   }
 
-  setRegionColumns(cols: 1 | 2): void {
-    this.regionColumns.set(cols);
-    this.regionGridColumns.set(cols as 1 | 2);
-  }
-
   setRegionGridColumns(cols: number | 1 | 2 | 3): void {
     const valid = (cols === 1 || cols === 3 ? cols : 2) as 1 | 2 | 3;
     this.regionGridColumns.set(valid);
-    this.regionColumns.set(valid === 1 ? 1 : 2);
   }
 
   setRegionSortMode(mode: string | 'default' | 'desc' | 'asc'): void {
@@ -543,10 +519,6 @@ export class ChartVisualizerComponent {
   setIndicatorGridColumns(cols: number | 1 | 2 | 3): void {
     const valid = (cols === 1 || cols === 3 ? cols : 2) as 1 | 2 | 3;
     this.indicatorGridColumns.set(valid);
-  }
-
-  setRegionChartWidth(width: 'compact' | 'medium' | 'full'): void {
-    this.regionChartWidth.set(width);
   }
 
   indicatorGridClass = computed(() => {
@@ -568,17 +540,6 @@ export class ChartVisualizerComponent {
         return 'grid grid-cols-1 lg:grid-cols-2 gap-6';
       case 3:
         return 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-5';
-    }
-  });
-
-  regionChartContainerClass = computed(() => {
-    switch (this.regionChartWidth()) {
-      case 'compact':
-        return 'max-w-4xl mx-auto';
-      case 'medium':
-        return 'max-w-6xl mx-auto';
-      case 'full':
-        return 'w-full';
     }
   });
 
@@ -1376,9 +1337,6 @@ export class ChartVisualizerComponent {
     return available.filter((cat) => selected.includes(cat));
   });
 
-  // Alias untuk kompatibilitas
-  sortedCategories = computed<string[]>(() => this.visibleCategories());
-
   // Hapus baris tertentu dari visualisasi
   deleteRow(cat: string): void {
     this.availableCategories.update((list) => list.filter((c) => c !== cat));
@@ -1672,13 +1630,13 @@ export class ChartVisualizerComponent {
       hiddenRows,
       viewMode: this.viewMode(),
       activeMapIndicator: this.activeMapIndicator(),
-      regionColumns: this.regionColumns(),
+      regionColumns: this.regionGridColumns() === 1 ? 1 : 2,
       regionGridColumns: this.regionGridColumns(),
       regionSortMode: this.regionSortMode(),
       indicatorTargets: { ...this.indicatorTargets() },
     };
 
-    ChartPresetStore.savePreset(preset, true);
+    ConfigurationWorkspace.chart.savePreset(preset, true);
     this.hasSavedConfig.set(true);
     this.activePresetName.set(preset.name || 'Konfigurasi Tersimpan');
 
@@ -1698,7 +1656,7 @@ export class ChartVisualizerComponent {
     reader.onload = (e) => {
       try {
         const text = e.target?.result as string;
-        const preset = ChartPresetStore.parsePresetJson(text);
+        const preset = ConfigurationWorkspace.chart.parsePresetJson(text);
         this.applyConfiguration(preset, file.name);
       } catch (err) {
         this.configNotification.set({
@@ -1714,7 +1672,7 @@ export class ChartVisualizerComponent {
   }
 
   loadSavedConfigurationFromStorage(): void {
-    const preset = ChartPresetStore.loadLastPreset();
+    const preset = ConfigurationWorkspace.chart.loadLastPreset();
     if (!preset) {
       this.configNotification.set({
         type: 'info',
@@ -1738,7 +1696,7 @@ export class ChartVisualizerComponent {
       return;
     }
 
-    ChartPresetStore.savePreset(preset, false);
+    ConfigurationWorkspace.chart.savePreset(preset, false);
     this.hasSavedConfig.set(true);
     this.activePresetName.set(sourceName);
 
@@ -1748,11 +1706,10 @@ export class ChartVisualizerComponent {
     if (preset.activeMapIndicator) {
       this.activeMapIndicator.set(preset.activeMapIndicator);
     }
-    if (preset.regionColumns) {
-      this.regionColumns.set(preset.regionColumns);
-    }
     if (preset.regionGridColumns) {
       this.regionGridColumns.set(preset.regionGridColumns);
+    } else if (preset.regionColumns) {
+      this.regionGridColumns.set(preset.regionColumns);
     }
     if (preset.regionSortMode) {
       this.regionSortMode.set(preset.regionSortMode);
@@ -1774,7 +1731,7 @@ export class ChartVisualizerComponent {
         }));
         this.sheetColumns.set(colInfos);
         const matchedCat =
-          ChartPresetStore.findMatchingHeader(preset.categoryColumn, colInfos) ||
+          ExcelResilientMatcher.findMatchingHeader(preset.categoryColumn, colInfos) ||
           this.categoryColumn();
         if (matchedCat) {
           this.categoryColumn.set(matchedCat);
@@ -1783,7 +1740,7 @@ export class ChartVisualizerComponent {
         const matchedSeries: string[] = [];
         const unmatchedSeries: string[] = [];
         for (const s of preset.seriesKeys) {
-          const m = ChartPresetStore.findMatchingHeader(s, colInfos);
+          const m = ExcelResilientMatcher.findMatchingHeader(s, colInfos);
           if (m) {
             matchedSeries.push(m);
           } else {
@@ -1846,7 +1803,7 @@ export class ChartVisualizerComponent {
     }
 
     const availableSheets = this.sheetNames();
-    const matchedSheet = ChartPresetStore.findMatchingSheet(preset.sheetName, availableSheets);
+    const matchedSheet = ExcelResilientMatcher.findMatchingSheet(preset.sheetName, availableSheets);
 
     if (!matchedSheet) {
       this.configNotification.set({
@@ -1879,7 +1836,7 @@ export class ChartVisualizerComponent {
     this.allColumns.set(cols.map((c) => c.header));
 
     const matchedCat =
-      ChartPresetStore.findMatchingHeader(preset.categoryColumn, cols) ||
+      ExcelResilientMatcher.findMatchingHeader(preset.categoryColumn, cols) ||
       (cols.length > 0 ? cols[0].header : '');
     this.categoryColumn.set(matchedCat);
 
@@ -1887,7 +1844,7 @@ export class ChartVisualizerComponent {
     const unmatchedSeries: string[] = [];
 
     for (const s of preset.seriesKeys) {
-      const m = ChartPresetStore.findMatchingHeader(s, cols);
+      const m = ExcelResilientMatcher.findMatchingHeader(s, cols);
       if (m) {
         matchedSeries.push(m);
       } else {
@@ -1912,9 +1869,6 @@ export class ChartVisualizerComponent {
     }
     if (preset.activeMapIndicator) {
       this.activeMapIndicator.set(preset.activeMapIndicator);
-    }
-    if (preset.regionColumns) {
-      this.regionColumns.set(preset.regionColumns);
     }
     if (preset.regionGridColumns) {
       this.regionGridColumns.set(preset.regionGridColumns);
@@ -2250,27 +2204,6 @@ export class ChartVisualizerComponent {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)+/g, '');
   }
-
-  // ============================================================
-  // LAYOUT ENGINE COMPUTATION
-  // ============================================================
-
-  layout = computed<ChartLayoutResult>(() => {
-    const cols = this.regionColumns();
-    return ChartLayoutEngine.computeLayout({
-      categoryColumn: this.categoryColumn(),
-      categories: this.filteredChartCategories(),
-      series: this.filteredChartSeries(),
-      rows: this.dataRows(),
-      targetValue: this.targetValue(),
-      columns: cols,
-      width: cols === 2 ? 1280 : 960,
-      margin:
-        cols === 2
-          ? { top: 75, right: 20, bottom: 58, left: 20 }
-          : { top: 75, right: 95, bottom: 58, left: 200 },
-    });
-  });
 
   // ============================================================
   // PER-REGION (PER-WILAYAH) COMPARISON LAYOUTS

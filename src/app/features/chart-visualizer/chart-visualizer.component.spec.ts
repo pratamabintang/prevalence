@@ -6,7 +6,11 @@ import { ChartVisualizerComponent } from './chart-visualizer.component';
 import { HealthDataExchange } from '../../core/domain/health-data-exchange';
 import { ChartBarItem } from '../../core/chart/chart-layout-engine';
 import { ColumnInfo, ExcelEngine } from '../../shared/excel';
-import { ChartConfigurationPreset, ChartPresetStore } from './chart-preset-store';
+import { ExcelResilientMatcher } from '../../core/excel/excel-resilient-matcher';
+import {
+  ChartConfigurationPreset,
+  ConfigurationWorkspace,
+} from '../../core/storage/configuration-workspace';
 
 describe('ChartVisualizerComponent', () => {
   let component: ChartVisualizerComponent;
@@ -163,15 +167,6 @@ describe('ChartVisualizerComponent', () => {
     expect(component.hoveredBar()).toBeNull();
   });
 
-  it('should reactively recompute layout when targetValue changes', () => {
-    populateTestData();
-
-    component.targetValue.set(120);
-    const layout = component.layout();
-    expect(layout.maxValue).toBeGreaterThanOrEqual(120);
-    expect(layout.targetLineX).toBeGreaterThan(layout.plotX);
-  });
-
   it('should handle inline step flow: sheet switching, header row updates, and selective columns', () => {
     // Mock worksheet data
     const mockSheet1: any = {
@@ -314,7 +309,7 @@ describe('ChartVisualizerComponent', () => {
       expect(component.configNotification()?.type).toBe('success');
       expect(component.hasSavedConfig()).toBe(true);
 
-      const saved = ChartPresetStore.loadLastPreset();
+      const saved = ConfigurationWorkspace.chart.loadLastPreset();
       expect(saved).not.toBeNull();
       expect(saved?.sheetName).toBe('Rekap Triwulan');
       expect(saved?.categoryColumn).toBe('Wilayah');
@@ -426,16 +421,16 @@ describe('ChartVisualizerComponent', () => {
       expect(component.configNotification()?.type).toBe('success');
     });
 
-    it('should test resilient matching in ChartPresetStore', () => {
+    it('should test resilient matching in ExcelResilientMatcher', () => {
       // 1. Sheet matching
       const sheets = ['Rekap Data Bulanan 2026', 'Data Kasus', 'Grafik Utama'];
-      expect(ChartPresetStore.findMatchingSheet('rekap data bulanan 2026', sheets)).toBe(
+      expect(ExcelResilientMatcher.findMatchingSheet('rekap data bulanan 2026', sheets)).toBe(
         'Rekap Data Bulanan 2026',
       );
-      expect(ChartPresetStore.findMatchingSheet('rekap_data_bulanan_2026', sheets)).toBe(
+      expect(ExcelResilientMatcher.findMatchingSheet('rekap_data_bulanan_2026', sheets)).toBe(
         'Rekap Data Bulanan 2026',
       );
-      expect(ChartPresetStore.findMatchingSheet('Kasus', sheets)).toBe('Data Kasus');
+      expect(ExcelResilientMatcher.findMatchingSheet('Kasus', sheets)).toBe('Data Kasus');
 
       // 2. Header matching (exact, normalized, leaf, clean)
       const cols = [
@@ -455,10 +450,10 @@ describe('ChartVisualizerComponent', () => {
         },
       ];
 
-      expect(ChartPresetStore.findMatchingHeader('Target', cols)).toBe(
+      expect(ExcelResilientMatcher.findMatchingHeader('Target', cols)).toBe(
         'Imunisasi Dasar - HB-0 - Target',
       );
-      expect(ChartPresetStore.findMatchingHeader('nama kabupaten kota', cols)).toBe(
+      expect(ExcelResilientMatcher.findMatchingHeader('nama kabupaten kota', cols)).toBe(
         'Nama Kabupaten / Kota',
       );
     });
@@ -685,9 +680,7 @@ describe('ChartVisualizerComponent', () => {
       component.chartRegionSearch.set('Wonosobo');
       expect(component.isChartFilterActive()).toBe(true);
       expect(component.filteredChartCategories()).toEqual(['Kab. Wonosobo']);
-      expect(component.layout().categoryGroups.map((g) => g.categoryName)).toEqual([
-        'Kab. Wonosobo',
-      ]);
+      expect(component.regionLayouts().map((g) => g.regionName)).toEqual(['Kab. Wonosobo']);
       expect(
         component.indicatorLayouts()[0].layout.categoryGroups.map((g) => g.categoryName),
       ).toEqual(['Kab. Wonosobo']);
@@ -733,7 +726,7 @@ describe('ChartVisualizerComponent', () => {
       component.setViewMode('by-indicator');
 
       component.exportConfiguration();
-      const saved = ChartPresetStore.loadLastPreset();
+      const saved = ConfigurationWorkspace.chart.loadLastPreset();
       expect(saved?.viewMode).toBe('by-indicator');
 
       // Change viewMode back to by-region, then load preset
@@ -830,7 +823,7 @@ describe('ChartVisualizerComponent', () => {
       component.setIndicatorTarget('tw2', 88);
 
       component.exportConfiguration();
-      const saved = ChartPresetStore.loadLastPreset();
+      const saved = ConfigurationWorkspace.chart.loadLastPreset();
       expect(saved?.indicatorTargets).toEqual({ tw1: 72, tw2: 88 });
 
       // Clear targets, then reload from preset
@@ -973,7 +966,7 @@ describe('ChartVisualizerComponent', () => {
       component.setActiveMapIndicator('tw3');
 
       component.exportConfiguration();
-      const saved = ChartPresetStore.loadLastPreset();
+      const saved = ConfigurationWorkspace.chart.loadLastPreset();
       expect(saved?.viewMode).toBe('by-map');
       expect(saved?.activeMapIndicator).toBe('tw3');
 
@@ -1116,7 +1109,6 @@ describe('ChartVisualizerComponent', () => {
 
       // Per-Wilayah benchmark defaults to standard 50
       expect(component.targetValue()).toBe(50);
-      expect(component.layout().targetLineX).toBeGreaterThan(0);
 
       // Indicator targets configured correctly
       expect(component.indicatorTargets()['Konsumsi TTD %']).toBe(67);
@@ -1338,33 +1330,6 @@ describe('ChartVisualizerComponent', () => {
       component.setIndicatorGridColumns(3);
       expect(component.indicatorGridColumns()).toBe(3);
       expect(component.indicatorGridClass()).toContain('xl:grid-cols-3');
-    });
-
-    it('should default region chart width to full width', () => {
-      // Default is full width for region chart visualization
-      expect(component.regionChartWidth()).toBe('full');
-      expect(component.regionChartContainerClass()).toBe('w-full');
-
-      // Can switch to compact
-      component.setRegionChartWidth('compact');
-      expect(component.regionChartWidth()).toBe('compact');
-      expect(component.regionChartContainerClass()).toBe('max-w-4xl mx-auto');
-
-      // Can switch to medium
-      component.setRegionChartWidth('medium');
-      expect(component.regionChartWidth()).toBe('medium');
-      expect(component.regionChartContainerClass()).toBe('max-w-6xl mx-auto');
-    });
-
-    it('should support switching region columns between 1 and 2 daerah per baris', () => {
-      // Default is 2 daerah per baris as requested
-      expect(component.regionColumns()).toBe(2);
-
-      component.setRegionColumns(1);
-      expect(component.regionColumns()).toBe(1);
-
-      component.setRegionColumns(2);
-      expect(component.regionColumns()).toBe(2);
     });
 
     it('should compute distinct comparison layouts and stats for each selected region in by-region mode', () => {

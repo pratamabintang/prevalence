@@ -682,15 +682,6 @@ export class ExcelJoinEngine {
   }
 
   /**
-   * Menghasilkan WorkBook Excel ber-styling lengkap dari hasil penggabungan tabel (tanpa memicu unduh file).
-   */
-  static buildJoinedWorkbook(spec: JoinExportSpec): XLSX.WorkBook | null {
-    const styledSpec = this.buildJoinedStyledSpec(spec);
-    if (!styledSpec) return null;
-    return ExcelEngine.buildStyledWorkbook(styledSpec);
-  }
-
-  /**
    * Mengonversi hasil penggabungan tabel ber-styling menjadi ArrayBuffer biner.
    */
   static buildJoinedBuffer(spec: JoinExportSpec): ArrayBuffer | null {
