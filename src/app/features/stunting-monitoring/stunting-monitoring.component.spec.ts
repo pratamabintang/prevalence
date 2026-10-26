@@ -1506,6 +1506,34 @@ describe('StuntingMonitoringComponent', () => {
       component.closeRegionalDrilldown();
       fixture.detectChanges();
       expect(component.activeRegionalDrilldownScorecard()).toBeNull();
+
+      // Test Escape key dismissal
+      component.openRegionalDrilldown('row-1');
+      fixture.detectChanges();
+      expect(component.activeRegionalDrilldownScorecard()).not.toBeNull();
+      component.handleEscapeKey();
+      fixture.detectChanges();
+      expect(component.activeRegionalDrilldownScorecard()).toBeNull();
+
+      // Test status filter
+      component.setMatrixStatusFilter('perlu_percepatan');
+      expect(component.regionalScorecards().length).toBe(1);
+      expect(component.regionalScorecards()[0].regionName).toBe('Kabupaten Cilacap');
+
+      component.setMatrixStatusFilter('on_track');
+      expect(component.regionalScorecards().length).toBe(1);
+      expect(component.regionalScorecards()[0].regionName).toBe('Kabupaten Banyumas');
+
+      component.setMatrixStatusFilter('all');
+      expect(component.regionalScorecards().length).toBe(2);
+
+      // Test longitudinal quarter and YoY sorting
+      component.toggleRegionalSort('quarter', component.selectedMatrixIndicatorId() ?? undefined, 1);
+      expect(component.regionalSortBy()).toBe('quarter');
+      expect(component.regionalSortQuarter()).toBe(1);
+
+      component.toggleRegionalSort('yoy', component.selectedMatrixIndicatorId() ?? undefined);
+      expect(component.regionalSortBy()).toBe('yoy');
     });
   });
 });

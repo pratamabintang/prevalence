@@ -1,5 +1,5 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, HostListener, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HealthDataExchange } from '../../core/domain/health-data-exchange';
@@ -231,71 +231,58 @@ export class StuntingMonitoringComponent implements OnInit {
   perluPerhatianCount = this.workflowEngine.perluPerhatianCount;
 
   // Regional Performance Evaluation
-  regionalScorecards = this.workflowEngine.regionalScorecards;
+  regionalScorecards = this.workflowEngine.filteredRegionalScorecards;
+  unfilteredRegionalCount = computed<number>(() => this.workflowEngine.regionalScorecards().length);
   regionalSortBy = this.workflowEngine.regionalSortBy;
   regionalSortDirection = this.workflowEngine.regionalSortDirection;
   regionalSortIndicatorId = this.workflowEngine.regionalSortIndicatorId;
+  regionalSortQuarter = this.workflowEngine.regionalSortQuarter;
+  matrixStatusFilter = this.workflowEngine.matrixStatusFilter;
   selectedRegionForDrilldown = this.workflowEngine.selectedRegionForDrilldown;
   activeRegionalDrilldownScorecard = this.workflowEngine.activeRegionalDrilldownScorecard;
   matrixViewMode = this.workflowEngine.matrixViewMode;
   selectedMatrixIndicatorId = this.workflowEngine.selectedMatrixIndicatorId;
 
-  allConfiguredSubCategories = computed<StuntingSubCategoryConfig[]>(() => {
-    const cats = this.categories();
-    const subs: StuntingSubCategoryConfig[] = [];
-    for (const c of cats) {
-      for (const s of c.subCategories) {
-        subs.push(s);
-      }
-    }
-    return subs;
-  });
+  allConfiguredSubCategories = computed<StuntingSubCategoryConfig[]>(() =>
+    this.categories().flatMap((c) => c.subCategories),
+  );
 
-  toggleRegionalSort(col: 'need_acceleration' | 'on_track' | 'name' | 'percentage', indicatorId?: string): void {
-    const currentSort = this.regionalSortBy();
-    const currentDir = this.regionalSortDirection();
-    const currentIndId = this.regionalSortIndicatorId();
-
-    if (col === 'percentage' && indicatorId) {
-      if (currentSort === 'percentage' && currentIndId === indicatorId) {
-        this.workflowEngine.regionalSortDirection.set(currentDir === 'asc' ? 'desc' : 'asc');
-      } else {
-        this.workflowEngine.regionalSortBy.set('percentage');
-        this.workflowEngine.regionalSortIndicatorId.set(indicatorId);
-        this.workflowEngine.regionalSortDirection.set('desc');
-      }
-      return;
-    }
-
-    if (currentSort === col) {
-      this.workflowEngine.regionalSortDirection.set(currentDir === 'asc' ? 'desc' : 'asc');
-    } else {
-      this.workflowEngine.regionalSortBy.set(col);
-      this.workflowEngine.regionalSortIndicatorId.set(null);
-      this.workflowEngine.regionalSortDirection.set(col === 'name' ? 'asc' : 'desc');
-    }
+  toggleRegionalSort(
+    col: 'need_acceleration' | 'on_track' | 'name' | 'percentage' | 'quarter' | 'yoy',
+    indicatorId?: string,
+    quarter?: 1 | 2 | 3 | 4,
+  ): void {
+    this.workflowEngine.toggleRegionalSort(col, indicatorId, quarter);
   }
 
   openRegionalDrilldown(regionId: string): void {
-    this.workflowEngine.selectedRegionForDrilldown.set(regionId);
+    this.workflowEngine.openRegionalDrilldown(regionId);
   }
 
   closeRegionalDrilldown(): void {
-    this.workflowEngine.selectedRegionForDrilldown.set(null);
+    this.workflowEngine.closeRegionalDrilldown();
   }
 
   setMatrixViewMode(mode: 'all_indicators' | 'single_indicator'): void {
-    this.workflowEngine.matrixViewMode.set(mode);
-    if (mode === 'single_indicator' && !this.selectedMatrixIndicatorId()) {
-      const first = this.allConfiguredSubCategories()[0];
-      if (first) {
-        this.workflowEngine.selectedMatrixIndicatorId.set(first.id);
-      }
+    this.workflowEngine.setMatrixViewMode(mode);
+  }
+
+  setMatrixStatusFilter(filter: 'all' | 'perlu_percepatan' | 'on_track'): void {
+    this.workflowEngine.setMatrixStatusFilter(filter);
+  }
+
+  onMatrixIndicatorChange(event: Event): void {
+    const target = event.target as HTMLSelectElement | null;
+    if (target?.value) {
+      this.workflowEngine.setSelectedMatrixIndicator(target.value);
     }
   }
 
-  setSelectedMatrixIndicator(indicatorId: string): void {
-    this.workflowEngine.selectedMatrixIndicatorId.set(indicatorId);
+  @HostListener('window:keydown.escape')
+  handleEscapeKey(): void {
+    if (this.selectedRegionForDrilldown()) {
+      this.closeRegionalDrilldown();
+    }
   }
 
   getScorecardRowForIndicator(sc: EvaluatedRegionalScorecard, indicatorId: string | null): EvaluatedStuntingRow | undefined {

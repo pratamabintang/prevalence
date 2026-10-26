@@ -217,9 +217,11 @@ export class StuntingWorkflowEngine {
   // ============================================================
   // REGIONAL PERFORMANCE EVALUATION STATE (Kabupaten/Kota)
   // ============================================================
-  readonly regionalSortBy = signal<'need_acceleration' | 'on_track' | 'name' | 'percentage'>('need_acceleration');
+  readonly regionalSortBy = signal<'need_acceleration' | 'on_track' | 'name' | 'percentage' | 'quarter' | 'yoy'>('need_acceleration');
   readonly regionalSortDirection = signal<'asc' | 'desc'>('desc');
   readonly regionalSortIndicatorId = signal<string | null>(null);
+  readonly regionalSortQuarter = signal<1 | 2 | 3 | 4 | null>(null);
+  readonly matrixStatusFilter = signal<'all' | 'perlu_percepatan' | 'on_track'>('all');
 
   readonly regionalScorecards = computed<EvaluatedRegionalScorecard[]>(() => {
     const cats = this.categories();
@@ -238,7 +240,21 @@ export class StuntingWorkflowEngine {
       sortBy: this.regionalSortBy(),
       sortDirection: this.regionalSortDirection(),
       sortIndicatorId: this.regionalSortIndicatorId() ?? undefined,
+      sortQuarter: this.regionalSortQuarter() ?? undefined,
     });
+  });
+
+  readonly filteredRegionalScorecards = computed<EvaluatedRegionalScorecard[]>(() => {
+    const scorecards = this.regionalScorecards();
+    const filter = this.matrixStatusFilter();
+    if (filter === 'all') return scorecards;
+    if (filter === 'perlu_percepatan') {
+      return scorecards.filter((s) => s.summary.perluPercepatanCount > 0);
+    }
+    if (filter === 'on_track') {
+      return scorecards.filter((s) => s.summary.perluPercepatanCount === 0 && s.summary.onTrackCount > 0);
+    }
+    return scorecards;
   });
 
   readonly selectedRegionForDrilldown = signal<string | null>(null);
@@ -251,6 +267,88 @@ export class StuntingWorkflowEngine {
 
   readonly matrixViewMode = signal<'all_indicators' | 'single_indicator'>('all_indicators');
   readonly selectedMatrixIndicatorId = signal<string | null>(null);
+
+  toggleRegionalSort(
+    col: 'need_acceleration' | 'on_track' | 'name' | 'percentage' | 'quarter' | 'yoy',
+    indicatorId?: string,
+    quarter?: 1 | 2 | 3 | 4,
+  ): void {
+    const currentSort = this.regionalSortBy();
+    const currentDir = this.regionalSortDirection();
+    const currentIndId = this.regionalSortIndicatorId();
+    const currentQ = this.regionalSortQuarter();
+
+    if (col === 'percentage' && indicatorId) {
+      if (currentSort === 'percentage' && currentIndId === indicatorId) {
+        this.regionalSortDirection.set(currentDir === 'asc' ? 'desc' : 'asc');
+      } else {
+        this.regionalSortBy.set('percentage');
+        this.regionalSortIndicatorId.set(indicatorId);
+        this.regionalSortQuarter.set(null);
+        this.regionalSortDirection.set('desc');
+      }
+      return;
+    }
+
+    if (col === 'quarter' && indicatorId && quarter) {
+      if (currentSort === 'quarter' && currentIndId === indicatorId && currentQ === quarter) {
+        this.regionalSortDirection.set(currentDir === 'asc' ? 'desc' : 'asc');
+      } else {
+        this.regionalSortBy.set('quarter');
+        this.regionalSortIndicatorId.set(indicatorId);
+        this.regionalSortQuarter.set(quarter);
+        this.regionalSortDirection.set('desc');
+      }
+      return;
+    }
+
+    if (col === 'yoy' && indicatorId) {
+      if (currentSort === 'yoy' && currentIndId === indicatorId) {
+        this.regionalSortDirection.set(currentDir === 'asc' ? 'desc' : 'asc');
+      } else {
+        this.regionalSortBy.set('yoy');
+        this.regionalSortIndicatorId.set(indicatorId);
+        this.regionalSortQuarter.set(null);
+        this.regionalSortDirection.set('desc');
+      }
+      return;
+    }
+
+    if (currentSort === col) {
+      this.regionalSortDirection.set(currentDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      this.regionalSortBy.set(col);
+      this.regionalSortIndicatorId.set(null);
+      this.regionalSortQuarter.set(null);
+      this.regionalSortDirection.set(col === 'name' ? 'asc' : 'desc');
+    }
+  }
+
+  openRegionalDrilldown(regionId: string): void {
+    this.selectedRegionForDrilldown.set(regionId);
+  }
+
+  closeRegionalDrilldown(): void {
+    this.selectedRegionForDrilldown.set(null);
+  }
+
+  setMatrixViewMode(mode: 'all_indicators' | 'single_indicator'): void {
+    this.matrixViewMode.set(mode);
+    if (mode === 'single_indicator' && !this.selectedMatrixIndicatorId()) {
+      const first = this.categories().flatMap((c) => c.subCategories)[0];
+      if (first) {
+        this.selectedMatrixIndicatorId.set(first.id);
+      }
+    }
+  }
+
+  setSelectedMatrixIndicator(indicatorId: string): void {
+    this.selectedMatrixIndicatorId.set(indicatorId);
+  }
+
+  setMatrixStatusFilter(filter: 'all' | 'perlu_percepatan' | 'on_track'): void {
+    this.matrixStatusFilter.set(filter);
+  }
 
   constructor() {
     this.loadStandardCategories();

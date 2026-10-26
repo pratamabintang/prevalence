@@ -142,9 +142,10 @@ export interface AggregatedEvaluationOptions {
 }
 
 export interface RegionalEvaluationOptions extends AggregatedEvaluationOptions {
-  sortBy?: 'need_acceleration' | 'on_track' | 'name' | 'percentage';
+  sortBy?: 'need_acceleration' | 'on_track' | 'name' | 'percentage' | 'quarter' | 'yoy';
   sortDirection?: 'asc' | 'desc';
   sortIndicatorId?: string;
+  sortQuarter?: 1 | 2 | 3 | 4;
 }
 
 export interface EvaluatedRegionalScorecard {
@@ -1220,10 +1221,29 @@ export class StuntingEvaluationEngine {
         cmp = a.regionName.localeCompare(b.regionName, 'id', { sensitivity: 'base' });
         return sortDirection === 'desc' ? -cmp : cmp;
       } else if (sortBy === 'percentage' && options.sortIndicatorId) {
-        const rowA = a.rows.find((r) => r.id === options.sortIndicatorId);
-        const rowB = b.rows.find((r) => r.id === options.sortIndicatorId);
-        const valA = rowA?.activeActual ?? -9999;
-        const valB = rowB?.activeActual ?? -9999;
+        const valA = a.rows.find((r) => r.id === options.sortIndicatorId)?.activeActual ?? null;
+        const valB = b.rows.find((r) => r.id === options.sortIndicatorId)?.activeActual ?? null;
+        if (valA === null && valB === null) return 0;
+        if (valA === null) return 1;
+        if (valB === null) return -1;
+        cmp = valA - valB;
+      } else if (sortBy === 'quarter' && options.sortQuarter && options.sortIndicatorId) {
+        const rowA = a.rows.find((r) => r.id === options.sortIndicatorId) ?? a.rows[0];
+        const rowB = b.rows.find((r) => r.id === options.sortIndicatorId) ?? b.rows[0];
+        const valA = rowA?.quarters[options.sortQuarter]?.actualAchievement ?? null;
+        const valB = rowB?.quarters[options.sortQuarter]?.actualAchievement ?? null;
+        if (valA === null && valB === null) return 0;
+        if (valA === null) return 1;
+        if (valB === null) return -1;
+        cmp = valA - valB;
+      } else if (sortBy === 'yoy' && options.sortIndicatorId) {
+        const rowA = a.rows.find((r) => r.id === options.sortIndicatorId) ?? a.rows[0];
+        const rowB = b.rows.find((r) => r.id === options.sortIndicatorId) ?? b.rows[0];
+        const valA = rowA?.yoyChange ?? null;
+        const valB = rowB?.yoyChange ?? null;
+        if (valA === null && valB === null) return 0;
+        if (valA === null) return 1;
+        if (valB === null) return -1;
         cmp = valA - valB;
       }
 

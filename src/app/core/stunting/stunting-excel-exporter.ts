@@ -154,7 +154,7 @@ export class StuntingExcelExporter {
     wsRekap['!merges'] = merges;
 
     // Sheet Komparasi Antar-Wilayah (Kabupaten/Kota)
-    let wsKomparasi: any = null;
+    let wsKomparasi: ReturnType<typeof ExcelEngine.buildStyledWorksheet> | null = null;
     if (regionalScorecards.length > 0) {
       const columnsKomparasi: ColumnHeaderMeta[] = [
         { key: 'Wilayah', layers: ['Wilayah Administratif', primaryKeyColumn] },
@@ -174,7 +174,7 @@ export class StuntingExcelExporter {
       }
 
       const komparasiRows = regionalScorecards.map((sc) => {
-        const rowObj: Record<string, any> = {
+        const rowObj: Record<string, unknown> = {
           Wilayah: sc.regionName,
           OnTrack: sc.summary.onTrackCount,
           Percepatan: sc.summary.perluPercepatanCount,
@@ -221,7 +221,7 @@ export class StuntingExcelExporter {
       });
     }
 
-    let wsWilayah: any = null;
+    let wsWilayah: ReturnType<typeof ExcelEngine.buildStyledWorksheet> | null = null;
     if (validJoinedRows.length > 0) {
       const columnsWilayah: ColumnHeaderMeta[] = [];
       if (primaryKeyColumn) {
@@ -240,7 +240,7 @@ export class StuntingExcelExporter {
       });
     }
 
-    const sheetsToExport: { sheetName: string; worksheet: any }[] = [
+    const sheetsToExport: Parameters<typeof ExcelEngine.exportMultiSheetTable>[1] = [
       { sheetName: 'Rekap Kinerja', worksheet: wsRekap },
     ];
     if (wsKomparasi) {
