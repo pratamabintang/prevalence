@@ -763,5 +763,76 @@ describe('HomeComponent', () => {
       expect(badge?.textContent).toContain('Sesi Aktif (/data)');
       expect(component.intervensiRows()[0]['% Konsumsi TTD']).toBe(91.2);
     });
+
+    it('should dynamically resolve targetCurrentYear and targetPrevYear from loaded datasets', () => {
+      component.loadedPrevYearDataset.set({
+        regionRows: [],
+        summaryRow: null,
+        totalRow: null,
+        targetRow: {
+          '% Skrining Anemia': '>= 88',
+        },
+        columnTargets: {
+          '% Konsumsi TTD': { enabled: true, operator: '>=', value: 85 },
+        },
+      });
+
+      component.loadedQuarterDatasets.set({
+        2: {
+          regionRows: [],
+          summaryRow: null,
+          totalRow: null,
+          targetRow: {
+            '% Skrining Anemia': '>= 92',
+          },
+          columnTargets: {
+            '% Konsumsi TTD': { enabled: true, operator: '>=', value: 95 },
+          },
+        },
+      });
+
+      fixture.detectChanges();
+
+      expect(component.getScopePrevYearTarget('1')).toBe('88%');
+      expect(component.getScopePrevYearTarget('2')).toBe('85%');
+      expect(component.getScopeCurrentYearTarget('1')).toBe('92%');
+      expect(component.getScopeCurrentYearTarget('2')).toBe('95%');
+
+      const outcomes = component.activeScopeOutcomes();
+      const anemia = outcomes.find((d) => d.no === '1');
+      const ttd = outcomes.find((d) => d.no === '2');
+
+      expect(anemia?.target2025).toBe('88%');
+      expect(anemia?.target2026).toBe('92%');
+      expect(ttd?.target2025).toBe('85%');
+      expect(ttd?.target2026).toBe('95%');
+    });
+
+    it('should dynamically resolve targetCurrentYear and targetPrevYear from workflowEngine categories if available', () => {
+      if (component.workflowEngine) {
+        component.workflowEngine.categories.set([
+          {
+            id: 'cat-test',
+            name: 'Kategori Test',
+            subCategories: [
+              {
+                id: 'sub-1',
+                no: '1',
+                name: '% Skrining Anemia',
+                numeratorCol: '% Skrining Anemia',
+                targetPrevYear: 82,
+                targetCurrentYear: 90,
+                calculationMode: 'percentage',
+                polarity: 'positive',
+              },
+            ],
+          },
+        ]);
+        fixture.detectChanges();
+
+        expect(component.getScopePrevYearTarget('1')).toBe('82%');
+        expect(component.getScopeCurrentYearTarget('1')).toBe('90%');
+      }
+    });
   });
 });

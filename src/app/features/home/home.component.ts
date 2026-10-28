@@ -34,6 +34,8 @@ import {
 import { IndicatorStuntingKnowledge } from '../../core/chart/indicator-stunting-knowledge';
 import { HealthDataExchange } from '../../core/domain/health-data-exchange';
 import { StuntingWorkflowEngine } from '../../core/stunting/stunting-workflow-engine';
+import { StuntingEvaluationEngine } from '../../core/stunting/stunting-evaluation-engine';
+import { IndicatorEvaluator, ColumnTargetConfig } from '../../core/evaluation/indicator-evaluator';
 import { PeriodPartitionWorkspace } from '../../core/storage/period-partition-workspace';
 import { DinkesSpreadsheetParser } from '../../core/excel/dinkes-spreadsheet-parser';
 import { MASALAH_GIZI_JOIN_CONFIG } from '../excel-join/masalah-gizi-join-config';
@@ -58,6 +60,7 @@ export interface LoadedQuarterDinkesData {
   summaryRow: Record<string, unknown> | null;
   totalRow: Record<string, unknown> | null;
   targetRow?: Record<string, unknown> | null;
+  columnTargets?: Record<string, ColumnTargetConfig> | null;
 }
 
 const OUTCOME_INDICATOR_COLUMN_MAP: Record<
@@ -246,6 +249,7 @@ export class HomeComponent implements OnInit {
           summaryRow: qDataset.dataset.summaryRow || null,
           totalRow: qDataset.dataset.totalRow || null,
           targetRow: qDataset.dataset.targetRow || null,
+          columnTargets: qDataset.dataset.columnTargets || null,
         };
         this.loadedQuarterDatasets.set(loadedMap);
         if (qDataset.dataset.regionRows && qDataset.dataset.regionRows.length >= 30) {
@@ -790,14 +794,125 @@ export class HomeComponent implements OnInit {
   }
 
   getScopePrevYearTarget(indNo: string): string {
-    const prevData = this.loadedPrevYearDataset();
     const cfg = OUTCOME_INDICATOR_COLUMN_MAP[indNo];
-    if (prevData && cfg?.pCol && prevData.targetRow) {
-      const t = this.extractValueFromRow(prevData.targetRow, cfg.pCol);
-      if (t !== null) return `${t}%`;
+
+    // 1. Cek konfigurasi StuntingWorkflowEngine jika tersedia
+    if (this.workflowEngine) {
+      const cats = this.workflowEngine.categories();
+      for (const cat of cats) {
+        const sub = cat.subCategories?.find(
+          (s) =>
+            String(s.no) === String(indNo) ||
+            (cfg?.pCol && s.name && s.name.toLowerCase().includes(cfg.pCol.toLowerCase())),
+        );
+        if (
+          sub &&
+          sub.targetPrevYear !== null &&
+          sub.targetPrevYear !== undefined &&
+          String(sub.targetPrevYear).trim() !== '' &&
+          String(sub.targetPrevYear).trim() !== '-'
+        ) {
+          const num = IndicatorEvaluator.parseSmartNumber(sub.targetPrevYear);
+          if (num !== null) return `${num}%`;
+        }
+      }
     }
+
+    // 2. Cek dataset TW4 tahun sebelumnya yang dimuat
+    const prevData = this.loadedPrevYearDataset();
+    if (prevData && cfg?.pCol) {
+      if (
+        prevData.columnTargets?.[cfg.pCol]?.enabled &&
+        prevData.columnTargets[cfg.pCol]?.value !== null
+      ) {
+        return `${prevData.columnTargets[cfg.pCol].value}%`;
+      }
+      if (prevData.targetRow && prevData.targetRow[cfg.pCol] !== undefined) {
+        const cleaned = StuntingEvaluationEngine.cleanTargetValue(prevData.targetRow[cfg.pCol]);
+        if (cleaned.value !== null) return `${cleaned.value}%`;
+      }
+    }
+
+    // 3. Cek default indikator standar Dinkes
+    const std = StuntingEvaluationEngine.DINKES_STANDARD_INDICATORS.find(
+      (s) => String(s.no) === String(indNo),
+    );
+    if (std && std.defaultTargetPrev !== null && std.defaultTargetPrev !== undefined) {
+      return `${std.defaultTargetPrev}%`;
+    }
+
+    // 4. Fallback ke data provinsi awal
     const defaultProv = INTERVENTION_OUTCOMES_DATA.find((it) => it.no === indNo);
     return defaultProv?.target2025 ?? '70%';
+  }
+
+  getScopeCurrentYearTarget(indNo: string): string {
+    const cfg = OUTCOME_INDICATOR_COLUMN_MAP[indNo];
+
+    // 1. Cek konfigurasi StuntingWorkflowEngine jika tersedia
+    if (this.workflowEngine) {
+      const cats = this.workflowEngine.categories();
+      for (const cat of cats) {
+        const sub = cat.subCategories?.find(
+          (s) =>
+            String(s.no) === String(indNo) ||
+            (cfg?.pCol && s.name && s.name.toLowerCase().includes(cfg.pCol.toLowerCase())),
+        );
+        if (
+          sub &&
+          sub.targetCurrentYear !== null &&
+          sub.targetCurrentYear !== undefined &&
+          String(sub.targetCurrentYear).trim() !== '' &&
+          String(sub.targetCurrentYear).trim() !== '-'
+        ) {
+          const num = IndicatorEvaluator.parseSmartNumber(sub.targetCurrentYear);
+          if (num !== null) return `${num}%`;
+        }
+      }
+    }
+
+    // 2. Cek dataset kuartal aktif atau kuartal terbaru yang dimuat
+    const loaded = this.loadedQuarterDatasets();
+    const selQ = this.selectedOutcomeQuarter();
+    const checkOrder: (1 | 2 | 3 | 4)[] = [selQ, 4, 3, 2, 1];
+    for (const q of checkOrder) {
+      const qData = loaded[q];
+      if (qData && cfg?.pCol) {
+        if (
+          qData.columnTargets?.[cfg.pCol]?.enabled &&
+          qData.columnTargets[cfg.pCol]?.value !== null
+        ) {
+          return `${qData.columnTargets[cfg.pCol].value}%`;
+        }
+        if (qData.targetRow && qData.targetRow[cfg.pCol] !== undefined) {
+          const cleaned = StuntingEvaluationEngine.cleanTargetValue(qData.targetRow[cfg.pCol]);
+          if (cleaned.value !== null) return `${cleaned.value}%`;
+        }
+      }
+    }
+
+    // 3. Cek pertukaran data dari HealthDataExchange
+    const transferred = this.healthDataExchange.chartData();
+    if (transferred && cfg?.pCol && transferred.indicatorTargets?.[cfg.pCol] !== undefined) {
+      const t = transferred.indicatorTargets[cfg.pCol];
+      if (t !== null && t !== undefined && t > 0) return `${t}%`;
+    }
+
+    // 4. Cek target default indikator standar Dinkes
+    const std = StuntingEvaluationEngine.DINKES_STANDARD_INDICATORS.find(
+      (s) => String(s.no) === String(indNo),
+    );
+    if (std && std.defaultTargetCurrent !== null && std.defaultTargetCurrent !== undefined) {
+      return `${std.defaultTargetCurrent}%`;
+    }
+
+    // 5. Cek target default pemetaan kolom
+    if (cfg?.target) {
+      return `${cfg.target}%`;
+    }
+
+    const defaultProv = INTERVENTION_OUTCOMES_DATA.find((it) => it.no === indNo);
+    return defaultProv?.target2026 ?? '70%';
   }
 
   private buildDistrictOutcomes(row: Record<string, unknown>): InterventionOutcomeItem[] {
@@ -887,6 +1002,37 @@ export class HomeComponent implements OnInit {
     const tw1_9d = calcTW1(p9d, 21.81, 38.51);
     const tw1_10 = calcTW1(p10, 12.02, 45.67);
 
+    const t1 = this.getScopeCurrentYearTarget('1');
+    const t1Num = IndicatorEvaluator.parseSmartNumber(t1) ?? 77;
+    const t2 = this.getScopeCurrentYearTarget('2');
+    const t2Num = IndicatorEvaluator.parseSmartNumber(t2) ?? 67;
+    const t3 = this.getScopeCurrentYearTarget('3');
+    const t3Num = IndicatorEvaluator.parseSmartNumber(t3) ?? 60;
+    const t4 = this.getScopeCurrentYearTarget('4');
+    const t4Num = IndicatorEvaluator.parseSmartNumber(t4) ?? 39;
+    const t5 = this.getScopeCurrentYearTarget('5');
+    const t5Num = IndicatorEvaluator.parseSmartNumber(t5) ?? 85;
+    const t6a = this.getScopeCurrentYearTarget('6a');
+    const t6aNum = IndicatorEvaluator.parseSmartNumber(t6a) ?? 90;
+    const t6b = this.getScopeCurrentYearTarget('6b');
+    const t6bNum = IndicatorEvaluator.parseSmartNumber(t6b) ?? 55;
+    const t7 = this.getScopeCurrentYearTarget('7');
+    const t7Num = IndicatorEvaluator.parseSmartNumber(t7) ?? 76;
+    const t8 = this.getScopeCurrentYearTarget('8');
+    const t8Num = IndicatorEvaluator.parseSmartNumber(t8) ?? 76;
+    const t9a = this.getScopeCurrentYearTarget('9a');
+    const t9aNum = IndicatorEvaluator.parseSmartNumber(t9a) ?? 70;
+    const t9b = this.getScopeCurrentYearTarget('9b');
+    const t9bNum = IndicatorEvaluator.parseSmartNumber(t9b) ?? 70;
+    const t9c = this.getScopeCurrentYearTarget('9c');
+    const t9cNum = IndicatorEvaluator.parseSmartNumber(t9c) ?? 70;
+    const t9d = this.getScopeCurrentYearTarget('9d');
+    const t9dNum = IndicatorEvaluator.parseSmartNumber(t9d) ?? 92;
+    const t10 = this.getScopeCurrentYearTarget('10');
+    const t10Num = IndicatorEvaluator.parseSmartNumber(t10) ?? 56.25;
+    const t11 = this.getScopeCurrentYearTarget('11');
+    const t11Num = IndicatorEvaluator.parseSmartNumber(t11) ?? 100;
+
     return [
       {
         no: '1',
@@ -895,11 +1041,11 @@ export class HomeComponent implements OnInit {
         indicator: 'Remaja putri mendapat skrining anemia',
         target2025: this.getScopePrevYearTarget('1'),
         realisasi2025: this.getScopePrevYearOutcome(distName, '1'),
-        target2026: '77%',
+        target2026: t1,
         jumlahSasaranTW2: c1,
         capaianTW1: tw1_1,
         capaianTW2: p1,
-        status: p1 !== null && p1 >= 77 ? 'On track' : 'Perlu percepatan',
+        status: p1 !== null && p1 >= t1Num ? 'On track' : 'Perlu percepatan',
         quarters: makeQuarterData(c1, p1, 84.09, 93.76),
       },
       {
@@ -909,11 +1055,11 @@ export class HomeComponent implements OnInit {
         indicator: 'Remaja putri mengonsumsi TTD (tablet tambah darah)',
         target2025: this.getScopePrevYearTarget('2'),
         realisasi2025: this.getScopePrevYearOutcome(distName, '2'),
-        target2026: '67%',
+        target2026: t2,
         jumlahSasaranTW2: c2,
         capaianTW1: tw1_2,
         capaianTW2: p2,
-        status: p2 !== null && p2 >= 67 ? 'On track' : 'Perlu percepatan',
+        status: p2 !== null && p2 >= t2Num ? 'On track' : 'Perlu percepatan',
         quarters: makeQuarterData(c2, p2, 76.06, 93.64),
       },
       {
@@ -923,11 +1069,11 @@ export class HomeComponent implements OnInit {
         indicator: 'Ibu hamil ANC minimal 6x*',
         target2025: this.getScopePrevYearTarget('3'),
         realisasi2025: this.getScopePrevYearOutcome(distName, '3'),
-        target2026: '60%',
+        target2026: t3,
         jumlahSasaranTW2: c3,
         capaianTW1: tw1_3,
         capaianTW2: p3,
-        status: p3 !== null && p3 >= 60 ? 'On track' : 'Perlu percepatan',
+        status: p3 !== null && p3 >= t3Num ? 'On track' : 'Perlu percepatan',
         quarters: makeQuarterData(c3, p3, 28, 39.64),
       },
       {
@@ -937,11 +1083,11 @@ export class HomeComponent implements OnInit {
         indicator: 'Ibu hamil mengonsumsi suplementasi gizi (TTD/MMS) minimal 180 tablet selama kehamilan**',
         target2025: this.getScopePrevYearTarget('4'),
         realisasi2025: this.getScopePrevYearOutcome(distName, '4'),
-        target2026: '39%',
+        target2026: t4,
         jumlahSasaranTW2: c4,
         capaianTW1: tw1_4,
         capaianTW2: p4,
-        status: p4 !== null && p4 >= 39 ? 'On track' : 'Perlu percepatan',
+        status: p4 !== null && p4 >= t4Num ? 'On track' : 'Perlu percepatan',
         quarters: makeQuarterData(c4, p4, 7.27, 10.9),
       },
       {
@@ -951,11 +1097,11 @@ export class HomeComponent implements OnInit {
         indicator: 'Ibu hamil KEK mendapat tambahan asupan gizi',
         target2025: this.getScopePrevYearTarget('5'),
         realisasi2025: this.getScopePrevYearOutcome(distName, '5'),
-        target2026: '85%',
+        target2026: t5,
         jumlahSasaranTW2: c5,
         capaianTW1: tw1_5,
         capaianTW2: p5,
-        status: p5 !== null && p5 >= 85 ? 'On track' : 'Perlu percepatan',
+        status: p5 !== null && p5 >= t5Num ? 'On track' : 'Perlu percepatan',
         quarters: makeQuarterData(c5, p5, 0.5, 26.44),
       },
       {
@@ -965,11 +1111,11 @@ export class HomeComponent implements OnInit {
         indicator: 'Pemantauan pertumbuhan balita',
         target2025: this.getScopePrevYearTarget('6a'),
         realisasi2025: this.getScopePrevYearOutcome(distName, '6a'),
-        target2026: '90%',
+        target2026: t6a,
         jumlahSasaranTW2: c6a,
         capaianTW1: tw1_6a,
         capaianTW2: p6a,
-        status: p6a !== null && p6a >= 90 ? 'On track' : 'Perlu percepatan',
+        status: p6a !== null && p6a >= t6aNum ? 'On track' : 'Perlu percepatan',
         quarters: makeQuarterData(c6a, p6a, 96.08, 96.13),
       },
       {
@@ -979,11 +1125,11 @@ export class HomeComponent implements OnInit {
         indicator: 'Pemantauan pertumbuhan dan perkembangan balita',
         target2025: this.getScopePrevYearTarget('6b'),
         realisasi2025: this.getScopePrevYearOutcome(distName, '6b'),
-        target2026: '55%',
+        target2026: t6b,
         jumlahSasaranTW2: c6b,
         capaianTW1: tw1_6b,
         capaianTW2: p6b,
-        status: p6b !== null && p6b >= 55 ? 'On track' : 'Perlu percepatan',
+        status: p6b !== null && p6b >= t6bNum ? 'On track' : 'Perlu percepatan',
         quarters: makeQuarterData(c6b, p6b, 8.83, 11.73),
       },
       {
@@ -993,11 +1139,11 @@ export class HomeComponent implements OnInit {
         indicator: 'Bayi usia kurang dari 6 bulan mendapat ASI eksklusif',
         target2025: this.getScopePrevYearTarget('7'),
         realisasi2025: this.getScopePrevYearOutcome(distName, '7'),
-        target2026: '76%',
+        target2026: t7,
         jumlahSasaranTW2: c7,
         capaianTW1: tw1_7,
         capaianTW2: p7,
-        status: p7 !== null && p7 >= 76 ? 'On track' : 'Perlu percepatan',
+        status: p7 !== null && p7 >= t7Num ? 'On track' : 'Perlu percepatan',
         quarters: makeQuarterData(c7, p7, 88.47, 89.77),
       },
       {
@@ -1007,11 +1153,11 @@ export class HomeComponent implements OnInit {
         indicator: 'Anak 6-23 bulan mendapat MP-ASI',
         target2025: this.getScopePrevYearTarget('8'),
         realisasi2025: this.getScopePrevYearOutcome(distName, '8'),
-        target2026: '76%',
+        target2026: t8,
         jumlahSasaranTW2: c8,
         capaianTW1: tw1_8,
         capaianTW2: p8,
-        status: p8 !== null && p8 >= 76 ? 'On track' : 'Perlu percepatan',
+        status: p8 !== null && p8 >= t8Num ? 'On track' : 'Perlu percepatan',
         quarters: makeQuarterData(c8, p8, 95.53, 95.31),
       },
       {
@@ -1021,11 +1167,11 @@ export class HomeComponent implements OnInit {
         indicator: 'Balita berat badan tidak naik (T) mendapat tambahan asupan gizi',
         target2025: this.getScopePrevYearTarget('9a'),
         realisasi2025: this.getScopePrevYearOutcome(distName, '9a'),
-        target2026: '70%',
+        target2026: t9a,
         jumlahSasaranTW2: c9a,
         capaianTW1: tw1_9a,
         capaianTW2: p9a,
-        status: p9a !== null && p9a >= 70 ? 'On track' : 'Perlu percepatan',
+        status: p9a !== null && p9a >= t9aNum ? 'On track' : 'Perlu percepatan',
         quarters: makeQuarterData(c9a, p9a, 0.54, 3.37),
       },
       {
@@ -1035,11 +1181,11 @@ export class HomeComponent implements OnInit {
         indicator: 'Balita berat badan kurang mendapat tambahan asupan gizi',
         target2025: this.getScopePrevYearTarget('9b'),
         realisasi2025: this.getScopePrevYearOutcome(distName, '9b'),
-        target2026: '70%',
+        target2026: t9b,
         jumlahSasaranTW2: c9b,
         capaianTW1: tw1_9b,
         capaianTW2: p9b,
-        status: p9b !== null && p9b >= 70 ? 'On track' : 'Perlu percepatan',
+        status: p9b !== null && p9b >= t9bNum ? 'On track' : 'Perlu percepatan',
         quarters: makeQuarterData(c9b, p9b, 0.44, 6.32),
       },
       {
@@ -1049,11 +1195,11 @@ export class HomeComponent implements OnInit {
         indicator: 'Balita gizi kurang mendapat tambahan asupan gizi',
         target2025: this.getScopePrevYearTarget('9c'),
         realisasi2025: this.getScopePrevYearOutcome(distName, '9c'),
-        target2026: '70%',
+        target2026: t9c,
         jumlahSasaranTW2: c9c,
         capaianTW1: tw1_9c,
         capaianTW2: p9c,
-        status: p9c !== null && p9c >= 70 ? 'On track' : 'Perlu percepatan',
+        status: p9c !== null && p9c >= t9cNum ? 'On track' : 'Perlu percepatan',
         quarters: makeQuarterData(c9c, p9c, 0.54, 8.27),
       },
       {
@@ -1063,11 +1209,11 @@ export class HomeComponent implements OnInit {
         indicator: 'Balita gizi buruk mendapat pelayanan tata laksana gizi buruk',
         target2025: this.getScopePrevYearTarget('9d'),
         realisasi2025: this.getScopePrevYearOutcome(distName, '9d'),
-        target2026: '92%',
+        target2026: t9d,
         jumlahSasaranTW2: c9d,
         capaianTW1: tw1_9d,
         capaianTW2: p9d,
-        status: p9d !== null && p9d >= 92 ? 'On track' : 'Perlu percepatan',
+        status: p9d !== null && p9d >= t9dNum ? 'On track' : 'Perlu percepatan',
         quarters: makeQuarterData(c9d, p9d, 21.81, 38.51),
       },
       {
@@ -1077,11 +1223,11 @@ export class HomeComponent implements OnInit {
         indicator: 'Baduta memperoleh imunisasi lengkap',
         target2025: this.getScopePrevYearTarget('10'),
         realisasi2025: this.getScopePrevYearOutcome(distName, '10'),
-        target2026: '56.25%',
+        target2026: t10,
         jumlahSasaranTW2: c10,
         capaianTW1: tw1_10,
         capaianTW2: p10,
-        status: p10 !== null && p10 >= 56.25 ? 'On track' : 'Perlu percepatan',
+        status: p10 !== null && p10 >= t10Num ? 'On track' : 'Perlu percepatan',
         quarters: makeQuarterData(c10, p10, 12.02, 45.67),
       },
       {
@@ -1091,7 +1237,7 @@ export class HomeComponent implements OnInit {
         indicator: 'Kab/Kota yang telah terverifikasi 100% Kepala Keluarga stop Buang Air Besar Sembarangan (BABS)***',
         target2025: this.getScopePrevYearTarget('11'),
         realisasi2025: this.getScopePrevYearOutcome(distName, '11'),
-        target2026: '100%',
+        target2026: t11,
         jumlahSasaranTW2: null,
         capaianTW1: 100,
         capaianTW2: 100,
@@ -1137,6 +1283,7 @@ export class HomeComponent implements OnInit {
         return baseItems.map((base) => ({
           ...base,
           target2025: this.getScopePrevYearTarget(base.no),
+          target2026: this.getScopeCurrentYearTarget(base.no),
           realisasi2025: this.getScopePrevYearOutcome('province', base.no) ?? base.realisasi2025,
         }));
       }
@@ -1258,7 +1405,10 @@ export class HomeComponent implements OnInit {
       const availableQNums = ([4, 3, 2, 1] as const).filter((q) => quartersObj[q]?.hasData);
       const latestQ = availableQNums.length > 0 ? availableQNums[0] : null;
       const latestAch = latestQ ? quartersObj[latestQ]?.actualAchievement : null;
-      const targetVal = cfg ? cfg.target : parseFloat(base.target2026);
+      const scopeCurrentTarget = this.getScopeCurrentYearTarget(base.no);
+      const targetVal =
+        IndicatorEvaluator.parseSmartNumber(scopeCurrentTarget) ??
+        (cfg ? cfg.target : parseFloat(base.target2026));
 
       let status = base.status;
       if (latestAch !== null && !isNaN(targetVal)) {
@@ -1268,6 +1418,7 @@ export class HomeComponent implements OnInit {
       return {
         ...base,
         target2025: scopePrevTarget,
+        target2026: scopeCurrentTarget,
         realisasi2025: scopePrevActual ?? base.realisasi2025,
         capaianTW1: quartersObj[1]?.actualAchievement ?? base.capaianTW1,
         capaianTW2: quartersObj[2]?.actualAchievement ?? base.capaianTW2,
@@ -1519,6 +1670,7 @@ export class HomeComponent implements OnInit {
         summaryRow: enginePrevTw4.summaryRow || null,
         totalRow: enginePrevTw4.totalRow || null,
         targetRow: enginePrevTw4.targetRow || null,
+        columnTargets: enginePrevTw4.columnTargets || null,
       });
     }
 
@@ -1569,6 +1721,7 @@ export class HomeComponent implements OnInit {
                   summaryRow: qDataset.dataset.summaryRow || null,
                   totalRow: qDataset.dataset.totalRow || null,
                   targetRow: qDataset.dataset.targetRow || null,
+                  columnTargets: qDataset.dataset.columnTargets || null,
                 };
               }
             } catch (loadErr) {
@@ -1607,6 +1760,7 @@ export class HomeComponent implements OnInit {
                 summaryRow: pDataset.summaryRow || null,
                 totalRow: pDataset.totalRow || null,
                 targetRow: pDataset.targetRow || null,
+                columnTargets: pDataset.columnTargets || null,
               });
               if (this.workflowEngine) {
                 this.workflowEngine.applyPreviousYearTw4Data(pDataset);
