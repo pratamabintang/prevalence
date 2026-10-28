@@ -8,11 +8,7 @@ import { defaultRouter } from './routes/default';
 import { analyticsRouter } from './routes/analytics';
 import { requireAdminForMutations } from './middleware/auth';
 
-export interface AppOptions {
-  disableAuth?: boolean;
-}
-
-export function createApp(options?: AppOptions): Express {
+export function createApp(): Express {
   const app = express();
 
   // Middleware
@@ -21,9 +17,7 @@ export function createApp(options?: AppOptions): Express {
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
   // Admin authentication guard for mutating endpoints
-  if (!options?.disableAuth && process.env.DATA_AUTH_DISABLED !== 'true') {
-    app.use('/api', requireAdminForMutations);
-  }
+  app.use('/api', requireAdminForMutations);
 
   // API Routes
   app.use('/api', healthRouter);

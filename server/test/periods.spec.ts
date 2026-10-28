@@ -11,6 +11,7 @@ import { seedDistricts } from '../src/db/seeds';
 describe('Backend API: Quarterly Period Storage & Archive (Seam 1)', () => {
   let app: ReturnType<typeof createApp>;
   let tempUploadsDir: string;
+  const authHeaders = { 'X-Admin-Id': 'bidangkesmas', 'X-Admin-Password': '@Dinkes123#' };
 
   beforeAll(() => {
     // Siapkan temporary uploads folder
@@ -20,7 +21,7 @@ describe('Backend API: Quarterly Period Storage & Archive (Seam 1)', () => {
     const db = initDb({ inMemory: true });
     migrateSchema(db);
     seedDistricts(db);
-    app = createApp({ disableAuth: true });
+    app = createApp();
   });
 
   afterAll(() => {
@@ -42,7 +43,7 @@ describe('Backend API: Quarterly Period Storage & Archive (Seam 1)', () => {
 
   it('POST /api/periods/:year/:quarter - harus menolak triwulan yang tidak valid', async () => {
     const res = await request(app)
-      .post('/api/periods/2026/TW5')
+      .post('/api/periods/2026/TW5').set(authHeaders)
       .attach('rawFile', Buffer.from('dummy excel content'), 'test.xlsx');
 
     expect(res.status).toBe(400);
@@ -58,7 +59,7 @@ describe('Backend API: Quarterly Period Storage & Archive (Seam 1)', () => {
     const mockConfig = JSON.stringify({ joinBy: 'Kabupaten/Kota', sheets: [] });
 
     const res = await request(app)
-      .post('/api/periods/2026/TW1')
+      .post('/api/periods/2026/TW1').set(authHeaders)
       .attach('rawFile', dummyBuffer, 'input_tw1.xlsx')
       .field('observations', mockObservations)
       .field('config', mockConfig);
@@ -119,17 +120,17 @@ describe('Backend API: Quarterly Period Storage & Archive (Seam 1)', () => {
 
   describe('DELETE /api/periods/:year/:quarter', () => {
     it('harus menolak request dengan parameter tidak valid (400)', async () => {
-      const res = await request(app).delete('/api/periods/abc/TW1');
+      const res = await request(app).delete('/api/periods/abc/TW1').set(authHeaders);
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
 
-      const res2 = await request(app).delete('/api/periods/2026/TW5');
+      const res2 = await request(app).delete('/api/periods/2026/TW5').set(authHeaders);
       expect(res2.status).toBe(400);
       expect(res2.body.success).toBe(false);
     });
 
     it('harus mengembalikan 404 jika periode tidak ditemukan', async () => {
-      const res = await request(app).delete('/api/periods/2099/TW4');
+      const res = await request(app).delete('/api/periods/2099/TW4').set(authHeaders);
       expect(res.status).toBe(404);
       expect(res.body.success).toBe(false);
     });
@@ -138,7 +139,7 @@ describe('Backend API: Quarterly Period Storage & Archive (Seam 1)', () => {
       const targetDir = path.join(tempUploadsDir, '2026', 'TW1');
       expect(fs.existsSync(targetDir)).toBe(true);
 
-      const delRes = await request(app).delete('/api/periods/2026/TW1');
+      const delRes = await request(app).delete('/api/periods/2026/TW1').set(authHeaders);
       expect(delRes.status).toBe(200);
       expect(delRes.body.success).toBe(true);
       expect(delRes.body.message).toContain('berhasil dihapus');
@@ -176,7 +177,7 @@ describe('Backend API: Quarterly Period Storage & Archive (Seam 1)', () => {
       });
 
       const res = await request(app)
-        .post('/api/default')
+        .post('/api/default').set(authHeaders)
         .attach('excelFile', dummyBuffer, 'custom-default.xlsx')
         .field('fileName', 'custom-default.xlsx')
         .field('config', mockConfig);
@@ -217,7 +218,7 @@ describe('Backend API: Quarterly Period Storage & Archive (Seam 1)', () => {
     });
 
     it('DELETE /api/default - harus menghapus Default Kustom dari disk dan SQLite', async () => {
-      const delRes = await request(app).delete('/api/default');
+      const delRes = await request(app).delete('/api/default').set(authHeaders);
       expect(delRes.status).toBe(200);
       expect(delRes.body.success).toBe(true);
 

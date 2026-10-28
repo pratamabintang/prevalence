@@ -48,6 +48,9 @@ export class DataAuthService {
   }
 
   getAuthHeaders(): Record<string, string> {
+    if (!this.isAuthenticated()) {
+      return {};
+    }
     const configuredId = environment.dataAdminId ?? 'bidangkesmas';
     const configuredPw = environment.dataAdminPassword ?? '@Dinkes123#';
     const basicToken = btoa(`${configuredId}:${configuredPw}`);

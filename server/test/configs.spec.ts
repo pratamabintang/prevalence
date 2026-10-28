@@ -6,11 +6,12 @@ import { migrateSchema } from '../src/db/schema';
 
 describe('Backend API: Configurations Preset Persistence (Seam 1)', () => {
   let app: ReturnType<typeof createApp>;
+  const authHeaders = { 'X-Admin-Id': 'bidangkesmas', 'X-Admin-Password': '@Dinkes123#' };
 
   beforeAll(() => {
     const db = initDb({ inMemory: true });
     migrateSchema(db);
-    app = createApp({ disableAuth: true });
+    app = createApp();
   });
 
   afterAll(() => {
@@ -41,7 +42,7 @@ describe('Backend API: Configurations Preset Persistence (Seam 1)', () => {
     };
 
     const res = await request(app)
-      .put('/api/configs/join')
+      .put('/api/configs/join').set(authHeaders)
       .send(mockJoinConfig);
 
     expect(res.status).toBe(200);
@@ -63,7 +64,7 @@ describe('Backend API: Configurations Preset Persistence (Seam 1)', () => {
     };
 
     const putRes = await request(app)
-      .put('/api/configs/join')
+      .put('/api/configs/join').set(authHeaders)
       .send(updatedConfig);
     expect(putRes.status).toBe(200);
 
@@ -75,8 +76,8 @@ describe('Backend API: Configurations Preset Persistence (Seam 1)', () => {
     const chartConfig = { viewMode: 'by-indicator', activeSeries: ['tw1', 'tw2'] };
     const stuntingConfig = { baselineQuarter: 'TW1', evaluationQuarter: 'TW2' };
 
-    await request(app).put('/api/configs/chart').send(chartConfig);
-    await request(app).put('/api/configs/stunting').send(stuntingConfig);
+    await request(app).put('/api/configs/chart').set(authHeaders).send(chartConfig);
+    await request(app).put('/api/configs/stunting').set(authHeaders).send(stuntingConfig);
 
     const chartRes = await request(app).get('/api/configs/chart');
     const stuntingRes = await request(app).get('/api/configs/stunting');

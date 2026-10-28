@@ -53,7 +53,10 @@ describe('DataAuthService', () => {
     expect(sessionStorage.getItem('dinkes_data_auth')).toBeNull();
   });
 
-  it('should generate auth headers containing admin credentials', () => {
+  it('should return empty headers when unauthenticated and admin credentials when authenticated', () => {
+    expect(service.getAuthHeaders()).toEqual({});
+
+    service.login('bidangkesmas', '@Dinkes123#');
     const headers = service.getAuthHeaders();
     expect(headers['X-Admin-Id']).toBe('bidangkesmas');
     expect(headers['X-Admin-Password']).toBe('@Dinkes123#');
