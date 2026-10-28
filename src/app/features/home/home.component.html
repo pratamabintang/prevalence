@@ -1,85 +1,220 @@
 <div class="w-full min-h-screen bg-[#F8FAFD] p-4 sm:p-6 lg:p-8 flex flex-col gap-6 pb-14">
   <!-- PAGE HEADER & TOP SEGMENTED CATEGORY SWITCHER -->
-  <header class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-4 border-b border-slate-200">
-    <div>
-      <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
-        Sistem Pemantauan Intervensi & Masalah Gizi
-      </h1>
-      <p class="text-xs sm:text-sm text-slate-600 mt-1">
-        Visualisasi spasial terpadu, pemetaan beban gizi, dan evaluasi hasil intervensi spesifik percepatan penurunan stunting
-      </p>
+  <header class="flex flex-col gap-4 pb-4 border-b border-slate-200">
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
+          Sistem Pemantauan Intervensi & Masalah Gizi
+        </h1>
+        <p class="text-xs sm:text-sm text-slate-600 mt-1">
+          Visualisasi spasial terpadu, pemetaan beban gizi, dan evaluasi hasil intervensi spesifik percepatan penurunan stunting
+        </p>
+      </div>
+
+      <!-- TOP SEGMENTED CATEGORY NAVIGATION (FORMERLY BOTTOM OVAL DOCK) -->
+      <nav
+        class="inline-flex flex-wrap items-center gap-1 p-1 bg-slate-200/75 rounded-xl border border-slate-300/80 self-start lg:self-auto"
+        aria-label="Navigasi Kategori Beranda"
+        role="tablist"
+        data-testid="bottom-oval-navigation"
+      >
+        <button
+          type="button"
+          role="tab"
+          [attr.aria-selected]="activeCategory() === 'intervensi-heatmap'"
+          (click)="setActiveCategory('intervensi-heatmap')"
+          data-testid="tab-intervensi-heatmap"
+          class="rounded-lg px-3.5 py-2 text-xs sm:text-sm font-semibold flex items-center gap-2 transition-all duration-150 cursor-pointer select-none focus-visible:ring-2 focus-visible:ring-[#525AFF]"
+          [class.bg-[#525AFF]]="activeCategory() === 'intervensi-heatmap'"
+          [class.text-white]="activeCategory() === 'intervensi-heatmap'"
+          [class.shadow-xs]="activeCategory() === 'intervensi-heatmap'"
+          [class.text-slate-700]="activeCategory() !== 'intervensi-heatmap'"
+          [class.hover:text-slate-900]="activeCategory() !== 'intervensi-heatmap'"
+          [class.hover:bg-white/70]="activeCategory() !== 'intervensi-heatmap'"
+        >
+          <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+          </svg>
+          <span class="hidden sm:inline">Heatmap Intervensi Spesifik</span>
+          <span class="sm:hidden">Intervensi</span>
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          [attr.aria-selected]="activeCategory() === 'gizi-heatmap'"
+          (click)="setActiveCategory('gizi-heatmap')"
+          data-testid="tab-gizi-heatmap"
+          class="rounded-lg px-3.5 py-2 text-xs sm:text-sm font-semibold flex items-center gap-2 transition-all duration-150 cursor-pointer select-none focus-visible:ring-2 focus-visible:ring-[#525AFF]"
+          [class.bg-[#525AFF]]="activeCategory() === 'gizi-heatmap'"
+          [class.text-white]="activeCategory() === 'gizi-heatmap'"
+          [class.shadow-xs]="activeCategory() === 'gizi-heatmap'"
+          [class.text-slate-700]="activeCategory() !== 'gizi-heatmap'"
+          [class.hover:text-slate-900]="activeCategory() !== 'gizi-heatmap'"
+          [class.hover:bg-white/70]="activeCategory() !== 'gizi-heatmap'"
+        >
+          <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+          </svg>
+          <span class="hidden sm:inline">Heatmap Masalah Gizi</span>
+          <span class="sm:hidden">Masalah Gizi</span>
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          [attr.aria-selected]="activeCategory() === 'intervensi-outcomes'"
+          (click)="setActiveCategory('intervensi-outcomes')"
+          data-testid="tab-intervensi-outcomes"
+          class="rounded-lg px-3.5 py-2 text-xs sm:text-sm font-semibold flex items-center gap-2 transition-all duration-150 cursor-pointer select-none focus-visible:ring-2 focus-visible:ring-[#525AFF]"
+          [class.bg-[#525AFF]]="activeCategory() === 'intervensi-outcomes'"
+          [class.text-white]="activeCategory() === 'intervensi-outcomes'"
+          [class.shadow-xs]="activeCategory() === 'intervensi-outcomes'"
+          [class.text-slate-700]="activeCategory() !== 'intervensi-outcomes'"
+          [class.hover:text-slate-900]="activeCategory() !== 'intervensi-outcomes'"
+          [class.hover:bg-white/70]="activeCategory() !== 'intervensi-outcomes'"
+        >
+          <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span class="hidden sm:inline">Hasil Intervensi</span>
+          <span class="sm:hidden">Hasil</span>
+        </button>
+      </nav>
     </div>
 
-    <!-- TOP SEGMENTED CATEGORY NAVIGATION (FORMERLY BOTTOM OVAL DOCK) -->
-    <nav
-      class="inline-flex flex-wrap items-center gap-1 p-1 bg-slate-200/75 rounded-xl border border-slate-300/80 self-start lg:self-auto"
-      aria-label="Navigasi Kategori Beranda"
-      role="tablist"
-      data-testid="bottom-oval-navigation"
+    <!-- BILAH KENDALI PERIODE PRESENTASI AKTIF -->
+    <div
+      class="flex flex-wrap items-center justify-between gap-3 p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs"
+      data-testid="presentation-period-bar"
+      role="toolbar"
+      aria-label="Kendali Periode Presentasi Beranda"
     >
-      <button
-        type="button"
-        role="tab"
-        [attr.aria-selected]="activeCategory() === 'intervensi-heatmap'"
-        (click)="setActiveCategory('intervensi-heatmap')"
-        data-testid="tab-intervensi-heatmap"
-        class="rounded-lg px-3.5 py-2 text-xs sm:text-sm font-semibold flex items-center gap-2 transition-all duration-150 cursor-pointer select-none focus-visible:ring-2 focus-visible:ring-[#525AFF]"
-        [class.bg-[#525AFF]]="activeCategory() === 'intervensi-heatmap'"
-        [class.text-white]="activeCategory() === 'intervensi-heatmap'"
-        [class.shadow-xs]="activeCategory() === 'intervensi-heatmap'"
-        [class.text-slate-700]="activeCategory() !== 'intervensi-heatmap'"
-        [class.hover:text-slate-900]="activeCategory() !== 'intervensi-heatmap'"
-        [class.hover:bg-white/70]="activeCategory() !== 'intervensi-heatmap'"
-      >
-        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-        </svg>
-        <span class="hidden sm:inline">Heatmap Intervensi Spesifik</span>
-        <span class="sm:hidden">Intervensi</span>
-      </button>
+      <div class="flex flex-wrap items-center gap-2.5">
+        <!-- Lencana Sumber Aktif -->
+        <span
+          class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border"
+          [class.bg-[#EEF0FF]]="activePresentationPeriod().mode === 'period'"
+          [class.text-[#3730A3]]="activePresentationPeriod().mode === 'period'"
+          [class.border-[#525AFF]/30]="activePresentationPeriod().mode === 'period'"
+          [class.bg-emerald-50]="activePresentationPeriod().mode === 'session'"
+          [class.text-emerald-800]="activePresentationPeriod().mode === 'session'"
+          [class.border-emerald-200]="activePresentationPeriod().mode === 'session'"
+          [class.bg-slate-100]="activePresentationPeriod().mode === 'baseline'"
+          [class.text-slate-700]="activePresentationPeriod().mode === 'baseline'"
+          [class.border-slate-200]="activePresentationPeriod().mode === 'baseline'"
+          data-testid="presentation-source-badge"
+        >
+          <span
+            class="w-2 h-2 rounded-full"
+            [class.bg-[#525AFF]]="activePresentationPeriod().mode === 'period'"
+            [class.bg-emerald-600]="activePresentationPeriod().mode === 'session'"
+            [class.bg-slate-400]="activePresentationPeriod().mode === 'baseline'"
+          ></span>
+          <span>{{ activePresentationPeriod().sourceLabel }}</span>
+        </span>
 
-      <button
-        type="button"
-        role="tab"
-        [attr.aria-selected]="activeCategory() === 'gizi-heatmap'"
-        (click)="setActiveCategory('gizi-heatmap')"
-        data-testid="tab-gizi-heatmap"
-        class="rounded-lg px-3.5 py-2 text-xs sm:text-sm font-semibold flex items-center gap-2 transition-all duration-150 cursor-pointer select-none focus-visible:ring-2 focus-visible:ring-[#525AFF]"
-        [class.bg-[#525AFF]]="activeCategory() === 'gizi-heatmap'"
-        [class.text-white]="activeCategory() === 'gizi-heatmap'"
-        [class.shadow-xs]="activeCategory() === 'gizi-heatmap'"
-        [class.text-slate-700]="activeCategory() !== 'gizi-heatmap'"
-        [class.hover:text-slate-900]="activeCategory() !== 'gizi-heatmap'"
-        [class.hover:bg-white/70]="activeCategory() !== 'gizi-heatmap'"
-      >
-        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-        </svg>
-        <span class="hidden sm:inline">Heatmap Masalah Gizi</span>
-        <span class="sm:hidden">Masalah Gizi</span>
-      </button>
+        <div class="h-4 w-px bg-slate-200 hidden sm:block"></div>
 
-      <button
-        type="button"
-        role="tab"
-        [attr.aria-selected]="activeCategory() === 'intervensi-outcomes'"
-        (click)="setActiveCategory('intervensi-outcomes')"
-        data-testid="tab-intervensi-outcomes"
-        class="rounded-lg px-3.5 py-2 text-xs sm:text-sm font-semibold flex items-center gap-2 transition-all duration-150 cursor-pointer select-none focus-visible:ring-2 focus-visible:ring-[#525AFF]"
-        [class.bg-[#525AFF]]="activeCategory() === 'intervensi-outcomes'"
-        [class.text-white]="activeCategory() === 'intervensi-outcomes'"
-        [class.shadow-xs]="activeCategory() === 'intervensi-outcomes'"
-        [class.text-slate-700]="activeCategory() !== 'intervensi-outcomes'"
-        [class.hover:text-slate-900]="activeCategory() !== 'intervensi-outcomes'"
-        [class.hover:bg-white/70]="activeCategory() !== 'intervensi-outcomes'"
-      >
-        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <span class="hidden sm:inline">Hasil Intervensi</span>
-        <span class="sm:hidden">Hasil</span>
-      </button>
-    </nav>
+        <!-- Selektor Tahun -->
+        <div class="flex items-center gap-1.5">
+          <label for="periodYearSelect" class="text-xs font-medium text-slate-600">Tahun:</label>
+          <select
+            id="periodYearSelect"
+            [value]="presentationYear()"
+            (change)="setPresentationYear(+$any($event.target).value)"
+            class="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-[#525AFF] cursor-pointer shadow-2xs"
+            data-testid="period-year-select"
+            title="Pilih tahun anggaran presentasi"
+          >
+            @for (y of availablePresentationYears(); track y) {
+              <option [value]="y">{{ y }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- Tombol Pil Triwulan TW1 - TW4 -->
+        <div class="inline-flex items-center rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-xs font-semibold">
+          @for (q of presentationQuarters; track q) {
+            @let isAvail = quarterSlotAvailability()[q];
+            @let isActive = activePresentationPeriod().mode === 'period' && presentationQuarter() === q;
+            <button
+              type="button"
+              [attr.data-testid]="'period-slot-tw' + q"
+              [disabled]="!isAvail"
+              [attr.aria-disabled]="!isAvail"
+              (click)="isAvail ? setPresentationPeriod(presentationYear(), q) : null"
+              class="px-2.5 py-1 rounded-md transition-all select-none tabular-nums text-xs"
+              [class.bg-[#525AFF]]="isActive"
+              [class.text-white]="isActive"
+              [class.shadow-2xs]="isActive"
+              [class.text-slate-700]="!isActive && isAvail"
+              [class.hover:bg-white]="!isActive && isAvail"
+              [class.cursor-pointer]="isAvail"
+              [class.text-slate-400]="!isAvail"
+              [class.cursor-not-allowed]="!isAvail"
+              [class.opacity-50]="!isAvail"
+              [title]="isAvail ? ('Beralih ke ' + presentationYear() + ' TW' + q) : ('Belum ada data ' + presentationYear() + ' TW' + q)"
+            >
+              TW{{ q }}
+            </button>
+          }
+        </div>
+
+        <!-- Tombol Sesi Aktif jika ada -->
+        @if (hasActiveSessionData()) {
+          <button
+            type="button"
+            data-testid="period-mode-session"
+            (click)="setPresentationSession()"
+            class="px-2.5 py-1 rounded-lg text-xs font-semibold border transition cursor-pointer"
+            [class.bg-emerald-600]="activePresentationPeriod().mode === 'session'"
+            [class.text-white]="activePresentationPeriod().mode === 'session'"
+            [class.border-emerald-600]="activePresentationPeriod().mode === 'session'"
+            [class.bg-white]="activePresentationPeriod().mode !== 'session'"
+            [class.text-emerald-700]="activePresentationPeriod().mode !== 'session'"
+            [class.border-emerald-200]="activePresentationPeriod().mode !== 'session'"
+            title="Gunakan data aktif yang baru ditransfer dari modul /data"
+          >
+            Sesi Aktif
+          </button>
+        }
+      </div>
+
+      <div class="flex items-center gap-2">
+        <!-- Tombol Reset ke Data Bawaan -->
+        <button
+          type="button"
+          data-testid="period-mode-baseline"
+          (click)="setPresentationBaseline()"
+          class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition cursor-pointer"
+          [class.bg-slate-800]="activePresentationPeriod().mode === 'baseline'"
+          [class.text-white]="activePresentationPeriod().mode === 'baseline'"
+          [class.border-slate-800]="activePresentationPeriod().mode === 'baseline'"
+          [class.bg-white]="activePresentationPeriod().mode !== 'baseline'"
+          [class.text-slate-700]="activePresentationPeriod().mode !== 'baseline'"
+          [class.border-slate-300]="activePresentationPeriod().mode !== 'baseline'"
+          title="Tampilkan data dasar bawaan (baseline) provinsi"
+        >
+          <span>Data Bawaan</span>
+        </button>
+
+        <!-- Tombol Refresh Periode -->
+        <button
+          type="button"
+          data-testid="refresh-periods-btn"
+          (click)="refreshPresentationPeriods()"
+          [disabled]="isRefreshingPeriods()"
+          class="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition cursor-pointer disabled:opacity-50"
+          title="Segarkan daftar periode tersimpan"
+          aria-label="Segarkan daftar periode"
+        >
+          <svg class="w-3.5 h-3.5" [class.animate-spin]="isRefreshingPeriods()" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </button>
+      </div>
+    </div>
   </header>
 
   <!-- ============================================================== -->
@@ -893,6 +1028,17 @@
   <!-- ============================================================== -->
   @if (activeCategory() === 'gizi-heatmap') {
     <section class="flex flex-col gap-5 animate-fadeIn" data-testid="category-gizi-heatmap">
+      @if (isGiziFallback()) {
+        <div
+          data-testid="gizi-fallback-notice"
+          class="flex items-center gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800 shadow-2xs"
+        >
+          <svg class="h-4 w-4 shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <span>Data Masalah Gizi untuk periode ini tidak tersedia di file sumber, menampilkan data bawaan (baseline).</span>
+        </div>
+      }
       <!-- 2-Column Layout (1:2 Ratio) -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start" data-testid="gizi-2column-grid">
         <!-- First Column: Overview Information Boxes for Nutritional Issues (Ratio 1) -->

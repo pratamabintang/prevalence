@@ -170,6 +170,10 @@ _Avoid_: Database server, local storage eksternal, backend API server
 Partisi penyimpanan di Google Drive yang diidentifikasi oleh pasangan Tahun Anggaran dan Triwulan (misal: 2025/TW1), yang menampung berkas data mentah, berkas hasil penggabungan, dan konfigurasi join resmi untuk triwulan tersebut.
 _Avoid_: Folder acak, save slot bebas, tag periode
 
+**Periode Presentasi Aktif (Active Presentation Period)**:
+Pasangan Tahun Anggaran dan Triwulan terpilih pada Beranda yang menjadi acuan tunggal untuk menyelaraskan tampilan peta sebaran Intervensi Spesifik, peta sebaran Masalah Gizi, dan fokus triwulan pada evaluasi Hasil Intervensi secara serentak.
+_Avoid_: Filter kuartal terpisah, state periode lokal per-tab, pilihan dataset lepas
+
 **Berkas Data Mentah (Raw Excel)**:
 Berkas buku kerja Excel multi-sheet asli yang diunggah oleh pengguna ke sistem sebelum dilakukan proses penggabungan atau normalisasi kolom.
 _Avoid_: Data awal, uncleaned data, file mentah sembarang

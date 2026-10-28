@@ -16,6 +16,7 @@ describe('AppNavbarComponent', () => {
     fixture = TestBed.createComponent(AppNavbarComponent);
     component = fixture.componentInstance;
     component.enableStuntingDashboard.set(false);
+    component.enableStuntingCohort.set(false);
     fixture.detectChanges();
   });
 

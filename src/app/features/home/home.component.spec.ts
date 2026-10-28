@@ -1,5 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { vi } from 'vitest';
 import { HomeComponent } from './home.component';
+import { DinkesSpreadsheetParser } from '../../core/excel/dinkes-spreadsheet-parser';
+import { NUTRITION_PROBLEMS_DATA, SPECIFIC_INTERVENTIONS_DATA } from './home-data';
 
 describe('HomeComponent', () => {
   let component: HomeComponent;
@@ -503,6 +506,262 @@ describe('HomeComponent', () => {
       const kpi = component.outcomeKpiSummary();
       expect(kpi.avgPrevScore).toBeGreaterThan(0);
       expect(kpi.avgYoYChange).toBeDefined();
+    });
+  });
+
+  describe('Presentation Period Toolbar & State Management (Ticket 01)', () => {
+    it('should render the presentation toolbar with source badge, year select, and quarter pills', () => {
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('[data-testid="presentation-period-bar"]')).toBeTruthy();
+      expect(el.querySelector('[data-testid="presentation-source-badge"]')).toBeTruthy();
+      expect(el.querySelector('[data-testid="period-year-select"]')).toBeTruthy();
+      expect(el.querySelector('[data-testid="period-slot-tw1"]')).toBeTruthy();
+      expect(el.querySelector('[data-testid="period-slot-tw2"]')).toBeTruthy();
+      expect(el.querySelector('[data-testid="period-slot-tw3"]')).toBeTruthy();
+      expect(el.querySelector('[data-testid="period-slot-tw4"]')).toBeTruthy();
+      expect(el.querySelector('[data-testid="period-mode-baseline"]')).toBeTruthy();
+      expect(el.querySelector('[data-testid="refresh-periods-btn"]')).toBeTruthy();
+    });
+
+    it('should display Data Bawaan (Baseline) badge by default and update when quarter is selected', () => {
+      const el = fixture.nativeElement as HTMLElement;
+      const badge = el.querySelector('[data-testid="presentation-source-badge"]');
+      expect(badge?.textContent).toContain('Data Bawaan (Baseline)');
+
+      component.setPresentationPeriod(2026, 3);
+      fixture.detectChanges();
+
+      expect(badge?.textContent).toContain('Periode Tersimpan: 2026 TW3');
+      expect(component.activePresentationPeriod().mode).toBe('period');
+      expect(component.activePresentationPeriod().quarter).toBe(3);
+    });
+
+    it('should display disabled styling on quarters with no stored data and prevent selection', () => {
+      const el = fixture.nativeElement as HTMLElement;
+      const tw4Btn = el.querySelector('[data-testid="period-slot-tw4"]') as HTMLButtonElement;
+      expect(tw4Btn.disabled).toBe(true);
+      expect(tw4Btn.getAttribute('aria-disabled')).toBe('true');
+
+      tw4Btn.click();
+      fixture.detectChanges();
+      expect(component.activePresentationPeriod().mode).toBe('baseline');
+    });
+
+    it('should reset to baseline when clicking Data Bawaan button', () => {
+      const el = fixture.nativeElement as HTMLElement;
+      component.setPresentationPeriod(2026, 2);
+      fixture.detectChanges();
+      expect(component.activePresentationPeriod().mode).toBe('period');
+
+      const baselineBtn = el.querySelector('[data-testid="period-mode-baseline"]') as HTMLButtonElement;
+      baselineBtn.click();
+      fixture.detectChanges();
+
+      expect(component.activePresentationPeriod().mode).toBe('baseline');
+      const badge = el.querySelector('[data-testid="presentation-source-badge"]');
+      expect(badge?.textContent).toContain('Data Bawaan (Baseline)');
+    });
+
+    it('should call refreshPeriods when refresh button is clicked', async () => {
+      const el = fixture.nativeElement as HTMLElement;
+      const refreshSpy = vi.spyOn(component.periodPartitionWorkspace!, 'refreshPeriods').mockResolvedValue([]);
+      const refreshBtn = el.querySelector('[data-testid="refresh-periods-btn"]') as HTMLButtonElement;
+      refreshBtn.click();
+      expect(refreshSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('Dynamic Category 1 Synchronization & Target Prioritization (Ticket 02)', () => {
+    const mockDistricts = [
+      'CILACAP', 'BANYUMAS', 'PURBALINGGA', 'BANJARNEGARA', 'KEBUMEN',
+      'PURWOREJO', 'WONOSOBO', 'MAGELANG', 'BOYOLALI', 'KLATEN',
+      'SUKOHARJO', 'WONOGIRI', 'KARANGANYAR', 'SRAGEN', 'GROBOGAN',
+      'BLORA', 'REMBANG', 'PATI', 'KUDUS', 'JEPARA',
+      'DEMAK', 'SEMARANG', 'TEMANGGUNG', 'KENDAL', 'BATANG',
+      'PEKALONGAN', 'PEMALANG', 'TEGAL', 'BREBES', 'KOTA MAGELANG',
+      'KOTA SURAKARTA', 'KOTA SALATIGA', 'KOTA SEMARANG', 'KOTA PEKALONGAN', 'KOTA TEGAL'
+    ];
+
+    it('should update intervensiRows and intervensiBoxes when a presentation period is loaded', async () => {
+      const mockRows = mockDistricts.map((name) => ({
+        'Kabupaten/Kota': name,
+        '% Konsumsi TTD': 78.5,
+        '% Skrining Anemia': 82.0,
+      }));
+
+      vi.spyOn(component.periodPartitionWorkspace!, 'isStorageConfigured').mockReturnValue(true);
+      vi.spyOn(component.periodPartitionWorkspace!, 'loadSingleQuarter').mockResolvedValue({
+        year: 2026,
+        quarter: 'TW1',
+        source: 'cloud',
+        fileName: 'test.xlsx',
+        dataset: {
+          regionRows: mockRows,
+          summaryRow: { '% Konsumsi TTD': 78.5, '% Skrining Anemia': 82.0 },
+          totalRow: { 'Rematri Konsumsi TTD': 45000 },
+          targetRow: { '% Konsumsi TTD': 85 },
+        } as any,
+      });
+
+      await component.loadPeriodPresentationData(2026, 1);
+      component.setPresentationPeriod(2026, 1);
+      fixture.detectChanges();
+
+      expect(component.intervensiRows().length).toBe(35);
+      expect(component.intervensiRows()[0]['% Konsumsi TTD']).toBe(78.5);
+    });
+
+    it('should prioritize targetRow from loaded quarter over fallback targets', () => {
+      component.loadedQuarterDatasets.set({
+        1: {
+          regionRows: [],
+          summaryRow: null,
+          totalRow: null,
+          targetRow: { '% Konsumsi TTD': 89 },
+        },
+      });
+      component.presentationMode.set('period');
+      component.presentationQuarter.set(1);
+
+      const resolved = component.getResolvedIntervensiTarget('% Konsumsi TTD', 67);
+      expect(resolved).toBe(89);
+    });
+
+    it('should fall back to standard Dinkes target if targetRow is not present', () => {
+      component.loadedQuarterDatasets.set({});
+      component.presentationMode.set('baseline');
+
+      const resolved = component.getResolvedIntervensiTarget('% Konsumsi TTD', 50);
+      expect(resolved).toBe(67);
+    });
+  });
+
+  describe('Bi-Category Masalah Gizi Extraction & Fallback (Ticket 03)', () => {
+    const mockDistricts = [
+      'CILACAP', 'BANYUMAS', 'PURBALINGGA', 'BANJARNEGARA', 'KEBUMEN',
+      'PURWOREJO', 'WONOSOBO', 'MAGELANG', 'BOYOLALI', 'KLATEN',
+      'SUKOHARJO', 'WONOGIRI', 'KARANGANYAR', 'SRAGEN', 'GROBOGAN',
+      'BLORA', 'REMBANG', 'PATI', 'KUDUS', 'JEPARA',
+      'DEMAK', 'SEMARANG', 'TEMANGGUNG', 'KENDAL', 'BATANG',
+      'PEKALONGAN', 'PEMALANG', 'TEGAL', 'BREBES', 'KOTA MAGELANG',
+      'KOTA SURAKARTA', 'KOTA SALATIGA', 'KOTA SEMARANG', 'KOTA PEKALONGAN', 'KOTA TEGAL'
+    ];
+
+    it('should extract Category 2 gizi rows when valid Masalah Gizi sheet is present', async () => {
+      const mockGiziRows = mockDistricts.map((name) => ({
+        'Kabupaten/Kota': name,
+        'Stunting - %': 12.4,
+      }));
+
+      vi.spyOn(component.periodPartitionWorkspace!, 'isStorageConfigured').mockReturnValue(true);
+      vi.spyOn(component.periodPartitionWorkspace!, 'loadSingleQuarter').mockResolvedValue({
+        year: 2026,
+        quarter: 'TW2',
+        source: 'cloud',
+        fileName: 'test.xlsx',
+        resultBuffer: new ArrayBuffer(16),
+        dataset: {
+          regionRows: mockGiziRows,
+          summaryRow: null,
+          totalRow: null,
+        } as any,
+      });
+
+      vi.spyOn(DinkesSpreadsheetParser, 'parse').mockReturnValue({
+        regionRows: mockGiziRows,
+        summaryRow: null,
+        totalRow: null,
+        targetRow: null,
+      } as any);
+
+      await component.loadPeriodPresentationData(2026, 2);
+      expect(component.isGiziFallback()).toBe(false);
+      expect(component.giziRows().length).toBe(35);
+      expect(component.giziRows()[0]['Stunting - %']).toBe(12.4);
+    });
+
+    it('should fall back to NUTRITION_PROBLEMS_DATA and display notice badge if Masalah Gizi sheet is missing', async () => {
+      vi.spyOn(component.periodPartitionWorkspace!, 'isStorageConfigured').mockReturnValue(true);
+      vi.spyOn(component.periodPartitionWorkspace!, 'loadSingleQuarter').mockResolvedValue({
+        year: 2026,
+        quarter: 'TW2',
+        source: 'cloud',
+        fileName: 'test.xlsx',
+        dataset: {
+          regionRows: [],
+          summaryRow: null,
+          totalRow: null,
+        } as any,
+      });
+
+      vi.spyOn(DinkesSpreadsheetParser, 'parse').mockImplementation(() => {
+        throw new Error('Sheet not found');
+      });
+
+      await component.loadPeriodPresentationData(2026, 2);
+      expect(component.isGiziFallback()).toBe(true);
+      expect(component.giziRows()).toBe(NUTRITION_PROBLEMS_DATA);
+
+      component.setActiveCategory('gizi-heatmap');
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      const notice = el.querySelector('[data-testid="gizi-fallback-notice"]');
+      expect(notice).toBeTruthy();
+      expect(notice?.textContent).toContain('Data Masalah Gizi untuk periode ini tidak tersedia');
+    });
+  });
+
+  describe('Category 3 Temporal Alignment & Session Integration (Ticket 04)', () => {
+    it('should synchronize Category 3 selectedOutcomeQuarter when presentation quarter changes', () => {
+      expect(component.selectedOutcomeQuarter()).toBe(2);
+
+      component.setPresentationPeriod(2026, 1);
+      expect(component.selectedOutcomeQuarter()).toBe(1);
+
+      component.setPresentationPeriod(2026, 3);
+      expect(component.selectedOutcomeQuarter()).toBe(3);
+
+      component.setPresentationBaseline();
+      expect(component.selectedOutcomeQuarter()).toBe(2);
+    });
+
+    it('should toggle session mode when HealthDataExchange has active dataset', () => {
+      const mockDistricts = [
+        'CILACAP', 'BANYUMAS', 'PURBALINGGA', 'BANJARNEGARA', 'KEBUMEN',
+        'PURWOREJO', 'WONOSOBO', 'MAGELANG', 'BOYOLALI', 'KLATEN',
+        'SUKOHARJO', 'WONOGIRI', 'KARANGANYAR', 'SRAGEN', 'GROBOGAN',
+        'BLORA', 'REMBANG', 'PATI', 'KUDUS', 'JEPARA',
+        'DEMAK', 'SEMARANG', 'TEMANGGUNG', 'KENDAL', 'BATANG',
+        'PEKALONGAN', 'PEMALANG', 'TEGAL', 'BREBES', 'KOTA MAGELANG',
+        'KOTA SURAKARTA', 'KOTA SALATIGA', 'KOTA SEMARANG', 'KOTA PEKALONGAN', 'KOTA TEGAL'
+      ];
+      const sessionRows = mockDistricts.map((name) => ({
+        'Kabupaten/Kota': name,
+        '% Konsumsi TTD': 91.2,
+      }));
+
+      component.healthDataExchange.setChartData({
+        source: 'upload',
+        categoryColumn: 'Kabupaten/Kota',
+        columns: ['Kabupaten/Kota', '% Konsumsi TTD'],
+        rows: sessionRows,
+      });
+      fixture.detectChanges();
+
+      expect(component.hasActiveSessionData()).toBe(true);
+
+      const el = fixture.nativeElement as HTMLElement;
+      const sessionBtn = el.querySelector('[data-testid="period-mode-session"]') as HTMLButtonElement;
+      expect(sessionBtn).toBeTruthy();
+
+      sessionBtn.click();
+      fixture.detectChanges();
+
+      expect(component.activePresentationPeriod().mode).toBe('session');
+      const badge = el.querySelector('[data-testid="presentation-source-badge"]');
+      expect(badge?.textContent).toContain('Sesi Aktif (/data)');
+      expect(component.intervensiRows()[0]['% Konsumsi TTD']).toBe(91.2);
     });
   });
 });

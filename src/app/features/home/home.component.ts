@@ -1,6 +1,16 @@
 import { Component, computed, HostListener, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { QuarterSlot } from '../../core/storage/gas-storage.service';
+
+export type PresentationMode = 'period' | 'session' | 'baseline';
+
+export interface ActivePresentationPeriod {
+  mode: PresentationMode;
+  year: number;
+  quarter: 1 | 2 | 3 | 4;
+  sourceLabel: string;
+}
 import {
   CENTRAL_JAVA_DISTRICTS,
   DistrictMapFeature,
@@ -25,6 +35,9 @@ import { IndicatorStuntingKnowledge } from '../../core/chart/indicator-stunting-
 import { HealthDataExchange } from '../../core/domain/health-data-exchange';
 import { StuntingWorkflowEngine } from '../../core/stunting/stunting-workflow-engine';
 import { PeriodPartitionWorkspace } from '../../core/storage/period-partition-workspace';
+import { DinkesSpreadsheetParser } from '../../core/excel/dinkes-spreadsheet-parser';
+import { MASALAH_GIZI_JOIN_CONFIG } from '../excel-join/masalah-gizi-join-config';
+import { JoinPresetExecutionSpec } from '../../core/excel/excel-join-engine';
 import {
   DISTRICT_PREV_YEAR_OUTCOMES,
   GIZI_METRIC_BOXES,
@@ -87,9 +100,9 @@ export type HomeCategory =
   ],
 })
 export class HomeComponent implements OnInit {
-  private readonly healthDataExchange = inject(HealthDataExchange);
-  private readonly workflowEngine = inject(StuntingWorkflowEngine, { optional: true });
-  private readonly periodPartitionWorkspace = inject(PeriodPartitionWorkspace, { optional: true });
+  readonly healthDataExchange = inject(HealthDataExchange);
+  readonly workflowEngine = inject(StuntingWorkflowEngine, { optional: true });
+  readonly periodPartitionWorkspace = inject(PeriodPartitionWorkspace, { optional: true });
   readonly Math = Math;
 
   // Active Category controlled by the bottom oval navigation buttons
@@ -113,11 +126,173 @@ export class HomeComponent implements OnInit {
   readonly mapRankingsFilter = signal<'all' | 'top5' | 'bottom5'>('all');
 
   // -------------------------------------------------------------
+  // PERIODE PRESENTASI AKTIF (ACTIVE PRESENTATION PERIOD)
+  // -------------------------------------------------------------
+  readonly presentationMode = signal<PresentationMode>('baseline');
+  readonly presentationYear = signal<number>(new Date().getFullYear());
+  readonly presentationQuarter = signal<1 | 2 | 3 | 4>(1);
+  readonly presentationQuarters: readonly (1 | 2 | 3 | 4)[] = [1, 2, 3, 4] as const;
+  readonly isRefreshingPeriods = signal<boolean>(false);
+
+  readonly availablePresentationYears = computed<number[]>(() => {
+    const slots = this.periodPartitionWorkspace?.periodSlots() || [];
+    const remoteYears = Array.from(new Set(slots.map((s) => s.year))).sort((a, b) => b - a);
+    if (remoteYears.length > 0) {
+      return remoteYears;
+    }
+    return [new Date().getFullYear()];
+  });
+
+  readonly quarterSlotAvailability = computed<Record<1 | 2 | 3 | 4, boolean>>(() => {
+    const yr = this.presentationYear();
+    const ws = this.periodPartitionWorkspace;
+    return {
+      1: ws?.isQuarterAvailable(yr, 'TW1') ?? false,
+      2: ws?.isQuarterAvailable(yr, 'TW2') ?? false,
+      3: ws?.isQuarterAvailable(yr, 'TW3') ?? false,
+      4: ws?.isQuarterAvailable(yr, 'TW4') ?? false,
+    };
+  });
+
+  readonly hasActiveSessionData = computed<boolean>(() => {
+    const chartData = this.healthDataExchange.chartData();
+    return Boolean(chartData && chartData.rows && chartData.rows.length >= 30);
+  });
+
+  readonly activePresentationPeriod = computed<ActivePresentationPeriod>(() => {
+    const mode = this.presentationMode();
+    const year = this.presentationYear();
+    const quarter = this.presentationQuarter();
+    let sourceLabel = 'Data Bawaan (Baseline)';
+    if (mode === 'period') {
+      sourceLabel = `Periode Tersimpan: ${year} TW${quarter}`;
+    } else if (mode === 'session') {
+      sourceLabel = 'Sesi Aktif (/data)';
+    }
+    return {
+      mode,
+      year,
+      quarter,
+      sourceLabel,
+    };
+  });
+
+  setPresentationYear(year: number): void {
+    this.presentationYear.set(year);
+    const avail = this.quarterSlotAvailability();
+    const currentQ = this.presentationQuarter();
+    if (!avail[currentQ]) {
+      const highestAvail = ([4, 3, 2, 1] as const).find((q) => avail[q]);
+      if (highestAvail) {
+        this.setPresentationPeriod(year, highestAvail);
+        return;
+      }
+    }
+    if (this.presentationMode() === 'period') {
+      void this.loadPeriodPresentationData(year, this.presentationQuarter());
+    }
+  }
+
+  readonly isGiziFallback = signal<boolean>(false);
+
+  setPresentationPeriod(year: number, quarter: 1 | 2 | 3 | 4): void {
+    this.presentationYear.set(year);
+    this.presentationQuarter.set(quarter);
+    this.presentationMode.set('period');
+    this.setSelectedOutcomeQuarter(quarter);
+    void this.loadPeriodPresentationData(year, quarter);
+  }
+
+  setPresentationSession(): void {
+    if (!this.hasActiveSessionData()) return;
+    this.presentationMode.set('session');
+    const transferred = this.healthDataExchange.chartData();
+    if (transferred?.rows) {
+      this.intervensiRows.set(transferred.rows);
+    }
+  }
+
+  setPresentationBaseline(): void {
+    this.presentationMode.set('baseline');
+    this.intervensiRows.set(SPECIFIC_INTERVENTIONS_DATA);
+    this.giziRows.set(NUTRITION_PROBLEMS_DATA);
+    this.isGiziFallback.set(false);
+    this.setSelectedOutcomeQuarter(2);
+  }
+
+  async refreshPresentationPeriods(): Promise<void> {
+    if (this.isRefreshingPeriods()) return;
+    this.isRefreshingPeriods.set(true);
+    try {
+      await this.periodPartitionWorkspace?.refreshPeriods();
+      const years = this.availablePresentationYears();
+      if (!years.includes(this.presentationYear())) {
+        this.presentationYear.set(years[0]);
+      }
+    } finally {
+      this.isRefreshingPeriods.set(false);
+    }
+  }
+
+  async loadPeriodPresentationData(year: number, quarter: 1 | 2 | 3 | 4): Promise<void> {
+    const slotKey: QuarterSlot = `TW${quarter}` as QuarterSlot;
+    if (!this.periodPartitionWorkspace?.isStorageConfigured()) return;
+    try {
+      const qDataset = await this.periodPartitionWorkspace.loadSingleQuarter(year, slotKey, { prefer: 'result' });
+      if (qDataset?.dataset) {
+        const loadedMap = { ...this.loadedQuarterDatasets() };
+        loadedMap[quarter] = {
+          regionRows: qDataset.dataset.regionRows || [],
+          summaryRow: qDataset.dataset.summaryRow || null,
+          totalRow: qDataset.dataset.totalRow || null,
+          targetRow: qDataset.dataset.targetRow || null,
+        };
+        this.loadedQuarterDatasets.set(loadedMap);
+        if (qDataset.dataset.regionRows && qDataset.dataset.regionRows.length >= 30) {
+          this.intervensiRows.set(qDataset.dataset.regionRows);
+        }
+      }
+
+      // Bi-category: Extract Masalah Gizi
+      const buffer = qDataset?.resultBuffer || qDataset?.rawBuffer;
+      let giziParsed = false;
+      if (buffer) {
+        try {
+          const parsedGizi = DinkesSpreadsheetParser.parse(buffer, {
+            preset: MASALAH_GIZI_JOIN_CONFIG as unknown as JoinPresetExecutionSpec,
+            preferredSheetName: 'MASALAH GIZI',
+          });
+          if (parsedGizi.regionRows && parsedGizi.regionRows.length >= 30) {
+            this.giziRows.set(parsedGizi.regionRows);
+            this.isGiziFallback.set(false);
+            giziParsed = true;
+          }
+        } catch {
+          // ignore parsing error and fall back
+        }
+      }
+
+      if (!giziParsed) {
+        this.giziRows.set(NUTRITION_PROBLEMS_DATA);
+        this.isGiziFallback.set(true);
+      }
+    } catch (err) {
+      console.warn(`Gagal memuat dataset presentasi ${year} ${slotKey}:`, err);
+    }
+  }
+
+  // -------------------------------------------------------------
   // CATEGORY 1: HEATMAP INTERVENSI SPESIFIK
   // -------------------------------------------------------------
   // Overview Information Boxes for Ratio 1 Column
   readonly intervensiBoxes = computed<HomeMetricBox[]>(() => {
+    if (this.presentationMode() === 'baseline') {
+      return INTERVENSI_METRIC_BOXES;
+    }
     const loadedMap = this.loadedQuarterDatasets();
+    if (this.presentationMode() === 'period' && loadedMap[this.presentationQuarter()]) {
+      return this.buildIntervensiBoxes(loadedMap[this.presentationQuarter()]);
+    }
     const availableQNums = ([4, 3, 2, 1] as const).filter((q) => loadedMap[q]);
     if (availableQNums.length === 0) {
       return INTERVENSI_METRIC_BOXES;
@@ -152,16 +327,20 @@ export class HomeComponent implements OnInit {
   );
 
   getResolvedIntervensiTarget(indicatorKey: string, fallbackTarget: number): number {
-    // 1. Check latest loaded quarter targetRow
+    // 1. Check loaded quarter targetRow
     const loadedMap = this.loadedQuarterDatasets();
-    const availableQNums = ([4, 3, 2, 1] as const).filter((q) => loadedMap[q]);
-    if (availableQNums.length > 0) {
-      const latestQ = availableQNums[0];
-      const targetRow = loadedMap[latestQ]?.targetRow;
-      if (targetRow) {
-        const val = this.extractValueFromRow(targetRow, indicatorKey);
-        if (val !== null && val > 0) return val;
+    let targetRow: Record<string, unknown> | null | undefined = null;
+    if (this.presentationMode() === 'period' && loadedMap[this.presentationQuarter()]) {
+      targetRow = loadedMap[this.presentationQuarter()]?.targetRow;
+    } else {
+      const availableQNums = ([4, 3, 2, 1] as const).filter((q) => loadedMap[q]);
+      if (availableQNums.length > 0) {
+        targetRow = loadedMap[availableQNums[0]]?.targetRow;
       }
+    }
+    if (targetRow) {
+      const val = this.extractValueFromRow(targetRow, indicatorKey);
+      if (val !== null && val > 0) return val;
     }
 
     // 2. Check HealthDataExchange chartData indicatorTargets or global targetValue
@@ -1359,9 +1538,11 @@ export class HomeComponent implements OnInit {
     if (this.periodPartitionWorkspace?.isStorageConfigured()) {
       try {
         await this.periodPartitionWorkspace.refreshPeriods();
-        const currentYear = new Date().getFullYear();
+        const years = this.availablePresentationYears();
+        const activeYear = years[0] ?? new Date().getFullYear();
+        this.presentationYear.set(activeYear);
         const availableSlots = (['TW1', 'TW2', 'TW3', 'TW4'] as const).filter((slot) =>
-          this.periodPartitionWorkspace?.isQuarterAvailable(currentYear, slot),
+          this.periodPartitionWorkspace?.isQuarterAvailable(activeYear, slot),
         );
         if (availableSlots.length > 0) {
           const slotMap: Record<string, 1 | 2 | 3 | 4> = { TW1: 1, TW2: 2, TW3: 3, TW4: 4 };
@@ -1369,6 +1550,8 @@ export class HomeComponent implements OnInit {
           this.customAvailableQuarters.set(quarterNums);
           const latestQuarter = quarterNums[quarterNums.length - 1];
           this.selectedOutcomeQuarter.set(latestQuarter);
+          this.presentationQuarter.set(latestQuarter);
+          this.presentationMode.set('period');
 
           // Load data for all available quarters on the server
           const loadedMap: Record<number, LoadedQuarterDinkesData> = {};
@@ -1376,7 +1559,7 @@ export class HomeComponent implements OnInit {
             const qNum = slotMap[slot];
             try {
               const qDataset = await this.periodPartitionWorkspace.loadSingleQuarter(
-                currentYear,
+                activeYear,
                 slot,
                 { prefer: 'result' },
               );
@@ -1398,10 +1581,14 @@ export class HomeComponent implements OnInit {
               this.intervensiRows.set(loadedMap[latestQuarter].regionRows);
             }
           }
+        } else if (this.hasActiveSessionData()) {
+          this.setPresentationSession();
+        } else {
+          this.setPresentationBaseline();
         }
 
         // Auto-load available period for previous year (TW4)
-        const prevYear = currentYear - 1;
+        const prevYear = activeYear - 1;
         const prevSlots = (['TW4', 'TW3', 'TW2', 'TW1'] as const).filter((slot) =>
           this.periodPartitionWorkspace?.isQuarterAvailable(prevYear, slot),
         );
