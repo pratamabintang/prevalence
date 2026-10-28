@@ -93,7 +93,7 @@
       <div class="flex flex-wrap items-center gap-2.5">
         <!-- Lencana Sumber Aktif -->
         <span
-          class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border"
+          class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border max-w-[240px] sm:max-w-[320px] md:max-w-md"
           [class.bg-[#EEF0FF]]="activePresentationPeriod().mode === 'period'"
           [class.text-[#3730A3]]="activePresentationPeriod().mode === 'period'"
           [class.border-[#525AFF]/30]="activePresentationPeriod().mode === 'period'"
@@ -104,14 +104,31 @@
           [class.text-slate-700]="activePresentationPeriod().mode === 'baseline'"
           [class.border-slate-200]="activePresentationPeriod().mode === 'baseline'"
           data-testid="presentation-source-badge"
+          [title]="activePresentationPeriod().tooltip || activePresentationPeriod().sourceLabel"
         >
           <span
-            class="w-2 h-2 rounded-full"
+            class="w-2 h-2 rounded-full shrink-0"
             [class.bg-[#525AFF]]="activePresentationPeriod().mode === 'period'"
             [class.bg-emerald-600]="activePresentationPeriod().mode === 'session'"
             [class.bg-slate-400]="activePresentationPeriod().mode === 'baseline'"
           ></span>
-          <span>{{ activePresentationPeriod().sourceLabel }}</span>
+          @if (activePresentationPeriod().fileName) {
+            <svg
+              class="w-3.5 h-3.5 shrink-0 opacity-70"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              />
+            </svg>
+          }
+          <span class="truncate">{{ activePresentationPeriod().sourceLabel }}</span>
         </span>
 
         <div class="h-4 w-px bg-slate-200 hidden sm:block"></div>

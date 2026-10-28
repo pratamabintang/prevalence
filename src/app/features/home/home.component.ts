@@ -10,6 +10,8 @@ export interface ActivePresentationPeriod {
   year: number;
   quarter: 1 | 2 | 3 | 4;
   sourceLabel: string;
+  fileName?: string;
+  tooltip?: string;
 }
 import {
   CENTRAL_JAVA_DISTRICTS,
@@ -61,6 +63,7 @@ export interface LoadedQuarterDinkesData {
   totalRow: Record<string, unknown> | null;
   targetRow?: Record<string, unknown> | null;
   columnTargets?: Record<string, ColumnTargetConfig> | null;
+  fileName?: string;
 }
 
 const OUTCOME_INDICATOR_COLUMN_MAP: Record<
@@ -166,17 +169,49 @@ export class HomeComponent implements OnInit {
     const mode = this.presentationMode();
     const year = this.presentationYear();
     const quarter = this.presentationQuarter();
+    const slotKey: QuarterSlot = `TW${quarter}` as QuarterSlot;
+
+    let fileName: string | undefined;
     let sourceLabel = 'Data Bawaan (Baseline)';
+    let tooltip = 'Data Bawaan (Baseline) Provinsi';
+
     if (mode === 'period') {
-      sourceLabel = `Periode Tersimpan: ${year} TW${quarter}`;
+      const loadedQ = this.loadedQuarterDatasets()[quarter];
+      const slotItem = this.periodPartitionWorkspace?.getQuarterSlotItem(year, slotKey);
+      fileName =
+        (loadedQ?.fileName &&
+        loadedQ.fileName !== 'joined-result.xlsx' &&
+        loadedQ.fileName !== 'raw-data.xlsx')
+          ? loadedQ.fileName
+          : (slotItem?.resultFileName || slotItem?.rawFileName || loadedQ?.fileName);
+
+      if (fileName) {
+        sourceLabel = fileName;
+        tooltip = `Berkas: ${fileName} (${year} TW${quarter})`;
+      } else {
+        sourceLabel = `Periode Tersimpan: ${year} TW${quarter}`;
+        tooltip = `Periode Tersimpan: ${year} TW${quarter}`;
+      }
     } else if (mode === 'session') {
-      sourceLabel = 'Sesi Aktif (/data)';
+      const chartData = this.healthDataExchange.chartData();
+      if (chartData?.title) {
+        const parts = chartData.title.split(' - ');
+        fileName = parts.length > 1 ? parts.slice(1).join(' - ') : chartData.title;
+        sourceLabel = fileName;
+        tooltip = `Sesi Aktif: ${fileName}`;
+      } else {
+        sourceLabel = 'Sesi Aktif (/data)';
+        tooltip = 'Sesi Aktif dari modul /data';
+      }
     }
+
     return {
       mode,
       year,
       quarter,
       sourceLabel,
+      fileName,
+      tooltip,
     };
   });
 
@@ -243,6 +278,14 @@ export class HomeComponent implements OnInit {
     try {
       const qDataset = await this.periodPartitionWorkspace.loadSingleQuarter(year, slotKey, { prefer: 'result' });
       if (qDataset?.dataset) {
+        const slotItem = this.periodPartitionWorkspace?.getQuarterSlotItem(year, slotKey);
+        const resolvedFileName =
+          qDataset.fileName &&
+          qDataset.fileName !== 'joined-result.xlsx' &&
+          qDataset.fileName !== 'raw-data.xlsx'
+            ? qDataset.fileName
+            : (slotItem?.resultFileName || slotItem?.rawFileName || qDataset.fileName);
+
         const loadedMap = { ...this.loadedQuarterDatasets() };
         loadedMap[quarter] = {
           regionRows: qDataset.dataset.regionRows || [],
@@ -250,6 +293,7 @@ export class HomeComponent implements OnInit {
           totalRow: qDataset.dataset.totalRow || null,
           targetRow: qDataset.dataset.targetRow || null,
           columnTargets: qDataset.dataset.columnTargets || null,
+          fileName: resolvedFileName,
         };
         this.loadedQuarterDatasets.set(loadedMap);
         if (qDataset.dataset.regionRows && qDataset.dataset.regionRows.length >= 30) {
@@ -1716,12 +1760,21 @@ export class HomeComponent implements OnInit {
                 { prefer: 'result' },
               );
               if (qDataset?.dataset) {
+                const slotItem = this.periodPartitionWorkspace?.getQuarterSlotItem(activeYear, slot);
+                const resolvedFileName =
+                  qDataset.fileName &&
+                  qDataset.fileName !== 'joined-result.xlsx' &&
+                  qDataset.fileName !== 'raw-data.xlsx'
+                    ? qDataset.fileName
+                    : (slotItem?.resultFileName || slotItem?.rawFileName || qDataset.fileName);
+
                 loadedMap[qNum] = {
                   regionRows: qDataset.dataset.regionRows || [],
                   summaryRow: qDataset.dataset.summaryRow || null,
                   totalRow: qDataset.dataset.totalRow || null,
                   targetRow: qDataset.dataset.targetRow || null,
                   columnTargets: qDataset.dataset.columnTargets || null,
+                  fileName: resolvedFileName,
                 };
               }
             } catch (loadErr) {

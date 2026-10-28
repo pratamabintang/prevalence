@@ -536,6 +536,26 @@ describe('HomeComponent', () => {
       expect(component.activePresentationPeriod().quarter).toBe(3);
     });
 
+    it('should display file name in presentation source badge when dataset has fileName', () => {
+      component.presentationYear.set(2026);
+      component.presentationQuarter.set(4);
+      component.presentationMode.set('period');
+      component.loadedQuarterDatasets.set({
+        4: {
+          regionRows: [],
+          summaryRow: null,
+          totalRow: null,
+          fileName: '2026_TW4_Data_Intervensi.xlsx',
+        },
+      });
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      const badge = el.querySelector('[data-testid="presentation-source-badge"]');
+      expect(badge?.textContent).toContain('2026_TW4_Data_Intervensi.xlsx');
+      expect(component.activePresentationPeriod().fileName).toBe('2026_TW4_Data_Intervensi.xlsx');
+    });
+
     it('should display disabled styling on quarters with no stored data and prevent selection', () => {
       const el = fixture.nativeElement as HTMLElement;
       const tw4Btn = el.querySelector('[data-testid="period-slot-tw4"]') as HTMLButtonElement;
@@ -762,6 +782,16 @@ describe('HomeComponent', () => {
       const badge = el.querySelector('[data-testid="presentation-source-badge"]');
       expect(badge?.textContent).toContain('Sesi Aktif (/data)');
       expect(component.intervensiRows()[0]['% Konsumsi TTD']).toBe(91.2);
+
+      component.healthDataExchange.setChartData({
+        title: 'Grafik Hasil Join - dataset_stunting_2026.xlsx',
+        source: 'upload',
+        categoryColumn: 'Kabupaten/Kota',
+        columns: ['Kabupaten/Kota', '% Konsumsi TTD'],
+        rows: sessionRows,
+      });
+      fixture.detectChanges();
+      expect(badge?.textContent).toContain('dataset_stunting_2026.xlsx');
     });
 
     it('should dynamically resolve targetCurrentYear and targetPrevYear from loaded datasets', () => {
