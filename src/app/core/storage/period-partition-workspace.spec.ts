@@ -114,13 +114,29 @@ describe('PeriodPartitionWorkspace', () => {
       }
     });
 
-    it('harus mempertahankan tahun kustom yang sedang dipilih saat refreshPeriods dijalankan', async () => {
+    it('harus mempertahankan tahun kustom saat refreshPeriods dan menghapusnya saat deletePeriod berhasil', async () => {
       workspace.addCustomYear(2018);
       expect(workspace.selectedYear()).toBe(2018);
 
       await workspace.refreshPeriods();
       expect(workspace.availableYears()).toContain(2018);
       expect(workspace.selectedYear()).toBe(2018);
+
+      // Simulasikan penghapusan periode 2018 via mock backend
+      const mockBackend = {
+        isConfigured: () => true,
+        deletePeriod: vi.fn().mockResolvedValue({ success: true }),
+        listPeriods: vi.fn().mockResolvedValue({ success: true, periods: [] }),
+      };
+      const wsWithBackend = new PeriodPartitionWorkspace(
+        mockGasStorage as GasStorageService,
+        mockBackend as any,
+      );
+      wsWithBackend.addCustomYear(2018);
+      expect(wsWithBackend.availableYears()).toContain(2018);
+
+      await wsWithBackend.deletePeriod(2018, 'TW1');
+      expect(wsWithBackend.availableYears()).not.toContain(2018);
     });
 
     it('harus memeriksa ketersediaan kuartal dengan benar via isQuarterAvailable', async () => {

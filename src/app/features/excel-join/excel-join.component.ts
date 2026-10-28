@@ -5,6 +5,7 @@ import {
   inject,
   OnDestroy,
   OnInit,
+  Signal,
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -166,8 +167,8 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
 
   // Manajemen Partisi Periode Lintas Triwulan (Google Drive) - 5 Tahun ke Belakang
   currentYear = new Date().getFullYear();
-  availableYears = signal<number[]>(Array.from({ length: 6 }, (_, i) => this.currentYear - i));
-  selectedYear = signal<number>(this.currentYear);
+  readonly availableYears: Signal<number[]> = this.periodPartitionWorkspace.availableYears;
+  readonly selectedYear: Signal<number> = this.periodPartitionWorkspace.selectedYear;
   showCustomYearInput = signal<boolean>(false);
   customYearValue = signal<number | null>(null);
   selectedQuarter = signal<QuarterSlot>('TW1');
@@ -2255,10 +2256,6 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     try {
       const periods = await this.periodPartitionWorkspace.refreshPeriods();
       this.periodSlots.set(periods);
-      this.availableYears.set(this.periodPartitionWorkspace.availableYears());
-      if (!this.availableYears().includes(this.selectedYear())) {
-        this.selectedYear.set(this.periodPartitionWorkspace.selectedYear());
-      }
     } catch (e) {
       console.warn('Gagal memuat daftar periode penyimpanan:', e);
     } finally {
@@ -2285,19 +2282,18 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   }
 
   async loadPeriodDirect(year: number, quarter: QuarterSlot): Promise<void> {
-    this.selectedYear.set(year);
+    this.selectYear(year);
     this.selectedQuarter.set(quarter);
     await this.loadSelectedPeriod();
   }
 
   openSavePeriodDirect(year: number, quarter: QuarterSlot): void {
-    this.selectedYear.set(year);
+    this.selectYear(year);
     this.selectedQuarter.set(quarter);
     this.openSavePeriodConfirm();
   }
 
   selectYear(year: number): void {
-    this.selectedYear.set(year);
     this.periodPartitionWorkspace.setSelectedYear(year);
   }
 
@@ -2332,8 +2328,6 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     }
 
     this.periodPartitionWorkspace.addCustomYear(yr);
-    this.availableYears.set(this.periodPartitionWorkspace.availableYears());
-    this.selectedYear.set(yr);
     this.showCustomYearInput.set(false);
   }
 

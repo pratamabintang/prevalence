@@ -136,11 +136,8 @@ export class PeriodPartitionWorkspace {
 
     const yearsFromRemote = Array.from(new Set(periods.map((p) => p.year)));
     const fallbackYears = Array.from({ length: 6 }, (_, i) => this.currentYear - i);
-    // Pertahankan tahun kustom yang sedang dipilih atau yang sudah tersimpan di server
-    const activeCustomYears = this._customYears().filter(
-      (y) => y === this._selectedYear() || yearsFromRemote.includes(y),
-    );
-    this._customYears.set(activeCustomYears);
+    // Pertahankan tahun kustom yang didaftarkan dalam sesi atau yang aktif di server
+    const activeCustomYears = this._customYears();
 
     const mergedYears = Array.from(
       new Set([...yearsFromRemote, ...fallbackYears, ...activeCustomYears]),
@@ -531,6 +528,8 @@ export class PeriodPartitionWorkspace {
       if (this.backendStorage?.isConfigured()) {
         const res = await this.backendStorage.deletePeriod(year, quarter);
         if (res.success) {
+          // Bersihkan dari daftar tahun kustom sesi jika tahun ini adalah tahun kustom di luar fallback
+          this._customYears.set(this._customYears().filter((y) => y !== year));
           await this.refreshPeriods();
         }
         return res;

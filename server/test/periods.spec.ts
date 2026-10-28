@@ -50,7 +50,7 @@ describe('Backend API: Quarterly Period Storage & Archive (Seam 1)', () => {
     expect(res.body.success).toBe(false);
   });
 
-  it('POST /api/periods/:year/:quarter - harus menolak tahun di luar rentang 2000-2100', async () => {
+  it('POST /api/periods/:year/:quarter - harus menolak tahun di luar rentang 2000-2100 atau non-integer', async () => {
     const resUnder = await request(app)
       .post('/api/periods/1999/TW1').set(authHeaders)
       .attach('rawFile', Buffer.from('dummy excel content'), 'test.xlsx');
@@ -62,6 +62,16 @@ describe('Backend API: Quarterly Period Storage & Archive (Seam 1)', () => {
       .attach('rawFile', Buffer.from('dummy excel content'), 'test.xlsx');
     expect(resOver.status).toBe(400);
     expect(resOver.body.success).toBe(false);
+
+    const resFloat = await request(app)
+      .post('/api/periods/2024.5/TW1').set(authHeaders)
+      .attach('rawFile', Buffer.from('dummy excel content'), 'test.xlsx');
+    expect(resFloat.status).toBe(400);
+
+    const resInvalidStr = await request(app)
+      .post('/api/periods/2024abc/TW1').set(authHeaders)
+      .attach('rawFile', Buffer.from('dummy excel content'), 'test.xlsx');
+    expect(resInvalidStr.status).toBe(400);
   });
 
   it('POST /api/periods/2019/TW4 - harus mengizinkan tahun di luar rentang default (2000-2100) dan menyimpannya', async () => {

@@ -35,8 +35,26 @@ export function isValidYear(year: number): boolean {
   return Number.isInteger(year) && year >= MIN_PERIOD_YEAR && year <= MAX_PERIOD_YEAR;
 }
 
+export function parseYearParam(param: unknown): number | null {
+  const str = String(param ?? '').trim();
+  if (!/^\d{4}$/.test(str)) {
+    return null;
+  }
+  const num = parseInt(str, 10);
+  return isValidYear(num) ? num : null;
+}
+
 function isValidQuarter(q: string): q is QuarterType {
   return (ALLOWED_QUARTERS as readonly string[]).includes(q.toUpperCase());
+}
+
+export function validatePeriodParams(req: Request): { year: number; quarter: QuarterType } | null {
+  const year = parseYearParam(req.params.year);
+  const quarter = String(req.params.quarter || '').toUpperCase();
+  if (year === null || !isValidQuarter(quarter)) {
+    return null;
+  }
+  return { year, quarter };
 }
 
 function calculateSha256(buffer: Buffer): string {
@@ -145,15 +163,14 @@ periodsRouter.get('/periods', (_req: Request, res: Response) => {
 
 // GET /api/periods/:year/:quarter - Detail periode & observasi
 periodsRouter.get('/periods/:year/:quarter', (req: Request, res: Response) => {
-  const year = parseInt(String(req.params.year || ''), 10);
-  const quarter = String(req.params.quarter || '').toUpperCase();
-
-  if (!isValidYear(year) || !isValidQuarter(quarter)) {
+  const params = validatePeriodParams(req);
+  if (!params) {
     return res.status(400).json({
       success: false,
       message: 'Parameter tahun atau triwulan tidak valid. Tahun harus antara 2000 dan 2100.',
     });
   }
+  const { year, quarter } = params;
 
   try {
     const db = getDb();
@@ -247,16 +264,16 @@ periodsRouter.get('/periods/:year/:quarter', (req: Request, res: Response) => {
 
 // GET /api/periods/:year/:quarter/download/:type - Unduh berkas fisik biner
 periodsRouter.get('/periods/:year/:quarter/download/:type', (req: Request, res: Response) => {
-  const year = parseInt(String(req.params.year || ''), 10);
-  const quarter = String(req.params.quarter || '').toUpperCase();
+  const params = validatePeriodParams(req);
   const type = String(req.params.type || '').toLowerCase();
 
-  if (!isValidYear(year) || !isValidQuarter(quarter) || (type !== 'raw' && type !== 'result')) {
+  if (!params || (type !== 'raw' && type !== 'result')) {
     return res.status(400).json({
       success: false,
       message: 'Parameter unduhan tidak valid. Tipe berkas harus "raw" atau "result", tahun antara 2000 dan 2100.',
     });
   }
+  const { year, quarter } = params;
 
   try {
     const db = getDb();
@@ -302,15 +319,14 @@ periodsRouter.post(
     { name: 'resultFile', maxCount: 1 },
   ]),
   (req: Request, res: Response) => {
-    const year = parseInt(String(req.params.year || ''), 10);
-    const quarter = String(req.params.quarter || '').toUpperCase();
-
-    if (!isValidYear(year) || !isValidQuarter(quarter)) {
+    const params = validatePeriodParams(req);
+    if (!params) {
       return res.status(400).json({
         success: false,
         message: 'Parameter tahun atau triwulan tidak valid. Tahun harus antara 2000 dan 2100.',
       });
     }
+    const { year, quarter } = params;
 
     const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
     const rawFile = files?.['rawFile']?.[0];
@@ -467,15 +483,14 @@ periodsRouter.post(
 
 // DELETE /api/periods/:year/:quarter - Hapus periode dan berkas fisik
 periodsRouter.delete('/periods/:year/:quarter', (req: Request, res: Response) => {
-  const year = parseInt(String(req.params.year || ''), 10);
-  const quarter = String(req.params.quarter || '').toUpperCase();
-
-  if (!isValidYear(year) || !isValidQuarter(quarter)) {
+  const params = validatePeriodParams(req);
+  if (!params) {
     return res.status(400).json({
       success: false,
       message: 'Parameter tahun atau triwulan tidak valid. Tahun harus antara 2000 dan 2100.',
     });
   }
+  const { year, quarter } = params;
 
   try {
     const db = getDb();

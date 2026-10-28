@@ -1960,7 +1960,7 @@ describe('ExcelJoinComponent', () => {
       expect(component.showSavePeriodConfirm()).toBe(true);
       component.closeSavePeriodConfirm();
 
-      component.selectedYear.set(2026);
+      component.selectYear(2026);
       component.selectedQuarter.set('TW1');
       await component.loadSelectedPeriod();
 
@@ -1971,7 +1971,7 @@ describe('ExcelJoinComponent', () => {
 
     it('loadSelectedPeriod memuat data dan mengaktifkan label periode', async () => {
       component.isProcessing.set(false);
-      component.selectedYear.set(2026);
+      component.selectYear(2026);
       component.selectedQuarter.set('TW1');
 
       // Create a minimal valid xlsx buffer
@@ -2000,7 +2000,7 @@ describe('ExcelJoinComponent', () => {
     });
 
     it('loadSelectedPeriod mengaktifkan animasi loading (isLoadingPeriod = true) selama proses', async () => {
-      component.selectedYear.set(2026);
+      component.selectYear(2026);
       component.selectedQuarter.set('TW1');
 
       let loadingDuringCall = false;
@@ -2022,7 +2022,7 @@ describe('ExcelJoinComponent', () => {
 
     it('loadSelectedPeriod memberi tahu jika data periode belum tersedia di Google Drive', async () => {
       component.isProcessing.set(false);
-      component.selectedYear.set(2026);
+      component.selectYear(2026);
       component.selectedQuarter.set('TW4');
 
       vi.spyOn(component.gasStorageService, 'loadPeriod').mockResolvedValue({
@@ -2039,7 +2039,7 @@ describe('ExcelJoinComponent', () => {
 
     it('loadSelectedPeriod memulihkan target yang dimodifikasi dari res.config saat memuat sheet hasil join', async () => {
       component.isProcessing.set(false);
-      component.selectedYear.set(2026);
+      component.selectYear(2026);
       component.selectedQuarter.set('TW4');
 
       const wb = XLSX.utils.book_new();
@@ -2083,7 +2083,7 @@ describe('ExcelJoinComponent', () => {
     });
 
     it('confirmSavePeriodToCloud mengunggah raw dan result buffer ke GAS', async () => {
-      component.selectedYear.set(2026);
+      component.selectYear(2026);
       component.selectedQuarter.set('TW2');
       const dummyFile = new File(['raw-excel'], 'raw.xlsx');
       component.file.set(dummyFile);
@@ -2193,7 +2193,7 @@ describe('ExcelJoinComponent', () => {
     });
 
     it('confirmDeletePeriod menghapus data periode, me-reset label aktif, dan menyegarkan slot', async () => {
-      component.selectedYear.set(2026);
+      component.selectYear(2026);
       component.selectedQuarter.set('TW1');
       component.activePeriodLabel.set('2026 TW1');
       component.showDeletePeriodConfirm.set(true);
@@ -2214,7 +2214,7 @@ describe('ExcelJoinComponent', () => {
     });
 
     it('confirmDeletePeriod menangani kegagalan penghapusan dengan notifikasi warning', async () => {
-      component.selectedYear.set(2026);
+      component.selectYear(2026);
       component.selectedQuarter.set('TW2');
       component.showDeletePeriodConfirm.set(true);
 
@@ -2234,7 +2234,7 @@ describe('ExcelJoinComponent', () => {
       component.periodSlots.set([
         { year: 2026, quarter: 'TW1', hasRaw: true, hasResult: true, hasConfig: true },
       ]);
-      component.selectedYear.set(2026);
+      component.selectYear(2026);
       component.selectedQuarter.set('TW1');
       vi.spyOn(component.periodPartitionWorkspace, 'isStorageConfigured').mockReturnValue(true);
 
@@ -2357,7 +2357,7 @@ describe('ExcelJoinComponent', () => {
       });
 
       await component.onFileSelected({ target: { files: [file], value: '' } } as unknown as Event);
-      component.selectedYear.set(2026);
+      component.selectYear(2026);
       component.selectedQuarter.set('TW1');
 
       await component.confirmSavePeriodToCloud();
