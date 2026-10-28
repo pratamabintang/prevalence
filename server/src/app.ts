@@ -6,14 +6,24 @@ import { configsRouter } from './routes/configs';
 import { periodsRouter } from './routes/periods';
 import { defaultRouter } from './routes/default';
 import { analyticsRouter } from './routes/analytics';
+import { requireAdminForMutations } from './middleware/auth';
 
-export function createApp(): Express {
+export interface AppOptions {
+  disableAuth?: boolean;
+}
+
+export function createApp(options?: AppOptions): Express {
   const app = express();
 
   // Middleware
   app.use(cors());
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+  // Admin authentication guard for mutating endpoints
+  if (!options?.disableAuth && process.env.DATA_AUTH_DISABLED !== 'true') {
+    app.use('/api', requireAdminForMutations);
+  }
 
   // API Routes
   app.use('/api', healthRouter);

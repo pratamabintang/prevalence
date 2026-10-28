@@ -26,6 +26,13 @@ describe('HomeComponent', () => {
     expect(component).toBeTruthy();
   });
 
+  it('should render the main title as "Sistem Pemantauan Intervensi Spesifik & Masalah Gizi"', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    const h1 = compiled.querySelector('h1');
+    expect(h1).toBeTruthy();
+    expect(h1?.textContent?.trim()).toBe('Sistem Pemantauan Intervensi Spesifik & Masalah Gizi');
+  });
+
   it('should initialize with Category 1 (intervensi-heatmap) as active default', () => {
     expect(component.activeCategory()).toBe('intervensi-heatmap');
     const compiled = fixture.nativeElement as HTMLElement;

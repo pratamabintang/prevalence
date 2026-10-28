@@ -590,14 +590,14 @@ describe('ChartVisualizerComponent', () => {
       populateTestData();
     });
 
-    it('should default to "by-region" viewMode and allow switching to "by-indicator"', () => {
-      expect(component.viewMode()).toBe('by-region');
-
-      component.setViewMode('by-indicator');
+    it('should default to "by-indicator" viewMode and allow switching to other modes', () => {
       expect(component.viewMode()).toBe('by-indicator');
 
       component.setViewMode('by-region');
       expect(component.viewMode()).toBe('by-region');
+
+      component.setViewMode('by-indicator');
+      expect(component.viewMode()).toBe('by-indicator');
     });
 
     it('should compute distinct comparison layouts and stats for each selected indicator series', () => {
@@ -879,13 +879,13 @@ describe('ChartVisualizerComponent', () => {
     });
 
     it('should allow switching viewMode to "by-map" and back', () => {
-      expect(component.viewMode()).toBe('by-region');
+      expect(component.viewMode()).toBe('by-indicator');
 
       component.setViewMode('by-map');
       expect(component.viewMode()).toBe('by-map');
 
-      component.setViewMode('by-region');
-      expect(component.viewMode()).toBe('by-region');
+      component.setViewMode('by-indicator');
+      expect(component.viewMode()).toBe('by-indicator');
     });
 
     it('should default activeMapSeries to first series and compute mapHeatmapResult with 35 districts', () => {
@@ -2054,6 +2054,48 @@ describe('ChartVisualizerComponent', () => {
       const el = fixture.nativeElement as HTMLElement;
       expect(el.querySelector('[data-testid="tab-by-trends"]')).not.toBeNull();
       expect(el.textContent).toContain('Tren Lintas Periode');
+    });
+
+    it('should hide Per Wilayah, Per Indikator, and Peta buttons and mode switcher by default when disabled in environment', () => {
+      component.dataSource.set('join');
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('[data-testid="tab-by-region"]')).toBeNull();
+      expect(el.querySelector('[data-testid="tab-by-indicator"]')).toBeNull();
+      expect(el.querySelector('[data-testid="tab-by-map"]')).toBeNull();
+      expect(component.hasModeSwitcher()).toBe(false);
+    });
+
+    it('should show Per Indikator button when enableByIndicator is true', () => {
+      component.dataSource.set('join');
+      component.enableByIndicator.set(true);
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('[data-testid="tab-by-indicator"]')).not.toBeNull();
+      expect(el.textContent).toContain('Per Indikator');
+      expect(component.hasModeSwitcher()).toBe(true);
+    });
+
+    it('should show Per Wilayah button when enableByRegion is true', () => {
+      component.dataSource.set('join');
+      component.enableByRegion.set(true);
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('[data-testid="tab-by-region"]')).not.toBeNull();
+      expect(el.textContent).toContain('Per Wilayah');
+    });
+
+    it('should show Peta button when enableByMap is true', () => {
+      component.dataSource.set('join');
+      component.enableByMap.set(true);
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('[data-testid="tab-by-map"]')).not.toBeNull();
+      expect(el.textContent).toContain('Peta');
     });
   });
 

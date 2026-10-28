@@ -44,6 +44,7 @@ import {
 import { DEFAULT_JOIN_CONFIG } from './default-join-config';
 import { MASALAH_GIZI_JOIN_CONFIG } from './masalah-gizi-join-config';
 import { ExcelJoinStore, ExcelJoinStoredState } from './excel-join-store';
+import { DataAuthService } from '../../core/auth/data-auth.service';
 import { environment } from '../../../environments/environment';
 
 export type {
@@ -86,6 +87,36 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   gasStorageService = inject(GasStorageService);
   excelJoinStore = inject(ExcelJoinStore);
   periodPartitionWorkspace = inject(PeriodPartitionWorkspace);
+  readonly dataAuthService = inject(DataAuthService);
+  readonly authIdInput = signal<string>('');
+  readonly authPasswordInput = signal<string>('');
+  readonly authShowPassword = signal<boolean>(false);
+  readonly authErrorMessage = signal<string | null>(null);
+
+  submitLogin(): void {
+    const id = this.authIdInput().trim();
+    const pw = this.authPasswordInput().trim();
+
+    if (!id || !pw) {
+      this.authErrorMessage.set('Silakan masukkan ID dan Kata Sandi.');
+      return;
+    }
+
+    const success = this.dataAuthService.login(id, pw);
+    if (success) {
+      this.authErrorMessage.set(null);
+      this.authPasswordInput.set('');
+    } else {
+      this.authErrorMessage.set('ID atau Kata Sandi pengelola tidak valid.');
+    }
+  }
+
+  logout(): void {
+    this.dataAuthService.logout();
+    this.authIdInput.set('');
+    this.authPasswordInput.set('');
+    this.authErrorMessage.set(null);
+  }
 
   file = signal<File | null>(null);
   workbook: ExcelWorkbook | null = null;

@@ -228,6 +228,11 @@ _Avoid_: Full server parsing, upload mentah tanpa preview, client-only storage
 Struktur direktori penyimpanan berkas biner Excel (.xlsx) di sisi server yang terorganisasi per tahun dan triwulan, di mana metadata dan lokasinya dikaitkan dengan baris data pada database SQLite.
 _Avoid_: Blob storage acak, file campur aduk, folder mentah
 
+**Gerbang Autentikasi Kelola Data (Data Management Authentication Gate)**:
+Mekanisme kendali akses berbasis kredensial statis waktu-kompilasi (ID dan Kata Sandi) yang membatasi akses halaman `/data` serta operasi penulisan, pembaruan, dan penghapusan data di server hanya bagi pengelola resmi, dengan tetap membuka akses baca publik pada modul visualisasi dan pemantauan.
+_Avoid_: Sistem registrasi pengguna, manajemen akun multi-peran, login publik
+
+
 
 
 

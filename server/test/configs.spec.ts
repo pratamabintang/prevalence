@@ -10,7 +10,7 @@ describe('Backend API: Configurations Preset Persistence (Seam 1)', () => {
   beforeAll(() => {
     const db = initDb({ inMemory: true });
     migrateSchema(db);
-    app = createApp();
+    app = createApp({ disableAuth: true });
   });
 
   afterAll(() => {

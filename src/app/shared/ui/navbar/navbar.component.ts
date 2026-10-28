@@ -163,7 +163,7 @@ export class AppNavbarComponent implements OnInit {
 
   readonly allNavItems: NavItem[] = [
     { id: 1, label: 'Beranda', shortLabel: 'Beranda', route: '/', exact: true },
-    { id: 2, label: 'Data', shortLabel: 'Data', route: '/data', exact: false },
+    { id: 2, label: 'Kelola Data', shortLabel: 'Kelola Data', route: '/data', exact: false },
     { id: 3, label: 'Visualisasi', shortLabel: 'Visualisasi', route: '/visualisasi', exact: false },
     { id: 4, label: 'Capaian Intervensi', shortLabel: 'Intervensi', route: '/capaian-intervensi', exact: false },
     { id: 5, label: 'Kohort Stunting', shortLabel: 'Kohort', route: '/stunting-cohort', exact: false, disabled: true },
@@ -174,20 +174,16 @@ export class AppNavbarComponent implements OnInit {
     const isDashboardEnabled = this.enableStuntingDashboard();
     const isCohortEnabled = this.enableStuntingCohort();
     return this.allNavItems
-      .filter((nav) => nav.route !== '/stunting-dashboard' || isDashboardEnabled)
-      .map((item, index) => {
-        if (item.route === '/stunting-cohort') {
-          return {
-            ...item,
-            id: index + 1,
-            disabled: !isCohortEnabled,
-          };
-        }
-        return {
-          ...item,
-          id: index + 1,
-        };
-      });
+      .filter((nav) => {
+        if (nav.route === '/stunting-dashboard' && !isDashboardEnabled) return false;
+        if (nav.route === '/stunting-cohort' && !isCohortEnabled) return false;
+        return true;
+      })
+      .map((item, index) => ({
+        ...item,
+        id: index + 1,
+        disabled: false,
+      }));
   });
 
   ngOnInit(): void {

@@ -29,7 +29,7 @@ describe('AppNavbarComponent', () => {
     expect(el.querySelector('[data-testid="show-navbar-btn"]')).toBeTruthy();
   });
 
-  it('should render 5 module items without "Modul Aplikasi" heading or numbering badges, with Kohort Stunting disabled', () => {
+  it('should render 4 module items without "Modul Aplikasi" heading or numbering badges, with Kohort Stunting completely hidden', () => {
     component.showNavbar();
     fixture.detectChanges();
 
@@ -40,16 +40,14 @@ describe('AppNavbarComponent', () => {
     const links = desktopNav?.querySelectorAll('a');
     expect(links?.length).toBe(4);
 
-    const disabledBtn = desktopNav?.querySelector('[data-testid="nav-disabled-kohort"]') as HTMLButtonElement;
-    expect(disabledBtn).toBeTruthy();
-    expect(disabledBtn.disabled).toBe(true);
-    expect(disabledBtn.getAttribute('aria-disabled')).toBe('true');
+    const disabledBtn = desktopNav?.querySelector('[data-testid="nav-disabled-kohort"]');
+    expect(disabledBtn).toBeNull();
 
     expect(desktopNav?.textContent).toContain('Beranda');
-    expect(desktopNav?.textContent).toContain('Data');
+    expect(desktopNav?.textContent).toContain('Kelola Data');
     expect(desktopNav?.textContent).toContain('Visualisasi');
     expect(desktopNav?.textContent).toContain('Capaian Intervensi');
-    expect(desktopNav?.textContent).toContain('Kohort Stunting');
+    expect(desktopNav?.textContent).not.toContain('Kohort Stunting');
     expect(desktopNav?.textContent).not.toContain('Dashboard Stunting');
 
     // Verify "Modul Aplikasi" heading is removed
@@ -59,10 +57,10 @@ describe('AppNavbarComponent', () => {
     const firstLink = links?.[0];
     expect(firstLink?.textContent?.trim()).toBe('Beranda');
     const secondLink = links?.[1];
-    expect(secondLink?.textContent?.trim()).toBe('Data');
+    expect(secondLink?.textContent?.trim()).toBe('Kelola Data');
   });
 
-  it('should render 5 active links and 1 disabled item when enableStuntingDashboard is true', () => {
+  it('should render 5 active links when enableStuntingDashboard is true and Kohort is hidden', () => {
     component.showNavbar();
     component.enableStuntingDashboard.set(true);
     fixture.detectChanges();
@@ -75,12 +73,14 @@ describe('AppNavbarComponent', () => {
     expect(links?.length).toBe(5);
 
     expect(desktopNav?.textContent).toContain('Dashboard Stunting');
-    expect(component.navItems()[5]).toEqual({
-      id: 6,
+    expect(desktopNav?.textContent).not.toContain('Kohort Stunting');
+    expect(component.navItems()[4]).toEqual({
+      id: 5,
       label: 'Dashboard Stunting',
       shortLabel: 'Dashboard',
       route: '/stunting-dashboard',
       exact: false,
+      disabled: false,
     });
   });
 
@@ -108,10 +108,10 @@ describe('AppNavbarComponent', () => {
     expect(firstItem.label).toBe('Beranda');
   });
 
-  it('should route Data to /data', () => {
+  it('should route Kelola Data to /data', () => {
     const secondItem = component.navItems()[1];
     expect(secondItem.route).toBe('/data');
-    expect(secondItem.label).toBe('Data');
+    expect(secondItem.label).toBe('Kelola Data');
   });
 
   it('should route Visualisasi to /visualisasi', () => {
@@ -126,28 +126,29 @@ describe('AppNavbarComponent', () => {
     expect(fourthItem.label).toBe('Capaian Intervensi');
   });
 
-  it('should order Kohort Stunting consecutively at #5 when Dashboard Stunting is disabled', () => {
+  it('should order Kohort Stunting consecutively at #5 when enabled and Dashboard Stunting is disabled', () => {
+    component.enableStuntingCohort.set(true);
     expect(component.navItems()[4]).toEqual({
       id: 5,
       label: 'Kohort Stunting',
       shortLabel: 'Kohort',
       route: '/stunting-cohort',
       exact: false,
-      disabled: true,
+      disabled: false,
     });
   });
 
-  it('should render Kohort Stunting as a disabled button in the navbar to prevent user access', () => {
+  it('should truly hide Kohort Stunting from navbar when disabled in environment', () => {
     component.showNavbar();
+    component.enableStuntingCohort.set(false);
     fixture.detectChanges();
 
     const el = fixture.nativeElement as HTMLElement;
-    const kohortBtn = el.querySelector('[data-testid="nav-disabled-kohort"]') as HTMLButtonElement;
-    expect(kohortBtn).toBeTruthy();
-    expect(kohortBtn.disabled).toBe(true);
-    expect(kohortBtn.getAttribute('aria-disabled')).toBe('true');
-    expect(kohortBtn.textContent).toContain('Kohort Stunting');
-    expect(kohortBtn.getAttribute('title')).toContain('pengembangan');
+    const kohortBtn = el.querySelector('[data-testid="nav-disabled-kohort"]');
+    expect(kohortBtn).toBeNull();
+    const kohortLink = el.querySelector('a[href="/stunting-cohort"]');
+    expect(kohortLink).toBeNull();
+    expect(el.textContent).not.toContain('Kohort Stunting');
   });
 
   it('should render the brand logo image', () => {

@@ -192,6 +192,91 @@ export class ChartVisualizerComponent implements OnInit {
     ),
   );
 
+  // Kontrol Tampilan Mode Grafik via Environment
+  enableByRegion = signal<boolean>(
+    Boolean(
+      (
+        environment as {
+          enableByRegion?: boolean;
+          enableChartByRegion?: boolean;
+        }
+      ).enableByRegion ??
+        (
+          environment as {
+            enableByRegion?: boolean;
+            enableChartByRegion?: boolean;
+          }
+        ).enableChartByRegion ??
+        false,
+    ),
+  );
+
+  enableByMap = signal<boolean>(
+    Boolean(
+      (
+        environment as {
+          enableByMap?: boolean;
+          enableChartByMap?: boolean;
+          enableHeatmapMode?: boolean;
+          enableChartHeatmap?: boolean;
+        }
+      ).enableByMap ??
+        (
+          environment as {
+            enableByMap?: boolean;
+            enableChartByMap?: boolean;
+            enableHeatmapMode?: boolean;
+            enableChartHeatmap?: boolean;
+          }
+        ).enableChartByMap ??
+        (
+          environment as {
+            enableByMap?: boolean;
+            enableChartByMap?: boolean;
+            enableHeatmapMode?: boolean;
+            enableChartHeatmap?: boolean;
+          }
+        ).enableHeatmapMode ??
+        (
+          environment as {
+            enableByMap?: boolean;
+            enableChartByMap?: boolean;
+            enableHeatmapMode?: boolean;
+            enableChartHeatmap?: boolean;
+          }
+        ).enableChartHeatmap ??
+        false,
+    ),
+  );
+
+  enableByIndicator = signal<boolean>(
+    Boolean(
+      (
+        environment as {
+          enableByIndicator?: boolean;
+          enableChartByIndicator?: boolean;
+        }
+      ).enableByIndicator ??
+        (
+          environment as {
+            enableByIndicator?: boolean;
+            enableChartByIndicator?: boolean;
+          }
+        ).enableChartByIndicator ??
+        false,
+    ),
+  );
+
+  hasModeSwitcher = computed(
+    () =>
+      this.enableByRegion() ||
+      this.enableByIndicator() ||
+      this.enableByMap() ||
+      this.enableCorrelationMatrix() ||
+      this.enablePriorityQuadrant() ||
+      this.enablePeriodTrends(),
+  );
+
   // Status & Panel
   dataSource = signal<'join' | 'upload' | 'empty'>('empty');
   notificationMessage = signal<string | null>(null);
@@ -269,7 +354,7 @@ export class ChartVisualizerComponent implements OnInit {
     | 'by-correlation'
     | 'by-quadrant'
     | 'by-trends'
-  >('by-region');
+  >('by-indicator');
 
 
   // ============================================================

@@ -1,5 +1,6 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { environment } from '../../../environments/environment';
+import { DataAuthService } from '../auth/data-auth.service';
 
 export type QuarterSlot = 'TW1' | 'TW2' | 'TW3' | 'TW4';
 
@@ -155,6 +156,16 @@ export interface BackendTrendsResult {
   providedIn: 'root',
 })
 export class BackendStorageService {
+  private readonly dataAuth: DataAuthService | null = null;
+
+  constructor() {
+    try {
+      this.dataAuth = inject(DataAuthService, { optional: true });
+    } catch {
+      this.dataAuth = null;
+    }
+  }
+
   /**
    * Signal status ketersediaan koneksi server backend.
    */
@@ -197,11 +208,21 @@ export class BackendStorageService {
       return { ok: false, error: 'Backend API URL belum dikonfigurasi.' };
     }
 
+    const method = (init?.method || 'GET').toUpperCase();
+    const isMutating = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method);
+    const authHeaders = isMutating
+      ? this.dataAuth?.getAuthHeaders() ?? {
+          'X-Admin-Id': environment.dataAdminId ?? 'bidangkesmas',
+          'X-Admin-Password': environment.dataAdminPassword ?? '@Dinkes123#',
+        }
+      : {};
+
     try {
       const response = await fetch(`${baseUrl}${endpoint}`, {
         ...init,
         headers: {
           Accept: 'application/json',
+          ...authHeaders,
           ...(init?.headers || {}),
         },
       });

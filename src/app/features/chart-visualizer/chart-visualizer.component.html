@@ -688,6 +688,7 @@
               </button>
             </div>
 
+            @if (hasModeSwitcher()) {
             <div class="h-5 w-px bg-slate-200 hidden sm:block"></div>
 
             <!-- MODE SWITCHER (PER WILAYAH VS PER INDIKATOR) -->
@@ -695,8 +696,10 @@
               class="inline-flex rounded-lg border border-[#6D8BC0]/30 bg-[#F2F5FA] p-0.5 text-xs font-semibold"
             >
 
+              @if (enableByRegion()) {
               <button
                 type="button"
+                data-testid="tab-by-region"
                 (click)="setViewMode('by-region')"
                 class="flex items-center gap-1.5 rounded-md px-3 py-1.5 transition cursor-pointer"
                 [class.bg-white]="viewMode() === 'by-region'"
@@ -716,9 +719,12 @@
                 </svg>
                 <span>Per Wilayah</span>
               </button>
+              }
 
+              @if (enableByIndicator()) {
               <button
                 type="button"
+                data-testid="tab-by-indicator"
                 (click)="setViewMode('by-indicator')"
                 class="flex items-center gap-1.5 rounded-md px-3 py-1.5 transition cursor-pointer"
                 [class.bg-white]="viewMode() === 'by-indicator'"
@@ -738,9 +744,12 @@
                 </svg>
                 <span>Per Indikator ({{ seriesList().length }})</span>
               </button>
+              }
 
+              @if (enableByMap()) {
               <button
                 type="button"
+                data-testid="tab-by-map"
                 (click)="setViewMode('by-map')"
                 class="flex items-center gap-1.5 rounded-md px-3 py-1.5 transition cursor-pointer"
                 [class.bg-white]="viewMode() === 'by-map'"
@@ -748,7 +757,7 @@
                 [class.shadow-xs]="viewMode() === 'by-map'"
                 [class.text-slate-600]="viewMode() !== 'by-map'"
                 [class.hover:text-[#525AFF]]="viewMode() !== 'by-map'"
-                title="Mode Peta Heatmap: Visualisasi sebaran spasial per indikator di wilayah Jawa Tengah"
+                title="Mode Peta: Visualisasi sebaran spasial per indikator di wilayah Jawa Tengah"
               >
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -758,8 +767,9 @@
                     d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
                   />
                 </svg>
-                <span>Peta Heatmap</span>
+                <span>Peta</span>
               </button>
+              }
 
               @if (enableCorrelationMatrix()) {
               <button
@@ -836,6 +846,7 @@
               </button>
               }
             </div>
+            }
 
             <!-- UNDUH DATA KE EXCEL -->
             @if (canRenderChart()) {
@@ -1344,7 +1355,7 @@
                     [value]="activeMapSeries()?.key ?? ''"
                     (change)="setActiveMapIndicator($any($event.target).value)"
                     class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 focus:border-[#525AFF] focus:outline-none focus:ring-1 focus:ring-[#525AFF] cursor-pointer shadow-2xs max-w-[280px] truncate"
-                    title="Pilih indikator kesehatan untuk ditampilkan pada peta heatmap spasial Jawa Tengah"
+                    title="Pilih indikator kesehatan untuk ditampilkan pada peta spasial Jawa Tengah"
                   >
                     @for (s of seriesList(); track s.key) {
                       <option [value]="s.key" [selected]="s.key === activeMapSeries()?.key">
@@ -3027,7 +3038,7 @@
                 class="mt-5 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 border-t border-slate-100 pt-3"
               >
                 <span>
-                  Menampilkan peta spasial heatmap untuk indikator
+                  Menampilkan peta spasial untuk indikator
                   <strong>{{ mapData.series.label }}</strong> di
                   <strong>{{ mapData.stats.totalDistricts }}</strong> kabupaten/kota.
                 </span>
@@ -3039,9 +3050,9 @@
             </div>
           } @else {
             <div class="rounded-xl border border-slate-200 bg-white p-12 text-center">
-              <h4 class="text-base font-bold text-slate-700">Peta Heatmap Siap Ditampilkan</h4>
+              <h4 class="text-base font-bold text-slate-700">Peta Siap Ditampilkan</h4>
               <p class="mt-1 text-xs text-slate-500">
-                Pilih minimal satu kolom indikator angka atau persentase untuk merender peta heatmap
+                Pilih minimal satu kolom indikator angka atau persentase untuk merender peta
                 wilayah.
               </p>
             </div>

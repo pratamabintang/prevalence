@@ -60,9 +60,9 @@ describe('StuntingDashboardComponent', () => {
     expect(compiled.textContent).toContain('TW4 2025 → TW1 2026');
   });
 
-  it('should render Section E heatmap with 35 rows and mandatory explanation', () => {
+  it('should render Section E peta with 35 rows and mandatory explanation', () => {
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.textContent).toContain('Heatmap Prevalensi: 35 Wilayah × 5 Triwulan');
+    expect(compiled.textContent).toContain('Peta Prevalensi: 35 Wilayah × 5 Triwulan');
     expect(compiled.textContent).toContain(
       'Warna digunakan untuk membantu membaca perbedaan nilai, bukan sebagai label keberhasilan atau kegagalan daerah',
     );

@@ -20,7 +20,7 @@ describe('Backend API: Quarterly Period Storage & Archive (Seam 1)', () => {
     const db = initDb({ inMemory: true });
     migrateSchema(db);
     seedDistricts(db);
-    app = createApp();
+    app = createApp({ disableAuth: true });
   });
 
   afterAll(() => {

@@ -15,4 +15,12 @@ export const environment = {
   enableChartCorrelationMatrix: false,
   enableComparativeMatrix: false,
   enableRegionalComparativeMatrix: false,
+  enableChartByRegion: false,
+  enableChartByMap: false,
+  enableByRegion: false,
+  enableByMap: false,
+  enableChartByIndicator: false,
+  enableByIndicator: false,
+  dataAdminId: 'bidangkesmas',
+  dataAdminPassword: '@Dinkes123#',
 };

@@ -382,6 +382,30 @@ describe('BackendStorageService (Seam 2 Frontend Client)', () => {
         '/api/default',
         expect.objectContaining({
           method: 'DELETE',
+          headers: expect.objectContaining({
+            'X-Admin-Id': 'bidangkesmas',
+            'X-Admin-Password': '@Dinkes123#',
+          }),
+        }),
+      );
+    });
+
+    it('harus menyertakan header autentikasi pengelola saat mengeksekusi operasi mutasi', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true, message: 'Deleted' }),
+      });
+
+      await service.deletePeriod(2026, 'TW1');
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        '/api/periods/2026/TW1',
+        expect.objectContaining({
+          method: 'DELETE',
+          headers: expect.objectContaining({
+            'X-Admin-Id': 'bidangkesmas',
+            'X-Admin-Password': '@Dinkes123#',
+          }),
         }),
       );
     });

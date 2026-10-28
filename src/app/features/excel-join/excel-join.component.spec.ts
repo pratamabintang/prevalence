@@ -25,6 +25,7 @@ describe('ExcelJoinComponent', () => {
     }
     if (typeof sessionStorage !== 'undefined') {
       sessionStorage.clear();
+      sessionStorage.setItem('dinkes_data_auth', '1');
     }
     await TestBed.configureTestingModule({
       imports: [ExcelJoinComponent],
@@ -40,6 +41,65 @@ describe('ExcelJoinComponent', () => {
     expect(component).toBeTruthy();
     expect(component.sheets()).toEqual([]);
     expect(component.selectedSheets()).toEqual([]);
+  });
+
+  it('should render page header with title "Kelola Data" and explanatory subtitle', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    const header = el.querySelector('ui-page-header');
+    expect(header).toBeTruthy();
+    expect(header?.textContent).toContain('Kelola Data');
+  });
+
+  describe('Data Management Authentication Gate (/data)', () => {
+    beforeEach(() => {
+      sessionStorage.clear();
+      component.dataAuthService.logout();
+      fixture.detectChanges();
+    });
+
+    it('should show login gate and hide workspace when unauthenticated', () => {
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('[data-testid="data-auth-gate"]')).not.toBeNull();
+      expect(el.querySelector('[data-testid="btn-data-logout"]')).toBeNull();
+      expect(component.dataAuthService.isAuthenticated()).toBe(false);
+    });
+
+    it('should reject invalid credentials with error message', () => {
+      component.authIdInput.set('wrong');
+      component.authPasswordInput.set('wrong');
+      component.submitLogin();
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(component.dataAuthService.isAuthenticated()).toBe(false);
+      expect(component.authErrorMessage()).toContain('tidak valid');
+      expect(el.querySelector('[data-testid="auth-error-alert"]')).not.toBeNull();
+    });
+
+    it('should unlock workspace and show logout button when valid credentials are submitted', () => {
+      component.authIdInput.set('bidangkesmas');
+      component.authPasswordInput.set('@Dinkes123#');
+      component.submitLogin();
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(component.dataAuthService.isAuthenticated()).toBe(true);
+      expect(el.querySelector('[data-testid="data-auth-gate"]')).toBeNull();
+      expect(el.querySelector('[data-testid="btn-data-logout"]')).not.toBeNull();
+    });
+
+    it('should return to login gate when logout is clicked', () => {
+      component.dataAuthService.login('bidangkesmas', '@Dinkes123#');
+      fixture.detectChanges();
+      expect(component.dataAuthService.isAuthenticated()).toBe(true);
+
+      component.logout();
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(component.dataAuthService.isAuthenticated()).toBe(false);
+      expect(el.querySelector('[data-testid="data-auth-gate"]')).not.toBeNull();
+    });
   });
 
   describe('variable search and column letter display', () => {
