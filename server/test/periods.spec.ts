@@ -50,6 +50,38 @@ describe('Backend API: Quarterly Period Storage & Archive (Seam 1)', () => {
     expect(res.body.success).toBe(false);
   });
 
+  it('POST /api/periods/:year/:quarter - harus menolak tahun di luar rentang 2000-2100', async () => {
+    const resUnder = await request(app)
+      .post('/api/periods/1999/TW1').set(authHeaders)
+      .attach('rawFile', Buffer.from('dummy excel content'), 'test.xlsx');
+    expect(resUnder.status).toBe(400);
+    expect(resUnder.body.success).toBe(false);
+
+    const resOver = await request(app)
+      .post('/api/periods/2101/TW1').set(authHeaders)
+      .attach('rawFile', Buffer.from('dummy excel content'), 'test.xlsx');
+    expect(resOver.status).toBe(400);
+    expect(resOver.body.success).toBe(false);
+  });
+
+  it('POST /api/periods/2019/TW4 - harus mengizinkan tahun di luar rentang default (2000-2100) dan menyimpannya', async () => {
+    const res = await request(app)
+      .post('/api/periods/2019/TW4').set(authHeaders)
+      .attach('rawFile', Buffer.from('dummy 2019 data'), 'data_2019.xlsx');
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.year).toBe(2019);
+
+    const getRes = await request(app).get('/api/periods/2019/TW4');
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.year).toBe(2019);
+
+    // Bersihkan kembali agar tidak mempengaruhi assertions urutan tes berikutnya
+    const delRes = await request(app).delete('/api/periods/2019/TW4').set(authHeaders);
+    expect(delRes.status).toBe(200);
+  });
+
   it('POST /api/periods/2026/TW1 - harus berhasil menyimpan file biner, config JSON, dan observasi (termasuk Toleransi Daerah) ke SQLite', async () => {
     const dummyBuffer = Buffer.from('PK...fake excel binary stream for tw1');
     const mockObservations = JSON.stringify([

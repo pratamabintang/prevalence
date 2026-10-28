@@ -168,6 +168,8 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   currentYear = new Date().getFullYear();
   availableYears = signal<number[]>(Array.from({ length: 6 }, (_, i) => this.currentYear - i));
   selectedYear = signal<number>(this.currentYear);
+  showCustomYearInput = signal<boolean>(false);
+  customYearValue = signal<number | null>(null);
   selectedQuarter = signal<QuarterSlot>('TW1');
   periodSlots = signal<GasPeriodItem[]>([]);
   isLoadingPeriods = signal<boolean>(false);
@@ -2254,6 +2256,9 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       const periods = await this.periodPartitionWorkspace.refreshPeriods();
       this.periodSlots.set(periods);
       this.availableYears.set(this.periodPartitionWorkspace.availableYears());
+      if (!this.availableYears().includes(this.selectedYear())) {
+        this.selectedYear.set(this.periodPartitionWorkspace.selectedYear());
+      }
     } catch (e) {
       console.warn('Gagal memuat daftar periode penyimpanan:', e);
     } finally {
@@ -2293,6 +2298,43 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
 
   selectYear(year: number): void {
     this.selectedYear.set(year);
+    this.periodPartitionWorkspace.setSelectedYear(year);
+  }
+
+  onYearSelectChange(value: string): void {
+    if (value === '__custom__') {
+      this.openCustomYearInput();
+      return;
+    }
+    const yr = Number(value);
+    if (!isNaN(yr)) {
+      this.selectYear(yr);
+    }
+  }
+
+  openCustomYearInput(): void {
+    this.customYearValue.set(this.selectedYear());
+    this.showCustomYearInput.set(true);
+  }
+
+  cancelCustomYear(): void {
+    this.showCustomYearInput.set(false);
+  }
+
+  submitCustomYear(): void {
+    const yr = this.customYearValue();
+    if (!yr || !this.periodPartitionWorkspace.isValidYear(yr)) {
+      this.configNotification.set({
+        type: 'warning',
+        message: 'Tahun anggaran harus berupa angka 4 digit antara 2000 dan 2100.',
+      });
+      return;
+    }
+
+    this.periodPartitionWorkspace.addCustomYear(yr);
+    this.availableYears.set(this.periodPartitionWorkspace.availableYears());
+    this.selectedYear.set(yr);
+    this.showCustomYearInput.set(false);
   }
 
   selectQuarter(quarter: QuarterSlot): void {

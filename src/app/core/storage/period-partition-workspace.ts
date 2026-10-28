@@ -51,6 +51,9 @@ export interface SavePeriodPartitionSpec {
   resultFileName?: string;
 }
 
+export const MIN_PERIOD_YEAR = 2000;
+export const MAX_PERIOD_YEAR = 2100;
+
 /**
  * PeriodPartitionWorkspace: Modul dalam (Deep Module) untuk orkestrasi partisi periode Google Drive.
  * Mengoordinasikan penemuan slot, pemuatan multi-kuartal, fallback prioritas (lokal menimpa cloud),
@@ -67,6 +70,7 @@ export class PeriodPartitionWorkspace {
   private readonly _availableYears = signal<number[]>(
     Array.from({ length: 6 }, (_, i) => this.currentYear - i),
   );
+  private readonly _customYears = signal<number[]>([]);
   private readonly _periodSlots = signal<GasPeriodItem[]>([]);
   private readonly _isLoading = signal<boolean>(false);
   private readonly _selectedYear = signal<number>(this.currentYear);
@@ -85,8 +89,39 @@ export class PeriodPartitionWorkspace {
     }
   }
 
-  setSelectedYear(year: number): void {
+  /**
+   * Memvalidasi apakah tahun berada dalam rentang fiskal Dinkes yang sah (2000-2100).
+   */
+  isValidYear(year: number): boolean {
+    return Number.isInteger(year) && year >= MIN_PERIOD_YEAR && year <= MAX_PERIOD_YEAR;
+  }
+
+  /**
+   * Menambahkan tahun kustom di luar jendela bawaan (misal: 2019 atau 2028).
+   * Menjadikan tahun tersebut langsung aktif dan terpilih dalam sesi.
+   */
+  addCustomYear(year: number): boolean {
+    if (!this.isValidYear(year)) {
+      return false;
+    }
+    const currentCustom = this._customYears();
+    if (!currentCustom.includes(year)) {
+      this._customYears.set([...currentCustom, year]);
+    }
+    const merged = Array.from(new Set([...this._availableYears(), year])).sort((a, b) => b - a);
+    this._availableYears.set(merged);
     this._selectedYear.set(year);
+    return true;
+  }
+
+  setSelectedYear(year: number): void {
+    if (this.isValidYear(year)) {
+      if (!this._availableYears().includes(year)) {
+        this.addCustomYear(year);
+      } else {
+        this._selectedYear.set(year);
+      }
+    }
   }
 
   /**
@@ -101,9 +136,15 @@ export class PeriodPartitionWorkspace {
 
     const yearsFromRemote = Array.from(new Set(periods.map((p) => p.year)));
     const fallbackYears = Array.from({ length: 6 }, (_, i) => this.currentYear - i);
-    const mergedYears = Array.from(new Set([...yearsFromRemote, ...fallbackYears])).sort(
-      (a, b) => b - a,
+    // Pertahankan tahun kustom yang sedang dipilih atau yang sudah tersimpan di server
+    const activeCustomYears = this._customYears().filter(
+      (y) => y === this._selectedYear() || yearsFromRemote.includes(y),
     );
+    this._customYears.set(activeCustomYears);
+
+    const mergedYears = Array.from(
+      new Set([...yearsFromRemote, ...fallbackYears, ...activeCustomYears]),
+    ).sort((a, b) => b - a);
 
     this._availableYears.set(mergedYears);
     if (!mergedYears.includes(this._selectedYear())) {

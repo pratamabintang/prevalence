@@ -76,6 +76,53 @@ describe('PeriodPartitionWorkspace', () => {
       }
     });
 
+    it('harus memvalidasi rentang tahun anggaran 2000-2100 dengan isValidYear', () => {
+      expect(workspace.isValidYear(2000)).toBe(true);
+      expect(workspace.isValidYear(2019)).toBe(true);
+      expect(workspace.isValidYear(2026)).toBe(true);
+      expect(workspace.isValidYear(2100)).toBe(true);
+
+      expect(workspace.isValidYear(1999)).toBe(false);
+      expect(workspace.isValidYear(2101)).toBe(false);
+      expect(workspace.isValidYear(NaN)).toBe(false);
+      expect(workspace.isValidYear(2024.5)).toBe(false);
+    });
+
+    it('harus mengizinkan penambahan tahun kustom di luar rentang default via addCustomYear', async () => {
+      await workspace.refreshPeriods();
+
+      // Tolak tahun tidak valid
+      expect(workspace.addCustomYear(1998)).toBe(false);
+      expect(workspace.addCustomYear(2105)).toBe(false);
+
+      // Tambah tahun kustom valid di masa lalu (misal: 2019)
+      const successPast = workspace.addCustomYear(2019);
+      expect(successPast).toBe(true);
+      expect(workspace.availableYears()).toContain(2019);
+      expect(workspace.selectedYear()).toBe(2019);
+
+      // Tambah tahun kustom valid di masa depan (misal: 2028)
+      const successFuture = workspace.addCustomYear(2028);
+      expect(successFuture).toBe(true);
+      expect(workspace.availableYears()).toContain(2028);
+      expect(workspace.selectedYear()).toBe(2028);
+
+      // Pastikan urutan tetap menurun
+      const years = workspace.availableYears();
+      for (let i = 0; i < years.length - 1; i++) {
+        expect(years[i]).toBeGreaterThanOrEqual(years[i + 1]);
+      }
+    });
+
+    it('harus mempertahankan tahun kustom yang sedang dipilih saat refreshPeriods dijalankan', async () => {
+      workspace.addCustomYear(2018);
+      expect(workspace.selectedYear()).toBe(2018);
+
+      await workspace.refreshPeriods();
+      expect(workspace.availableYears()).toContain(2018);
+      expect(workspace.selectedYear()).toBe(2018);
+    });
+
     it('harus memeriksa ketersediaan kuartal dengan benar via isQuarterAvailable', async () => {
       await workspace.refreshPeriods();
 

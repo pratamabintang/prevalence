@@ -28,6 +28,13 @@ import { Database as DatabaseType } from 'better-sqlite3';
 const ALLOWED_QUARTERS = ['TW1', 'TW2', 'TW3', 'TW4'] as const;
 type QuarterType = (typeof ALLOWED_QUARTERS)[number];
 
+export const MIN_PERIOD_YEAR = 2000;
+export const MAX_PERIOD_YEAR = 2100;
+
+export function isValidYear(year: number): boolean {
+  return Number.isInteger(year) && year >= MIN_PERIOD_YEAR && year <= MAX_PERIOD_YEAR;
+}
+
 function isValidQuarter(q: string): q is QuarterType {
   return (ALLOWED_QUARTERS as readonly string[]).includes(q.toUpperCase());
 }
@@ -141,10 +148,10 @@ periodsRouter.get('/periods/:year/:quarter', (req: Request, res: Response) => {
   const year = parseInt(String(req.params.year || ''), 10);
   const quarter = String(req.params.quarter || '').toUpperCase();
 
-  if (isNaN(year) || !isValidQuarter(quarter)) {
+  if (!isValidYear(year) || !isValidQuarter(quarter)) {
     return res.status(400).json({
       success: false,
-      message: 'Parameter tahun atau triwulan tidak valid.',
+      message: 'Parameter tahun atau triwulan tidak valid. Tahun harus antara 2000 dan 2100.',
     });
   }
 
@@ -244,10 +251,10 @@ periodsRouter.get('/periods/:year/:quarter/download/:type', (req: Request, res: 
   const quarter = String(req.params.quarter || '').toUpperCase();
   const type = String(req.params.type || '').toLowerCase();
 
-  if (isNaN(year) || !isValidQuarter(quarter) || (type !== 'raw' && type !== 'result')) {
+  if (!isValidYear(year) || !isValidQuarter(quarter) || (type !== 'raw' && type !== 'result')) {
     return res.status(400).json({
       success: false,
-      message: 'Parameter unduhan tidak valid. Tipe berkas harus "raw" atau "result".',
+      message: 'Parameter unduhan tidak valid. Tipe berkas harus "raw" atau "result", tahun antara 2000 dan 2100.',
     });
   }
 
@@ -298,10 +305,10 @@ periodsRouter.post(
     const year = parseInt(String(req.params.year || ''), 10);
     const quarter = String(req.params.quarter || '').toUpperCase();
 
-    if (isNaN(year) || !isValidQuarter(quarter)) {
+    if (!isValidYear(year) || !isValidQuarter(quarter)) {
       return res.status(400).json({
         success: false,
-        message: 'Parameter tahun atau triwulan tidak valid.',
+        message: 'Parameter tahun atau triwulan tidak valid. Tahun harus antara 2000 dan 2100.',
       });
     }
 
@@ -463,10 +470,10 @@ periodsRouter.delete('/periods/:year/:quarter', (req: Request, res: Response) =>
   const year = parseInt(String(req.params.year || ''), 10);
   const quarter = String(req.params.quarter || '').toUpperCase();
 
-  if (isNaN(year) || !isValidQuarter(quarter)) {
+  if (!isValidYear(year) || !isValidQuarter(quarter)) {
     return res.status(400).json({
       success: false,
-      message: 'Parameter tahun atau triwulan tidak valid.',
+      message: 'Parameter tahun atau triwulan tidak valid. Tahun harus antara 2000 dan 2100.',
     });
   }
 

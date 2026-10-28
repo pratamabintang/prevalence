@@ -2124,6 +2124,31 @@ describe('ExcelJoinComponent', () => {
       }
     });
 
+    it('mendukung penambahan tahun kustom di luar rentang default melalui input UI', () => {
+      // 1. Memilih option __custom__ membuka form input tahun kustom
+      component.onYearSelectChange('__custom__');
+      expect(component.showCustomYearInput()).toBe(true);
+
+      // 2. Memvalidasi tahun di luar 2000-2100
+      component.customYearValue.set(1995);
+      component.submitCustomYear();
+      expect(component.configNotification()?.type).toBe('warning');
+      expect(component.showCustomYearInput()).toBe(true);
+
+      // 3. Menambahkan tahun yang valid (misal: 2019)
+      component.customYearValue.set(2019);
+      component.submitCustomYear();
+      expect(component.showCustomYearInput()).toBe(false);
+      expect(component.availableYears()).toContain(2019);
+      expect(component.selectedYear()).toBe(2019);
+
+      // 4. Membatalkan input tahun kustom
+      component.openCustomYearInput();
+      expect(component.showCustomYearInput()).toBe(true);
+      component.cancelCustomYear();
+      expect(component.showCustomYearInput()).toBe(false);
+    });
+
     it('getSavedPeriods dan getYearQuarterCount menghitung slot tersimpan dengan akurat', () => {
       component.periodSlots.set([
         { year: 2026, quarter: 'TW1', hasRaw: true, hasResult: true, hasConfig: true },

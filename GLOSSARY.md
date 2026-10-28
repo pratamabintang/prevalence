@@ -167,8 +167,8 @@ Layanan backend berbasis Google Apps Script Web App yang terhubung ke Google Dri
 _Avoid_: Database server, local storage eksternal, backend API server
 
 **Slot Periode Lintas Triwulan**:
-Partisi penyimpanan di Google Drive yang diidentifikasi oleh pasangan Tahun Anggaran dan Triwulan (misal: 2025/TW1), yang menampung berkas data mentah, berkas hasil penggabungan, dan konfigurasi join resmi untuk triwulan tersebut.
-_Avoid_: Folder acak, save slot bebas, tag periode
+Partisi penyimpanan yang diidentifikasi oleh pasangan Tahun Anggaran (rentang valid 4-digit 2000–2100, mencakup jendela tahun berjalan maupun tahun anggaran kustom di luar rentang bawaan) dan Triwulan (TW1–TW4), yang menampung berkas data mentah, berkas hasil penggabungan, dan konfigurasi join resmi untuk triwulan tersebut.
+_Avoid_: Folder acak, save slot bebas, tag periode, batasan tahun statis
 
 **Periode Presentasi Aktif (Active Presentation Period)**:
 Pasangan Tahun Anggaran dan Triwulan terpilih pada Beranda yang menjadi acuan tunggal untuk menyelaraskan tampilan peta sebaran Intervensi Spesifik, peta sebaran Masalah Gizi, dan fokus triwulan pada evaluasi Hasil Intervensi secara serentak.

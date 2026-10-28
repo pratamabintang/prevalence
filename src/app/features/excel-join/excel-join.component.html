@@ -194,18 +194,70 @@
             <span>Periode:</span>
           </div>
 
-          <!-- DROPDOWN TAHUN (5 TAHUN KE BELAKANG) -->
-          <select
-            [value]="selectedYear()"
-            (change)="selectYear(+$any($event.target).value)"
-            class="rounded-lg border border-slate-300 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-800 shadow-2xs focus:border-sky-500 focus:outline-none cursor-pointer"
-            title="Pilih tahun anggaran (5 tahun ke belakang)"
-          >
-            @for (yr of availableYears(); track yr) {
-              @let count = getYearQuarterCount(yr);
-              <option [value]="yr">{{ yr }}{{ count > 0 ? ' (' + count + ' data)' : '' }}</option>
+          <!-- DROPDOWN TAHUN & INPUT TAHUN KUSTOM -->
+          <div class="flex items-center gap-1">
+            <select
+              [value]="selectedYear()"
+              (change)="onYearSelectChange($any($event.target).value)"
+              class="rounded-lg border border-slate-300 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-800 shadow-2xs focus:border-sky-500 focus:outline-none cursor-pointer"
+              title="Pilih tahun anggaran"
+              data-testid="period-year-select"
+            >
+              @for (yr of availableYears(); track yr) {
+                @let count = getYearQuarterCount(yr);
+                <option [value]="yr">{{ yr }}{{ count > 0 ? ' (' + count + ' data)' : '' }}</option>
+              }
+              <option value="__custom__">+ Tahun Lain...</option>
+            </select>
+
+            @if (showCustomYearInput()) {
+              <div class="inline-flex items-center gap-1 bg-sky-50 border border-sky-300 rounded-lg px-1.5 py-0.5" data-testid="custom-year-form">
+                <input
+                  type="number"
+                  min="2000"
+                  max="2100"
+                  placeholder="YYYY"
+                  [value]="customYearValue()"
+                  (input)="customYearValue.set(+$any($event.target).value)"
+                  (keydown.enter)="submitCustomYear()"
+                  (keydown.escape)="cancelCustomYear()"
+                  class="w-16 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-xs font-semibold text-slate-800 focus:border-sky-500 focus:outline-none"
+                  data-testid="custom-year-input"
+                  title="Masukkan 4 digit tahun (2000 - 2100)"
+                />
+                <button
+                  type="button"
+                  (click)="submitCustomYear()"
+                  class="rounded bg-sky-600 px-1.5 py-0.5 text-[11px] font-semibold text-white hover:bg-sky-700 cursor-pointer"
+                  title="Terapkan tahun kustom"
+                  data-testid="custom-year-submit"
+                >
+                  OK
+                </button>
+                <button
+                  type="button"
+                  (click)="cancelCustomYear()"
+                  class="rounded text-slate-500 hover:text-slate-800 text-xs px-1 cursor-pointer"
+                  title="Batal"
+                  data-testid="custom-year-cancel"
+                >
+                  ✕
+                </button>
+              </div>
+            } @else {
+              <button
+                type="button"
+                (click)="openCustomYearInput()"
+                class="inline-flex items-center justify-center h-6 w-6 rounded-md border border-slate-300 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 shadow-2xs cursor-pointer"
+                title="Input tahun anggaran lain di luar rentang bawaan"
+                data-testid="btn-add-custom-year"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
             }
-          </select>
+          </div>
 
           <!-- SEGMENTED BUTTONS TW 1 - TW 4 DENGAN STATUS TITIK -->
           <div class="inline-flex items-center rounded-lg border border-slate-200 bg-slate-100 p-0.5">
