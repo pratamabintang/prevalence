@@ -11,6 +11,9 @@ export PORT=3000
 export DB_PATH=/data/dinkes.db
 export UPLOADS_DIR=/data/uploads
 export NODE_ENV=production
+export DATA_ADMIN_ID="${DATA_ADMIN_ID:-bidangkesmas}"
+export DATA_ADMIN_PASSWORD="${DATA_ADMIN_PASSWORD:-@Dinkes123#}"
+export AUTH_SECRET="${AUTH_SECRET:-dinkes-auth-secret-key-2026}"
 
 echo "[Dinkes Container] Menjalankan Node.js Backend Server pada port 3000..."
 node /app/server/dist/index.js &
