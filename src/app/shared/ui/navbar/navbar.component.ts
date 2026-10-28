@@ -159,7 +159,7 @@ export class AppNavbarComponent implements OnInit {
   readonly isCheckingServer = signal(false);
   readonly enableStuntingDashboard = signal(environment.enableStuntingDashboard);
   readonly enableStuntingCohort = signal(environment.enableStuntingCohort ?? false);
-  readonly isOpen = signal(true);
+  readonly isOpen = signal(false);
 
   readonly allNavItems: NavItem[] = [
     { id: 1, label: 'Beranda', shortLabel: 'Beranda', route: '/', exact: true },

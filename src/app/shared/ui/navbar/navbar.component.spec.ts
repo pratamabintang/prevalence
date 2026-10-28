@@ -20,16 +20,19 @@ describe('AppNavbarComponent', () => {
     fixture.detectChanges();
   });
 
-  it('should create the navbar and be open by default', () => {
+  it('should create the navbar and be closed by default', () => {
     expect(component).toBeTruthy();
-    expect(component.isOpen()).toBe(true);
+    expect(component.isOpen()).toBe(false);
 
     const el = fixture.nativeElement as HTMLElement;
-    expect(el.querySelector('[data-testid="left-navbar"]')).toBeTruthy();
-    expect(el.querySelector('[data-testid="show-navbar-btn"]')).toBeNull();
+    expect(el.querySelector('[data-testid="left-navbar"]')).toBeNull();
+    expect(el.querySelector('[data-testid="show-navbar-btn"]')).toBeTruthy();
   });
 
   it('should render 5 module items without "Modul Aplikasi" heading or numbering badges, with Kohort Stunting disabled', () => {
+    component.showNavbar();
+    fixture.detectChanges();
+
     const el = fixture.nativeElement as HTMLElement;
     const desktopNav = el.querySelector('nav[aria-label="Navigasi Modul"]');
     expect(desktopNav).toBeTruthy();
@@ -60,6 +63,7 @@ describe('AppNavbarComponent', () => {
   });
 
   it('should render 5 active links and 1 disabled item when enableStuntingDashboard is true', () => {
+    component.showNavbar();
     component.enableStuntingDashboard.set(true);
     fixture.detectChanges();
 
@@ -81,6 +85,7 @@ describe('AppNavbarComponent', () => {
   });
 
   it('should enable Kohort Stunting as an active route link when enableStuntingCohort is true', () => {
+    component.showNavbar();
     component.enableStuntingCohort.set(true);
     fixture.detectChanges();
 
@@ -133,6 +138,9 @@ describe('AppNavbarComponent', () => {
   });
 
   it('should render Kohort Stunting as a disabled button in the navbar to prevent user access', () => {
+    component.showNavbar();
+    fixture.detectChanges();
+
     const el = fixture.nativeElement as HTMLElement;
     const kohortBtn = el.querySelector('[data-testid="nav-disabled-kohort"]') as HTMLButtonElement;
     expect(kohortBtn).toBeTruthy();
@@ -143,6 +151,9 @@ describe('AppNavbarComponent', () => {
   });
 
   it('should render the brand logo image', () => {
+    component.showNavbar();
+    fixture.detectChanges();
+
     const el = fixture.nativeElement as HTMLElement;
     const logoImg = el.querySelector('img[src="logo.png"]') as HTMLImageElement;
     expect(logoImg).toBeTruthy();
@@ -150,6 +161,9 @@ describe('AppNavbarComponent', () => {
   });
 
   it('should display server status badge without exposing database details', () => {
+    component.showNavbar();
+    fixture.detectChanges();
+
     const el = fixture.nativeElement as HTMLElement;
     const badge = el.querySelector('[data-testid="server-status-badge"]') as HTMLButtonElement;
     expect(badge).toBeTruthy();
@@ -173,6 +187,9 @@ describe('AppNavbarComponent', () => {
   });
 
   it('should hide the navbar when hide button is clicked and display the bottom-left show button without the word Menu', () => {
+    component.showNavbar();
+    fixture.detectChanges();
+
     const el = fixture.nativeElement as HTMLElement;
     const hideBtn = el.querySelector('[data-testid="hide-navbar-btn"]') as HTMLButtonElement;
     expect(hideBtn).toBeTruthy();
@@ -191,10 +208,7 @@ describe('AppNavbarComponent', () => {
     expect(showBtn.querySelector('svg')).toBeTruthy();
   });
 
-  it('should re-open the navbar when show button is clicked', () => {
-    component.hideNavbar();
-    fixture.detectChanges();
-
+  it('should open the navbar when show button is clicked', () => {
     const el = fixture.nativeElement as HTMLElement;
     const showBtn = el.querySelector('[data-testid="show-navbar-btn"]') as HTMLButtonElement;
     expect(showBtn).toBeTruthy();
