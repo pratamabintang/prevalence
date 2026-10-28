@@ -1972,6 +1972,51 @@ describe('ExcelJoinComponent', () => {
       expect(component.configNotification()?.message).toContain('2026 TW4');
     });
 
+    it('loadSelectedPeriod memulihkan target yang dimodifikasi dari res.config saat memuat sheet hasil join', async () => {
+      component.isProcessing.set(false);
+      component.selectedYear.set(2026);
+      component.selectedQuarter.set('TW4');
+
+      const wb = XLSX.utils.book_new();
+      const wsData = [
+        ['No', 'Kabupaten/Kota', '% Konsumsi TTD'],
+        [1, 'Cilacap', 85],
+        [2, 'Banyumas', 88],
+        ['-', 'Target', '>= 90'],
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      XLSX.utils.book_append_sheet(wb, ws, 'Hasil Join');
+      const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+
+      vi.spyOn(component.periodPartitionWorkspace, 'loadRawPeriod').mockResolvedValue({
+        success: true,
+        hasData: true,
+        year: 2026,
+        quarter: 'TW4',
+        rawExcelBuffer: buf,
+        resultExcelBuffer: buf,
+        config: {
+          name: 'Periode 2026 TW4',
+          sheets: [],
+          enableTarget: true,
+          columnTargets: {
+            '% Konsumsi TTD': { enabled: true, operator: '>=', value: 95 },
+          },
+        },
+        resultExcelAvailable: true,
+        updatedAt: '2026-10-28T03:55:00Z',
+      });
+
+      await component.loadSelectedPeriod();
+
+      expect(component.enableTarget()).toBe(true);
+      expect(component.columnTargets()['% Konsumsi TTD']).toEqual({
+        enabled: true,
+        operator: '>=',
+        value: 95,
+      });
+    });
+
     it('confirmSavePeriodToCloud mengunggah raw dan result buffer ke GAS', async () => {
       component.selectedYear.set(2026);
       component.selectedQuarter.set('TW2');

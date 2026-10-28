@@ -927,14 +927,21 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
    * Mengekstrak sheet yang sudah berformat Hasil Join atau Masalah Gizi secara langsung
    * menggunakan modul dalam DinkesSpreadsheetParser.
    */
-  loadPreJoinedHasilJoinSheet(workbook: ExcelWorkbook, sheetName: string, fileName: string): void {
+  loadPreJoinedHasilJoinSheet(
+    workbook: ExcelWorkbook,
+    sheetName: string,
+    fileName: string,
+    preset?: JoinConfigurationPreset | null,
+  ): void {
     const isGizi =
       sheetName.toLowerCase().includes('masalah gizi') || sheetName.toLowerCase().includes('gizi');
 
     const parsed = DinkesSpreadsheetParser.parse(workbook, {
       stripKabupaten: this.stripKabupaten(),
       preferredSheetName: sheetName,
-      preset: isGizi ? (MASALAH_GIZI_JOIN_CONFIG as unknown as JoinPresetExecutionSpec) : undefined,
+      preset:
+        (preset as unknown as JoinPresetExecutionSpec) ||
+        (isGizi ? (MASALAH_GIZI_JOIN_CONFIG as unknown as JoinPresetExecutionSpec) : undefined),
     });
 
     if (parsed.regionRows.length === 0 && parsed.columns.length === 0) {
@@ -942,7 +949,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     }
 
     // Reset kustomisasi nama kolom & pergeseran kolom saat memuat/beralih dataset
-    this.customColumnNames.set({});
+    this.customColumnNames.set(preset?.customColumnNames ? { ...preset.customColumnNames } : {});
     this.selectedColumnForMove.set(null);
     this.editingColumnKey.set(null);
 
@@ -954,20 +961,65 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     this.defaultResultColumns.set(parsed.columns);
     this.defaultResultColumnsMeta.set(parsed.columnsMeta);
 
-    this.columnConfigs.set(parsed.columnConfigs);
-    this.columnTargets.set(parsed.columnTargets);
+    // Rekonsiliasi konfigurasi kolom dan target dari preset jika tersedia
+    let finalTargets = parsed.columnTargets;
+    if (preset?.columnTargets && Object.keys(preset.columnTargets).length > 0) {
+      finalTargets = { ...parsed.columnTargets };
+      for (const col of parsed.columns) {
+        const alias = preset.customColumnNames?.[col];
+        const matchedKey = this.findMatchingConfigKey(preset.columnTargets, col, alias);
+        if (matchedKey && preset.columnTargets[matchedKey]) {
+          finalTargets[col] = preset.columnTargets[matchedKey];
+        }
+      }
+    }
+
+    let finalConfigs = parsed.columnConfigs;
+    if (preset?.columnConfigs && Object.keys(preset.columnConfigs).length > 0) {
+      finalConfigs = { ...parsed.columnConfigs };
+      for (const col of parsed.columns) {
+        const alias = preset.customColumnNames?.[col];
+        const matchedKey = this.findMatchingConfigKey(preset.columnConfigs, col, alias);
+        if (matchedKey && preset.columnConfigs[matchedKey]) {
+          finalConfigs[col] = preset.columnConfigs[matchedKey];
+        }
+      }
+    }
+
+    this.columnConfigs.set(finalConfigs);
+    this.columnTargets.set(finalTargets);
     this.sumColumns.set(parsed.sums);
     this.avgColumns.set(parsed.averages);
 
-    this.enableJumlah.set(parsed.totalRow !== null || Object.values(parsed.sums).some(Boolean));
-    this.enableAverage.set(
-      parsed.summaryRow !== null || Object.values(parsed.averages).some(Boolean),
-    );
-    this.enableTarget.set(
-      parsed.targetRow !== null &&
-        Object.values(parsed.columnTargets).some((t) => t.enabled && t.value !== null),
-    );
-    this.enableCapaian.set(true);
+    if (preset?.enableJumlah !== undefined) {
+      this.enableJumlah.set(preset.enableJumlah);
+    } else {
+      this.enableJumlah.set(parsed.totalRow !== null || Object.values(parsed.sums).some(Boolean));
+    }
+
+    if (preset?.enableAverage !== undefined) {
+      this.enableAverage.set(preset.enableAverage);
+    } else {
+      this.enableAverage.set(
+        parsed.summaryRow !== null || Object.values(parsed.averages).some(Boolean),
+      );
+    }
+
+    if (preset?.enableTarget !== undefined) {
+      this.enableTarget.set(preset.enableTarget);
+    } else {
+      this.enableTarget.set(
+        parsed.targetRow !== null &&
+          Object.values(finalTargets).some((t) => t.enabled && t.value !== null),
+      );
+    }
+
+    if (preset?.enableCapaian !== undefined) {
+      this.enableCapaian.set(preset.enableCapaian);
+    } else {
+      this.enableCapaian.set(true);
+    }
+
     this.joinBy.set(parsed.keyCol);
 
     // Update sheet list agar konsisten dengan preset & sheet view
@@ -2218,7 +2270,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     const qr = this.selectedQuarter();
 
     try {
-      const res = await this.periodPartitionWorkspace.loadRawPeriod(yr, qr);
+      const res = await this.periodPartitionWorkspace.loadRawPeriod(yr, qr, { preferResult: true });
       if (!res.success) {
         this.configNotification.set({
           type: 'warning',
@@ -2255,7 +2307,12 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
         : (hasilJoinSheetName || masalahGiziSheetName);
 
       if (preJoinedSheet) {
-        this.loadPreJoinedHasilJoinSheet(this.workbook, preJoinedSheet, fileName);
+        this.loadPreJoinedHasilJoinSheet(
+          this.workbook,
+          preJoinedSheet,
+          fileName,
+          res.config as JoinConfigurationPreset,
+        );
         this.isCloudDefault.set(false);
         this.isDefaultData.set(false);
         this.configNotification.set({
@@ -2469,6 +2526,10 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
         if (joinedBuf) {
           resultBuffer = joinedBuf;
         }
+      }
+
+      if (!isStandardRaw && resultBuffer) {
+        rawBuffer = resultBuffer;
       }
 
       const preset = this.getCurrentPreset(
@@ -2796,53 +2857,59 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     }
   }
 
+  findMatchingConfigKey(
+    dict: Record<string, unknown>,
+    col: string,
+    alias?: string,
+  ): string | undefined {
+    const candidates = [col];
+    const dashIdx = col.indexOf(' - ');
+    if (dashIdx !== -1) {
+      candidates.push(col.slice(dashIdx + 3).trim());
+    }
+    if (alias && alias !== col) {
+      candidates.push(alias);
+      const aliasDash = alias.indexOf(' - ');
+      if (aliasDash !== -1) {
+        candidates.push(alias.slice(aliasDash + 3).trim());
+      }
+    }
+
+    for (const cand of candidates) {
+      const colNorm = this.normalizeKey(cand);
+      const colClean = colNorm.replace(/[^a-z0-9]/g, '');
+      const colBase = colClean.replace(/\d+$/, '');
+
+      const found = Object.keys(dict).find((k) => {
+        if (k === cand) return true;
+        const kNorm = this.normalizeKey(k);
+        if (kNorm === colNorm) return true;
+        const kClean = kNorm.replace(/[^a-z0-9]/g, '');
+        if (kClean === colClean) return true;
+        const kDash = k.indexOf(' - ');
+        if (kDash !== -1) {
+          const kSub = k.slice(kDash + 3).trim();
+          if (kSub === cand) return true;
+          const kSubClean = this.normalizeKey(kSub).replace(/[^a-z0-9]/g, '');
+          if (kSubClean === colClean) return true;
+        }
+        if (colBase.length > 5 && kClean.replace(/\d+$/, '') === colBase) return true;
+        return false;
+      });
+      if (found) return found;
+    }
+    return undefined;
+  }
+
   private reconcileOutputConfigs(preset: JoinConfigurationPreset): void {
     const cols = this.resultColumns();
     if (cols.length === 0) return;
-
-    const findKey = (
-      dict: Record<string, unknown>,
-      col: string,
-      alias?: string,
-    ): string | undefined => {
-      const candidates = [col];
-      const dashIdx = col.indexOf(' - ');
-      if (dashIdx !== -1) {
-        candidates.push(col.slice(dashIdx + 3).trim());
-      }
-      if (alias && alias !== col) {
-        candidates.push(alias);
-      }
-
-      for (const cand of candidates) {
-        const colNorm = this.normalizeKey(cand);
-        const colClean = colNorm.replace(/[^a-z0-9]/g, '');
-        const colBase = colClean.replace(/\d+$/, '');
-
-        const found = Object.keys(dict).find((k) => {
-          if (k === cand) return true;
-          const kNorm = this.normalizeKey(k);
-          if (kNorm === colNorm) return true;
-          const kClean = kNorm.replace(/[^a-z0-9]/g, '');
-          if (kClean === colClean) return true;
-          const kDash = k.indexOf(' - ');
-          if (kDash !== -1) {
-            const kSubClean = this.normalizeKey(k.slice(kDash + 3)).replace(/[^a-z0-9]/g, '');
-            if (kSubClean === colClean) return true;
-          }
-          if (colBase.length > 5 && kClean.replace(/\d+$/, '') === colBase) return true;
-          return false;
-        });
-        if (found) return found;
-      }
-      return undefined;
-    };
 
     // 1. Kustomisasi nama kolom (alias) diproses terlebih dahulu agar tersedia untuk konfigurasi lainnya
     if (preset.customColumnNames) {
       const newCustomNames: Record<string, string> = {};
       for (const col of cols) {
-        const matchedKey = findKey(preset.customColumnNames, col);
+        const matchedKey = this.findMatchingConfigKey(preset.customColumnNames, col);
         if (matchedKey && preset.customColumnNames[matchedKey]) {
           newCustomNames[col] = preset.customColumnNames[matchedKey];
         }
@@ -2859,7 +2926,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       const newTargets: Record<string, ColumnTargetConfig> = {};
       for (const col of cols) {
         const alias = currentAliases[col];
-        const matchedKey = findKey(preset.columnTargets, col, alias);
+        const matchedKey = this.findMatchingConfigKey(preset.columnTargets, col, alias);
         if (matchedKey && preset.columnTargets[matchedKey]) {
           newTargets[col] = preset.columnTargets[matchedKey];
         }
@@ -2874,7 +2941,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       const newConfigs: Record<string, ColumnConfig> = {};
       for (const col of cols) {
         const alias = currentAliases[col];
-        const matchedKey = findKey(preset.columnConfigs, col, alias);
+        const matchedKey = this.findMatchingConfigKey(preset.columnConfigs, col, alias);
         if (matchedKey && preset.columnConfigs[matchedKey]) {
           newConfigs[col] = preset.columnConfigs[matchedKey];
           if (preset.columnConfigs[matchedKey].dataType !== 'auto') {
@@ -2892,7 +2959,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       const newSums: Record<string, boolean> = {};
       for (const col of cols) {
         const alias = currentAliases[col];
-        const matchedKey = findKey(preset.sumColumns, col, alias);
+        const matchedKey = this.findMatchingConfigKey(preset.sumColumns, col, alias);
         if (matchedKey && preset.sumColumns[matchedKey] !== undefined) {
           newSums[col] = preset.sumColumns[matchedKey];
         }
@@ -2907,7 +2974,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       const newAvgs: Record<string, boolean> = {};
       for (const col of cols) {
         const alias = currentAliases[col];
-        const matchedKey = findKey(preset.avgColumns, col, alias);
+        const matchedKey = this.findMatchingConfigKey(preset.avgColumns, col, alias);
         if (matchedKey && preset.avgColumns[matchedKey] !== undefined) {
           newAvgs[col] = preset.avgColumns[matchedKey];
         }

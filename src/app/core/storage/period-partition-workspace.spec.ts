@@ -334,6 +334,15 @@ describe('PeriodPartitionWorkspace', () => {
       expect(rawPeriodRes.config).toEqual(mockPreset);
       expect(mockGasStorage.loadPeriod).not.toHaveBeenCalled();
 
+      // Uji loadRawPeriod dengan preferResult: true memilih resultExcelBuffer sebagai rawExcelBuffer utama
+      const resPeriodRes = await backendOnlyWorkspace.loadRawPeriod(2026, 'TW1', {
+        preferResult: true,
+      });
+      expect(resPeriodRes.success).toBe(true);
+      expect(resPeriodRes.hasData).toBe(true);
+      expect(resPeriodRes.rawExcelBuffer).toBe(resBuf);
+      expect(resPeriodRes.isResultExcel).toBe(true);
+
       // 2. Uji loadMultiQuarters dengan berkas lokal tetap mengambil config dari backendStorage tanpa menyentuh gasStorage
       const localFile = {
         name: 'override-tw1.xlsx',

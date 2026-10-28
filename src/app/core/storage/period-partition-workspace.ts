@@ -190,7 +190,10 @@ export class PeriodPartitionWorkspace {
 
         const slotItem = this.getQuarterSlotItem(year, quarter);
         const hasResult = Boolean(backendRes.resultExcelBuffer || backendRes.hasResult);
-        const primaryRawOrRes = backendRes.rawExcelBuffer ?? backendRes.resultExcelBuffer;
+        const primaryRawOrRes =
+          preferResult && backendRes.resultExcelBuffer
+            ? backendRes.resultExcelBuffer
+            : (backendRes.rawExcelBuffer ?? backendRes.resultExcelBuffer);
         return {
           success: true,
           hasData: Boolean(primaryRawOrRes),
@@ -204,7 +207,9 @@ export class PeriodPartitionWorkspace {
           resultExcelBuffer: backendRes.resultExcelBuffer,
           config: backendRes.config,
           resultExcelAvailable: hasResult,
-          isResultExcel: !backendRes.rawExcelBuffer && Boolean(backendRes.resultExcelBuffer),
+          isResultExcel:
+            Boolean(preferResult && backendRes.resultExcelBuffer) ||
+            (!backendRes.rawExcelBuffer && Boolean(backendRes.resultExcelBuffer)),
           updatedAt: backendRes.updatedAt,
         };
       }

@@ -542,20 +542,44 @@ export class DinkesSpreadsheetParser {
           }
         }
 
-        if (!targetParsed.enabled && options?.preset?.columnTargets) {
+        if (options?.preset?.columnTargets) {
           const cfgTarget =
             options.preset.columnTargets[colName] ??
             Object.entries(options.preset.columnTargets).find(([k]) => {
+              if (k === colName) return true;
               const nk = ExcelJoinEngine.normalizeKey(k);
               const ncol = ExcelJoinEngine.normalizeKey(colName);
-              return nk === ncol || nk.endsWith(ncol) || ncol.endsWith(nk);
+              if (nk === ncol) return true;
+              const nkClean = nk.replace(/[^a-z0-9]/g, '');
+              const ncolClean = ncol.replace(/[^a-z0-9]/g, '');
+              if (nkClean === ncolClean) return true;
+              const kDash = k.indexOf(' - ');
+              if (kDash !== -1) {
+                const kSubClean = ExcelJoinEngine.normalizeKey(k.slice(kDash + 3)).replace(
+                  /[^a-z0-9]/g,
+                  '',
+                );
+                if (kSubClean === ncolClean) return true;
+              }
+              const colDash = colName.indexOf(' - ');
+              if (colDash !== -1) {
+                const colSubClean = ExcelJoinEngine.normalizeKey(colName.slice(colDash + 3)).replace(
+                  /[^a-z0-9]/g,
+                  '',
+                );
+                if (colSubClean === nkClean) return true;
+              }
+              return false;
             })?.[1];
-          if (cfgTarget && cfgTarget.enabled !== false && cfgTarget.value !== null) {
+
+          if (cfgTarget) {
             targetParsed = cfgTarget;
-            if (!targetRow[colName]) {
+            if (cfgTarget.enabled && cfgTarget.value !== null) {
               targetRow[colName] = cfgTarget.operator
                 ? `${cfgTarget.operator} ${cfgTarget.value}`
                 : String(cfgTarget.value);
+            } else {
+              targetRow[colName] = '-';
             }
           }
         }
