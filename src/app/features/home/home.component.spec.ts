@@ -103,6 +103,23 @@ describe('HomeComponent', () => {
       const compiled = fixture.nativeElement as HTMLElement;
       const boxes = compiled.querySelectorAll('[data-testid="left-column-boxes"] [data-testid^="box-"]');
       expect(boxes.length).toBeGreaterThanOrEqual(8);
+
+      // Verify status category badge text is omitted
+      const textContent = Array.from(boxes).map((b) => b.textContent || '').join(' ');
+      expect(textContent).not.toContain('LENGKAP');
+      expect(textContent).not.toContain('TARGET TERCAPAI');
+      expect(textContent).not.toContain('SASARAN UTAMA');
+
+      // Verify cards have status background classes (green, yellow, red, blue)
+      const hasEmerald = Array.from(boxes).some((b) => b.classList.contains('bg-emerald-50'));
+      const hasAmber = Array.from(boxes).some((b) => b.classList.contains('bg-amber-50'));
+      const hasRose = Array.from(boxes).some((b) => b.classList.contains('bg-rose-50'));
+      const hasBlue = Array.from(boxes).some((b) => b.classList.contains('bg-blue-50'));
+
+      expect(hasEmerald).toBe(true);
+      expect(hasAmber).toBe(true);
+      expect(hasRose).toBe(true);
+      expect(hasBlue).toBe(true);
     });
 
     it('should not render title text and filter category buttons in the left column boxes', () => {
@@ -211,9 +228,27 @@ describe('HomeComponent', () => {
     });
 
     it('should render overview gizi boxes in the left column (ratio 1)', () => {
+      component.setActiveCategory('gizi-heatmap');
+      fixture.detectChanges();
+
       const compiled = fixture.nativeElement as HTMLElement;
       const boxes = compiled.querySelectorAll('[data-testid="left-column-gizi-boxes"] [data-testid^="gizi-box-"]');
       expect(boxes.length).toBeGreaterThanOrEqual(8);
+
+      // Verify status category badge text is omitted
+      const textContent = Array.from(boxes).map((b) => b.textContent || '').join(' ');
+      expect(textContent).not.toContain('LENGKAP');
+      expect(textContent).not.toContain('TARGET TERCAPAI');
+      expect(textContent).not.toContain('RISIKO KUNCI');
+
+      // Verify cards have status background classes
+      const hasEmerald = Array.from(boxes).some((b) => b.classList.contains('bg-emerald-50'));
+      const hasAmber = Array.from(boxes).some((b) => b.classList.contains('bg-amber-50'));
+      const hasRose = Array.from(boxes).some((b) => b.classList.contains('bg-rose-50'));
+
+      expect(hasEmerald).toBe(true);
+      expect(hasAmber).toBe(true);
+      expect(hasRose).toBe(true);
     });
 
     it('should not render title text and filter category buttons in the left column gizi boxes', () => {
