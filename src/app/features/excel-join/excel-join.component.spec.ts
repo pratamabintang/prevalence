@@ -25,7 +25,7 @@ describe('ExcelJoinComponent', () => {
     }
     if (typeof sessionStorage !== 'undefined') {
       sessionStorage.clear();
-      sessionStorage.setItem('dinkes_data_auth', '1');
+      sessionStorage.setItem('dinkes_data_token', 'test-session-token');
     }
     await TestBed.configureTestingModule({
       imports: [ExcelJoinComponent],
@@ -64,10 +64,11 @@ describe('ExcelJoinComponent', () => {
       expect(component.dataAuthService.isAuthenticated()).toBe(false);
     });
 
-    it('should reject invalid credentials with error message', () => {
+    it('should reject invalid credentials with error message', async () => {
+      vi.spyOn(component.dataAuthService, 'login').mockResolvedValue(false);
       component.authIdInput.set('wrong');
       component.authPasswordInput.set('wrong');
-      component.submitLogin();
+      await component.submitLogin();
       fixture.detectChanges();
 
       const el = fixture.nativeElement as HTMLElement;
@@ -76,10 +77,14 @@ describe('ExcelJoinComponent', () => {
       expect(el.querySelector('[data-testid="auth-error-alert"]')).not.toBeNull();
     });
 
-    it('should unlock workspace and show logout button when valid credentials are submitted', () => {
+    it('should unlock workspace and show logout button when valid credentials are submitted', async () => {
+      vi.spyOn(component.dataAuthService, 'login').mockImplementation(async () => {
+        component.dataAuthService.setSession('valid-token-123');
+        return true;
+      });
       component.authIdInput.set('bidangkesmas');
       component.authPasswordInput.set('@Dinkes123#');
-      component.submitLogin();
+      await component.submitLogin();
       fixture.detectChanges();
 
       const el = fixture.nativeElement as HTMLElement;
@@ -89,7 +94,7 @@ describe('ExcelJoinComponent', () => {
     });
 
     it('should return to login gate when logout is clicked', () => {
-      component.dataAuthService.login('bidangkesmas', '@Dinkes123#');
+      component.dataAuthService.setSession('valid-token-123');
       fixture.detectChanges();
       expect(component.dataAuthService.isAuthenticated()).toBe(true);
 

@@ -158,11 +158,15 @@ export interface BackendTrendsResult {
 export class BackendStorageService {
   private readonly dataAuth: DataAuthService | null = null;
 
-  constructor() {
-    try {
-      this.dataAuth = inject(DataAuthService, { optional: true });
-    } catch {
-      this.dataAuth = null;
+  constructor(dataAuth?: DataAuthService | null) {
+    if (dataAuth !== undefined) {
+      this.dataAuth = dataAuth;
+    } else {
+      try {
+        this.dataAuth = inject(DataAuthService, { optional: true });
+      } catch {
+        this.dataAuth = null;
+      }
     }
   }
 
@@ -211,10 +215,7 @@ export class BackendStorageService {
     const method = (init?.method || 'GET').toUpperCase();
     const isMutating = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method);
     const authHeaders = isMutating
-      ? this.dataAuth?.getAuthHeaders() ?? {
-          'X-Admin-Id': environment.dataAdminId ?? 'bidangkesmas',
-          'X-Admin-Password': environment.dataAdminPassword ?? '@Dinkes123#',
-        }
+      ? this.dataAuth?.getAuthHeaders() ?? {}
       : {};
 
     try {

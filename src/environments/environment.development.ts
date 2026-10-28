@@ -21,6 +21,4 @@ export const environment = {
   enableByMap: false,
   enableChartByIndicator: false,
   enableByIndicator: false,
-  dataAdminId: 'bidangkesmas',
-  dataAdminPassword: '@Dinkes123#',
 };

@@ -1,64 +1,100 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, computed, signal } from '@angular/core';
 import { environment } from '../../../environments/environment';
 
-export const DATA_AUTH_STORAGE_KEY = 'dinkes_data_auth';
+export const DATA_AUTH_TOKEN_KEY = 'dinkes_data_token';
+
+export interface LoginResult {
+  success: boolean;
+  token?: string;
+  user?: string;
+  error?: string;
+}
 
 @Injectable({
   providedIn: 'root',
 })
 export class DataAuthService {
-  readonly isAuthenticated = signal<boolean>(this.checkInitialSession());
+  readonly token = signal<string | null>(this.getInitialToken());
+  readonly isAuthenticated = computed<boolean>(() => Boolean(this.token()));
 
-  private checkInitialSession(): boolean {
+  private getInitialToken(): string | null {
     try {
-      return typeof sessionStorage !== 'undefined' && sessionStorage.getItem(DATA_AUTH_STORAGE_KEY) === '1';
+      if (typeof sessionStorage !== 'undefined') {
+        return sessionStorage.getItem(DATA_AUTH_TOKEN_KEY);
+      }
+    } catch {
+      // Abaikan kegagalan storage
+    }
+    return null;
+  }
+
+  private getBaseUrl(): string {
+    const raw = (environment as unknown as { backendApiUrl?: string }).backendApiUrl;
+    if (typeof raw === 'string') {
+      return raw.trim().replace(/\/+$/, '');
+    }
+    return '/api';
+  }
+
+  async login(id: string, password: string): Promise<boolean> {
+    const baseUrl = this.getBaseUrl();
+
+    try {
+      const response = await fetch(`${baseUrl}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ id, password }),
+      });
+
+      if (!response.ok) {
+        return false;
+      }
+
+      const data = (await response.json()) as LoginResult;
+      if (data && data.success && data.token) {
+        this.setSession(data.token);
+        return true;
+      }
+      return false;
     } catch {
       return false;
     }
   }
 
-  login(id: string, password: string): boolean {
-    const configuredId = environment.dataAdminId ?? 'bidangkesmas';
-    const configuredPw = environment.dataAdminPassword ?? '@Dinkes123#';
-
-    if (id === configuredId && password === configuredPw) {
-      try {
-        if (typeof sessionStorage !== 'undefined') {
-          sessionStorage.setItem(DATA_AUTH_STORAGE_KEY, '1');
-        }
-      } catch {
-        // Abaikan kegagalan storage
+  setSession(token: string): void {
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem(DATA_AUTH_TOKEN_KEY, token);
       }
-      this.isAuthenticated.set(true);
-      return true;
+    } catch {
+      // Abaikan
     }
-
-    return false;
+    this.token.set(token);
   }
 
   logout(): void {
     try {
       if (typeof sessionStorage !== 'undefined') {
-        sessionStorage.removeItem(DATA_AUTH_STORAGE_KEY);
+        sessionStorage.removeItem(DATA_AUTH_TOKEN_KEY);
       }
     } catch {
       // Abaikan
     }
-    this.isAuthenticated.set(false);
+    this.token.set(null);
   }
 
   getAuthHeaders(): Record<string, string> {
-    if (!this.isAuthenticated()) {
+    const activeToken = this.token();
+    if (!activeToken) {
       return {};
     }
-    const configuredId = environment.dataAdminId ?? 'bidangkesmas';
-    const configuredPw = environment.dataAdminPassword ?? '@Dinkes123#';
-    const basicToken = btoa(`${configuredId}:${configuredPw}`);
 
     return {
-      'X-Admin-Id': configuredId,
-      'X-Admin-Password': configuredPw,
-      Authorization: `Basic ${basicToken}`,
+      Authorization: `Bearer ${activeToken}`,
+      'X-Admin-Token': activeToken,
     };
   }
 }

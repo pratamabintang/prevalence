@@ -6,6 +6,7 @@ import { configsRouter } from './routes/configs';
 import { periodsRouter } from './routes/periods';
 import { defaultRouter } from './routes/default';
 import { analyticsRouter } from './routes/analytics';
+import { authRouter } from './routes/auth';
 import { requireAdminForMutations } from './middleware/auth';
 
 export function createApp(): Express {
@@ -20,6 +21,7 @@ export function createApp(): Express {
   app.use('/api', requireAdminForMutations);
 
   // API Routes
+  app.use('/api', authRouter);
   app.use('/api', healthRouter);
   app.use('/api', districtsRouter);
   app.use('/api', configsRouter);

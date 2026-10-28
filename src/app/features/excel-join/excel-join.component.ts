@@ -92,8 +92,9 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   readonly authPasswordInput = signal<string>('');
   readonly authShowPassword = signal<boolean>(false);
   readonly authErrorMessage = signal<string | null>(null);
+  readonly isLoggingIn = signal<boolean>(false);
 
-  submitLogin(): void {
+  async submitLogin(): Promise<void> {
     const id = this.authIdInput().trim();
     const pw = this.authPasswordInput().trim();
 
@@ -102,12 +103,17 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const success = this.dataAuthService.login(id, pw);
-    if (success) {
-      this.authErrorMessage.set(null);
-      this.authPasswordInput.set('');
-    } else {
-      this.authErrorMessage.set('ID atau Kata Sandi pengelola tidak valid.');
+    this.isLoggingIn.set(true);
+    try {
+      const success = await this.dataAuthService.login(id, pw);
+      if (success) {
+        this.authErrorMessage.set(null);
+        this.authPasswordInput.set('');
+      } else {
+        this.authErrorMessage.set('ID atau Kata Sandi pengelola tidak valid.');
+      }
+    } finally {
+      this.isLoggingIn.set(false);
     }
   }
 
