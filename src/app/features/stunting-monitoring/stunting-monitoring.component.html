@@ -1,7 +1,7 @@
 <div class="min-h-screen bg-[#F8FAFD] text-slate-800 pb-20">
   <!-- UNIFIED PAGE HEADER -->
   <ui-page-header
-    title="Pemantauan Kinerja Stunting"
+    title="Capaian Intervensi"
     subtitle="Pipeline Analisis Capaian Intervensi Triwulanan"
   >
     <div actions class="flex flex-wrap items-center gap-2">
@@ -62,18 +62,24 @@
 
   <!-- Pipeline Stepper Navigation -->
   <div class="w-full px-4 sm:px-6 lg:px-8 mt-5">
-    <div class="bg-white rounded-lg p-2 border border-slate-200 flex items-center justify-between gap-2 overflow-x-auto">
+    <div class="bg-white rounded-lg p-2 border border-slate-200 flex items-center justify-between gap-2 overflow-x-auto" role="navigation" aria-label="Tahapan pemantauan capaian intervensi">
       <!-- Step 1 -->
       <div
-        class="flex-1 min-w-[180px] flex items-center gap-2.5 p-2.5 rounded transition-colors text-left"
+        class="flex-1 min-w-[180px] flex items-center gap-2.5 p-2.5 rounded transition-colors text-left cursor-pointer hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-[#525AFF]"
+        role="button"
+        tabindex="0"
+        [attr.aria-current]="activeStep() === 1 ? 'step' : null"
+        (click)="goToStep(1)"
+        (keydown.enter)="goToStep(1); $event.preventDefault()"
+        (keydown.space)="goToStep(1); $event.preventDefault()"
         [class.bg-[#EEF0FF]]="activeStep() === 1"
         [class.text-[#525AFF]]="activeStep() === 1"
         [class.ring-1]="activeStep() === 1"
         [class.ring-[#525AFF]/30]="activeStep() === 1"
-        [class.text-slate-600]="activeStep() !== 1"
+        [class.text-slate-700]="activeStep() !== 1"
       >
         <div
-          class="w-6 h-6 rounded flex items-center justify-center font-bold text-xs shrink-0"
+          class="w-6 h-6 rounded flex items-center justify-center font-bold text-xs shrink-0 tabular-nums"
           [class.bg-[#525AFF]]="activeStep() === 1"
           [class.text-white]="activeStep() === 1"
           [class.shadow-xs]="activeStep() === 1"
@@ -84,24 +90,30 @@
           1
         </div>
         <div>
-          <div class="text-[10px] uppercase tracking-wider text-slate-500 font-medium">Langkah 1</div>
+          <div class="text-[11px] uppercase tracking-wider text-slate-600 font-semibold">Langkah 1</div>
           <div class="text-xs font-semibold text-slate-900">Pilih Data & Periode</div>
         </div>
       </div>
 
-      <span class="text-slate-300 hidden md:inline px-1">/</span>
+      <span class="text-slate-400 hidden md:inline px-1" aria-hidden="true">/</span>
 
       <!-- Step 2 -->
       <div
-        class="flex-1 min-w-[180px] flex items-center gap-2.5 p-2.5 rounded transition-colors text-left"
+        class="flex-1 min-w-[180px] flex items-center gap-2.5 p-2.5 rounded transition-colors text-left cursor-pointer hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-[#525AFF]"
+        role="button"
+        tabindex="0"
+        [attr.aria-current]="activeStep() === 2 ? 'step' : null"
+        (click)="goToStep(2)"
+        (keydown.enter)="goToStep(2); $event.preventDefault()"
+        (keydown.space)="goToStep(2); $event.preventDefault()"
         [class.bg-[#EEF0FF]]="activeStep() === 2"
         [class.text-[#525AFF]]="activeStep() === 2"
         [class.ring-1]="activeStep() === 2"
         [class.ring-[#525AFF]/30]="activeStep() === 2"
-        [class.text-slate-600]="activeStep() !== 2"
+        [class.text-slate-700]="activeStep() !== 2"
       >
         <div
-          class="w-6 h-6 rounded flex items-center justify-center font-bold text-xs shrink-0"
+          class="w-6 h-6 rounded flex items-center justify-center font-bold text-xs shrink-0 tabular-nums"
           [class.bg-[#525AFF]]="activeStep() === 2"
           [class.text-white]="activeStep() === 2"
           [class.shadow-xs]="activeStep() === 2"
@@ -112,24 +124,30 @@
           2
         </div>
         <div>
-          <div class="text-[10px] uppercase tracking-wider text-slate-500 font-medium">Langkah 2</div>
+          <div class="text-[11px] uppercase tracking-wider text-slate-600 font-semibold">Langkah 2</div>
           <div class="text-xs font-semibold text-slate-900">Pemetaan Indikator & Target</div>
         </div>
       </div>
 
-      <span class="text-slate-300 hidden md:inline px-1">/</span>
+      <span class="text-slate-400 hidden md:inline px-1" aria-hidden="true">/</span>
 
       <!-- Step 3 -->
       <div
-        class="flex-1 min-w-[180px] flex items-center gap-2.5 p-2.5 rounded transition-colors text-left"
+        class="flex-1 min-w-[180px] flex items-center gap-2.5 p-2.5 rounded transition-colors text-left cursor-pointer hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-[#525AFF]"
+        role="button"
+        tabindex="0"
+        [attr.aria-current]="activeStep() === 3 ? 'step' : null"
+        (click)="goToStep(3)"
+        (keydown.enter)="goToStep(3); $event.preventDefault()"
+        (keydown.space)="goToStep(3); $event.preventDefault()"
         [class.bg-[#EEF0FF]]="activeStep() === 3"
         [class.text-[#525AFF]]="activeStep() === 3"
         [class.ring-1]="activeStep() === 3"
         [class.ring-[#525AFF]/30]="activeStep() === 3"
-        [class.text-slate-600]="activeStep() !== 3"
+        [class.text-slate-700]="activeStep() !== 3"
       >
         <div
-          class="w-6 h-6 rounded flex items-center justify-center font-bold text-xs shrink-0"
+          class="w-6 h-6 rounded flex items-center justify-center font-bold text-xs shrink-0 tabular-nums"
           [class.bg-[#525AFF]]="activeStep() === 3"
           [class.text-white]="activeStep() === 3"
           [class.shadow-xs]="activeStep() === 3"
@@ -140,7 +158,7 @@
           3
         </div>
         <div>
-          <div class="text-[10px] uppercase tracking-wider text-slate-500 font-medium">Langkah 3</div>
+          <div class="text-[11px] uppercase tracking-wider text-slate-600 font-semibold">Langkah 3</div>
           <div class="text-xs font-semibold text-slate-900">Rapor Kinerja & Ekspor</div>
         </div>
       </div>
@@ -182,7 +200,7 @@
     @if (activeStep() === 1) {
       <div class="space-y-6">
 
-        <!-- KARTU AMBIL DATA LINTAS TRIWULAN (GOOGLE DRIVE & LOKAL) -->
+        <!-- KARTU AMBIL DATA LINTAS TRIWULAN -->
         <div class="bg-white rounded-lg p-5 border border-slate-200 space-y-4 shadow-2xs">
           <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
             <div class="flex items-center gap-2.5">
@@ -192,13 +210,35 @@
                 </svg>
               </div>
               <div>
-                <h2 class="text-sm font-semibold text-slate-900">Ambil Data Lintas Triwulan (Google Drive & Lokal)</h2>
+                <h2 class="text-sm font-semibold text-slate-900">Ambil Data Lintas Triwulan</h2>
                 <p class="text-xs text-slate-500">Pilih tahun anggaran dan tentukan triwulan yang ingin dibandingkan. Sistem mendukung pembandingan fleksibel serta penanganan data triwulan yang belum lengkap.</p>
               </div>
             </div>
 
             <div class="flex items-center gap-2">
               @if (joinedRows().length > 0) {
+                <button
+                  type="button"
+                  uiButton
+                  variant="secondary"
+                  size="xs"
+                  (click)="toggleDataSourceAndPreview()"
+                  [title]="showDataSourceAndPreview() ? 'Sembunyikan Mode Sumber Data & Pratinjau Wilayah' : 'Tampilkan Mode Sumber Data & Pratinjau Wilayah'"
+                >
+                  @if (showDataSourceAndPreview()) {
+                    <svg class="w-3.5 h-3.5 mr-1 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                    </svg>
+                    <span>Sembunyikan Sumber & Pratinjau</span>
+                  } @else {
+                    <svg class="w-3.5 h-3.5 mr-1 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    <span>Tampilkan Sumber & Pratinjau</span>
+                  }
+                </button>
+
                 <button
                   type="button"
                   uiButton
@@ -221,7 +261,7 @@
                 size="xs"
                 (click)="fetchPeriodSlots()"
                 [disabled]="isLoadingPeriods()"
-                title="Perbarui daftar file triwulan yang tersimpan di Google Drive"
+                title="Perbarui daftar file triwulan tersimpan"
               >
                 <svg
                   class="w-3.5 h-3.5 mr-1 text-slate-600"
@@ -681,74 +721,118 @@
         }
       }
 
-        <!-- Selection Card: Mode Sumber Data & Baris Perhitungan -->
+        <!-- Toggle Control Bar & Data Source / Preview Sections -->
         @if (joinedRows().length > 0) {
-          <div class="bg-white rounded-lg p-5 border border-slate-200 space-y-4">
-            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
-              <div>
-                <h3 class="text-sm font-semibold text-slate-900">Mode Sumber Data Capaian & Target Indikator</h3>
-                <p class="text-xs text-slate-500">
-                  Pilih baris ringkasan provinsi/rekap yang memuat nilai capaian siap saji atau agregasikan seluruh baris wilayah.
-                </p>
+          <!-- Toggle Control Bar: Mode Sumber Data Capaian & Pratinjau Wilayah -->
+          <div class="bg-white rounded-lg p-4 border border-slate-200 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-100">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
               </div>
-              <div class="flex items-center gap-2">
-                <label class="text-xs font-medium text-slate-600">Mode Evaluasi:</label>
-                <select
-                  [ngModel]="calculationDataSource()"
-                  (ngModelChange)="onDataSourceModeChange($event)"
-                  class="text-xs rounded border border-slate-300 bg-white py-1 px-2.5 font-medium focus:border-slate-500 focus:outline-none"
-                >
-                  <option value="summary_row">Gunakan Baris Perhitungan Langsung (Provinsi / Rekapitulasi)</option>
-                  <option value="all_rows">Agregasikan Seluruh Baris Wilayah Aktif (SUM)</option>
-                </select>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="text-sm font-semibold text-slate-900">Mode Sumber Data Capaian & Pratinjau Wilayah</h3>
+                  <span class="rounded bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 border border-slate-200">
+                    {{ joinedRows().length }} total baris &bull; {{ activeRegionRows().length }} baris aktif
+                  </span>
+                </div>
+                <p class="text-xs text-slate-500">
+                  Pilihan mode evaluasi data capaian/target dan pratinjau tabel hasil penggabungan wilayah. Tersembunyi secara bawaan (default).
+                </p>
               </div>
             </div>
 
-            @if (calculationDataSource() === 'summary_row') {
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-3.5 rounded-lg border border-slate-200">
+            <button
+              type="button"
+              uiButton
+              variant="secondary"
+              size="sm"
+              (click)="toggleDataSourceAndPreview()"
+              [title]="showDataSourceAndPreview() ? 'Sembunyikan Mode Sumber Data & Pratinjau Wilayah' : 'Tampilkan Mode Sumber Data & Pratinjau Wilayah'"
+            >
+              @if (showDataSourceAndPreview()) {
+                <svg class="w-4 h-4 mr-1.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                </svg>
+                <span>Sembunyikan Sumber Data & Pratinjau</span>
+              } @else {
+                <svg class="w-4 h-4 mr-1.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                <span>Tampilkan Sumber Data & Pratinjau</span>
+              }
+            </button>
+          </div>
+
+          @if (showDataSourceAndPreview()) {
+            <!-- Selection Card: Mode Sumber Data & Baris Perhitungan -->
+            <div class="bg-white rounded-lg p-5 border border-slate-200 space-y-4">
+              <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
                 <div>
-                  <label class="block text-xs font-medium text-slate-700 mb-1">
-                    Baris Data Capaian (Provinsi / Total):
-                  </label>
-                  <select
-                    [ngModel]="summaryRowId()"
-                    (ngModelChange)="onSummaryRowChange($event)"
-                    class="w-full text-xs rounded border border-slate-300 bg-white py-1.5 px-3 font-semibold text-slate-900 focus:border-slate-500 focus:outline-none"
-                  >
-                    @for (r of availableSummaryRows(); track r.id) {
-                      <option [value]="r.id">{{ r.label }}</option>
-                    }
-                  </select>
-                  <p class="mt-1 text-[11px] text-slate-500">
-                    Nilai persentase (%) dan jumlah capaian dibaca langsung dari baris ini tanpa operasi pembagian atau agregasi.
+                  <h3 class="text-sm font-semibold text-slate-900">Mode Sumber Data Capaian & Target Indikator</h3>
+                  <p class="text-xs text-slate-500">
+                    Pilih baris ringkasan provinsi/rekap yang memuat nilai capaian siap saji atau agregasikan seluruh baris wilayah.
                   </p>
                 </div>
-
-                <div>
-                  <label class="block text-xs font-medium text-slate-700 mb-1">
-                    Baris Target Indikator (Opsional):
-                  </label>
+                <div class="flex items-center gap-2">
+                  <label class="text-xs font-medium text-slate-600">Mode Evaluasi:</label>
                   <select
-                    [ngModel]="targetRowId()"
-                    (ngModelChange)="onTargetRowChange($event)"
-                    class="w-full text-xs rounded border border-slate-300 bg-white py-1.5 px-3 font-medium text-slate-800 focus:border-slate-500 focus:outline-none"
+                    [ngModel]="calculationDataSource()"
+                    (ngModelChange)="onDataSourceModeChange($event)"
+                    class="text-xs rounded border border-slate-300 bg-white py-1 px-2.5 font-medium focus:border-slate-500 focus:outline-none"
                   >
-                    <option value="none">-- Tidak Menggunakan Baris Target (Input Manual) --</option>
-                    @for (r of availableTargetRows(); track r.id) {
-                      <option [value]="r.id">{{ r.label }}</option>
-                    }
+                    <option value="summary_row">Gunakan Baris Perhitungan Langsung (Provinsi / Rekapitulasi)</option>
+                    <option value="all_rows">Agregasikan Seluruh Baris Wilayah Aktif (SUM)</option>
                   </select>
-                  <p class="mt-1 text-[11px] text-slate-500">
-                    Nilai target pada baris ini otomatis dibersihkan dari simbol (contoh: 'tw3: 60' &rarr; 60, '&le;23' &rarr; 23 kasus).
-                  </p>
                 </div>
               </div>
-            }
-          </div>
-        }
 
-        <!-- Preview & Row Exclusion Table -->
-        @if (joinedRows().length > 0) {
+              @if (calculationDataSource() === 'summary_row') {
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-3.5 rounded-lg border border-slate-200">
+                  <div>
+                    <label class="block text-xs font-medium text-slate-700 mb-1">
+                      Baris Data Capaian (Provinsi / Total):
+                    </label>
+                    <select
+                      [ngModel]="summaryRowId()"
+                      (ngModelChange)="onSummaryRowChange($event)"
+                      class="w-full text-xs rounded border border-slate-300 bg-white py-1.5 px-3 font-semibold text-slate-900 focus:border-slate-500 focus:outline-none"
+                    >
+                      @for (r of availableSummaryRows(); track r.id) {
+                        <option [value]="r.id">{{ r.label }}</option>
+                      }
+                    </select>
+                    <p class="mt-1 text-[11px] text-slate-500">
+                      Nilai persentase (%) dan jumlah capaian dibaca langsung dari baris ini tanpa operasi pembagian atau agregasi.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label class="block text-xs font-medium text-slate-700 mb-1">
+                      Baris Target Indikator (Opsional):
+                    </label>
+                    <select
+                      [ngModel]="targetRowId()"
+                      (ngModelChange)="onTargetRowChange($event)"
+                      class="w-full text-xs rounded border border-slate-300 bg-white py-1.5 px-3 font-medium text-slate-800 focus:border-slate-500 focus:outline-none"
+                    >
+                      <option value="none">-- Tidak Menggunakan Baris Target (Input Manual) --</option>
+                      @for (r of availableTargetRows(); track r.id) {
+                        <option [value]="r.id">{{ r.label }}</option>
+                      }
+                    </select>
+                    <p class="mt-1 text-[11px] text-slate-500">
+                      Nilai target pada baris ini otomatis dibersihkan dari simbol (contoh: 'tw3: 60' &rarr; 60, '&le;23' &rarr; 23 kasus).
+                    </p>
+                  </div>
+                </div>
+              }
+            </div>
+
+            <!-- Preview & Row Exclusion Table -->
             <div class="bg-white rounded-lg p-5 border border-slate-200 space-y-4">
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -762,6 +846,20 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    uiButton
+                    variant="secondary"
+                    size="xs"
+                    (click)="toggleDataSourceAndPreview()"
+                    title="Sembunyikan Mode Sumber Data & Pratinjau Wilayah"
+                  >
+                    <svg class="w-3.5 h-3.5 mr-1 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                    </svg>
+                    <span>Sembunyikan</span>
+                  </button>
+
                   <button
                     type="button"
                     uiButton
@@ -918,11 +1016,27 @@
               </div>
             </div>
           }
+        }
 
         <!-- Step 1 Bottom Navigation Bar -->
         <div class="bg-white rounded-lg p-4 border border-slate-200 flex flex-wrap items-center justify-between gap-3 shadow-xs">
-          <div class="text-xs text-slate-500">
-          
+          <div class="flex items-center gap-2">
+            @if (joinedRows().length > 0) {
+              <button
+                type="button"
+                uiButton
+                variant="ghost"
+                size="xs"
+                (click)="toggleDataSourceAndPreview()"
+                class="text-slate-600 hover:text-slate-900"
+              >
+                <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                <span>{{ showDataSourceAndPreview() ? 'Sembunyikan' : 'Tampilkan' }} Sumber Data & Pratinjau</span>
+              </button>
+            }
           </div>
 
           <button
@@ -1804,17 +1918,6 @@
                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
                           {{ tbl.summary.perluPercepatanCount }} Perlu Percepatan
                         </span>
-                        <button
-                          type="button"
-                          (click)="setSelectedScope(tbl.id); setTableDisplayMode('single')"
-                          class="px-2.5 py-1 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-md border border-slate-200 transition-colors flex items-center gap-1 cursor-pointer"
-                          title="Fokus tampilan hanya pada wilayah ini"
-                        >
-                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
-                          <span>Fokus Wilayah</span>
-                        </button>
                       </div>
                     </div>
 
@@ -1929,7 +2032,7 @@
             <!-- ============================================================ -->
             <!-- MATRIKS KOMPARASI ANTAR-WILAYAH (KABUPATEN/KOTA) -->
             <!-- ============================================================ -->
-            @if (regionalScorecards().length > 0) {
+            @if (enableComparativeMatrix() && regionalScorecards().length > 0) {
               <div class="bg-white rounded-lg p-5 border border-slate-200 space-y-4">
                 <!-- Matrix Header & Toolbar -->
                 <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200">

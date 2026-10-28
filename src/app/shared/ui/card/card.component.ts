@@ -7,11 +7,11 @@ export type CardPadding = 'none' | 'sm' | 'md' | 'lg';
   standalone: true,
   template: `
     @if (title()) {
-      <div class="border-b border-[#6D8BC0]/15 bg-gradient-to-r from-white via-[#F8FAFD] to-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
+      <div class="border-b border-slate-200 bg-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 class="text-sm font-semibold text-slate-900">{{ title() }}</h3>
           @if (subtitle()) {
-            <p class="text-xs text-slate-500 mt-0.5">{{ subtitle() }}</p>
+            <p class="text-xs text-slate-600 mt-0.5">{{ subtitle() }}</p>
           }
         </div>
         <div class="flex items-center gap-2">

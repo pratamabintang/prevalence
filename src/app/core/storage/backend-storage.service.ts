@@ -207,9 +207,23 @@ export class BackendStorageService {
       });
 
       if (!response.ok) {
+        let errorDetail = `Server mengembalikan status HTTP ${response.status}`;
+        try {
+          const errData = await response.json();
+          if (errData && typeof errData === 'object') {
+            const msg =
+              (errData as { message?: string; error?: string }).message ||
+              (errData as { message?: string; error?: string }).error;
+            if (msg) {
+              errorDetail = msg;
+            }
+          }
+        } catch {
+          // Abaikan jika body respons bukan format JSON
+        }
         return {
           ok: false,
-          error: `Server mengembalikan status HTTP ${response.status}`,
+          error: errorDetail,
         };
       }
 
@@ -476,6 +490,33 @@ export class BackendStorageService {
       year: json.year,
       quarter: json.quarter,
       updatedAt: json.updatedAt,
+    };
+  }
+
+  /**
+   * Menghapus partisi periode (berkas fisik & observasi) di server melalui DELETE /periods/:year/:quarter.
+   */
+  async deletePeriod(
+    year: number,
+    quarter: QuarterSlot,
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    const res = await this.requestJson(
+      `/periods/${year}/${quarter}`,
+      {
+        method: 'DELETE',
+      },
+      'Gagal menghapus periode dari server.',
+    );
+
+    if (!res.ok) {
+      return { success: false, error: res.error };
+    }
+
+    const json = res.data;
+    return {
+      success: !!json.success,
+      message: json.message,
+      error: json.error,
     };
   }
 

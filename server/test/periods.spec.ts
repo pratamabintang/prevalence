@@ -117,6 +117,47 @@ describe('Backend API: Quarterly Period Storage & Archive (Seam 1)', () => {
     expect(res.body.toString()).toBe('PK...fake excel binary stream for tw1');
   });
 
+  describe('DELETE /api/periods/:year/:quarter', () => {
+    it('harus menolak request dengan parameter tidak valid (400)', async () => {
+      const res = await request(app).delete('/api/periods/abc/TW1');
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+
+      const res2 = await request(app).delete('/api/periods/2026/TW5');
+      expect(res2.status).toBe(400);
+      expect(res2.body.success).toBe(false);
+    });
+
+    it('harus mengembalikan 404 jika periode tidak ditemukan', async () => {
+      const res = await request(app).delete('/api/periods/2099/TW4');
+      expect(res.status).toBe(404);
+      expect(res.body.success).toBe(false);
+    });
+
+    it('harus berhasil menghapus data periode, berkas fisik, dan entri SQLite (200)', async () => {
+      const targetDir = path.join(tempUploadsDir, '2026', 'TW1');
+      expect(fs.existsSync(targetDir)).toBe(true);
+
+      const delRes = await request(app).delete('/api/periods/2026/TW1');
+      expect(delRes.status).toBe(200);
+      expect(delRes.body.success).toBe(true);
+      expect(delRes.body.message).toContain('berhasil dihapus');
+
+      // Direktori berkas fisik harus sudah terhapus
+      expect(fs.existsSync(targetDir)).toBe(false);
+
+      // GET detail periode harus mengembalikan hasData: false
+      const getRes = await request(app).get('/api/periods/2026/TW1');
+      expect(getRes.status).toBe(200);
+      expect(getRes.body.hasData).toBe(false);
+
+      // GET daftar periods harus kosong
+      const listRes = await request(app).get('/api/periods');
+      expect(listRes.status).toBe(200);
+      expect(listRes.body.periods.length).toBe(0);
+    });
+  });
+
   describe('Custom Default Workbook Lifecycle (/api/default)', () => {
     it('GET /api/default - harus mengembalikan hasData: false saat belum ada Default Kustom', async () => {
       const res = await request(app).get('/api/default');

@@ -526,5 +526,61 @@ describe('StuntingWorkflowEngine', () => {
       expect(regional.length).toBe(2);
       expect(regional.map((r) => r.regionName).sort()).toEqual(['Banyumas', 'Cilacap']);
     });
+
+    it('should derive targetPrevYear and actualPrevYear from tw4Dataset during autoPopulateIndicators', () => {
+      engine.setJoinedDataset({
+        rows: [
+          { 'Kabupaten/Kota': 'Cilacap', '% Skrining Anemia': 80 },
+          { 'Kabupaten/Kota': 'Rata-rata', '% Skrining Anemia': 80 },
+        ],
+        columns: ['Kabupaten/Kota', '% Skrining Anemia'],
+      });
+
+      const mockTw4Dataset: any = {
+        columns: ['Kabupaten/Kota', '% Skrining Anemia (TW4)'],
+        summaryRow: {
+          'Kabupaten/Kota': 'Rata-rata',
+          '% Skrining Anemia (TW4)': 95.5,
+        },
+        targetRow: {
+          'Kabupaten/Kota': 'Target',
+          '% Skrining Anemia (TW4)': '82',
+        },
+      };
+
+      engine.autoPopulateIndicators(mockTw4Dataset);
+
+      const sub = engine.categories()[0].subCategories.find((s) => s.no === '1');
+      expect(sub).toBeDefined();
+      expect(sub?.targetPrevYear).toBe(82);
+      expect(sub?.actualPrevYear).toBe(95.5);
+    });
+
+    it('should apply TW4 values to existing subcategories via applyPreviousYearTw4Data', () => {
+      engine.setJoinedDataset({
+        rows: [{ 'Kabupaten/Kota': 'Cilacap', '% Skrining Anemia': 80 }],
+        columns: ['Kabupaten/Kota', '% Skrining Anemia'],
+      });
+
+      engine.autoPopulateIndicators(null); // Initially default values (75, 90.58)
+      let sub = engine.categories()[0].subCategories.find((s) => s.no === '1');
+      expect(sub?.targetPrevYear).toBe(75);
+      expect(sub?.actualPrevYear).toBe(90.58);
+
+      const mockTw4Dataset: any = {
+        columns: ['Kabupaten/Kota', '% Skrining Anemia (TW4)'],
+        summaryRow: {
+          '% Skrining Anemia (TW4)': 94.2,
+        },
+        columnTargets: {
+          '% Skrining Anemia (TW4)': { enabled: true, operator: '>=', value: 83 },
+        },
+      };
+
+      engine.applyPreviousYearTw4Data(mockTw4Dataset);
+      sub = engine.categories()[0].subCategories.find((s) => s.no === '1');
+      expect(sub?.targetPrevYear).toBe(83);
+      expect(sub?.actualPrevYear).toBe(94.2);
+    });
   });
 });

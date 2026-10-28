@@ -53,6 +53,36 @@ describe('DinkesSpreadsheetParser', () => {
 
       expect(DinkesSpreadsheetParser.detectPreJoinedSheet(wb)).toBe('Sheet1');
     });
+
+    it('harus mendeteksi sheet MASALAH GIZI pre-joined dengan indikator % dan jumlah kolom memadai', () => {
+      const wb = XLSX.utils.book_new();
+      const giziCols = [
+        'No',
+        'Kabupaten/Kota',
+        'BBLR - Jumlah',
+        'BBLR - %',
+        'BB Tidak Naik - Jumlah',
+        'BB Tidak Naik - %',
+        'BB Kurang - Jumlah',
+        'BB Kurang - %',
+        'Gizi Kurang - Jumlah',
+        'Gizi Kurang - %',
+        'Stunting - Jumlah',
+        'Stunting - %',
+      ];
+      const rows = [
+        giziCols,
+        [1, 'CILACAP', 571, 6.53, 33778, 42.85, 6263, 7.93, 3380, 4.29, 4027, 5.11],
+        ['-', 'Jumlah', 571, '-', 33778, '-', 6263, '-', 3380, '-', 4027, '-'],
+        ['-', 'Rata-rata', '-', 6.53, '-', 42.85, '-', 7.93, '-', 4.29, '-', 5.11],
+        ['-', 'Target', '-', '<= 5.5', '-', '<= 40', '-', '<= 14', '-', '<= 7.5', '-', '<= 14'],
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb, ws, 'MASALAH GIZI');
+
+      expect(DinkesSpreadsheetParser.detectPreJoinedSheet(wb)).toBe('MASALAH GIZI');
+      expect(DinkesSpreadsheetParser.detectMasalahGiziPreJoinedSheet(wb)).toBe('MASALAH GIZI');
+    });
   });
 
   describe('parse - Format Pre-Joined', () => {
@@ -126,6 +156,50 @@ describe('DinkesSpreadsheetParser', () => {
       expect(result.regionRows[0]['Kabupaten/Kota']).toBe('KUDUS');
       expect(result.columnTargets['% ASI']?.value).toBe(76);
     });
+
+    it('harus mengekstrak sheet MASALAH GIZI pre-joined dengan indikator persentase dan target operator <=', () => {
+      const wb = XLSX.utils.book_new();
+      const headers = [
+        'No',
+        'Kabupaten/Kota',
+        'BBLR - Jumlah',
+        'BBLR - %',
+        'BB Tidak Naik - Jumlah',
+        'BB Tidak Naik - %',
+        'Stunting - Jumlah',
+        'Stunting - %',
+      ];
+      const rows = [
+        headers,
+        [1, 'CILACAP', 571, 6.53, 33778, 42.85, 4027, 5.11],
+        [2, 'BANYUMAS', 796, 9.39, 33490, 47.42, 9044, 12.81],
+        ['-', 'Jumlah', 1367, '-', 67268, '-', 13071, '-'],
+        ['-', 'Rata-rata', '-', 7.96, '-', 45.135, '-', 8.96],
+        ['-', 'Target', '-', '<= 5.5', '-', '<= 40', '-', '<= 14'],
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb, ws, 'MASALAH GIZI');
+
+      const result = DinkesSpreadsheetParser.parse(wb, { preferredSheetName: 'MASALAH GIZI' });
+      expect(result.sourceType).toBe('pre-joined');
+      expect(result.sheetName).toBe('MASALAH GIZI');
+      expect(result.regionRows.length).toBe(2);
+      expect(result.columns).toEqual([
+        'Kabupaten/Kota',
+        'BBLR - Jumlah',
+        'BBLR - %',
+        'BB Tidak Naik - Jumlah',
+        'BB Tidak Naik - %',
+        'Stunting - Jumlah',
+        'Stunting - %',
+      ]);
+      expect(result.columnConfigs['BBLR - Jumlah']?.dataType).toBe('number');
+      expect(result.columnConfigs['BBLR - %']?.dataType).toBe('percentage');
+      expect(result.columnTargets['BBLR - %']?.operator).toBe('<=');
+      expect(result.columnTargets['BBLR - %']?.value).toBe(5.5);
+      expect(result.totalRow!['BBLR - Jumlah']).toBe(1367);
+      expect(result.summaryRow!['BBLR - %']).toBe(7.96);
+    });
   });
 
   describe('parse - Format Raw Multi-Sheet Standar', () => {
@@ -196,6 +270,44 @@ describe('DinkesSpreadsheetParser', () => {
       expect(result.totalRow).toBeTruthy();
       expect(result.summaryRow).toBeTruthy();
       expect(result.targetRow).toBeTruthy();
+    });
+  });
+
+  describe('extractDataFetchTimestamp & formatTimestampForFilename', () => {
+    it('harus mengekstrak stempel waktu dari sheet anak sel A1', () => {
+      const wb = XLSX.utils.book_new();
+      const wsAnak = XLSX.utils.aoa_to_sheet([
+        ['Data Tarik : 2026-10-01 04:32:23'],
+        ['Penarikan Data (Update) dilakukan secara rutin 8 jam sekali'],
+        ['No', 'Kabupaten/Kota'],
+      ]);
+      XLSX.utils.book_append_sheet(wb, wsAnak, 'anak');
+
+      const timestamp = DinkesSpreadsheetParser.extractDataFetchTimestamp(wb);
+      expect(timestamp).toBe('2026-10-01 04:32:23');
+
+      const safeFilename = DinkesSpreadsheetParser.formatTimestampForFilename(timestamp!);
+      expect(safeFilename).toBe('2026-10-01 04-32-23');
+    });
+
+    it('harus mengekstrak stempel waktu dari format sel Dinkes asli yang umum', () => {
+      const wb = XLSX.utils.book_new();
+      const wsGizi = XLSX.utils.aoa_to_sheet([
+        ['Penarikan Data (Update) dilakukan secara rutin 8 jam sekali'],
+        ['Data Tarik : 2026-10-01 04:43:44'],
+      ]);
+      XLSX.utils.book_append_sheet(wb, wsGizi, 'MASALAH GIZI');
+      const timestamp = DinkesSpreadsheetParser.extractDataFetchTimestamp(wb);
+      expect(timestamp).toBe('2026-10-01 04:43:44');
+      expect(DinkesSpreadsheetParser.formatTimestampForFilename(timestamp!)).toBe('2026-10-01 04-43-44');
+    });
+
+    it('harus mengembalikan null jika tidak ada sel Data Tarik', () => {
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet([['No', 'Kabupaten/Kota']]);
+      XLSX.utils.book_append_sheet(wb, ws, 'anak');
+      expect(DinkesSpreadsheetParser.extractDataFetchTimestamp(wb)).toBeNull();
+      expect(DinkesSpreadsheetParser.extractDataFetchTimestamp(null)).toBeNull();
     });
   });
 });

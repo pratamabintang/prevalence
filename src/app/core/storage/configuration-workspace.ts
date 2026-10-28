@@ -127,11 +127,12 @@ export interface ChartConfigurationPreset {
   chartSubtitle?: string;
   hiddenRows?: string[];
   deletedRows?: string[];
-  viewMode?: 'overview' | 'by-region' | 'by-indicator' | 'by-map' | 'by-correlation' | 'by-quadrant' | 'by-trends';
+  viewMode?: 'by-region' | 'by-indicator' | 'by-map' | 'by-correlation' | 'by-quadrant' | 'by-trends';
   activeMapIndicator?: string;
   regionColumns?: 1 | 2;
   regionGridColumns?: 1 | 2 | 3;
   regionSortMode?: 'default' | 'desc' | 'asc';
+  indicatorSortMode?: 'default' | 'desc' | 'asc';
   indicatorTargets?: Record<string, number | null>;
   indicatorTargetOperators?: Record<string, string>;
   targetOperator?: string;

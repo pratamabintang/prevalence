@@ -339,6 +339,32 @@ describe('ExcelJoinComponent', () => {
       expect(component.showColumnSettings()).toBe(false);
     });
 
+    it('should toggle showResultsTable correctly via toggleShowResultsTable()', () => {
+      expect(component.showResultsTable()).toBe(false);
+      component.toggleShowResultsTable();
+      expect(component.showResultsTable()).toBe(true);
+      component.toggleShowResultsTable();
+      expect(component.showResultsTable()).toBe(false);
+    });
+
+    it('should hide results table and show placeholder when showResultsTable is false', () => {
+      component.resultRows.set([
+        { 'KABUPATEN/KOTA': 'BANYUMAS', 'Stunting': 15.2 }
+      ]);
+      component.resultColumns.set(['KABUPATEN/KOTA', 'Stunting']);
+      component.showResultsTable.set(false);
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('[data-testid="results-table-hidden-placeholder"]')).toBeTruthy();
+      expect(el.querySelector('table.border-collapse')).toBeNull();
+
+      component.showResultsTable.set(true);
+      fixture.detectChanges();
+      expect(el.querySelector('[data-testid="results-table-hidden-placeholder"]')).toBeNull();
+      expect(el.querySelector('table.border-collapse')).toBeTruthy();
+    });
+
     it('should control visibility of toolbar actions via enableToolbarActions signal initialized from environment', () => {
       expect(component.enableToolbarActions()).toBe(false);
 
@@ -551,7 +577,7 @@ describe('ExcelJoinComponent', () => {
 
       component.transferToStuntingMonitoring();
 
-      expect(navigateSpy).toHaveBeenCalledWith(['/stunting-monitoring']);
+      expect(navigateSpy).toHaveBeenCalledWith(['/capaian-intervensi']);
     });
 
     it('harus mendukung pemilihan kolom target tertentu saja (toggle dan update)', () => {
@@ -1172,7 +1198,7 @@ describe('ExcelJoinComponent', () => {
       expect(component.file()?.name).toBe('drive-data.xlsx');
       expect(component.isCloudDefault()).toBe(true);
       expect(component.configNotification()?.type).toBe('success');
-      expect(component.configNotification()?.message).toContain('Google Drive');
+      expect(component.configNotification()?.message).toContain('tersimpan');
     });
 
     it('should serialize workbook to non-empty buffer when file is 0 bytes on confirmSaveDefaultToCloud()', async () => {
@@ -1651,6 +1677,7 @@ describe('ExcelJoinComponent', () => {
 
   describe('table row delete and capaian formatting', () => {
     it('should render cross icon in delete button and delete row upon click', () => {
+      component.showResultsTable.set(true);
       component.resultRows.set([
         { Wilayah: 'Semarang', Jumlah: 100 },
         { Wilayah: 'Solo', Jumlah: 80 },
@@ -1676,6 +1703,7 @@ describe('ExcelJoinComponent', () => {
     });
 
     it('should format capaian cell directly without circular badge', () => {
+      component.showResultsTable.set(true);
       component.resultRows.set([
         { Wilayah: 'Semarang', Indikator: 10 },
         { Wilayah: 'Solo', Indikator: 5 },
@@ -1730,7 +1758,7 @@ describe('ExcelJoinComponent', () => {
           }),
         }),
       );
-      expect(navSpy).toHaveBeenCalledWith(['/chart']);
+      expect(navSpy).toHaveBeenCalledWith(['/visualisasi']);
 
       // Case 2: Targets disabled -> fallback to 50
       component.enableTarget.set(false);
@@ -2014,6 +2042,85 @@ describe('ExcelJoinComponent', () => {
       expect(component.selectedQuarter()).toBe('TW2');
       expect(openSpy).toHaveBeenCalled();
     });
+
+    it('openDeletePeriodConfirm dan closeDeletePeriodConfirm mengontrol visibilitas dialog konfirmasi hapus', () => {
+      vi.spyOn(component.periodPartitionWorkspace, 'isStorageConfigured').mockReturnValue(false);
+      component.openDeletePeriodConfirm();
+      expect(component.showDeletePeriodConfirm()).toBe(false);
+      expect(component.configNotification()?.type).toBe('warning');
+
+      vi.spyOn(component.periodPartitionWorkspace, 'isStorageConfigured').mockReturnValue(true);
+      component.openDeletePeriodConfirm();
+      expect(component.showDeletePeriodConfirm()).toBe(true);
+
+      component.closeDeletePeriodConfirm();
+      expect(component.showDeletePeriodConfirm()).toBe(false);
+    });
+
+    it('confirmDeletePeriod menghapus data periode, me-reset label aktif, dan menyegarkan slot', async () => {
+      component.selectedYear.set(2026);
+      component.selectedQuarter.set('TW1');
+      component.activePeriodLabel.set('2026 TW1');
+      component.showDeletePeriodConfirm.set(true);
+
+      const deleteSpy = vi.spyOn(component.periodPartitionWorkspace, 'deletePeriod').mockResolvedValue({
+        success: true,
+        message: 'Data periode berhasil dihapus',
+      });
+      const fetchSpy = vi.spyOn(component, 'fetchPeriodSlots').mockResolvedValue();
+
+      await component.confirmDeletePeriod();
+
+      expect(deleteSpy).toHaveBeenCalledWith(2026, 'TW1');
+      expect(component.activePeriodLabel()).toBeNull();
+      expect(component.showDeletePeriodConfirm()).toBe(false);
+      expect(fetchSpy).toHaveBeenCalled();
+      expect(component.configNotification()?.type).toBe('success');
+    });
+
+    it('confirmDeletePeriod menangani kegagalan penghapusan dengan notifikasi warning', async () => {
+      component.selectedYear.set(2026);
+      component.selectedQuarter.set('TW2');
+      component.showDeletePeriodConfirm.set(true);
+
+      vi.spyOn(component.periodPartitionWorkspace, 'deletePeriod').mockResolvedValue({
+        success: false,
+        error: 'Gagal menghapus file dari server',
+      });
+
+      await component.confirmDeletePeriod();
+
+      expect(component.showDeletePeriodConfirm()).toBe(false);
+      expect(component.configNotification()?.type).toBe('warning');
+      expect(component.configNotification()?.message).toContain('Gagal menghapus file dari server');
+    });
+
+    it('menampilkan tombol Hapus ketika activeSlotHasData true dan memicu alur konfirmasi penghapusan', async () => {
+      component.periodSlots.set([
+        { year: 2026, quarter: 'TW1', hasRaw: true, hasResult: true, hasConfig: true },
+      ]);
+      component.selectedYear.set(2026);
+      component.selectedQuarter.set('TW1');
+      vi.spyOn(component.periodPartitionWorkspace, 'isStorageConfigured').mockReturnValue(true);
+
+      fixture.detectChanges();
+
+      const deleteBtn = fixture.nativeElement.querySelector('[data-testid="delete-period-btn"]');
+      expect(deleteBtn).toBeTruthy();
+
+      deleteBtn.click();
+      fixture.detectChanges();
+
+      expect(component.showDeletePeriodConfirm()).toBe(true);
+
+      const confirmDeleteBtn = fixture.nativeElement.querySelector('[data-testid="confirm-delete-period-btn"]');
+      expect(confirmDeleteBtn).toBeTruthy();
+
+      const confirmSpy = vi.spyOn(component, 'confirmDeletePeriod').mockResolvedValue();
+      confirmDeleteBtn.click();
+
+      expect(confirmSpy).toHaveBeenCalled();
+    });
   });
 
   describe('Pre-joined Hasil Join Workbook Direct Import', () => {
@@ -2265,16 +2372,61 @@ describe('ExcelJoinComponent', () => {
         exportSpy.mockRestore();
       });
 
-      it('harus membatasi desimal pada nilai persentase maksimal 2 angka di belakang koma saat formatCellValue dipanggil', () => {
+      it('harus mengekspor kedua sheet (Intervensi Spesifik & Masalah Gizi) dalam satu file saat workbook tersedia', () => {
+        const exportSpy = vi.spyOn(ExcelJoinEngine, 'exportJoinedWorkbook');
+
+        const wsHasilJoin = XLSX.utils.aoa_to_sheet([
+          ['Kabupaten/Kota', 'ASI Eksklusif (%)'],
+          ['Banyumas', 85],
+        ]);
+        const wsMasalahGizi = XLSX.utils.aoa_to_sheet([
+          ['Kabupaten/Kota', 'Stunting (%)'],
+          ['Banyumas', 14],
+        ]);
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, wsHasilJoin, 'Hasil Join');
+        XLSX.utils.book_append_sheet(wb, wsMasalahGizi, 'MASALAH GIZI');
+        component.workbook = wb;
+
+        component.resultRows.set([{ 'Kabupaten/Kota': 'Banyumas', 'ASI Eksklusif (%)': 85 }]);
+        component.resultColumns.set(['Kabupaten/Kota', 'ASI Eksklusif (%)']);
+
+        component.exportToExcel();
+
+        expect(exportSpy).toHaveBeenCalled();
+        const callArgs = exportSpy.mock.calls[0][0];
+        expect(callArgs.sheetName).toBe('Hasil Join');
+        expect(callArgs.additionalSheets?.length).toBe(1);
+        expect(callArgs.additionalSheets?.[0].sheetName).toBe('MASALAH GIZI');
+        exportSpy.mockRestore();
+      });
+
+      it('harus menggunakan stempel waktu Data Tarik sebagai nama file hasil join jika tersedia', () => {
+        const exportSpy = vi.spyOn(ExcelJoinEngine, 'exportJoinedWorkbook');
+
+        component.resultRows.set([{ 'Kabupaten/Kota': 'Banyumas', 'ASI Eksklusif (%)': 85 }]);
+        component.resultColumns.set(['Kabupaten/Kota', 'ASI Eksklusif (%)']);
+        component.dataFetchTimestamp.set('2026-10-01 04:32:23');
+
+        component.exportToExcel();
+
+        expect(exportSpy).toHaveBeenCalled();
+        const callArgs = exportSpy.mock.calls[0][0];
+        expect(callArgs.fileName).toBe('2026-10-01 04-32-23.xlsx');
+        exportSpy.mockRestore();
+      });
+
+      it('harus membatasi desimal pada nilai persentase maksimal 2 angka di belakang koma tanpa simbol % saat formatCellValue dipanggil', () => {
         component.columnConfigs.set({
           'BB Tidak Naik - %': { dataType: 'percentage', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
           'BBLR - %': { dataType: 'percentage', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
         });
 
-        // 42.845907960830075 harus menjadi 42.85%
-        expect(component.formatCellValue(42.845907960830075, 'BB Tidak Naik - %')).toBe('42.85%');
-        expect(component.formatCellValue(6.53, 'BBLR - %')).toBe('6.53%');
-        expect(component.formatCellValue(70, 'BBLR - %')).toBe('70%');
+        // 42.845907960830075 harus menjadi 42.85 tanpa %
+        expect(component.formatCellValue(42.845907960830075, 'BB Tidak Naik - %')).toBe('42.85');
+        expect(component.formatCellValue(6.53, 'BBLR - %')).toBe('6.53');
+        expect(component.formatCellValue(70, 'BBLR - %')).toBe('70');
       });
 
       it('harus mempublikasikan data grafik dengan judul Masalah Gizi dan operator <= saat visualizeInChart dipanggil', () => {
@@ -2299,10 +2451,80 @@ describe('ExcelJoinComponent', () => {
         expect(callArgs.title).toBe('Visualisasi Data Masalah Gizi');
         expect(callArgs.targetOperator).toBe('<=');
         expect(callArgs.targetValue).toBe(5.5);
-        expect(routerSpy).toHaveBeenCalledWith(['/chart']);
+        expect(routerSpy).toHaveBeenCalledWith(['/visualisasi']);
 
         publishSpy.mockRestore();
         routerSpy.mockRestore();
+      });
+
+      it('harus dapat memuat berkas Excel pre-joined Masalah Gizi secara langsung tanpa sheet mentah', () => {
+        const wb = XLSX.utils.book_new();
+        const headers = [
+          'No',
+          'Kabupaten/Kota',
+          'BBLR - Jumlah',
+          'BBLR - %',
+          'Stunting - Jumlah',
+          'Stunting - %',
+        ];
+        const rows = [
+          headers,
+          [1, 'CILACAP', 571, 6.53, 4027, 5.11],
+          [2, 'BANYUMAS', 796, 9.39, 9044, 12.81],
+          ['-', 'Jumlah', 1367, '-', 13071, '-'],
+          ['-', 'Rata-rata', '-', 7.96, '-', 8.96],
+          ['-', 'Target', '-', '<= 5.5', '-', '<= 14'],
+        ];
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        XLSX.utils.book_append_sheet(wb, ws, 'MASALAH GIZI');
+
+        component.workbook = wb;
+        component.loadPreJoinedHasilJoinSheet(wb, 'MASALAH GIZI', 'Hasil_Join_Masalah_Gizi.xlsx');
+
+        expect(component.isMasalahGizi()).toBe(true);
+        expect(component.resultRows().length).toBe(2);
+        expect(component.resultColumns()).toContain('BBLR - %');
+        expect(component.resultColumns()).toContain('Stunting - %');
+        expect(component.columnTargets()['BBLR - %']?.operator).toBe('<=');
+        expect(component.columnTargets()['BBLR - %']?.value).toBe(5.5);
+        expect(component.enableTarget()).toBe(true);
+        expect(component.enableJumlah()).toBe(true);
+        expect(component.enableAverage()).toBe(true);
+      });
+
+      it('harus dapat beralih langsung antara sheet pre-joined Hasil Join dan MASALAH GIZI pada workbook dual-sheet', () => {
+        const wb = XLSX.utils.book_new();
+        const wsHJ = XLSX.utils.aoa_to_sheet([
+          ['No', 'Kabupaten/Kota', '% ASI Eksklusif'],
+          [1, 'CILACAP', 80],
+          ['-', 'Target', '>= 75'],
+        ]);
+        const wsMG = XLSX.utils.aoa_to_sheet([
+          ['No', 'Kabupaten/Kota', 'BBLR - %', 'Stunting - %'],
+          [1, 'CILACAP', 6.5, 12.0],
+          ['-', 'Target', '<= 5.5', '<= 14.0'],
+        ]);
+        XLSX.utils.book_append_sheet(wb, wsHJ, 'Hasil Join');
+        XLSX.utils.book_append_sheet(wb, wsMG, 'MASALAH GIZI');
+
+        component.workbook = wb;
+
+        // Awalnya muat Hasil Join
+        component.applyTemplate('intervensi-spesifik');
+        expect(component.isMasalahGizi()).toBe(false);
+        expect(component.resultColumns()).toContain('% ASI Eksklusif');
+
+        // Beralih ke Masalah Gizi pre-joined
+        component.applyTemplate('masalah-gizi');
+        expect(component.isMasalahGizi()).toBe(true);
+        expect(component.resultColumns()).toContain('BBLR - %');
+        expect(component.resultColumns()).toContain('Stunting - %');
+        expect(component.columnTargets()['BBLR - %']?.operator).toBe('<=');
+
+        // Beralih kembali ke Hasil Join
+        component.applyTemplate('intervensi-spesifik');
+        expect(component.isMasalahGizi()).toBe(false);
+        expect(component.resultColumns()).toContain('% ASI Eksklusif');
       });
     });
   });

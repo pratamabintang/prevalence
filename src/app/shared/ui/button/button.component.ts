@@ -29,13 +29,13 @@ export class UiButtonComponent {
 
   hostClasses = computed(() => {
     const base =
-      'inline-flex items-center justify-center font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-[#525AFF] focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer select-none';
+      'inline-flex items-center justify-center font-medium rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#525AFF] focus-visible:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer select-none';
 
     // Size variants
     let sizeClass = '';
     switch (this.size()) {
       case 'xs':
-        sizeClass = 'px-2 py-1 text-xs gap-1';
+        sizeClass = 'px-2.5 py-1 text-xs gap-1';
         break;
       case 'sm':
         sizeClass = 'px-3 py-1.5 text-xs gap-1.5';
@@ -48,26 +48,26 @@ export class UiButtonComponent {
         break;
     }
 
-    // Color variants
+    // Color variants (verified >= 4.5:1 WCAG AA contrast)
     let variantClass = '';
     switch (this.variant()) {
       case 'primary':
-        variantClass = 'bg-[#525AFF] text-white hover:bg-[#4348E6] border border-[#525AFF] shadow-xs shadow-[#525AFF]/25';
+        variantClass = 'bg-[#525AFF] text-white hover:bg-[#4348E6] border border-[#525AFF] shadow-xs shadow-[#525AFF]/20';
         break;
       case 'secondary':
-        variantClass = 'bg-white text-slate-700 hover:bg-[#F2F5FA] hover:text-[#525AFF] border border-slate-300 hover:border-[#6D8BC0]/50 shadow-xs';
+        variantClass = 'bg-white text-slate-700 hover:bg-[#F2F5FA] hover:text-[#4348E6] border border-slate-300 hover:border-[#525AFF]/40 shadow-xs';
         break;
       case 'outline':
-        variantClass = 'bg-transparent text-slate-700 hover:bg-[#F0FAFE] hover:text-[#525AFF] border border-slate-300 hover:border-[#525AFF]/40';
+        variantClass = 'bg-transparent text-slate-700 hover:bg-[#EEF0FF] hover:text-[#4348E6] border border-slate-300 hover:border-[#525AFF]/40';
         break;
       case 'success':
-        variantClass = 'bg-[#4AB5B5] text-white hover:bg-[#3DA1A1] border border-[#4AB5B5] shadow-xs shadow-[#4AB5B5]/25';
+        variantClass = 'bg-[#0F766E] text-white hover:bg-[#115E59] border border-[#0F766E] shadow-xs';
         break;
       case 'danger':
-        variantClass = 'bg-rose-600 text-white hover:bg-rose-700 border border-rose-600 shadow-xs';
+        variantClass = 'bg-rose-700 text-white hover:bg-rose-800 border border-rose-700 shadow-xs';
         break;
       case 'ghost':
-        variantClass = 'text-slate-600 hover:text-[#525AFF] hover:bg-[#F2F5FA] border border-transparent';
+        variantClass = 'text-slate-700 hover:text-[#4348E6] hover:bg-[#F2F5FA] border border-transparent';
         break;
     }
 

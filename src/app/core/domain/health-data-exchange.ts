@@ -10,9 +10,11 @@ export interface TransferredChartData {
   targetOperator?: string;
   indicatorTargets?: Record<string, number | null>;
   indicatorTargetOperators?: Record<string, string>;
-  defaultViewMode?: 'overview' | 'by-region' | 'by-indicator';
+  defaultViewMode?: 'by-region' | 'by-indicator';
   percentageColumns?: string[];
   nonNumericColumns?: string[];
+  datasetType?: 'intervensi-spesifik' | 'masalah-gizi';
+  dataFetchTimestamp?: string | null;
 }
 
 export interface TransferredStuntingData {
@@ -24,6 +26,7 @@ export interface TransferredStuntingData {
   summaryRow?: Record<string, unknown>;
   targetRow?: Record<string, unknown>;
   averageRow?: Record<string, unknown>;
+  dataFetchTimestamp?: string | null;
 }
 
 export interface ExchangeColumnTarget {
@@ -52,7 +55,11 @@ export interface PublishJoinedChartSpec {
   indicatorTargetOperators?: Record<string, string>;
   targetValue?: number | null;
   targetOperator?: string;
-  defaultViewMode?: 'overview' | 'by-region' | 'by-indicator';
+  defaultViewMode?: 'by-region' | 'by-indicator';
+  datasetType?: 'intervensi-spesifik' | 'masalah-gizi';
+  rawWorkbook?: unknown;
+  rawWorkbookBuffer?: ArrayBuffer;
+  dataFetchTimestamp?: string | null;
 }
 
 export interface PublishJoinedStuntingSpec {
@@ -68,6 +75,7 @@ export interface PublishJoinedStuntingSpec {
   enableAverage?: boolean;
   avgColumns?: Record<string, boolean>;
   columnAverages?: Record<string, number | null>;
+  dataFetchTimestamp?: string | null;
 }
 
 export interface StuntingEvaluationRow {
@@ -164,9 +172,26 @@ export class HealthDataExchange {
 
   private chartDataSignal = signal<TransferredChartData | null>(null);
   private stuntingDataSignal = signal<TransferredStuntingData | null>(null);
+  private rawWorkbook: unknown = null;
+  private rawWorkbookBuffer: ArrayBuffer | null = null;
 
   chartData = this.chartDataSignal.asReadonly();
   stuntingData = this.stuntingDataSignal.asReadonly();
+
+  setRawWorkbook(wb: unknown, buffer?: ArrayBuffer | null): void {
+    this.rawWorkbook = wb;
+    if (buffer !== undefined) {
+      this.rawWorkbookBuffer = buffer;
+    }
+  }
+
+  getRawWorkbook(): unknown {
+    return this.rawWorkbook;
+  }
+
+  getRawWorkbookBuffer(): ArrayBuffer | null {
+    return this.rawWorkbookBuffer;
+  }
 
   constructor(
     @Optional()
@@ -193,6 +218,8 @@ export class HealthDataExchange {
 
   clearChartData(): void {
     this.chartDataSignal.set(null);
+    this.rawWorkbook = null;
+    this.rawWorkbookBuffer = null;
     try {
       this.storage.removeItem(HealthDataExchange.CHART_STORAGE_KEY);
     } catch {}
@@ -235,6 +262,10 @@ export class HealthDataExchange {
       columnTargets = {},
       columnConfigs = {},
     } = spec;
+
+    if (spec.rawWorkbook || spec.rawWorkbookBuffer) {
+      this.setRawWorkbook(spec.rawWorkbook ?? this.rawWorkbook, spec.rawWorkbookBuffer ?? this.rawWorkbookBuffer);
+    }
 
     const catCol = categoryColumn || columns[0] || 'Wilayah';
     const displayCatCol = this.resolveDisplayName(catCol, customColumnNames);
@@ -333,6 +364,8 @@ export class HealthDataExchange {
       defaultViewMode: spec.defaultViewMode ?? 'by-indicator',
       percentageColumns,
       nonNumericColumns: nonNumericColumns.length > 0 ? nonNumericColumns : undefined,
+      datasetType: spec.datasetType,
+      dataFetchTimestamp: spec.dataFetchTimestamp,
     };
 
     this.setChartData(chartData);
@@ -424,6 +457,7 @@ export class HealthDataExchange {
       summaryRow,
       targetRow,
       averageRow,
+      dataFetchTimestamp: spec.dataFetchTimestamp,
     };
 
     this.setStuntingData(stuntingData);

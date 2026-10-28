@@ -3,8 +3,16 @@ export const environment = {
   googleAppsScriptUrl: '',
   backendApiUrl: '/api',
   enableStuntingDashboard: false,
+  enableStuntingCohort: true,
   enableExcelJoinToolbarActions: false,
   enableChartToolbarActions: false,
   enableChartSettings: false,
+  enablePriorityQuadrant: false,
+  enablePeriodTrends: false,
+  enableCorrelationMatrix: false,
+  enableChartPriorityQuadrant: false,
+  enableChartPeriodTrends: false,
+  enableChartCorrelationMatrix: false,
+  enableComparativeMatrix: false,
+  enableRegionalComparativeMatrix: false,
 };
-

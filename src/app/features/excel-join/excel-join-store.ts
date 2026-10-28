@@ -39,6 +39,7 @@ export interface ExcelJoinStoredState {
   defaultResultColumnsMeta: ColumnHeaderMeta[];
   resultRows: ResultRow[];
   originalResultRows: ResultRow[];
+  dataFetchTimestamp?: string | null;
 }
 
 /**

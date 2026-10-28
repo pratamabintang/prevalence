@@ -218,6 +218,43 @@ describe('ExcelJoinEngine (Deep Module)', () => {
       exportSpy.mockRestore();
     });
 
+    it('harus memanggil ExcelEngine.exportMultiSheetTable jika additionalSheets disertakan', () => {
+      const exportMultiSpy = vi.spyOn(ExcelEngine, 'exportMultiSheetTable').mockImplementation(() => {});
+
+      const primarySpec: JoinExportSpec = {
+        fileName: 'Multi_Export.xlsx',
+        sheetName: 'Hasil Join',
+        resultRows: [{ 'Kabupaten/Kota': 'Cilacap', 'Sasaran': 100 }],
+        resultColumns: ['Kabupaten/Kota', 'Sasaran'],
+        resultColumnsMeta: [
+          { key: 'Kabupaten/Kota', layers: ['Wilayah'] },
+          { key: 'Sasaran', layers: ['Sasaran'] },
+        ],
+        additionalSheets: [
+          {
+            sheetName: 'MASALAH GIZI',
+            resultRows: [{ 'Kabupaten/Kota': 'Cilacap', 'Stunting': 12 }],
+            resultColumns: ['Kabupaten/Kota', 'Stunting'],
+            resultColumnsMeta: [
+              { key: 'Kabupaten/Kota', layers: ['Wilayah'] },
+              { key: 'Stunting', layers: ['Stunting'] },
+            ],
+          },
+        ],
+      };
+
+      ExcelJoinEngine.exportJoinedWorkbook(primarySpec);
+
+      expect(exportMultiSpy).toHaveBeenCalledTimes(1);
+      const [fileName, sheets] = exportMultiSpy.mock.calls[0];
+      expect(fileName).toBe('Multi_Export.xlsx');
+      expect(sheets.length).toBe(2);
+      expect(sheets[0].sheetName).toBe('Hasil Join');
+      expect(sheets[1].sheetName).toBe('MASALAH GIZI');
+
+      exportMultiSpy.mockRestore();
+    });
+
     it('buildJoinedBuffer mengembalikan ArrayBuffer valid jika ada data', () => {
       const buffer = ExcelJoinEngine.buildJoinedBuffer({
         resultRows: [{ 'Kabupaten/Kota': 'Banyuwangi', 'Sasaran': 100 }],
@@ -240,6 +277,35 @@ describe('ExcelJoinEngine (Deep Module)', () => {
       });
 
       expect(buffer).toBeNull();
+    });
+
+    it('buildMultiSheetJoinedBuffer menghasilkan ArrayBuffer berisi multi-sheet valid', () => {
+      const buffer = ExcelJoinEngine.buildMultiSheetJoinedBuffer([
+        {
+          sheetName: 'Hasil Join',
+          resultRows: [{ 'Kabupaten/Kota': 'Banyuwangi', 'Sasaran': 100 }],
+          resultColumns: ['Kabupaten/Kota', 'Sasaran'],
+          resultColumnsMeta: [
+            { key: 'Kabupaten/Kota', layers: ['Kabupaten/Kota'] },
+            { key: 'Sasaran', layers: ['Sasaran'] },
+          ],
+        },
+        {
+          sheetName: 'MASALAH GIZI',
+          resultRows: [{ 'Kabupaten/Kota': 'Banyuwangi', 'Stunting': 15 }],
+          resultColumns: ['Kabupaten/Kota', 'Stunting'],
+          resultColumnsMeta: [
+            { key: 'Kabupaten/Kota', layers: ['Kabupaten/Kota'] },
+            { key: 'Stunting', layers: ['Stunting'] },
+          ],
+        },
+      ]);
+
+      expect(buffer).toBeInstanceOf(ArrayBuffer);
+      expect(buffer!.byteLength).toBeGreaterThan(0);
+
+      const wb = ExcelEngine.readWorkbook(buffer!);
+      expect(wb.SheetNames).toEqual(['Hasil Join', 'MASALAH GIZI']);
     });
   });
 });

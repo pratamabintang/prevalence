@@ -80,7 +80,7 @@ describe('StuntingDashboardComponent', () => {
   it('should render Section G spatial map, Java island sketch, and district boundaries', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.textContent).toContain('Peta Geografis & Batas 35 Wilayah Jawa Tengah');
-    expect(compiled.textContent).toContain('Sketsa Pulau Jawa — Posisi Geografis Jawa Tengah');
+    expect(compiled.textContent).toContain('Sketsa Pulau Jawa - Posisi Geografis Jawa Tengah');
     expect(compiled.textContent).toContain('Batas Poligon Wilayah');
     expect(component.spatialMapFeatures().length).toBe(35);
   });

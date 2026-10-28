@@ -770,4 +770,79 @@ describe('StuntingEvaluationEngine', () => {
       ]);
     });
   });
+
+  describe('extractIndicatorPrevYearValues', () => {
+    it('should fallback to default target and actual when tw4Dataset is null or empty', () => {
+      const std = StuntingEvaluationEngine.DINKES_STANDARD_INDICATORS[0]; // Remaja putri skrining anemia: defaultTargetPrev: 75, defaultActualPrev: 90.58
+      const res = StuntingEvaluationEngine.extractIndicatorPrevYearValues(std, null);
+      expect(res.targetPrevYear).toBe(75);
+      expect(res.actualPrevYear).toBe(90.58);
+    });
+
+    it('should derive target and actual from preceding year TW4 dataset when matching indicator is available', () => {
+      const std = StuntingEvaluationEngine.DINKES_STANDARD_INDICATORS[0];
+      const mockTw4Dataset: any = {
+        columns: ['Kabupaten/Kota', '% Skrining Anemia (TW4)', 'Rematri Anemia'],
+        summaryRow: {
+          'Kabupaten/Kota': 'Rata-rata',
+          '% Skrining Anemia (TW4)': '92.45%',
+        },
+        targetRow: {
+          'Kabupaten/Kota': 'Target',
+          '% Skrining Anemia (TW4)': '>= 80%',
+        },
+        columnTargets: {
+          '% Skrining Anemia (TW4)': { enabled: true, operator: '>=', value: 80 },
+        },
+        regionRows: [],
+      };
+
+      const res = StuntingEvaluationEngine.extractIndicatorPrevYearValues(std, mockTw4Dataset);
+      expect(res.targetPrevYear).toBe(80);
+      expect(res.actualPrevYear).toBe(92.45);
+    });
+
+    it('should derive actual from regional average if summaryRow is missing in TW4', () => {
+      const std = StuntingEvaluationEngine.DINKES_STANDARD_INDICATORS[1]; // TTD: defaultTargetPrev: 65, defaultActualPrev: 89.34
+      const mockTw4Dataset: any = {
+        columns: ['Kabupaten/Kota', '% Konsumsi TTD'],
+        summaryRow: null,
+        targetRow: {
+          'Kabupaten/Kota': 'Target',
+          '% Konsumsi TTD': '70',
+        },
+        regionRows: [
+          { 'Kabupaten/Kota': 'Kab A', '% Konsumsi TTD': 80 },
+          { 'Kabupaten/Kota': 'Kab B', '% Konsumsi TTD': 90 },
+        ],
+      };
+
+      const res = StuntingEvaluationEngine.extractIndicatorPrevYearValues(std, mockTw4Dataset);
+      expect(res.targetPrevYear).toBe(70);
+      expect(res.actualPrevYear).toBe(85); // (80 + 90) / 2
+    });
+
+    it('should support custom indicators matching by name or meanCol', () => {
+      const customInd = {
+        name: 'Cakupan Jamban Sehat',
+        meanCol: 'Jamban Sehat %',
+        defaultTargetPrev: 85,
+        defaultActualPrev: 82.5,
+      };
+
+      const mockTw4Dataset: any = {
+        columns: ['Kabupaten/Kota', 'Jamban Sehat % (TW4)'],
+        summaryRow: {
+          'Jamban Sehat % (TW4)': 91.5,
+        },
+        targetRow: {
+          'Jamban Sehat % (TW4)': '>= 88',
+        },
+      };
+
+      const res = StuntingEvaluationEngine.extractIndicatorPrevYearValues(customInd, mockTw4Dataset);
+      expect(res.targetPrevYear).toBe(88);
+      expect(res.actualPrevYear).toBe(91.5);
+    });
+  });
 });

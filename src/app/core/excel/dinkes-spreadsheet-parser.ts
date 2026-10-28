@@ -12,6 +12,7 @@ import { DEFAULT_JOIN_CONFIG } from '../../features/excel-join/default-join-conf
 export interface ParseDinkesOptions {
   preset?: JoinPresetExecutionSpec;
   stripKabupaten?: boolean;
+  preferredSheetName?: string;
 }
 
 export interface ParsedDinkesDataset {
@@ -29,6 +30,7 @@ export interface ParsedDinkesDataset {
   sums: Record<string, boolean>;
   averages: Record<string, boolean>;
   rawWorkbook: ExcelWorkbook;
+  dataFetchTimestamp?: string | null;
 }
 
 /**
@@ -37,6 +39,57 @@ export interface ParsedDinkesDataset {
  * berkas berupa lembar hasil penggabungan jadi (pre-joined) atau berkas mentah multi-sheet.
  */
 export class DinkesSpreadsheetParser {
+  /**
+   * Mengekstrak stempel waktu penarikan data (Data Tarik) dari buku kerja mentah Dinkes.
+   * Mengutamakan sheet 'anak' pada sel A1/A2 sesuai standar Dinkes Jawa Tengah,
+   * dengan fallback ke sheet gizi, bumil, remaja, atau masalah gizi.
+   */
+  static extractDataFetchTimestamp(workbook: ExcelWorkbook | null | undefined): string | null {
+    if (!workbook || !workbook.SheetNames || workbook.SheetNames.length === 0) {
+      return null;
+    }
+
+    const sheetNames = workbook.SheetNames;
+    const candidateSheets = [
+      sheetNames.find((s) => s.trim().toLowerCase() === 'anak'),
+      ...sheetNames.filter((s) => s.trim().toLowerCase() !== 'anak'),
+    ].filter((s): s is string => !!s);
+
+    for (const sheetName of candidateSheets) {
+      const sheet = workbook.Sheets[sheetName];
+      if (!sheet) continue;
+
+      const checkCells = ['A1', 'A2', 'B1', 'B2'];
+      for (const addr of checkCells) {
+        const cell = sheet[addr];
+        if (!cell || cell.v == null) continue;
+        const text = String(cell.v).trim();
+        if (/data\s*tarik/i.test(text)) {
+          const match = text.match(
+            /Data\s*Tarik\s*:\s*(\d{4}[-/.]\d{2}[-/.]\d{2}[\s_T]\d{2}[:.-]\d{2}[:.-]\d{2})/i,
+          );
+          if (match) {
+            return match[1].trim();
+          }
+          const fallback = text.replace(/^.*Data\s*Tarik\s*:\s*/i, '').trim();
+          if (fallback) {
+            return fallback;
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Mengonversi stempel waktu menjadi nama file yang aman untuk sistem operasi Windows/Linux/macOS
+   * dengan mengganti karakter ilegal (seperti titik dua ':') menjadi tanda hubung ('-').
+   */
+  static formatTimestampForFilename(timestamp: string): string {
+    return timestamp.trim().replace(/[:]/g, '-').replace(/[\/\\?*"<>|]/g, '_');
+  }
+
   /**
    * Mendeteksi nama sheet pre-joined standar Dinkes pada workbook.
    * Hanya memeriksa ringkasan baris jika workbook memiliki tepat 1 sheet untuk mencegah
@@ -63,7 +116,41 @@ export class DinkesSpreadsheetParser {
       return partialMatch;
     }
 
-    // 3. Fallback HANYA untuk workbook single-sheet (misal berkas ekspor hasil rename)
+    // 3. Cek sheet pre-joined "Masalah Gizi" (bila bukan workbook mentah multi-sheet Dinkes dan memiliki indikator %)
+    const isStandardRaw =
+      ['remaja', 'bumil', 'anak', 'idl'].filter((s) =>
+        workbook.SheetNames.some((sn) => sn.toLowerCase().includes(s)),
+      ).length >= 2;
+
+    if (!isStandardRaw) {
+      const giziCandidate = workbook.SheetNames.find(
+        (name) =>
+          name.trim().toLowerCase() === 'masalah gizi' ||
+          name.trim().toLowerCase().includes('masalah gizi'),
+      );
+      if (giziCandidate) {
+        const ws = workbook.Sheets[giziCandidate];
+        if (ws) {
+          const rawData = ExcelWorkbookAdapter.readSheetAsGrid(ws);
+          const headerRow = rawData.find(
+            (r) =>
+              Array.isArray(r) &&
+              r.some((cell) => {
+                const s = String(cell || '').trim().toLowerCase();
+                return s === 'kabupaten/kota' || s === 'kab/kota' || s === 'kabupaten';
+              }),
+          );
+          if (
+            headerRow &&
+            headerRow.some((col) => String(col || '').includes('%'))
+          ) {
+            return giziCandidate;
+          }
+        }
+      }
+    }
+
+    // 4. Fallback HANYA untuk workbook single-sheet (misal berkas ekspor hasil rename)
     if (workbook.SheetNames.length === 1) {
       const name = workbook.SheetNames[0];
       const ws = workbook.Sheets[name];
@@ -143,6 +230,51 @@ export class DinkesSpreadsheetParser {
   }
 
   /**
+   * Mendeteksi nama sheet pre-joined Masalah Gizi pada workbook.
+   */
+  static detectMasalahGiziPreJoinedSheet(workbook: ExcelWorkbook): string | null {
+    if (!workbook || !workbook.SheetNames || workbook.SheetNames.length === 0) {
+      return null;
+    }
+
+    const isStandardRaw =
+      ['remaja', 'bumil', 'anak', 'idl'].filter((s) =>
+        workbook.SheetNames.some((sn) => sn.toLowerCase().includes(s)),
+      ).length >= 2;
+
+    if (isStandardRaw) {
+      return null;
+    }
+
+    const candidate =
+      workbook.SheetNames.find((name) => name.trim().toLowerCase() === 'masalah gizi') ||
+      workbook.SheetNames.find((name) => name.trim().toLowerCase().includes('masalah gizi'));
+
+    if (candidate) {
+      const ws = workbook.Sheets[candidate];
+      if (ws) {
+        const rawData = ExcelWorkbookAdapter.readSheetAsGrid(ws);
+        const headerRow = rawData.find(
+          (r) =>
+            Array.isArray(r) &&
+            r.some((cell) => {
+              const s = String(cell || '').trim().toLowerCase();
+              return s === 'kabupaten/kota' || s === 'kab/kota' || s === 'kabupaten';
+            }),
+        );
+        if (
+          headerRow &&
+          headerRow.some((col) => String(col || '').includes('%'))
+        ) {
+          return candidate;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Parsing terpadu buku kerja Excel Dinkes (baik ArrayBuffer maupun WorkBook).
    */
   static parse(
@@ -162,11 +294,6 @@ export class DinkesSpreadsheetParser {
     }
 
     const stripKab = options?.stripKabupaten ?? true;
-    const preJoinedSheet = this.detectPreJoinedSheet(workbook);
-
-    if (preJoinedSheet) {
-      return this.extractPreJoinedSheet(workbook, preJoinedSheet, stripKab, options);
-    }
 
     // Cek apakah buku kerja memiliki struktur raw multi-sheet Dinkes
     const isStandardRaw =
@@ -174,8 +301,46 @@ export class DinkesSpreadsheetParser {
         workbook.SheetNames.some((sn) => sn.toLowerCase().includes(s)),
       ).length >= 2;
 
-    if (isStandardRaw || options?.preset) {
+    if (isStandardRaw) {
       const preset = (options?.preset || DEFAULT_JOIN_CONFIG) as unknown as JoinPresetExecutionSpec;
+      return this.executeRawMultiSheetJoin(workbook, preset, stripKab);
+    }
+
+    // 1. Cek preferredSheetName jika ditentukan secara eksplisit pada buku kerja pre-joined
+    if (options?.preferredSheetName) {
+      const match = workbook.SheetNames.find(
+        (s) =>
+          s.trim().toLowerCase() === options.preferredSheetName!.trim().toLowerCase() ||
+          s.trim().toLowerCase().includes(options.preferredSheetName!.trim().toLowerCase()),
+      );
+      if (match) {
+        return this.extractPreJoinedSheet(workbook, match, stripKab, options);
+      }
+    }
+
+    // 2. Cek sheet Masalah Gizi pre-joined jika preset adalah Masalah Gizi
+    const presetName = (options?.preset as { name?: string } | undefined)?.name?.toLowerCase();
+    const isMasalahGizi = Boolean(
+      (presetName && presetName.includes('masalah gizi')) ||
+      (options?.preferredSheetName && options.preferredSheetName.toLowerCase().includes('masalah gizi'))
+    );
+
+    if (isMasalahGizi) {
+      const giziSheet = workbook.SheetNames.find((s) =>
+        s.trim().toLowerCase().includes('masalah gizi'),
+      );
+      if (giziSheet) {
+        return this.extractPreJoinedSheet(workbook, giziSheet, stripKab, options);
+      }
+    }
+
+    const preJoinedSheet = this.detectPreJoinedSheet(workbook);
+    if (preJoinedSheet && !isMasalahGizi) {
+      return this.extractPreJoinedSheet(workbook, preJoinedSheet, stripKab, options);
+    }
+
+    if (options?.preset) {
+      const preset = options.preset as unknown as JoinPresetExecutionSpec;
       return this.executeRawMultiSheetJoin(workbook, preset, stripKab);
     }
 
@@ -350,7 +515,12 @@ export class DinkesSpreadsheetParser {
         if (rawTargetRow) {
           const targetCell = String(rawTargetRow[validColIndices[cIdx]] ?? '').trim();
           targetRow[colName] = targetCell || null;
-          const targetMatch = targetCell.match(/^([><]=?|=)?\s*([0-9]+(?:[.,][0-9]+)?)$/);
+          const cleanCell = targetCell
+            .replace(/[≤]/g, '<=')
+            .replace(/[≥]/g, '>=')
+            .replace(/%/g, '')
+            .trim();
+          const targetMatch = cleanCell.match(/([><]=?|=|==)?\s*([0-9]+(?:[.,][0-9]+)?)/);
           if (targetMatch) {
             let op: TargetOperator = '>=';
             if (
@@ -375,9 +545,11 @@ export class DinkesSpreadsheetParser {
         if (!targetParsed.enabled && options?.preset?.columnTargets) {
           const cfgTarget =
             options.preset.columnTargets[colName] ??
-            Object.entries(options.preset.columnTargets).find(
-              ([k]) => ExcelJoinEngine.normalizeKey(k) === ExcelJoinEngine.normalizeKey(colName),
-            )?.[1];
+            Object.entries(options.preset.columnTargets).find(([k]) => {
+              const nk = ExcelJoinEngine.normalizeKey(k);
+              const ncol = ExcelJoinEngine.normalizeKey(colName);
+              return nk === ncol || nk.endsWith(ncol) || ncol.endsWith(nk);
+            })?.[1];
           if (cfgTarget && cfgTarget.enabled !== false && cfgTarget.value !== null) {
             targetParsed = cfgTarget;
             if (!targetRow[colName]) {
@@ -423,6 +595,7 @@ export class DinkesSpreadsheetParser {
       sums,
       averages: avgs,
       rawWorkbook: workbook,
+      dataFetchTimestamp: this.extractDataFetchTimestamp(workbook),
     };
   }
 
@@ -512,6 +685,7 @@ export class DinkesSpreadsheetParser {
       sums,
       averages: avgs,
       rawWorkbook: workbook,
+      dataFetchTimestamp: this.extractDataFetchTimestamp(workbook),
     };
   }
 
@@ -532,6 +706,7 @@ export class DinkesSpreadsheetParser {
       sums: {},
       averages: {},
       rawWorkbook: workbook,
+      dataFetchTimestamp: this.extractDataFetchTimestamp(workbook),
     };
   }
 }

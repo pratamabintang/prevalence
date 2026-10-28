@@ -457,3 +457,56 @@ periodsRouter.post(
     }
   }
 );
+
+// DELETE /api/periods/:year/:quarter - Hapus periode dan berkas fisik
+periodsRouter.delete('/periods/:year/:quarter', (req: Request, res: Response) => {
+  const year = parseInt(String(req.params.year || ''), 10);
+  const quarter = String(req.params.quarter || '').toUpperCase();
+
+  if (isNaN(year) || !isValidQuarter(quarter)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Parameter tahun atau triwulan tidak valid.',
+    });
+  }
+
+  try {
+    const db = getDb();
+    const period = db
+      .prepare('SELECT id FROM periods WHERE year = ? AND quarter = ?')
+      .get(year, quarter) as { id: number } | undefined;
+
+    if (!period) {
+      return res.status(404).json({
+        success: false,
+        message: `Periode ${year} ${quarter} tidak ditemukan di server.`,
+      });
+    }
+
+    // 1. Hapus berkas fisik di disk jika ada
+    const uploadsBase = getUploadsDir();
+    const periodDir = path.join(uploadsBase, String(year), quarter);
+    if (fs.existsSync(periodDir)) {
+      try {
+        fs.rmSync(periodDir, { recursive: true, force: true });
+      } catch {
+        // Abaikan error fs jika direktori terkunci/kosong
+      }
+    }
+
+    // 2. Hapus entri periode di SQLite (CASCADE otomatis menghapus period_files & period_observations)
+    db.prepare('DELETE FROM periods WHERE id = ?').run(period.id);
+
+    return res.json({
+      success: true,
+      message: `Periode ${year} ${quarter} berhasil dihapus dari server.`,
+      year,
+      quarter,
+    });
+  } catch (err: unknown) {
+    return res.status(500).json({
+      success: false,
+      message: err instanceof Error ? err.message : 'Gagal menghapus periode dari server.',
+    });
+  }
+});

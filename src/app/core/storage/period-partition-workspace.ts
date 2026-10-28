@@ -16,6 +16,7 @@ import {
 } from '../excel/dinkes-spreadsheet-parser';
 import { IndicatorEvaluator } from '../evaluation/indicator-evaluator';
 import { JoinPresetExecutionSpec } from '../excel/excel-join-engine';
+import { MASALAH_GIZI_JOIN_CONFIG } from '../../features/excel-join/masalah-gizi-join-config';
 
 export interface QuarterDataset {
   year: number;
@@ -46,6 +47,8 @@ export interface SavePeriodPartitionSpec {
   resultExcelBuffer?: ArrayBuffer;
   config?: unknown;
   preset?: JoinPresetExecutionSpec;
+  rawFileName?: string;
+  resultFileName?: string;
 }
 
 /**
@@ -343,33 +346,77 @@ export class PeriodPartitionWorkspace {
     }
 
     try {
-      const preset = spec.preset ?? (spec.config as JoinPresetExecutionSpec | undefined);
-      const parsed = DinkesSpreadsheetParser.parse(primaryBuffer, { preset });
       const observations: Array<{
         districtName: string;
         indicatorKey: string;
         numericValue: number | null;
         displayText?: string;
       }> = [];
+      const seen = new Set<string>();
 
-      for (const row of parsed.regionRows) {
-        const districtName = String(row[parsed.keyCol] ?? '').trim();
-        if (!districtName) continue;
+      const addFromParsed = (parsed: ParsedDinkesDataset | null | undefined) => {
+        if (!parsed || !parsed.regionRows || parsed.regionRows.length === 0) return;
+        for (const row of parsed.regionRows) {
+          const districtName = String(row[parsed.keyCol] ?? '').trim();
+          if (!districtName) continue;
 
-        for (const col of parsed.columns) {
-          if (col === parsed.keyCol) continue;
-          const rawVal = row[col];
-          const numVal = IndicatorEvaluator.parseSmartNumber(rawVal);
-          if (numVal !== null) {
-            observations.push({
-              districtName,
-              indicatorKey: col,
-              numericValue: numVal,
-              displayText: rawVal !== undefined && rawVal !== null ? String(rawVal) : undefined,
-            });
+          for (const col of parsed.columns) {
+            if (col === parsed.keyCol) continue;
+            const dedupeKey = `${districtName}:::${col}`;
+            if (seen.has(dedupeKey)) continue;
+            seen.add(dedupeKey);
+
+            const rawVal = row[col];
+            const numVal = IndicatorEvaluator.parseSmartNumber(rawVal);
+            if (numVal !== null) {
+              observations.push({
+                districtName,
+                indicatorKey: col,
+                numericValue: numVal,
+                displayText: rawVal !== undefined && rawVal !== null ? String(rawVal) : undefined,
+              });
+            }
           }
         }
+      };
+
+      const preset = spec.preset ?? (spec.config as JoinPresetExecutionSpec | undefined);
+
+      // 1. Ekstraksi sheet 'Hasil Join' (atau preset aktif)
+      try {
+        const parsedIntervensi = DinkesSpreadsheetParser.parse(primaryBuffer, {
+          preset,
+          preferredSheetName: 'Hasil Join',
+        });
+        addFromParsed(parsedIntervensi);
+      } catch {
+        // ignore
       }
+
+      // 2. Ekstraksi sheet 'MASALAH GIZI'
+      try {
+        const parsedGizi = DinkesSpreadsheetParser.parse(primaryBuffer, {
+          preset: MASALAH_GIZI_JOIN_CONFIG as unknown as JoinPresetExecutionSpec,
+          preferredSheetName: 'MASALAH GIZI',
+        });
+        addFromParsed(parsedGizi);
+      } catch {
+        // ignore
+      }
+
+      // 3. Jika berkas mentah multi-sheet tersedia dan belum ada data gizi, ekstraksi langsung dari rawExcelBuffer
+      if (spec.rawExcelBuffer && spec.resultExcelBuffer) {
+        try {
+          const rawParsedGizi = DinkesSpreadsheetParser.parse(spec.rawExcelBuffer, {
+            preset: MASALAH_GIZI_JOIN_CONFIG as unknown as JoinPresetExecutionSpec,
+            preferredSheetName: 'MASALAH GIZI',
+          });
+          addFromParsed(rawParsedGizi);
+        } catch {
+          // ignore
+        }
+      }
+
       return observations;
     } catch {
       return [];
@@ -391,6 +438,8 @@ export class PeriodPartitionWorkspace {
         quarter: spec.quarter,
         rawExcelBuffer: spec.rawExcelBuffer,
         resultExcelBuffer: spec.resultExcelBuffer,
+        rawFileName: spec.rawFileName,
+        resultFileName: spec.resultFileName,
         config: spec.config,
         observations,
       });
@@ -421,6 +470,32 @@ export class PeriodPartitionWorkspace {
     }
 
     return res;
+  }
+
+  /**
+   * Menghapus partisi periode dari Penyimpanan Terpusat Server SQLite.
+   * Me-refresh daftar periode otomatis saat penghapusan berhasil.
+   */
+  async deletePeriod(
+    year: number,
+    quarter: QuarterSlot,
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    this._isLoading.set(true);
+    try {
+      if (this.backendStorage?.isConfigured()) {
+        const res = await this.backendStorage.deletePeriod(year, quarter);
+        if (res.success) {
+          await this.refreshPeriods();
+        }
+        return res;
+      }
+      return {
+        success: false,
+        error: 'Penyimpanan server belum terkonfigurasi.',
+      };
+    } finally {
+      this._isLoading.set(false);
+    }
   }
 
   /**

@@ -1,29 +1,46 @@
 @import 'tailwindcss';
+@import 'leaflet/dist/leaflet.css';
 
 @theme {
   --color-brand-primary: #525aff;
   --color-brand-primary-hover: #4348e6;
   --color-brand-primary-light: #eef0ff;
-  --color-brand-teal: #4ab5b5;
-  --color-brand-teal-hover: #3da1a1;
+  --color-brand-teal: #0f766e;
+  --color-brand-teal-hover: #115e59;
   --color-brand-teal-light: #e8f7f7;
   --color-brand-sky: #8fd9fb;
   --color-brand-sky-light: #f0fafe;
-  --color-brand-slate: #6d8bc0;
+  --color-brand-slate: #475569;
   --color-brand-slate-light: #f2f5fa;
   --color-brand-dark: #0f172a;
 }
 
 :root {
   --color-primary: #525aff;
-  --color-teal: #4ab5b5;
+  --color-teal: #0f766e;
   --color-sky: #8fd9fb;
-  --color-slate-blue: #6d8bc0;
+  --color-slate-blue: #475569;
 }
 
 body {
   background-color: #f8fafd;
-  color: #1e293b;
+  color: #0f172a;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Tabular numerals for aligned health metrics, percentages, and rankings */
+.tabular-nums,
+table td,
+table th,
+svg text {
+  font-variant-numeric: tabular-nums;
+}
+
+/* High-contrast keyboard focus indicator (WCAG 2.4.7 & 1.4.11 >= 3:1) */
+:focus-visible {
+  outline: 2px solid #525aff;
+  outline-offset: 2px;
 }
 
 ::selection {

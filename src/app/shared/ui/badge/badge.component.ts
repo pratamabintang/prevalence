@@ -24,29 +24,29 @@ export class UiBadgeComponent {
   dotClass = computed(() => {
     switch (this.variant()) {
       case 'emerald':
-        return 'bg-[#4AB5B5]';
+        return 'bg-[#0F766E]';
       case 'amber':
-        return 'bg-amber-500';
+        return 'bg-amber-600';
       case 'rose':
-        return 'bg-rose-500';
+        return 'bg-rose-600';
       case 'blue':
-        return 'bg-[#4AB5B5]';
+        return 'bg-[#1E3A8A]';
       case 'purple':
         return 'bg-[#525AFF]';
       default:
-        return 'bg-[#6D8BC0]';
+        return 'bg-slate-600';
     }
   });
 
   hostClasses = computed(() => {
-    const base = 'inline-flex items-center font-medium rounded-full select-none';
+    const base = 'inline-flex items-center font-semibold rounded-md select-none tabular-nums';
 
-    const sizeClass = this.size() === 'sm' ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs';
+    const sizeClass = this.size() === 'sm' ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1 text-xs';
 
     let variantClass = '';
     switch (this.variant()) {
       case 'emerald':
-        variantClass = 'bg-emerald-50 text-teal-800 border border-[#4AB5B5]/30';
+        variantClass = 'bg-emerald-50 text-emerald-800 border border-emerald-200';
         break;
       case 'amber':
         variantClass = 'bg-amber-50 text-amber-800 border border-amber-200';
@@ -58,13 +58,13 @@ export class UiBadgeComponent {
         variantClass = 'bg-[#F0FAFE] text-[#1E3A8A] border border-[#8FD9FB]/60';
         break;
       case 'purple':
-        variantClass = 'bg-[#EEF0FF] text-[#525AFF] border border-[#525AFF]/30';
+        variantClass = 'bg-[#EEF0FF] text-[#3730A3] border border-[#525AFF]/30';
         break;
       case 'outline':
-        variantClass = 'bg-transparent text-slate-600 border border-[#6D8BC0]/40';
+        variantClass = 'bg-transparent text-slate-700 border border-slate-300';
         break;
       default:
-        variantClass = 'bg-[#F2F5FA] text-[#445D87] border border-[#6D8BC0]/30';
+        variantClass = 'bg-slate-100 text-slate-700 border border-slate-200';
         break;
     }
 

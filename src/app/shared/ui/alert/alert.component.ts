@@ -55,7 +55,7 @@ export type AlertType = 'info' | 'success' | 'warning' | 'error';
           <button
             type="button"
             (click)="dismiss()"
-            class="shrink-0 text-slate-400 hover:text-slate-600 rounded p-1 hover:bg-black/5 transition-colors cursor-pointer"
+            class="shrink-0 text-slate-600 hover:text-slate-900 rounded p-1 hover:bg-black/5 transition-colors cursor-pointer"
             title="Tutup pesan"
           >
             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

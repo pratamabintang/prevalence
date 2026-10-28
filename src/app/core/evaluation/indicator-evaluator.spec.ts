@@ -67,11 +67,11 @@ describe('IndicatorEvaluator', () => {
   });
 
   describe('formatCellValue', () => {
-    it('should format percentage values with at most 2 decimal places', () => {
-      expect(IndicatorEvaluator.formatCellValue(42.845907960830075, { dataType: 'percentage', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null })).toBe('42.85%');
-      expect(IndicatorEvaluator.formatCellValue(6.5, { dataType: 'percentage', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null })).toBe('6.5%');
-      expect(IndicatorEvaluator.formatCellValue(75, { dataType: 'percentage', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null })).toBe('75%');
-      expect(IndicatorEvaluator.formatCellValue('42.845907960830075%')).toBe('42.85%');
+    it('should format percentage values with at most 2 decimal places without % symbol in UI', () => {
+      expect(IndicatorEvaluator.formatCellValue(42.845907960830075, { dataType: 'percentage', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null })).toBe('42.85');
+      expect(IndicatorEvaluator.formatCellValue(6.5, { dataType: 'percentage', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null })).toBe('6.5');
+      expect(IndicatorEvaluator.formatCellValue(75, { dataType: 'percentage', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null })).toBe('75');
+      expect(IndicatorEvaluator.formatCellValue('42.845907960830075%')).toBe('42.85');
     });
 
     it('should format numeric values with at most 2 decimal places', () => {

@@ -776,6 +776,14 @@ describe('StuntingMonitoringComponent', () => {
       expect(res?.rows.length).toBe(3);
     });
 
+    it('should have showDataSourceAndPreview false by default and toggle correctly', () => {
+      expect(component.showDataSourceAndPreview()).toBe(false);
+      component.toggleDataSourceAndPreview();
+      expect(component.showDataSourceAndPreview()).toBe(true);
+      component.toggleDataSourceAndPreview();
+      expect(component.showDataSourceAndPreview()).toBe(false);
+    });
+
     it('should toggle preview table expanded and wrap text modes', () => {
       expect(component.previewExpanded()).toBe(false);
       component.togglePreviewExpanded();
@@ -1536,6 +1544,41 @@ describe('StuntingMonitoringComponent', () => {
       expect(component.regionalSortBy()).toBe('yoy');
     });
 
+    it('should hide comparative matrix card when enableComparativeMatrix is false and show it when true', () => {
+      component.workflowEngine.setJoinedDataset({
+        rows: [
+          {
+            __id: 'row-0',
+            'Kabupaten/Kota': 'Kabupaten Cilacap',
+            'Sasaran K4': 100,
+            'Realisasi K4': 50,
+          },
+        ],
+        columns: ['Kabupaten/Kota', 'Sasaran K4', 'Realisasi K4'],
+      });
+
+      const cat1 = component.categories()[0];
+      component.workflowEngine.addSubCategory(cat1.id, {
+        name: 'Cakupan K4',
+        numeratorCol: 'Realisasi K4',
+        denominatorCol: 'Sasaran K4',
+        targetCurrentYear: 90,
+      });
+
+      component.goToStep(3);
+      component.enableComparativeMatrix.set(false);
+      fixture.detectChanges();
+
+      let compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).not.toContain('Matriks Komparasi Antar-Wilayah (Kabupaten/Kota)');
+
+      component.enableComparativeMatrix.set(true);
+      fixture.detectChanges();
+
+      compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('Matriks Komparasi Antar-Wilayah (Kabupaten/Kota)');
+    });
+
     it('should allow switching selectedScope between province and regency to display regency-specific table', () => {
       component.workflowEngine.setJoinedDataset({
         rows: [
@@ -1659,6 +1702,169 @@ describe('StuntingMonitoringComponent', () => {
       expect(cilacap).toBeDefined();
       expect(cilacap.isProvince).toBe(false);
       expect(cilacap.groupedRows[0].rows[0].activeActual).toBe(50);
+    });
+  });
+
+  describe('Stage 2: Deriving Previous Year Target & Achievements from Preceding Year TW4', () => {
+    it('should derive targetPrevYear and actualPrevYear from TW4 of preceding year when available', async () => {
+      component.selectedYear.set(2026);
+
+      const mockTw4Dataset: any = {
+        columns: ['Kabupaten/Kota', '% Skrining Anemia', '% Konsumsi TTD'],
+        summaryRow: {
+          'Kabupaten/Kota': 'Rata-rata',
+          '% Skrining Anemia': 94.75,
+          '% Konsumsi TTD': 91.2,
+        },
+        targetRow: {
+          'Kabupaten/Kota': 'Target',
+          '% Skrining Anemia': '85',
+          '% Konsumsi TTD': '70',
+        },
+        columnTargets: {
+          '% Skrining Anemia': { enabled: true, operator: '>=', value: 85 },
+          '% Konsumsi TTD': { enabled: true, operator: '>=', value: 70 },
+        },
+        regionRows: [],
+      };
+
+      const loadQuarterSpy = vi
+        .spyOn(component.periodPartitionWorkspace, 'loadSingleQuarter')
+        .mockImplementation(async (yr, qr) => {
+          if (yr === 2025 && qr === 'TW4') {
+            return {
+              year: 2025,
+              quarter: 'TW4',
+              source: 'cloud',
+              fileName: 'joined-result.xlsx',
+              dataset: mockTw4Dataset,
+            };
+          }
+          return null;
+        });
+
+      // Set current data for 2026
+      component.workflowEngine.setJoinedDataset({
+        rows: [
+          { 'Kabupaten/Kota': 'Cilacap', '% Skrining Anemia': 82, '% Konsumsi TTD': 78 },
+          { 'Kabupaten/Kota': 'Rata-rata', '% Skrining Anemia': 82, '% Konsumsi TTD': 78 },
+        ],
+        columns: ['Kabupaten/Kota', '% Skrining Anemia', '% Konsumsi TTD'],
+      });
+
+      await component.autoPopulateIndicatorsFromData();
+
+      expect(loadQuarterSpy).toHaveBeenCalledWith(2025, 'TW4', { prefer: 'result' });
+
+      // Cek indikator skrining anemia (#1)
+      const sub1 = component.categories()[0].subCategories.find((s) => s.no === '1');
+      expect(sub1).toBeDefined();
+      expect(sub1?.targetPrevYear).toBe(85); // dari TW4 2025, bukan default 75
+      expect(sub1?.actualPrevYear).toBe(94.75); // dari TW4 2025, bukan default 90.58
+
+      // Cek indikator TTD (#2)
+      const sub2 = component.categories()[0].subCategories.find((s) => s.no === '2');
+      expect(sub2).toBeDefined();
+      expect(sub2?.targetPrevYear).toBe(70); // dari TW4 2025, bukan default 65
+      expect(sub2?.actualPrevYear).toBe(91.2); // dari TW4 2025, bukan default 89.34
+    });
+
+    it('should fallback to default attribute values when preceding year TW4 has no data', async () => {
+      component.selectedYear.set(2026);
+
+      vi.spyOn(component.periodPartitionWorkspace, 'loadSingleQuarter').mockResolvedValue(null);
+
+      component.workflowEngine.setJoinedDataset({
+        rows: [
+          { 'Kabupaten/Kota': 'Cilacap', '% Skrining Anemia': 82 },
+          { 'Kabupaten/Kota': 'Rata-rata', '% Skrining Anemia': 82 },
+        ],
+        columns: ['Kabupaten/Kota', '% Skrining Anemia'],
+      });
+
+      await component.autoPopulateIndicatorsFromData();
+
+      // Indikator skrining anemia (#1) fallback ke default Dinkes: 75 & 90.58
+      const sub1 = component.categories()[0].subCategories.find((s) => s.no === '1');
+      expect(sub1).toBeDefined();
+      expect(sub1?.targetPrevYear).toBe(75);
+      expect(sub1?.actualPrevYear).toBe(90.58);
+    });
+
+    it('should synchronize existing categories with preceding year TW4 upon goToStep(2)', async () => {
+      component.selectedYear.set(2026);
+
+      const mockTw4Dataset: any = {
+        columns: ['Kabupaten/Kota', '% Skrining Anemia'],
+        summaryRow: {
+          '% Skrining Anemia': 96.0,
+        },
+        columnTargets: {
+          '% Skrining Anemia': { enabled: true, operator: '>=', value: 88 },
+        },
+        regionRows: [],
+      };
+
+      vi.spyOn(component.periodPartitionWorkspace, 'loadSingleQuarter').mockResolvedValue({
+        year: 2025,
+        quarter: 'TW4',
+        source: 'cloud',
+        fileName: 'joined-result.xlsx',
+        dataset: mockTw4Dataset,
+      });
+
+      component.workflowEngine.setJoinedDataset({
+        rows: [
+          { 'Kabupaten/Kota': 'Cilacap', '% Skrining Anemia': 82 },
+        ],
+        columns: ['Kabupaten/Kota', '% Skrining Anemia'],
+      });
+
+      // Categories created without TW4 first
+      component.workflowEngine.autoPopulateIndicators(null);
+      let sub1 = component.categories()[0].subCategories.find((s) => s.no === '1');
+      expect(sub1?.targetPrevYear).toBe(75);
+      expect(sub1?.actualPrevYear).toBe(90.58);
+
+      // Transition to Step 2
+      await component.goToStep(2);
+      expect(component.activeStep()).toBe(2);
+
+      sub1 = component.categories()[0].subCategories.find((s) => s.no === '1');
+      expect(sub1?.targetPrevYear).toBe(88);
+      expect(sub1?.actualPrevYear).toBe(96.0);
+    });
+
+    it('should set district-specific previous year outcomes for individual regencies and provincial aggregate for province', async () => {
+      component.selectedYear.set(2026);
+
+      vi.spyOn(component.periodPartitionWorkspace, 'loadSingleQuarter').mockResolvedValue(null as any);
+
+      component.workflowEngine.setJoinedDataset({
+        rows: [
+          { 'Kabupaten/Kota': 'GROBOGAN', '% Skrining Anemia': 87 },
+          { 'Kabupaten/Kota': 'BREBES', '% Skrining Anemia': 91 },
+        ],
+        columns: ['Kabupaten/Kota', '% Skrining Anemia'],
+      });
+
+      component.workflowEngine.autoPopulateIndicators(null);
+      await component.goToStep(3);
+
+      const scorecards = component.rawRegionalScorecards();
+      const groboganCard = scorecards.find((s) => s.regionName === 'GROBOGAN');
+      const grobRow1 = groboganCard?.rows.find((r) => r.no === '1');
+
+      const brebesCard = scorecards.find((s) => s.regionName === 'BREBES');
+      const brebesRow1 = brebesCard?.rows.find((r) => r.no === '1');
+
+      const provCard = component.activeDisplayScorecard();
+      const provRow1 = provCard?.rows.find((r) => r.no === '1');
+
+      // Individual regencies have district-specific outcomes, province has provincial aggregate
+      expect(grobRow1?.actualPrevYear).toBe(95.18);
+      expect(brebesRow1?.actualPrevYear).toBe(97.41);
+      expect(provRow1?.actualPrevYear).toBe(90.58);
     });
   });
 });

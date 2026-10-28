@@ -13,6 +13,7 @@ import { ExcelJoinEngine, JoinedDatasetResult, JoinExecutionSpec } from '../exce
 import { ExcelEngine } from '../../shared/excel';
 import { RegionNormalizer } from '../domain/region-normalizer';
 import { IndicatorEvaluator } from '../evaluation/indicator-evaluator';
+import type { ParsedDinkesDataset } from '../excel/dinkes-spreadsheet-parser';
 
 export interface JoinedRowPreviewItem {
   id: string;
@@ -222,6 +223,7 @@ export class StuntingWorkflowEngine {
   readonly regionalSortIndicatorId = signal<string | null>(null);
   readonly regionalSortQuarter = signal<1 | 2 | 3 | 4 | null>(null);
   readonly matrixStatusFilter = signal<'all' | 'perlu_percepatan' | 'on_track'>('all');
+  readonly previousYearTw4Dataset = signal<ParsedDinkesDataset | null>(null);
 
   readonly regionalScorecards = computed<EvaluatedRegionalScorecard[]>(() => {
     const cats = this.categories();
@@ -241,6 +243,7 @@ export class StuntingWorkflowEngine {
       sortDirection: this.regionalSortDirection(),
       sortIndicatorId: this.regionalSortIndicatorId() ?? undefined,
       sortQuarter: this.regionalSortQuarter() ?? undefined,
+      prevYearTw4Dataset: this.previousYearTw4Dataset(),
     });
   });
 
@@ -863,7 +866,10 @@ export class StuntingWorkflowEngine {
     );
   }
 
-  autoPopulateIndicators(): number {
+  autoPopulateIndicators(prevYearTw4Dataset?: ParsedDinkesDataset | null): number {
+    if (prevYearTw4Dataset) {
+      this.previousYearTw4Dataset.set(prevYearTw4Dataset);
+    }
     const cols = this.joinedColumns();
     const summaryRow = this.summaryRowData();
     const targetRow = this.targetRowData();
@@ -1074,6 +1080,11 @@ export class StuntingWorkflowEngine {
           typeof std.defaultTargetCurrent === 'number' ? std.defaultTargetCurrent : null;
         const targetVal = foundTarget !== null ? foundTarget : defaultTgt;
 
+        const prevValues = StuntingEvaluationEngine.extractIndicatorPrevYearValues(
+          std,
+          prevYearTw4Dataset,
+        );
+
         const subConfig: StuntingSubCategoryConfig = {
           id: `sub-std-${std.no}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
           no: std.no,
@@ -1088,8 +1099,8 @@ export class StuntingWorkflowEngine {
           calculationMode: 'percentage',
           targetCurrentYear: targetVal,
           prevYearMode: 'manual',
-          actualPrevYear: std.defaultActualPrev ?? null,
-          targetPrevYear: std.defaultTargetPrev ?? null,
+          actualPrevYear: prevValues.actualPrevYear,
+          targetPrevYear: prevValues.targetPrevYear,
           polarity:
             detectedPolarity && detectedPolarity !== 'positive' ? detectedPolarity : std.polarity,
         };
@@ -1242,6 +1253,18 @@ export class StuntingWorkflowEngine {
 
       if (Object.keys(quarterColumns).length > 0) {
         const subId = `sub-auto-${i}-${Date.now()}`;
+        const prevValues = StuntingEvaluationEngine.extractIndicatorPrevYearValues(
+          {
+            name: baseCol || lastMeanCol,
+            meanCol: lastMeanCol,
+            sumCol: lastSumCol,
+            dataCol: lastMeanCol,
+            targetPrevYear: null,
+            actualPrevYear: null,
+          },
+          prevYearTw4Dataset,
+        );
+
         const subConfig: StuntingSubCategoryConfig = {
           id: subId,
           no: String(cat1Subs.length + cat2Subs.length + cat3Subs.length + 1),
@@ -1256,8 +1279,8 @@ export class StuntingWorkflowEngine {
           calculationMode: 'percentage',
           targetCurrentYear: foundTarget,
           prevYearMode: 'manual',
-          actualPrevYear: null,
-          targetPrevYear: null,
+          actualPrevYear: prevValues.actualPrevYear,
+          targetPrevYear: prevValues.targetPrevYear,
           polarity,
         };
 
@@ -1307,6 +1330,10 @@ export class StuntingWorkflowEngine {
       for (const std of StuntingEvaluationEngine.DINKES_STANDARD_INDICATORS) {
         const defaultTgt =
           typeof std.defaultTargetCurrent === 'number' ? std.defaultTargetCurrent : null;
+        const prevValues = StuntingEvaluationEngine.extractIndicatorPrevYearValues(
+          std,
+          prevYearTw4Dataset,
+        );
         const subConfig: StuntingSubCategoryConfig = {
           id: `sub-std-${std.no}-${Date.now()}`,
           no: std.no,
@@ -1318,8 +1345,8 @@ export class StuntingWorkflowEngine {
           calculationMode: 'percentage',
           targetCurrentYear: defaultTgt,
           prevYearMode: 'manual',
-          actualPrevYear: std.defaultActualPrev ?? null,
-          targetPrevYear: std.defaultTargetPrev ?? null,
+          actualPrevYear: prevValues.actualPrevYear,
+          targetPrevYear: prevValues.targetPrevYear,
           polarity: std.polarity,
         };
         if (std.canonicalCategory === 'sebelum_kelahiran') {
@@ -1353,6 +1380,47 @@ export class StuntingWorkflowEngine {
     ]);
 
     return totalPopulated;
+  }
+
+  /**
+   * Menyinkronkan nilai target dan capaian tahun lalu pada seluruh kategori & sub-kategori
+   * yang sudah ada berdasarkan dataset TW4 tahun sebelumnya.
+   */
+  applyPreviousYearTw4Data(prevYearTw4Dataset: ParsedDinkesDataset | null): void {
+    if (!prevYearTw4Dataset) return;
+    this.previousYearTw4Dataset.set(prevYearTw4Dataset);
+    this.categories.update((cats) =>
+      cats.map((cat) => ({
+        ...cat,
+        subCategories: cat.subCategories.map((sub) => {
+          const std = StuntingEvaluationEngine.DINKES_STANDARD_INDICATORS.find(
+            (s) => s.no === sub.no || s.name.toLowerCase() === (sub.name || '').toLowerCase(),
+          );
+          const indSpec = {
+            no: sub.no,
+            name: sub.name,
+            sumKeywords: std?.sumKeywords,
+            meanKeywords: std?.meanKeywords,
+            meanCol: sub.meanCol,
+            sumCol: sub.sumCol,
+            dataCol: sub.dataCol,
+            defaultTargetPrev: std?.defaultTargetPrev,
+            defaultActualPrev: std?.defaultActualPrev,
+            targetPrevYear: sub.targetPrevYear,
+            actualPrevYear: sub.actualPrevYear,
+          };
+          const resolved = StuntingEvaluationEngine.extractIndicatorPrevYearValues(
+            indSpec,
+            prevYearTw4Dataset,
+          );
+          return {
+            ...sub,
+            targetPrevYear: resolved.targetPrevYear,
+            actualPrevYear: resolved.actualPrevYear,
+          };
+        }),
+      })),
+    );
   }
 
   calculateQuarterActual(

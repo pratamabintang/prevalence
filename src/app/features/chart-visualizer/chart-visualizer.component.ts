@@ -1,8 +1,9 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, HostListener, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { environment } from '../../../environments/environment';
-import { HealthDataExchange } from '../../core/domain/health-data-exchange';
+import { HealthDataExchange, ExchangeColumnTarget } from '../../core/domain/health-data-exchange';
 import {
   ChartBarItem,
   ChartDataRow,
@@ -41,11 +42,6 @@ import {
 } from '../../core/chart/indicator-stunting-knowledge';
 import { IndicatorEvaluator } from '../../core/evaluation/indicator-evaluator';
 import {
-  DivergingBarEngine,
-  DivergingBarItem,
-  DivergingBarResult,
-} from '../../core/chart/diverging-bar-engine';
-import {
   ChartSlicingEngine,
   IndicatorChartGroup,
   IndicatorStats,
@@ -69,6 +65,12 @@ import {
   BackendStorageService,
   BackendTrendPoint,
 } from '../../core/storage/backend-storage.service';
+import { PeriodPartitionWorkspace } from '../../core/storage/period-partition-workspace';
+import { QuarterSlot } from '../../core/storage/gas-storage.service';
+import { DinkesSpreadsheetParser, ParsedDinkesDataset } from '../../core/excel/dinkes-spreadsheet-parser';
+import { JoinPresetExecutionSpec } from '../../core/excel/excel-join-engine';
+import { DEFAULT_JOIN_CONFIG } from '../excel-join/default-join-config';
+import { MASALAH_GIZI_JOIN_CONFIG } from '../excel-join/masalah-gizi-join-config';
 
 import { UiAlertComponent, UiButtonComponent, UiPageHeaderComponent } from '../../shared/ui';
 
@@ -77,13 +79,23 @@ export type { IndicatorChartGroup, IndicatorStats, RegionChartGroup, RegionStats
 @Component({
   selector: 'app-chart-visualizer',
   standalone: true,
-  imports: [CommonModule, FormsModule, UiPageHeaderComponent, UiButtonComponent, UiAlertComponent],
+  imports: [CommonModule, FormsModule, RouterLink, UiPageHeaderComponent, UiButtonComponent, UiAlertComponent],
   templateUrl: './chart-visualizer.component.html',
 })
-export class ChartVisualizerComponent {
+export class ChartVisualizerComponent implements OnInit {
   readonly Math = Math;
   private healthDataExchange = inject(HealthDataExchange);
   readonly backendStorage = inject(BackendStorageService);
+  readonly periodPartitionWorkspace = inject(PeriodPartitionWorkspace);
+  readonly isLoadingQuarter = signal<boolean>(false);
+  readonly activePeriod = signal<string | null>(null);
+  readonly activeDataset = signal<'intervensi-spesifik' | 'masalah-gizi'>('intervensi-spesifik');
+  rawExcelBuffer: ArrayBuffer | null = null;
+  resultExcelBuffer: ArrayBuffer | null = null;
+  rawWorkbook: ExcelWorkbook | null = null;
+  resultWorkbook: ExcelWorkbook | null = null;
+  currentPeriodYear: number | null = null;
+  currentPeriodQuarter: QuarterSlot | null = null;
 
   // Fitur Toolbar Actions (Konfigurasi Terakhir, Muat JSON, Simpan JSON) via Environment
   enableToolbarActions = signal<boolean>(
@@ -121,6 +133,62 @@ export class ChartVisualizerComponent {
         }
       ).enableChartToolbarActions ??
       false,
+    ),
+  );
+
+  // Kontrol Tampilan Matriks Korelasi via Environment
+  enableCorrelationMatrix = signal<boolean>(
+    Boolean(
+      (
+        environment as {
+          enableCorrelationMatrix?: boolean;
+          enableChartCorrelationMatrix?: boolean;
+        }
+      ).enableCorrelationMatrix ??
+        (
+          environment as {
+            enableCorrelationMatrix?: boolean;
+            enableChartCorrelationMatrix?: boolean;
+          }
+        ).enableChartCorrelationMatrix ??
+        false,
+    ),
+  );
+
+  // Kontrol Tampilan Kuadran Prioritas & Tren Lintas Periode via Environment
+  enablePriorityQuadrant = signal<boolean>(
+    Boolean(
+      (
+        environment as {
+          enablePriorityQuadrant?: boolean;
+          enableChartPriorityQuadrant?: boolean;
+        }
+      ).enablePriorityQuadrant ??
+        (
+          environment as {
+            enablePriorityQuadrant?: boolean;
+            enableChartPriorityQuadrant?: boolean;
+          }
+        ).enableChartPriorityQuadrant ??
+        false,
+    ),
+  );
+
+  enablePeriodTrends = signal<boolean>(
+    Boolean(
+      (
+        environment as {
+          enablePeriodTrends?: boolean;
+          enableChartPeriodTrends?: boolean;
+        }
+      ).enablePeriodTrends ??
+        (
+          environment as {
+            enablePeriodTrends?: boolean;
+            enableChartPeriodTrends?: boolean;
+          }
+        ).enableChartPeriodTrends ??
+        false,
     ),
   );
 
@@ -193,9 +261,8 @@ export class ChartVisualizerComponent {
   originalDataRows = signal<ChartDataRow[]>([]);
   targetValue = signal<number | null>(null);
 
-  // Mode Tampilan: 'overview' | 'by-region' | 'by-indicator' | 'by-map' | 'by-correlation' | 'by-quadrant' | 'by-trends'
+  // Mode Tampilan: 'by-region' | 'by-indicator' | 'by-map' | 'by-correlation' | 'by-quadrant' | 'by-trends'
   viewMode = signal<
-    | 'overview'
     | 'by-region'
     | 'by-indicator'
     | 'by-map'
@@ -204,109 +271,6 @@ export class ChartVisualizerComponent {
     | 'by-trends'
   >('by-region');
 
-  // ============================================================
-  // MODE 0: OVERVIEW DASHBOARD & DIVERGING BAR CHART (GAP-TO-TARGET)
-  // ============================================================
-  divergingSortMode = signal<'deficit-first' | 'achieved-first' | 'default'>('deficit-first');
-  divergingFilterMode = signal<'all' | 'deficit-only' | 'achieved-only'>('all');
-  hoveredDivergingBar = signal<DivergingBarItem | null>(null);
-
-  setDivergingSortMode(mode: 'deficit-first' | 'achieved-first' | 'default'): void {
-    this.divergingSortMode.set(mode);
-  }
-
-  setDivergingFilterMode(mode: 'all' | 'deficit-only' | 'achieved-only'): void {
-    this.divergingFilterMode.set(mode);
-  }
-
-  overviewDivergingResult = computed<DivergingBarResult | null>(() => {
-    const series = this.filteredChartSeries();
-    const rows = this.dataRows();
-    const catCol = this.categoryColumn();
-    if (series.length === 0 || rows.length === 0 || !catCol) return null;
-
-    return DivergingBarEngine.computeDivergingBars({
-      seriesList: series,
-      rows,
-      categoryColumn: catCol,
-      indicatorTargets: this.indicatorTargets(),
-      indicatorTargetOperators: this.indicatorTargetOperators(),
-      defaultTarget: this.targetValue(),
-      defaultOperator: this.targetOperator(),
-      sortMode: this.divergingSortMode(),
-      filterMode: this.divergingFilterMode(),
-      width: 860,
-      rowHeight: 46,
-      margin: { top: 35, right: 90, bottom: 35, left: 260 },
-    });
-  });
-
-  overviewDistrictLeaderboard = computed(() => {
-    const rows = this.dataRows();
-    const catCol = this.categoryColumn();
-    const series = this.filteredChartSeries();
-    const targets = this.indicatorTargets();
-    const ops = this.indicatorTargetOperators();
-    const defaultTgt = this.targetValue() ?? 50;
-    const defaultOp = this.targetOperator() || '>=';
-
-    if (rows.length === 0 || series.length === 0 || !catCol) {
-      return { top5: [], bottom5: [], totalDistricts: 0 };
-    }
-
-    const ranked = rows
-      .map((r) => {
-        const rawName = String(r[catCol] ?? '').trim();
-        if (!rawName) return null;
-        const lower = rawName.toLowerCase();
-        if (
-          lower.includes('total') ||
-          lower.includes('rata-rata') ||
-          lower.includes('target') ||
-          lower === 'provinsi'
-        ) {
-          return null;
-        }
-
-        let achievedCount = 0;
-        let validCount = 0;
-        let sumScore = 0;
-
-        for (const s of series) {
-          const num = IndicatorEvaluator.parseSmartNumber(r[s.key]);
-          if (num === null) continue;
-          validCount++;
-
-          const tgt = targets[s.key] ?? targets[s.label] ?? defaultTgt;
-          const op = ops[s.key] ?? ops[s.label] ?? defaultOp;
-
-          const isAchieved = op === '<=' ? num <= tgt : num >= tgt;
-          if (isAchieved) achievedCount++;
-
-          const gap = op === '<=' ? tgt - num : num - tgt;
-          sumScore += gap;
-        }
-
-        const rate = validCount > 0 ? Math.round((achievedCount / validCount) * 1000) / 10 : 0;
-        const avgGap = validCount > 0 ? Math.round((sumScore / validCount) * 10) / 10 : 0;
-
-        return {
-          name: rawName,
-          achievedCount,
-          validCount,
-          rate,
-          avgGap,
-        };
-      })
-      .filter((item): item is NonNullable<typeof item> => item !== null);
-
-    ranked.sort((a, b) => b.rate - a.rate || b.avgGap - a.avgGap);
-
-    const top5 = ranked.slice(0, 5);
-    const bottom5 = [...ranked].reverse().slice(0, 5);
-
-    return { top5, bottom5, totalDistricts: ranked.length };
-  });
 
   // ============================================================
   // MODE 6: TREN LINTAS PERIODE (SERVER SQLITE ANALYTICS)
@@ -376,7 +340,7 @@ export class ChartVisualizerComponent {
     try {
       const res = await this.backendStorage.getIndicatorTrends(ind, dist || undefined);
       if (!res.success) {
-        this.trendError.set(res.error || 'Gagal mengambil data tren dari server SQLite.');
+        this.trendError.set(res.error || 'Gagal mengambil data tren dari server.');
         this.trendSeries.set([]);
         return;
       }
@@ -405,6 +369,38 @@ export class ChartVisualizerComponent {
 
   activeMapIndicator = signal<string>('');
   hoveredMapDistrict = signal<DistrictHeatmapItem | null>(null);
+  selectedMapDistrict = signal<DistrictHeatmapItem | null>(null);
+  showMapRankings = signal<boolean>(false);
+  mapRankingsFilter = signal<'all' | 'top5' | 'bottom5'>('all');
+
+  selectMapDistrict(item: DistrictHeatmapItem | null): void {
+    this.selectedMapDistrict.set(item);
+  }
+
+  closeMapDistrictInspector(): void {
+    this.selectedMapDistrict.set(null);
+  }
+
+  toggleMapRankings(): void {
+    this.showMapRankings.update((v) => !v);
+  }
+
+  closeMapRankings(): void {
+    this.showMapRankings.set(false);
+  }
+
+  setMapRankingsFilter(filter: 'all' | 'top5' | 'bottom5'): void {
+    this.mapRankingsFilter.set(filter);
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscapePressed(): void {
+    if (this.selectedMapDistrict()) {
+      this.closeMapDistrictInspector();
+    } else if (this.showMapRankings()) {
+      this.closeMapRankings();
+    }
+  }
 
   activeMapSeries = computed<ChartSeriesConfig | null>(() => {
     const list = this.seriesList();
@@ -419,6 +415,15 @@ export class ChartVisualizerComponent {
 
   setActiveMapIndicator(key: string): void {
     this.activeMapIndicator.set(key);
+    const selected = this.selectedMapDistrict();
+    if (selected) {
+      const updated = this.mapHeatmapResult()?.items.find(
+        (i) => i.district.id === selected.district.id,
+      );
+      if (updated) {
+        this.selectedMapDistrict.set(updated);
+      }
+    }
   }
 
   readonly heatmapPalettes = HEATMAP_PALETTES;
@@ -443,6 +448,20 @@ export class ChartVisualizerComponent {
     });
   });
 
+  mapRankingsDisplayItems = computed<DistrictHeatmapItem[]>(() => {
+    const mapData = this.mapHeatmapResult();
+    if (!mapData || !mapData.rankedItems) return [];
+    const filter = this.mapRankingsFilter();
+    const items = mapData.rankedItems;
+    if (filter === 'top5') {
+      return items.slice(0, 5);
+    }
+    if (filter === 'bottom5') {
+      return items.slice(-5).reverse();
+    }
+    return items;
+  });
+
   indicatorExplanation = computed<IndicatorStuntingExplanation | null>(() => {
     const s = this.activeMapSeries();
     if (!s) return null;
@@ -453,13 +472,13 @@ export class ChartVisualizerComponent {
   regionGridColumns = signal<1 | 2 | 3>(2);
 
   // Pengurutan Wilayah pada Mode Per Wilayah ('default' | 'desc' | 'asc')
-  regionSortMode = signal<'default' | 'desc' | 'asc'>('default');
+  regionSortMode = signal<'default' | 'desc' | 'asc'>('desc');
 
   // Tata Letak Kolom Grafik pada Mode Per Indikator (1, 2, atau 3 grafik per baris)
   indicatorGridColumns = signal<1 | 2 | 3>(2);
 
   // Pengurutan Wilayah pada Mode Per Indikator
-  indicatorSortMode = signal<'default' | 'desc' | 'asc'>('default');
+  indicatorSortMode = signal<'default' | 'desc' | 'asc'>('desc');
 
   // Filter Tab Indikator pada Mode Per Indikator ('all' atau key seri tertentu)
   selectedIndicatorFilter = signal<string>('all');
@@ -613,7 +632,6 @@ export class ChartVisualizerComponent {
 
   setViewMode(
     mode:
-      | 'overview'
       | 'by-region'
       | 'by-indicator'
       | 'by-map'
@@ -633,7 +651,7 @@ export class ChartVisualizerComponent {
   }
 
   setRegionSortMode(mode: string | 'default' | 'desc' | 'asc'): void {
-    this.regionSortMode.set(mode === 'desc' || mode === 'asc' ? mode : 'default');
+    this.regionSortMode.set(mode === 'default' || mode === 'asc' ? mode : 'desc');
   }
 
   setIndicatorGridColumns(cols: number | 1 | 2 | 3): void {
@@ -664,7 +682,7 @@ export class ChartVisualizerComponent {
   });
 
   setIndicatorSortMode(mode: string | 'default' | 'desc' | 'asc'): void {
-    this.indicatorSortMode.set(mode === 'desc' || mode === 'asc' ? mode : 'default');
+    this.indicatorSortMode.set(mode === 'default' || mode === 'asc' ? mode : 'desc');
   }
 
   setSelectedIndicatorFilter(key: string): void {
@@ -818,6 +836,344 @@ export class ChartVisualizerComponent {
     this.loadTransferredData();
   }
 
+  async ngOnInit(): Promise<void> {
+    if (this.dataSource() === 'empty' || !this.hasLoadedData()) {
+      await this.loadDefaultQuarterFromServer();
+    }
+  }
+
+  /**
+   * Memuat data triwulan terbaru (most recent) yang tersimpan di server secara default,
+   * misalnya jika data yang tersedia adalah TW1 tahun sebelumnya atau triwulan terbaru saat ini.
+   */
+  async loadDefaultQuarterFromServer(force = false): Promise<boolean> {
+    if (!force && this.dataSource() !== 'empty' && this.hasLoadedData()) {
+      return false;
+    }
+
+    if (!this.periodPartitionWorkspace.isStorageConfigured()) {
+      return false;
+    }
+
+    this.isLoadingQuarter.set(true);
+    try {
+      const periods = await this.periodPartitionWorkspace.refreshPeriods();
+      const validPeriods = (periods || []).filter((p) => p.hasRaw || p.hasResult);
+
+      if (validPeriods.length === 0) {
+        return false;
+      }
+
+      const quarterRank: Record<string, number> = {
+        TW1: 1,
+        TW2: 2,
+        TW3: 3,
+        TW4: 4,
+      };
+
+      const sorted = [...validPeriods].sort((a, b) => {
+        if (a.year !== b.year) {
+          return b.year - a.year;
+        }
+        return (quarterRank[b.quarter] ?? 0) - (quarterRank[a.quarter] ?? 0);
+      });
+
+      const latest = sorted[0];
+      const res = await this.periodPartitionWorkspace.loadRawPeriod(latest.year, latest.quarter, {
+        preferResult: true,
+      });
+
+      if (!res.success || !res.hasData) {
+        return false;
+      }
+
+      this.currentPeriodYear = latest.year;
+      this.currentPeriodQuarter = latest.quarter;
+      this.rawExcelBuffer = res.rawExcelBuffer ?? null;
+      this.resultExcelBuffer = res.resultExcelBuffer ?? null;
+
+      if (this.rawExcelBuffer) {
+        try {
+          this.rawWorkbook = ExcelEngine.readWorkbook(this.rawExcelBuffer);
+        } catch {
+          // ignore
+        }
+      }
+      if (this.resultExcelBuffer) {
+        try {
+          this.resultWorkbook = ExcelEngine.readWorkbook(this.resultExcelBuffer);
+        } catch {
+          // ignore
+        }
+      }
+
+      const currentDataset = this.activeDataset();
+      const preset = (currentDataset === 'masalah-gizi' ? MASALAH_GIZI_JOIN_CONFIG : (res.config || DEFAULT_JOIN_CONFIG)) as JoinPresetExecutionSpec | undefined;
+      const preferredSheetName = currentDataset === 'masalah-gizi' ? 'MASALAH GIZI' : 'Hasil Join';
+
+      let dataset: ParsedDinkesDataset | null = null;
+
+      // 1. Cek di resultWorkbook jika sheet yang diinginkan tersedia
+      if (this.resultWorkbook) {
+        const match = this.resultWorkbook.SheetNames.find(
+          (s) => s.trim().toLowerCase() === preferredSheetName.toLowerCase() ||
+                 s.trim().toLowerCase().includes(preferredSheetName.toLowerCase())
+        );
+        if (match) {
+          try {
+            dataset = DinkesSpreadsheetParser.parse(this.resultWorkbook, {
+              preset,
+              preferredSheetName: match,
+            });
+          } catch {
+            // fallback
+          }
+        }
+      }
+
+      // 2. Jika tidak ditemukan di resultWorkbook, parse secara dinamis dari rawWorkbook
+      if ((!dataset || dataset.regionRows.length === 0) && this.rawWorkbook) {
+        try {
+          dataset = DinkesSpreadsheetParser.parse(this.rawWorkbook, {
+            preset,
+            preferredSheetName,
+          });
+        } catch {
+          // fallback
+        }
+      }
+
+      // 3. Fallback ke buffer
+      if (!dataset || dataset.regionRows.length === 0) {
+        const buffer = res.resultExcelBuffer ?? res.rawExcelBuffer;
+        if (!buffer) {
+          return false;
+        }
+        dataset = DinkesSpreadsheetParser.parse(buffer, {
+          preset,
+          preferredSheetName,
+        });
+      }
+
+      const periodLabel = `${latest.quarter} ${latest.year}`;
+      const typeLabel = currentDataset === 'masalah-gizi' ? 'Masalah Gizi' : 'Intervensi Spesifik';
+      const title = `Visualisasi ${typeLabel} - ${periodLabel}`;
+      this.activePeriod.set(periodLabel);
+
+      this.workbook = this.rawWorkbook || this.resultWorkbook || dataset.rawWorkbook || null;
+      const primaryBuf = this.rawExcelBuffer ?? this.resultExcelBuffer;
+      if (this.workbook) {
+        this.sheetNames.set(this.workbook.SheetNames);
+        this.healthDataExchange.setRawWorkbook(this.rawWorkbook || this.workbook, primaryBuf ?? undefined);
+        if (primaryBuf) {
+          this.file.set(
+            new File([primaryBuf], res.fileName || `${latest.year}_${latest.quarter}_data.xlsx`, {
+              type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            }),
+          );
+        }
+      }
+
+      const resolvedTargets: Record<string, ExchangeColumnTarget> = {
+        ...(preset?.columnTargets || {}),
+        ...(dataset.columnTargets || {}),
+      };
+
+      const explicitIndicatorTargets: Record<string, number | null> = {};
+      const explicitIndicatorOperators: Record<string, string> = {};
+
+      for (const [col, tgt] of Object.entries(resolvedTargets)) {
+        if (tgt && tgt.enabled !== false && tgt.value !== null && tgt.value !== undefined) {
+          explicitIndicatorTargets[col] = tgt.value;
+          if (tgt.operator) {
+            explicitIndicatorOperators[col] = tgt.operator;
+          }
+        }
+      }
+
+      let firstTargetValue: number | null = null;
+      let firstTargetOp = currentDataset === 'masalah-gizi' ? '<=' : '>=';
+      for (const col of dataset.columns) {
+        if (col === dataset.keyCol) continue;
+        const t = resolvedTargets[col];
+        if (t && t.enabled !== false && t.value !== null && t.value !== undefined) {
+          firstTargetValue = t.value;
+          if (t.operator) firstTargetOp = t.operator;
+          break;
+        }
+      }
+
+      this.healthDataExchange.publishJoinedToChart({
+        title,
+        rows: dataset.regionRows,
+        columns: dataset.columns,
+        categoryColumn: dataset.keyCol,
+        columnTargets: resolvedTargets,
+        columnConfigs: dataset.columnConfigs,
+        customColumnNames: preset?.customColumnNames,
+        indicatorTargets: explicitIndicatorTargets,
+        indicatorTargetOperators: explicitIndicatorOperators,
+        targetValue: firstTargetValue,
+        targetOperator: firstTargetOp,
+        datasetType: currentDataset,
+        rawWorkbook: (this.rawWorkbook || this.workbook) ?? undefined,
+        rawWorkbookBuffer: primaryBuf ?? undefined,
+      });
+
+      this.loadTransferredData();
+      this.selectedRegionFilter.set('all');
+      this.chartRegionSearch.set('');
+      this.selectedIndicatorFilter.set('all');
+      this.restoreAllRows();
+      this.selectPercentageSeriesColumns();
+
+      if (true) {
+        this.notificationMessage.set(
+          `Data triwulan ${periodLabel} (${typeLabel}) berhasil dimuat otomatis dari server.`,
+        );
+      }
+      return true;
+    } catch (err) {
+      console.warn('Gagal memuat data triwulan terbaru dari server:', err);
+      return false;
+    } finally {
+      this.isLoadingQuarter.set(false);
+    }
+  }
+
+  // ============================================================
+  // SWITCH DATASET: INTERVENSI SPESIFIK VS MASALAH GIZI
+  // ============================================================
+
+  switchDataset(type: 'intervensi-spesifik' | 'masalah-gizi'): void {
+    if (this.activeDataset() === type && this.hasLoadedData()) {
+      return;
+    }
+
+    this.activeDataset.set(type);
+
+    const preset = type === 'masalah-gizi' ? MASALAH_GIZI_JOIN_CONFIG : DEFAULT_JOIN_CONFIG;
+    const preferredSheetName = type === 'masalah-gizi' ? 'MASALAH GIZI' : 'Hasil Join';
+
+    let dataset: ParsedDinkesDataset | null = null;
+
+    // 1. Coba ekstraksi dari resultWorkbook jika sheet tersedia
+    const resWb = this.resultWorkbook || (this.resultExcelBuffer ? ExcelEngine.readWorkbook(this.resultExcelBuffer) : null);
+    if (resWb) {
+      this.resultWorkbook = resWb;
+      const matchingSheet = resWb.SheetNames.find(
+        (s) => s.trim().toLowerCase() === preferredSheetName.toLowerCase() ||
+               s.trim().toLowerCase().includes(preferredSheetName.toLowerCase())
+      );
+      if (matchingSheet) {
+        try {
+          dataset = DinkesSpreadsheetParser.parse(resWb, {
+            preset: preset as JoinPresetExecutionSpec,
+            preferredSheetName: matchingSheet,
+          });
+        } catch (err) {
+          console.warn('Gagal mem-parsing preferredSheet dari resultWorkbook:', err);
+        }
+      }
+    }
+
+    // 2. Jika tidak ada di resultWorkbook, gabungkan dinamis dari rawWorkbook / rawExcelBuffer
+    if (!dataset || dataset.regionRows.length === 0) {
+      const rawWb =
+        this.rawWorkbook ||
+        (this.rawExcelBuffer ? ExcelEngine.readWorkbook(this.rawExcelBuffer) : null) ||
+        (this.healthDataExchange.getRawWorkbook() as ExcelWorkbook | null);
+      if (rawWb) {
+        this.rawWorkbook = rawWb;
+        try {
+          dataset = DinkesSpreadsheetParser.parse(rawWb, {
+            preset: preset as JoinPresetExecutionSpec,
+            preferredSheetName,
+          });
+        } catch (err) {
+          console.warn('Gagal mem-parsing dataset dari rawWorkbook:', err);
+        }
+      }
+    }
+
+    // 3. Fallback: targetSource dari this.workbook atau HealthDataExchange
+    if (!dataset || dataset.regionRows.length === 0) {
+      const targetSource = this.workbook || this.healthDataExchange.getRawWorkbook();
+      if (targetSource) {
+        try {
+          dataset = DinkesSpreadsheetParser.parse(targetSource as ExcelWorkbook, {
+            preset: preset as JoinPresetExecutionSpec,
+            preferredSheetName,
+          });
+        } catch (err) {
+          console.warn('Gagal mem-parsing fallback dataset:', err);
+        }
+      }
+    }
+
+    if (dataset && dataset.regionRows.length > 0) {
+      const typeLabel = type === 'masalah-gizi' ? 'Masalah Gizi' : 'Intervensi Spesifik';
+      const periodLabel = this.activePeriod() ? ` - ${this.activePeriod()}` : '';
+      const title = `Visualisasi ${typeLabel}${periodLabel}`;
+
+      const resolvedTargets: Record<string, ExchangeColumnTarget> = {
+        ...(preset?.columnTargets || {}),
+        ...(dataset.columnTargets || {}),
+      };
+
+      const explicitIndicatorTargets: Record<string, number | null> = {};
+      const explicitIndicatorOperators: Record<string, string> = {};
+
+      for (const [col, tgt] of Object.entries(resolvedTargets)) {
+        if (tgt && tgt.enabled !== false && tgt.value !== null && tgt.value !== undefined) {
+          explicitIndicatorTargets[col] = tgt.value;
+          if (tgt.operator) {
+            explicitIndicatorOperators[col] = tgt.operator;
+          }
+        }
+      }
+
+      let firstTargetValue: number | null = null;
+      let firstTargetOp = type === 'masalah-gizi' ? '<=' : '>=';
+      for (const col of dataset.columns) {
+        if (col === dataset.keyCol) continue;
+        const t = resolvedTargets[col];
+        if (t && t.enabled !== false && t.value !== null && t.value !== undefined) {
+          firstTargetValue = t.value;
+          if (t.operator) firstTargetOp = t.operator;
+          break;
+        }
+      }
+
+      this.healthDataExchange.publishJoinedToChart({
+        title,
+        rows: dataset.regionRows,
+        columns: dataset.columns,
+        categoryColumn: dataset.keyCol,
+        columnTargets: resolvedTargets,
+        columnConfigs: dataset.columnConfigs,
+        customColumnNames: preset?.customColumnNames,
+        indicatorTargets: explicitIndicatorTargets,
+        indicatorTargetOperators: explicitIndicatorOperators,
+        targetValue: firstTargetValue,
+        targetOperator: firstTargetOp,
+        datasetType: type,
+        rawWorkbook: (this.rawWorkbook || this.workbook) ?? undefined,
+        rawWorkbookBuffer: this.rawExcelBuffer ?? undefined,
+      });
+
+      this.loadTransferredData();
+      this.selectedRegionFilter.set('all');
+      this.chartRegionSearch.set('');
+      this.selectedIndicatorFilter.set('all');
+      this.restoreAllRows();
+      this.selectPercentageSeriesColumns();
+      this.notificationMessage.set(`Beralih ke tampilan ${typeLabel}.`);
+    } else if (this.currentPeriodYear && this.currentPeriodQuarter) {
+      this.loadDefaultQuarterFromServer(true);
+    }
+  }
+
   // ============================================================
   // LOAD DATA DARI FITUR JOIN
   // ============================================================
@@ -826,6 +1182,24 @@ export class ChartVisualizerComponent {
     const transferred = this.healthDataExchange.chartData();
     if (!transferred || transferred.rows.length === 0) {
       return;
+    }
+
+    if (transferred.datasetType) {
+      this.activeDataset.set(transferred.datasetType);
+    } else if (transferred.title?.toLowerCase().includes('masalah gizi')) {
+      this.activeDataset.set('masalah-gizi');
+    } else {
+      this.activeDataset.set('intervensi-spesifik');
+    }
+
+    if (!this.workbook && this.healthDataExchange.getRawWorkbook()) {
+      this.workbook = this.healthDataExchange.getRawWorkbook() as ExcelWorkbook;
+    }
+    if (!this.rawWorkbook && this.healthDataExchange.getRawWorkbook()) {
+      this.rawWorkbook = this.healthDataExchange.getRawWorkbook() as ExcelWorkbook;
+    }
+    if (!this.rawExcelBuffer && this.healthDataExchange.getRawWorkbookBuffer()) {
+      this.rawExcelBuffer = this.healthDataExchange.getRawWorkbookBuffer();
     }
 
     this.dataSource.set(transferred.source);
@@ -870,8 +1244,8 @@ export class ChartVisualizerComponent {
       this.targetOperator.set(transferred.targetOperator);
     }
 
-    if (transferred.targetValue !== undefined) {
-      this.targetValue.set(transferred.targetValue ?? 50);
+    if (transferred.targetValue !== undefined && transferred.targetValue !== null) {
+      this.targetValue.set(transferred.targetValue);
     } else {
       this.targetValue.set(50);
     }
@@ -1008,6 +1382,12 @@ export class ChartVisualizerComponent {
     this.targetOperator.set('>=');
     this.targetValue.set(null);
     this.dataSource.set('empty');
+    this.activePeriod.set(null);
+    this.regionSortMode.set('desc');
+    this.indicatorSortMode.set('desc');
+    this.hoveredMapDistrict.set(null);
+    this.selectedMapDistrict.set(null);
+    this.showMapRankings.set(false);
     this.showRegionFilterModal.set(false);
     this.showIndicatorFilterModal.set(false);
     this.resetChartFilters();
@@ -1588,7 +1968,7 @@ export class ChartVisualizerComponent {
     if (q) {
       cats = cats.filter((c) => c.toLowerCase().includes(q));
     }
-    const sortMode = this.regionSortMode();
+    const sortMode = this.viewMode() === 'by-region' ? this.regionSortMode() : 'default';
     if (sortMode === 'desc' || sortMode === 'asc') {
       const rows = this.dataRows();
       const catCol = this.categoryColumn();
@@ -1783,6 +2163,7 @@ export class ChartVisualizerComponent {
       regionColumns: this.regionGridColumns() === 1 ? 1 : 2,
       regionGridColumns: this.regionGridColumns(),
       regionSortMode: this.regionSortMode(),
+      indicatorSortMode: this.indicatorSortMode(),
       indicatorTargets: { ...this.indicatorTargets() },
       indicatorTargetOperators: { ...this.indicatorTargetOperators() },
       targetOperator: this.targetOperator(),
@@ -1832,7 +2213,7 @@ export class ChartVisualizerComponent {
       });
       return;
     }
-    this.applyConfiguration(preset, preset.name || 'Penyimpanan Lokal');
+    this.applyConfiguration(preset, preset.name || 'Konfigurasi Tersimpan');
   }
 
   closeConfigNotification(): void {
@@ -1865,6 +2246,9 @@ export class ChartVisualizerComponent {
     }
     if (preset.regionSortMode) {
       this.regionSortMode.set(preset.regionSortMode);
+    }
+    if (preset.indicatorSortMode) {
+      this.indicatorSortMode.set(preset.indicatorSortMode);
     }
 
     if (preset.indicatorTargets) {
@@ -2033,6 +2417,9 @@ export class ChartVisualizerComponent {
     }
     if (preset.regionSortMode) {
       this.regionSortMode.set(preset.regionSortMode);
+    }
+    if (preset.indicatorSortMode) {
+      this.indicatorSortMode.set(preset.indicatorSortMode);
     }
 
     const toHide = new Set([...(preset.hiddenRows || []), ...(preset.deletedRows || [])]);

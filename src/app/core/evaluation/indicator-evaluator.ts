@@ -240,7 +240,7 @@ export class IndicatorEvaluator {
       const num = this.parseSmartNumber(val);
       if (num !== null) {
         const rounded = Number.isInteger(num) ? num : Math.round(num * 100) / 100;
-        return `${rounded}%`;
+        return String(rounded);
       }
     }
 

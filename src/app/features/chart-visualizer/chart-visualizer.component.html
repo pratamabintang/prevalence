@@ -1,7 +1,7 @@
 <div class="min-h-screen bg-[#F8FAFD] text-slate-800 pb-16">
   <!-- UNIFIED PAGE HEADER -->
   <ui-page-header
-    title="Visualisasi Grafik Indikator"
+    title="Visualisasi"
     subtitle="Visualisasikan capaian indikator kesehatan dengan grafik batang kelompok horizontal interaktif."
   >
     @if (enableSettingsButton() || enableToolbarActions()) {
@@ -163,123 +163,45 @@
     }
 
     <!-- ====================================================== -->
-    <!-- UPLOAD EXCEL (DI LUAR PENGATURAN, DI ATAS TABEL)       -->
+    <!-- STATUS MEMUAT DATA / STATE KOSONG                      -->
     <!-- ====================================================== -->
-    <section class="mb-5 rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-2xs">
-      <div class="mb-3 flex items-center justify-between">
-        <div class="flex items-center gap-2.5">
-          <div
-            class="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-r from-[#525AFF] to-[#4AB5B5] text-xs font-semibold text-white shadow-xs"
+    @if (isLoadingQuarter()) {
+      <div class="mb-6 rounded-2xl border border-slate-200 bg-white p-8 sm:p-12 text-center shadow-xs" data-testid="chart-loading-state">
+        <div class="mx-auto flex h-12 w-12 items-center justify-center mb-4">
+          <div class="h-8 w-8 animate-spin rounded-full border-3 border-[#525AFF]/20 border-t-[#525AFF]"></div>
+        </div>
+        <h3 class="text-base font-bold text-slate-900">Memuat Data Triwulan Terbaru...</h3>
+        <p class="mt-1 text-sm text-slate-500">
+          Mengambil data periode indikator terbaru dari penyimpanan server.
+        </p>
+      </div>
+    } @else if (!hasLoadedData()) {
+      <div class="mb-6 rounded-2xl border border-slate-200 bg-white p-8 sm:p-12 text-center shadow-xs" data-testid="chart-empty-state">
+        <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#525AFF]/10 text-[#525AFF] mb-4">
+          <svg class="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+        </div>
+        <h3 class="text-base font-bold text-slate-900">Belum Ada Data Tersimpan di Server</h3>
+        <p class="mt-2 text-sm text-slate-500 max-w-md mx-auto">
+          Sistem akan memuat data triwulan terbaru secara otomatis ketika tersedia di server. Anda dapat mengimpor dan menyimpan data triwulan melalui menu <strong>Data</strong>.
+        </p>
+        <div class="mt-6 flex justify-center gap-3">
+          <a
+            routerLink="/data"
+            uiButton
+            variant="primary"
+            size="sm"
+            class="inline-flex items-center gap-1.5"
           >
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
-              />
+            <span>Buka Menu Data</span>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
             </svg>
-          </div>
-          <div>
-            <h2 class="font-semibold text-slate-900 text-sm">Upload Excel</h2>
-          </div>
+          </a>
         </div>
       </div>
-
-      @if (!file() && dataSource() !== 'join') {
-        <label
-          class="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-8 transition hover:border-[#525AFF] hover:bg-slate-100/50"
-        >
-          <div
-            class="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-[#525AFF] mb-2"
-          >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
-              />
-            </svg>
-          </div>
-          <p class="font-medium text-slate-900 text-sm">Klik untuk memilih file Excel</p>
-          <p class="mt-1 text-xs text-slate-500">Format .xlsx</p>
-          <input type="file" accept=".xlsx" class="hidden" (change)="onFileSelected($event)" />
-        </label>
-      } @else if (file()) {
-        @if (isProcessing()) {
-          <div class="rounded-lg border border-slate-300 bg-slate-100 p-4">
-            <div class="flex items-center gap-3">
-              <div
-                class="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700"
-              ></div>
-              <div>
-                <p class="font-medium text-slate-900 text-sm">Membaca file Excel...</p>
-                <p class="text-xs text-slate-600">Mendeteksi tingkatan header dan sub-header...</p>
-              </div>
-            </div>
-          </div>
-        } @else {
-          <div
-            class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3.5"
-          >
-            <div>
-              <p class="font-medium text-slate-900 text-sm">{{ file()?.name }}</p>
-              <p class="text-xs text-emerald-700">
-                {{ sheetNames().length }} sheet ditemukan (Aktif: {{ selectedSheet() }})
-              </p>
-            </div>
-            <div class="flex items-center gap-2">
-              <label
-                class="cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition text-center shadow-2xs"
-              >
-                Upload File Baru
-                <input
-                  type="file"
-                  accept=".xlsx"
-                  class="hidden"
-                  (change)="onFileSelected($event)"
-                />
-              </label>
-              @if (hasJoinBridgeData()) {
-                <button
-                  type="button"
-                  (click)="restoreJoinData()"
-                  class="rounded-md border border-purple-300 bg-white px-3 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-50 transition cursor-pointer shadow-2xs"
-                  title="Kembali ke visualisasi data hasil join"
-                >
-                  Kembali ke Data Join
-                </button>
-              }
-              <button
-                type="button"
-                (click)="clearFile()"
-                class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-2xs"
-              >
-                Ganti File
-              </button>
-            </div>
-          </div>
-        }
-      } @else if (dataSource() === 'join') {
-        <div
-          class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-purple-200 bg-purple-50 p-3.5"
-        >
-          <div>
-            <p class="font-medium text-slate-900 text-sm">{{ chartTitle() }}</p>
-            <p class="text-xs text-purple-700">
-              Data hasil penggabungan multi-sheet siap divisualisasikan
-            </p>
-          </div>
-          <label
-            class="cursor-pointer rounded-md border border-purple-300 bg-white px-3.5 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-50 transition text-center shadow-2xs"
-          >
-            Unggah File Baru
-            <input type="file" accept=".xlsx" class="hidden" (change)="onFileSelected($event)" />
-          </label>
-        </div>
-      }
-    </section>
+    }
 
     <!-- ====================================================== -->
     <!-- PANEL PENGATURAN (DISEMBUNYIKAN DI BALIK TOMBOL GERIGI) -->
@@ -329,89 +251,6 @@
             }
           </div>
         </div>
-
-        <!-- STEP 1 : UPLOAD EXCEL (FLOW PERSIS FITUR JOIN) -->
-        <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">
-          <div class="mb-4 flex items-center justify-between">
-            <div class="flex items-center gap-2.5">
-              <div
-                class="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-r from-[#525AFF] to-[#4AB5B5] text-xs font-semibold text-white shadow-xs"
-              >
-                1
-              </div>
-              <div>
-                <h2 class="font-semibold text-slate-900 text-sm">Upload Excel</h2>
-                <p class="text-xs text-slate-500">
-                  File diproses langsung di browser secara lokal.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          @if (!file() && dataSource() !== 'join') {
-            <label
-              class="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-10 transition hover:border-slate-400 hover:bg-slate-100/50"
-            >
-              <p class="font-medium text-slate-900">Klik untuk memilih file Excel</p>
-              <p class="mt-1 text-xs text-slate-500">Format .xlsx</p>
-              <input type="file" accept=".xlsx" class="hidden" (change)="onFileSelected($event)" />
-            </label>
-          } @else if (file()) {
-            @if (isProcessing()) {
-              <div class="rounded-lg border border-slate-300 bg-slate-100 p-4">
-                <div class="flex items-center gap-3">
-                  <div
-                    class="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700"
-                  ></div>
-                  <div>
-                    <p class="font-medium text-slate-900 text-sm">Membaca file Excel...</p>
-                    <p class="text-xs text-slate-600">
-                      Mendeteksi tingkatan header dan sub-header...
-                    </p>
-                  </div>
-                </div>
-              </div>
-            } @else {
-              <div
-                class="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 p-4"
-              >
-                <div>
-                  <p class="font-medium text-slate-900 text-sm">{{ file()?.name }}</p>
-                  <p class="text-xs text-emerald-700">{{ sheetNames().length }} sheet ditemukan</p>
-                </div>
-                <button
-                  type="button"
-                  (click)="clearFile()"
-                  class="rounded-md border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition cursor-pointer"
-                >
-                  Ganti File
-                </button>
-              </div>
-            }
-          } @else if (dataSource() === 'join') {
-            <div
-              class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-purple-200 bg-purple-50 p-4"
-            >
-              <div>
-                <p class="font-medium text-slate-900 text-sm">{{ chartTitle() }}</p>
-                <p class="text-xs text-purple-700">
-                  Data hasil penggabungan multi-sheet siap divisualisasikan
-                </p>
-              </div>
-              <label
-                class="cursor-pointer rounded-md border border-purple-300 bg-white px-3.5 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-50 transition text-center"
-              >
-                Unggah File Baru
-                <input
-                  type="file"
-                  accept=".xlsx"
-                  class="hidden"
-                  (change)="onFileSelected($event)"
-                />
-              </label>
-            </div>
-          }
-        </section>
 
         <!-- STEP 2 : PILIH SHEET & PENGATURAN BARIS HEADER (MULTI-TIER) -->
         @if (file() && !isProcessing()) {
@@ -750,6 +589,26 @@
               <h2 class="text-base font-bold text-slate-900">
                 {{ chartTitle() }}
               </h2>
+              @if (activePeriod()) {
+                <span
+                  class="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 px-2.5 py-0.5 text-xs font-semibold text-blue-700"
+                >
+                  <span class="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
+                  Periode: {{ activePeriod() }}
+                </span>
+              }
+              <span
+                class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold border"
+                [class.bg-indigo-50]="activeDataset() === 'intervensi-spesifik'"
+                [class.text-indigo-700]="activeDataset() === 'intervensi-spesifik'"
+                [class.border-indigo-200]="activeDataset() === 'intervensi-spesifik'"
+                [class.bg-amber-50]="activeDataset() === 'masalah-gizi'"
+                [class.text-amber-700]="activeDataset() === 'masalah-gizi'"
+                [class.border-amber-200]="activeDataset() === 'masalah-gizi'"
+              >
+                <span class="h-1.5 w-1.5 rounded-full" [class.bg-indigo-600]="activeDataset() === 'intervensi-spesifik'" [class.bg-amber-600]="activeDataset() === 'masalah-gizi'"></span>
+                {{ activeDataset() === 'masalah-gizi' ? 'Masalah Gizi' : 'Intervensi Spesifik' }}
+              </span>
               @if (selectedSheet()) {
                 <span
                   class="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-medium text-emerald-800"
@@ -759,7 +618,7 @@
                 </span>
               }
             </div>
-            <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600 tabular-nums">
               <span
                 >{{ visibleCategories().length }} baris aktif · {{ seriesList().length }} seri
                 indikator</span
@@ -784,33 +643,57 @@
 
           <!-- CONTROLS & EXPORT TOOLBAR (SATU BAGIAN TERPADU) -->
           <div class="flex flex-wrap items-center gap-2">
+            <!-- DATASET SWITCHER (INTERVENSI SPESIFIK VS MASALAH GIZI) -->
+            <div
+              class="inline-flex items-center rounded-lg border border-slate-200 bg-slate-100/80 p-0.5 text-xs font-semibold shadow-2xs"
+            >
+              <button
+                type="button"
+                (click)="switchDataset('intervensi-spesifik')"
+                class="flex items-center gap-1.5 rounded-md px-3 py-1.5 transition cursor-pointer"
+                [class.bg-white]="activeDataset() === 'intervensi-spesifik'"
+                [class.text-[#525AFF]]="activeDataset() === 'intervensi-spesifik'"
+                [class.shadow-xs]="activeDataset() === 'intervensi-spesifik'"
+                [class.text-slate-600]="activeDataset() !== 'intervensi-spesifik'"
+                [class.hover:text-[#525AFF]]="activeDataset() !== 'intervensi-spesifik'"
+                title="Beralih ke indikator intervensi spesifik"
+                data-testid="dataset-switch-intervensi"
+              >
+                <span
+                  class="w-2 h-2 rounded-full"
+                  [class.bg-[#525AFF]]="activeDataset() === 'intervensi-spesifik'"
+                  [class.bg-slate-300]="activeDataset() !== 'intervensi-spesifik'"
+                ></span>
+                <span>Intervensi Spesifik</span>
+              </button>
+
+              <button
+                type="button"
+                (click)="switchDataset('masalah-gizi')"
+                class="flex items-center gap-1.5 rounded-md px-3 py-1.5 transition cursor-pointer"
+                [class.bg-white]="activeDataset() === 'masalah-gizi'"
+                [class.text-[#525AFF]]="activeDataset() === 'masalah-gizi'"
+                [class.shadow-xs]="activeDataset() === 'masalah-gizi'"
+                [class.text-slate-600]="activeDataset() !== 'masalah-gizi'"
+                [class.hover:text-[#525AFF]]="activeDataset() !== 'masalah-gizi'"
+                title="Beralih ke tabel indikator masalah gizi"
+                data-testid="dataset-switch-gizi"
+              >
+                <span
+                  class="w-2 h-2 rounded-full"
+                  [class.bg-[#525AFF]]="activeDataset() === 'masalah-gizi'"
+                  [class.bg-slate-300]="activeDataset() !== 'masalah-gizi'"
+                ></span>
+                <span>Masalah Gizi</span>
+              </button>
+            </div>
+
+            <div class="h-5 w-px bg-slate-200 hidden sm:block"></div>
+
             <!-- MODE SWITCHER (PER WILAYAH VS PER INDIKATOR) -->
             <div
               class="inline-flex rounded-lg border border-[#6D8BC0]/30 bg-[#F2F5FA] p-0.5 text-xs font-semibold"
             >
-              <!-- 0. MODE OVERVIEW DASHBOARD -->
-              <button
-                type="button"
-                data-testid="tab-overview"
-                (click)="setViewMode('overview')"
-                class="flex items-center gap-1.5 rounded-md px-3 py-1.5 transition cursor-pointer"
-                [class.bg-white]="viewMode() === 'overview'"
-                [class.text-[#525AFF]]="viewMode() === 'overview'"
-                [class.shadow-xs]="viewMode() === 'overview'"
-                [class.text-slate-600]="viewMode() !== 'overview'"
-                [class.hover:text-[#525AFF]]="viewMode() !== 'overview'"
-                title="Ringkasan Eksekutif: KPI Utama, Diverging Bar Chart (Gap Target), Peta Ringkas, dan Leaderboard Daerah"
-              >
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-                  />
-                </svg>
-                <span class="font-bold">Overview</span>
-              </button>
 
               <button
                 type="button"
@@ -878,8 +761,10 @@
                 <span>Peta Heatmap</span>
               </button>
 
+              @if (enableCorrelationMatrix()) {
               <button
                 type="button"
+                data-testid="tab-by-correlation"
                 (click)="setViewMode('by-correlation')"
                 class="flex items-center gap-1.5 rounded-md px-3 py-1.5 transition cursor-pointer"
                 [class.bg-white]="viewMode() === 'by-correlation'"
@@ -899,9 +784,12 @@
                 </svg>
                 <span>Matriks Korelasi</span>
               </button>
+              }
 
+              @if (enablePriorityQuadrant()) {
               <button
                 type="button"
+                data-testid="tab-by-quadrant"
                 (click)="setViewMode('by-quadrant')"
                 class="flex items-center gap-1.5 rounded-md px-3 py-1.5 transition cursor-pointer"
                 [class.bg-white]="viewMode() === 'by-quadrant'"
@@ -921,7 +809,9 @@
                 </svg>
                 <span>Kuadran Prioritas</span>
               </button>
+              }
 
+              @if (enablePeriodTrends()) {
               <button
                 type="button"
                 data-testid="tab-by-trends"
@@ -932,7 +822,7 @@
                 [class.shadow-xs]="viewMode() === 'by-trends'"
                 [class.text-slate-600]="viewMode() !== 'by-trends'"
                 [class.hover:text-[#525AFF]]="viewMode() !== 'by-trends'"
-                title="Mode Tren Lintas Periode: Analitik deret waktu multi-tahun & triwulan dari Server Database SQLite"
+                title="Mode Tren Lintas Periode: Analitik deret waktu multi-tahun & triwulan"
               >
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -944,6 +834,7 @@
                 </svg>
                 <span>Tren Lintas Periode</span>
               </button>
+              }
             </div>
 
             <!-- UNDUH DATA KE EXCEL -->
@@ -1209,7 +1100,7 @@
               <!-- 1. PENCARIAN LIVE WILAYAH -->
               <div class="relative flex-1 min-w-[160px] max-w-xs">
                 <div
-                  class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-400"
+                  class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-500"
                 >
                   <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
@@ -1225,14 +1116,16 @@
                   [value]="chartRegionSearch()"
                   (input)="chartRegionSearch.set($any($event.target).value)"
                   placeholder="Cari wilayah / puskesmas..."
-                  class="w-full rounded-lg border border-slate-300 bg-white py-1.5 pl-8 pr-7 text-xs text-slate-800 placeholder-slate-400 focus:border-[#525AFF] focus:outline-none focus:ring-1 focus:ring-[#525AFF]"
+                  aria-label="Cari wilayah atau puskesmas"
+                  class="w-full rounded-lg border border-slate-300 bg-white py-1.5 pl-8 pr-7 text-xs text-slate-800 placeholder-slate-500 focus:border-[#525AFF] focus:outline-none focus:ring-1 focus:ring-[#525AFF]"
                 />
                 @if (chartRegionSearch()) {
                   <button
                     type="button"
                     (click)="chartRegionSearch.set('')"
-                    class="absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    class="absolute inset-y-0 right-0 flex items-center pr-2 text-slate-500 hover:text-slate-800 cursor-pointer"
                     title="Hapus pencarian wilayah"
+                    aria-label="Hapus pencarian wilayah"
                   >
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                   </button>
@@ -1259,7 +1152,7 @@
                 title="Buka dialog filter wilayah dalam bentuk modal checkbox"
               >
                 <svg
-                  class="w-3.5 h-3.5 text-slate-500"
+                  class="w-3.5 h-3.5 text-slate-600"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -1279,7 +1172,7 @@
                 </svg>
                 <span>Filter Wilayah</span>
                 <span
-                  class="rounded-full px-1.5 py-0.2 text-[10px] font-bold"
+                  class="rounded-full px-1.5 py-0.2 text-[11px] font-bold tabular-nums"
                   [class.bg-[#525AFF]]="selectedCategories().length < availableCategories().length"
                   [class.text-white]="selectedCategories().length < availableCategories().length"
                   [class.bg-slate-200]="
@@ -1307,7 +1200,7 @@
                 title="Buka dialog filter indikator dalam bentuk modal checkbox"
               >
                 <svg
-                  class="w-3.5 h-3.5 text-slate-500"
+                  class="w-3.5 h-3.5 text-slate-600"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -1321,7 +1214,7 @@
                 </svg>
                 <span>Filter Indikator</span>
                 <span
-                  class="rounded-full px-1.5 py-0.2 text-[10px] font-bold"
+                  class="rounded-full px-1.5 py-0.2 text-[11px] font-bold tabular-nums"
                   [class.bg-[#525AFF]]="hasFilteredIndicators()"
                   [class.text-white]="hasFilteredIndicators()"
                   [class.bg-slate-200]="!hasFilteredIndicators()"
@@ -1334,40 +1227,12 @@
 
             <!-- KONTROL URUTAN WILAYAH & GRAFIK PER BARIS DALAM FILTER BAR -->
             <div class="flex flex-wrap items-center gap-3 shrink-0">
-              @if (viewMode() === 'overview') {
-                <!-- FILTER STATUS GAP TARGET -->
-                <div class="flex items-center gap-1.5">
-                  <label class="text-xs text-slate-500 font-medium shrink-0">Status Target:</label>
-                  <select
-                    [value]="divergingFilterMode()"
-                    (change)="setDivergingFilterMode($any($event.target).value)"
-                    class="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:border-[#525AFF] focus:outline-none focus:ring-1 focus:ring-[#525AFF] cursor-pointer shadow-2xs"
-                  >
-                    <option value="all">Semua Indikator</option>
-                    <option value="deficit-only">Hanya Defisit (Kritis)</option>
-                    <option value="achieved-only">Hanya Tercapai</option>
-                  </select>
-                </div>
-
-                <!-- SELECT URUTAN GAP -->
-                <div class="flex items-center gap-1.5">
-                  <label class="text-xs text-slate-500 font-medium shrink-0">Urutan Analisis:</label>
-                  <select
-                    [value]="divergingSortMode()"
-                    (change)="setDivergingSortMode($any($event.target).value)"
-                    class="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:border-[#525AFF] focus:outline-none focus:ring-1 focus:ring-[#525AFF] cursor-pointer shadow-2xs"
-                  >
-                    <option value="deficit-first">Defisit Terbesar (Urgent First)</option>
-                    <option value="achieved-first">Capaian Terbaik First</option>
-                    <option value="default">Urutan Asli Kolom</option>
-                  </select>
-                </div>
-              } @else if (viewMode() === 'by-region') {
+              @if (viewMode() === 'by-region') {
                 <!-- SELECT URUTAN WILAYAH -->
                 <div class="flex items-center gap-1.5">
                   <label
                     for="regionSortModeSelect"
-                    class="text-xs text-slate-500 font-medium shrink-0"
+                    class="text-xs text-slate-600 font-medium shrink-0"
                     >Urutan Wilayah:</label
                   >
                   <select
@@ -1393,7 +1258,7 @@
                 <div class="flex items-center gap-1.5">
                   <label
                     for="regionGridColumnsSelect"
-                    class="text-xs text-slate-500 font-medium shrink-0"
+                    class="text-xs text-slate-600 font-medium shrink-0"
                     >Grafik per Baris:</label
                   >
                   <select
@@ -1419,7 +1284,7 @@
                 <div class="flex items-center gap-1.5">
                   <label
                     for="indicatorSortModeSelect"
-                    class="text-xs text-slate-500 font-medium shrink-0"
+                    class="text-xs text-slate-600 font-medium shrink-0"
                     >Urutan Wilayah:</label
                   >
                   <select
@@ -1445,7 +1310,7 @@
                 <div class="flex items-center gap-1.5">
                   <label
                     for="indicatorGridColumnsSelect"
-                    class="text-xs text-slate-500 font-medium shrink-0"
+                    class="text-xs text-slate-600 font-medium shrink-0"
                     >Grafik per Baris:</label
                   >
                   <select
@@ -1531,455 +1396,6 @@
             >
               Pilih Semua Baris
             </button>
-          </div>
-        } @else if (viewMode() === 'overview') {
-          <!-- ============================================================ -->
-          <!-- 3.0 MODE OVERVIEW: EXECUTIVE COMMAND CENTER & GAP ANALYSIS   -->
-          <!-- ============================================================ -->
-          <div class="space-y-6" data-testid="overview-panel">
-            @if (overviewDivergingResult(); as divRes) {
-              @let lead = overviewDistrictLeaderboard();
-
-              <!-- 1. EXECUTIVE KPI SUMMARY CARDS -->
-              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <!-- KPI 1: RASIO PENCAPAIAN TARGET -->
-                <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs font-medium text-slate-500">Pencapaian Target</span>
-                    <span
-                      class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold"
-                      [class.bg-emerald-100]="divRes.overallAchievementRate >= 70"
-                      [class.text-emerald-800]="divRes.overallAchievementRate >= 70"
-                      [class.bg-amber-100]="divRes.overallAchievementRate < 70 && divRes.overallAchievementRate >= 50"
-                      [class.text-amber-800]="divRes.overallAchievementRate < 70 && divRes.overallAchievementRate >= 50"
-                      [class.bg-rose-100]="divRes.overallAchievementRate < 50"
-                      [class.text-rose-800]="divRes.overallAchievementRate < 50"
-                    >
-                      {{ divRes.overallAchievementRate }}%
-                    </span>
-                  </div>
-                  <div class="mt-2 flex items-baseline gap-1.5">
-                    <span class="text-2xl font-black font-mono text-slate-900">
-                      {{ divRes.achievedCount }}
-                    </span>
-                    <span class="text-xs text-slate-500">
-                      / {{ divRes.totalTargeted }} Indikator Tercapai
-                    </span>
-                  </div>
-                  <div class="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      class="h-full rounded-full transition-all duration-300"
-                      [class.bg-emerald-500]="divRes.overallAchievementRate >= 70"
-                      [class.bg-amber-500]="divRes.overallAchievementRate < 70 && divRes.overallAchievementRate >= 50"
-                      [class.bg-rose-500]="divRes.overallAchievementRate < 50"
-                      [style.width.%]="divRes.overallAchievementRate"
-                    ></div>
-                  </div>
-                </div>
-
-                <!-- KPI 2: KINERJA MELAMPAUI TARGET TERTINGGI (TOP PERFORMER) -->
-                <div class="rounded-xl border border-emerald-200/80 bg-emerald-50/30 p-4 shadow-2xs">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs font-semibold text-emerald-800">Capaian Terbaik (Top Margin)</span>
-                    <span class="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">
-                      +{{ divRes.topPerformer?.performanceGap ?? 0 }}%
-                    </span>
-                  </div>
-                  <div class="mt-2">
-                    <p class="truncate text-sm font-bold text-slate-900" [title]="divRes.topPerformer?.label || '-'">
-                      {{ divRes.topPerformer?.label || '-' }}
-                    </p>
-                    <p class="mt-0.5 text-xs font-mono text-emerald-700">
-                      Realisasi: <strong>{{ divRes.topPerformer?.actualValue ?? '-' }}%</strong> vs Target {{ divRes.topPerformer?.targetOperator }} {{ divRes.topPerformer?.targetValue ?? '-' }}%
-                    </p>
-                  </div>
-                </div>
-
-                <!-- KPI 3: INDIKATOR PALING KRITIS / DEFISIT TERBESAR -->
-                <div class="rounded-xl border border-rose-200/80 bg-rose-50/30 p-4 shadow-2xs">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs font-semibold text-rose-800">Perlu Akselerasi (Gap Terbesar)</span>
-                    <span class="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-800">
-                      {{ divRes.mostCriticalDeficit?.performanceGap ?? 0 }}%
-                    </span>
-                  </div>
-                  <div class="mt-2">
-                    <p class="truncate text-sm font-bold text-slate-900" [title]="divRes.mostCriticalDeficit?.label || '-'">
-                      {{ divRes.mostCriticalDeficit?.label || 'Seluruh Target Terpenuhi' }}
-                    </p>
-                    <p class="mt-0.5 text-xs font-mono text-rose-700">
-                      @if (divRes.mostCriticalDeficit) {
-                        Realisasi: <strong>{{ divRes.mostCriticalDeficit.actualValue }}%</strong> vs Target {{ divRes.mostCriticalDeficit.targetOperator }} {{ divRes.mostCriticalDeficit.targetValue }}%
-                      } @else {
-                        Semua indikator on track
-                      }
-                    </p>
-                  </div>
-                </div>
-
-                <!-- KPI 4: CAKUPAN OBSERVASI WILAYAH -->
-                <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs font-medium text-slate-500">Cakupan Wilayah</span>
-                    <span class="rounded bg-[#EEF0FF] px-1.5 py-0.5 text-[10px] font-bold text-[#525AFF]">
-                      Jawa Tengah
-                    </span>
-                  </div>
-                  <div class="mt-2 flex items-baseline gap-1.5">
-                    <span class="text-2xl font-black font-mono text-slate-900">
-                      {{ lead.totalDistricts }}
-                    </span>
-                    <span class="text-xs text-slate-500">Kabupaten & Kota Terdata</span>
-                  </div>
-                  <p class="mt-1 text-[11px] text-slate-400 truncate">
-                    Data tingkat provinsi & agregat wilayah aktif
-                  </p>
-                </div>
-              </div>
-
-              <!-- 2. DIVERGING BAR CHART (GAP-TO-TARGET PERFORMANCE ANALYSIS) -->
-              <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
-                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4">
-                  <div>
-                    <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
-                      <span>Analisis Kesenjangan Kinerja terhadap Target</span>
-                      <span class="text-xs font-normal text-slate-500">(Diverging Gap Chart)</span>
-                    </h3>
-                    <p class="text-xs text-slate-500 mt-0.5">
-                      Garis tengah <strong>0%</strong> merepresentasikan ambang batas target. Batang ke <strong>kanan (hijau)</strong> berarti memenuhi/melampaui target, batang ke <strong>kiri (merah)</strong> berarti defisit kinerja.
-                    </p>
-                  </div>
-
-                  <!-- LEGENDA GRAFIK DIVERGING -->
-                  <div class="flex items-center gap-4 text-xs font-medium shrink-0">
-                    <div class="flex items-center gap-1.5">
-                      <span class="h-3 w-3 rounded-xs bg-[#16a34a]"></span>
-                      <span class="text-slate-700">Tercapai / Menguntungkan (+)</span>
-                    </div>
-                    <div class="flex items-center gap-1.5">
-                      <span class="h-3 w-3 rounded-xs bg-[#dc2626]"></span>
-                      <span class="text-slate-700">Defisit / Perlu Perhatian (-)</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- SVG DIVERGING CHART CONTAINER -->
-                <div class="mt-4 overflow-x-auto">
-                  <div class="min-w-[760px]">
-                    <svg
-                      [attr.viewBox]="'0 0 ' + divRes.viewBoxWidth + ' ' + divRes.viewBoxHeight"
-                      class="w-full h-auto select-none font-sans"
-                    >
-                      <!-- GRIDLINES VERTIKAL & TICKS -->
-                      @for (tick of divRes.gridTicks; track tick.value) {
-                        @let isZero = tick.value === 0;
-                        <g>
-                          <line
-                            [attr.x1]="tick.x"
-                            [attr.y1]="25"
-                            [attr.x2]="tick.x"
-                            [attr.y2]="divRes.viewBoxHeight - 25"
-                            [attr.stroke]="isZero ? '#0f172a' : '#e2e8f0'"
-                            [attr.stroke-width]="isZero ? '1.5' : '1'"
-                            [attr.stroke-dasharray]="isZero ? 'none' : '3,3'"
-                          />
-                          <!-- Label Tick Atas & Bawah -->
-                          <text
-                            [attr.x]="tick.x"
-                            y="18"
-                            text-anchor="middle"
-                            class="text-[10px] font-mono"
-                            [attr.fill]="isZero ? '#0f172a' : '#64748b'"
-                            [attr.font-weight]="isZero ? 'bold' : 'normal'"
-                          >
-                            {{ isZero ? 'Target (0%)' : tick.label }}
-                          </text>
-                          <text
-                            [attr.x]="tick.x"
-                            [attr.y]="divRes.viewBoxHeight - 10"
-                            text-anchor="middle"
-                            class="text-[10px] font-mono"
-                            [attr.fill]="isZero ? '#0f172a' : '#94a3b8'"
-                            [attr.font-weight]="isZero ? 'bold' : 'normal'"
-                          >
-                            {{ tick.label }}
-                          </text>
-                        </g>
-                      }
-
-                      <!-- DIVERGING BARS PER INDIKATOR -->
-                      @for (item of divRes.items; track item.key) {
-                        @let isHovered = hoveredDivergingBar()?.key === item.key;
-                        <g
-                          class="cursor-pointer group"
-                          (mouseenter)="hoveredDivergingBar.set(item)"
-                          (mouseleave)="hoveredDivergingBar.set(null)"
-                        >
-                          <!-- Background Highlight Bar Row saat Hover -->
-                          <rect
-                            [attr.x]="divRes.plotX"
-                            [attr.y]="item.y - 18"
-                            [attr.width]="divRes.plotWidth"
-                            height="38"
-                            rx="6"
-                            fill="#f8fafc"
-                            class="opacity-0 group-hover:opacity-100 transition-opacity"
-                          />
-
-                          <!-- LABEL NAMA INDIKATOR PADA SUMBU Y (KIRI) -->
-                          <text
-                            [attr.x]="divRes.plotX - 12"
-                            [attr.y]="item.y - 4"
-                            text-anchor="end"
-                            class="text-xs font-semibold transition-colors"
-                            [attr.fill]="isHovered ? '#4348E6' : '#1e293b'"
-                          >
-                            {{ item.label }}
-                          </text>
-
-                          <!-- SUBTITLE TARGET & REALISASI -->
-                          <text
-                            [attr.x]="divRes.plotX - 12"
-                            [attr.y]="item.y + 11"
-                            text-anchor="end"
-                            class="text-[10px] font-mono fill-slate-500"
-                          >
-                            Target: {{ item.targetOperator }} {{ item.targetValue }}% | Realisasi: {{ item.actualValue }}%
-                          </text>
-
-                          <!-- BATANG DIVERGING (RECT) -->
-                          <rect
-                            [attr.x]="item.barX"
-                            [attr.y]="item.y - 12"
-                            [attr.width]="item.barWidth"
-                            height="24"
-                            rx="4"
-                            [attr.fill]="item.color"
-                            [attr.opacity]="isHovered ? '1' : '0.9'"
-                            class="transition-all duration-150"
-                          />
-
-                          <!-- LABEL ANGKA GAP PADA UJUNG BATANG -->
-                          <text
-                            [attr.x]="item.isPositive ? item.barX + item.barWidth + 8 : item.barX - 8"
-                            [attr.y]="item.y + 4"
-                            [attr.text-anchor]="item.isPositive ? 'start' : 'end'"
-                            class="text-xs font-bold font-mono"
-                            [attr.fill]="item.color"
-                          >
-                            {{ item.isPositive ? '+' : '' }}{{ item.performanceGap }}%
-                          </text>
-                        </g>
-                      }
-                    </svg>
-                  </div>
-                </div>
-
-                <!-- FLOATING HOVER CARD FOR DIVERGING BAR -->
-                @if (hoveredDivergingBar(); as hBar) {
-                  <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 flex flex-wrap items-center justify-between gap-3 text-xs animate-fadeIn">
-                    <div class="flex items-center gap-2">
-                      <span
-                        class="h-3 w-3 rounded-full shrink-0"
-                        [style.background]="hBar.color"
-                      ></span>
-                      <div>
-                        <strong class="text-slate-900">{{ hBar.label }}</strong>
-                        <span class="text-slate-500 ml-1.5 font-mono">
-                          (Target: {{ hBar.targetOperator }} {{ hBar.targetValue }}% | Rata-rata Jateng: {{ hBar.actualValue }}%)
-                        </span>
-                      </div>
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <span
-                        class="rounded px-2 py-0.5 font-bold font-mono text-[11px]"
-                        [class.bg-emerald-100]="hBar.isAchieved"
-                        [class.text-emerald-800]="hBar.isAchieved"
-                        [class.bg-rose-100]="!hBar.isAchieved"
-                        [class.text-rose-800]="!hBar.isAchieved"
-                      >
-                        {{ hBar.statusText }}
-                      </span>
-                    </div>
-                  </div>
-                }
-              </div>
-
-              <!-- 3. DUAL COLUMN: SPATIAL MAP PREVIEW & REGIONAL LEADERBOARD -->
-              <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-                <!-- KOLOM KIRI: PETA SPASIAL RINGKAS JAWA TENGAH -->
-                <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col justify-between">
-                  <div>
-                    <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
-                      <div>
-                        <h4 class="text-sm font-bold text-slate-900">Sebaran Spasial Jawa Tengah</h4>
-                        <p class="text-xs text-slate-500">Peta sebaran 35 Kabupaten & Kota</p>
-                      </div>
-                      <button
-                        type="button"
-                        (click)="setViewMode('by-map')"
-                        class="text-xs font-semibold text-[#525AFF] hover:underline inline-flex items-center gap-1 cursor-pointer"
-                      >
-                        <span>Lihat Peta Penuh</span>
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-                      </button>
-                    </div>
-
-                    <!-- SELECTOR INDIKATOR PETA CEPAT -->
-                    <div class="mb-3">
-                      <label class="block text-xs font-medium text-slate-600 mb-1">Pilih Indikator Peta:</label>
-                      <select
-                        [value]="activeMapIndicator()"
-                        (change)="setActiveMapIndicator($any($event.target).value)"
-                        class="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:border-[#525AFF] focus:outline-none focus:ring-1 focus:ring-[#525AFF] cursor-pointer"
-                      >
-                        @for (s of seriesList(); track s.key) {
-                          <option [value]="s.key">{{ s.label }}</option>
-                        }
-                      </select>
-                    </div>
-
-                    <!-- MINI SVG MAP PREVIEW -->
-                    @if (mapHeatmapResult(); as mRes) {
-                      <div class="rounded-xl border border-slate-200 bg-slate-50/60 p-2 overflow-hidden relative">
-                        <svg
-                          viewBox="0 0 800 480"
-                          class="w-full h-auto max-h-[300px] select-none"
-                        >
-                          @for (nbr of neighborProvinces; track nbr.name) {
-                            <path
-                              [attr.d]="nbr.pathD"
-                              fill="#f1f5f9"
-                              stroke="#cbd5e1"
-                              stroke-width="1"
-                              stroke-dasharray="3,3"
-                            />
-                          }
-                          @for (item of mRes.items; track item.district.id) {
-                            @let isHov = hoveredMapDistrict()?.district?.id === item.district.id;
-                            <path
-                              [attr.d]="item.district.pathD"
-                              [attr.fill]="item.fillColor"
-                              [attr.stroke]="isHov ? '#0f172a' : item.strokeColor"
-                              [attr.stroke-width]="isHov ? '2' : '0.7'"
-                              class="cursor-pointer transition-colors"
-                              (mouseenter)="hoveredMapDistrict.set(item)"
-                              (mouseleave)="hoveredMapDistrict.set(null)"
-                            />
-                          }
-                        </svg>
-
-                        <!-- MINI STATUS HOVER -->
-                        @if (hoveredMapDistrict(); as hov) {
-                          <div class="absolute bottom-2 left-2 right-2 rounded-lg bg-white/95 backdrop-blur-xs border border-slate-300 px-3 py-1.5 text-xs flex items-center justify-between shadow-xs">
-                            <span class="font-bold text-slate-900">{{ hov.displayName }}</span>
-                            <span class="font-mono font-bold text-slate-800">
-                              {{ hov.formattedValue }}
-                              <span
-                                class="ml-1 text-[10px] font-semibold"
-                                [class.text-emerald-700]="hov.status === 'achieved'"
-                                [class.text-rose-700]="hov.status === 'unachieved'"
-                              >
-                                ({{ hov.status === 'achieved' ? 'OK' : 'Belum Capai' }})
-                              </span>
-                            </span>
-                          </div>
-                        }
-                      </div>
-
-                      <!-- MINI LEGENDA STATUS -->
-                      <div class="mt-2.5 flex items-center justify-between text-[11px] text-slate-500">
-                        <span>Tercapai: <strong>{{ mRes.stats.achievedCount }}</strong> / {{ mRes.stats.validCount }} Kab/Kota</span>
-                        <div class="flex items-center gap-2">
-                          <span class="inline-block w-2.5 h-2.5 rounded-full bg-[#16a34a]"></span>
-                          <span>Capai</span>
-                          <span class="inline-block w-2.5 h-2.5 rounded-full bg-[#dc2626]"></span>
-                          <span>Belum</span>
-                        </div>
-                      </div>
-                    }
-                  </div>
-                </div>
-
-                <!-- KOLOM KANAN: LEADERBOARD KINERJA DAERAH (TOP 5 VS PRIORITAS PENDAMPINGAN) -->
-                <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-                  <div class="border-b border-slate-100 pb-3 mb-3">
-                    <h4 class="text-sm font-bold text-slate-900">Urgensi & Leaderboard Wilayah</h4>
-                    <p class="text-xs text-slate-500">Pemetaan 5 daerah berkinerja terbaik vs 5 daerah prioritas pendampingan</p>
-                  </div>
-
-                  <div class="space-y-4">
-                    <!-- 5 WILAYAH TERBAIK -->
-                    <div>
-                      <h5 class="text-xs font-bold text-emerald-800 flex items-center gap-1.5 mb-2">
-                        <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                        <span>Top 5 Wilayah Berkinerja Terbaik</span>
-                      </h5>
-                      <div class="space-y-1.5">
-                        @for (item of lead.top5; track item.name) {
-                          <div class="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg bg-emerald-50/50 border border-emerald-100">
-                            <div class="flex items-center gap-2 truncate">
-                              <span class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-200 text-emerald-900 text-[10px] font-bold">
-                                {{ $index + 1 }}
-                              </span>
-                              <span class="font-medium text-slate-900 truncate">{{ item.name }}</span>
-                            </div>
-                            <div class="flex items-center gap-2 shrink-0 font-mono text-emerald-800 font-bold">
-                              <span>{{ item.achievedCount }}/{{ item.validCount }} Tercapai</span>
-                              <span class="text-[10px] text-emerald-600">({{ item.rate }}%)</span>
-                            </div>
-                          </div>
-                        }
-                      </div>
-                    </div>
-
-                    <!-- 5 WILAYAH PRIORITAS PENDAMPINGAN -->
-                    <div>
-                      <h5 class="text-xs font-bold text-rose-800 flex items-center gap-1.5 mb-2">
-                        <svg class="w-3.5 h-3.5 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                        <span>5 Wilayah Prioritas Pendampingan (Defisit Terbanyak)</span>
-                      </h5>
-                      <div class="space-y-1.5">
-                        @for (item of lead.bottom5; track item.name) {
-                          <div class="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg bg-rose-50/50 border border-rose-100">
-                            <div class="flex items-center gap-2 truncate">
-                              <span class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-rose-200 text-rose-900 text-[10px] font-bold">
-                                {{ $index + 1 }}
-                              </span>
-                              <span class="font-medium text-slate-900 truncate">{{ item.name }}</span>
-                            </div>
-                            <div class="flex items-center gap-2 shrink-0 font-mono text-rose-800 font-bold">
-                              <span>{{ item.achievedCount }}/{{ item.validCount }} Tercapai</span>
-                              <span class="text-[10px] text-rose-600">({{ item.rate }}%)</span>
-                            </div>
-                          </div>
-                        }
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 4. REKOMENDASI KEBIJAKAN & AKSI CEPAT (ACTIONABLE BRIEF) -->
-              <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-xs text-slate-700">
-                <div class="flex items-center gap-2 font-bold text-slate-900 mb-1.5">
-                  <svg class="w-4 h-4 text-[#525AFF]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                  <span>Ringkasan Eksekutif &amp; Rekomendasi Program</span>
-                </div>
-                <p class="leading-relaxed text-slate-600">
-                  @if (divRes.mostCriticalDeficit) {
-                    Berdasarkan evaluasi gap-to-target lintas wilayah, prioritas intervensi utama perlu difokuskan pada <strong>{{ divRes.mostCriticalDeficit.label }}</strong> dengan kesenjangan <strong>{{ divRes.mostCriticalDeficit.performanceGap }}%</strong> terhadap target. Diperlukan supervisi terarah bagi 5 kabupaten/kota pada daftar prioritas pendampingan di atas untuk mempercepat penurunan angka defisit indikator.
-                  } @else {
-                    Seluruh indikator program berada dalam batas target yang ditetapkan. Fokus operasional dapat dialihkan pada pemeliharaan kesinambungan mutu layanan posyandu dan fasilitas kesehatan di seluruh 35 kabupaten/kota.
-                  }
-                </p>
-              </div>
-            } @else {
-              <div class="py-12 text-center">
-                <h3 class="text-base font-bold text-slate-700">Memuat Data Overview...</h3>
-                <p class="mt-1 text-xs text-slate-500">Pastikan data hasil join atau file Excel telah berhasil dimuat.</p>
-              </div>
-            }
           </div>
         } @else if (viewMode() === 'by-region') {
           <!-- AKSI GRAFIK WILAYAH: TARGET PER INDIKATOR & UNDUH SVG/PNG -->
@@ -2964,34 +2380,11 @@
                   </div>
                 </div>
 
-                <!-- EXPORT EXCEL -->
-                <div class="flex flex-wrap items-center gap-2.5">
-                  <button
-                    type="button"
-                    (click)="exportExcel(mapData.series.key)"
-                    class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-2xs"
-                    title="Unduh data Excel (.xlsx) untuk indikator ini"
-                  >
-                    <svg
-                      class="w-3.5 h-3.5 text-slate-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                      />
-                    </svg>
-                    <span>Unduh Excel</span>
-                  </button>
-                </div>
+
               </div>
 
               <!-- 2. KPI STAT BADGES CARD -->
-              <div class="mb-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              <div class="mb-5 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-3">
                 <div class="rounded-lg border border-slate-200 bg-slate-50/70 p-2.5">
                   <span class="text-[11px] font-medium text-slate-500 block">Rata-rata Jateng</span>
                   <span class="text-base font-bold text-slate-800 font-mono mt-0.5 block">
@@ -3069,26 +2462,62 @@
                     }
                   </span>
                 </div>
-
-                <div class="rounded-lg border border-slate-200 bg-slate-50/70 p-2.5">
-                  <span class="text-[11px] font-medium text-slate-500 block">Cakupan Data</span>
-                  <span class="text-base font-bold text-slate-800 font-mono mt-0.5 block">
-                    {{ mapData.stats.validCount }} / {{ mapData.stats.totalDistricts }} Kab/Kota
-                  </span>
-                </div>
               </div>
 
-              <!-- 3. MAIN SVG MAP VIEWPORT & DISTRICT INSPECTOR -->
-              <div class="grid grid-cols-1 lg:grid-cols-4 gap-5 items-start">
-                <!-- SVG MAP CONTAINER (3 COLS) -->
-                <div
-                  class="lg:col-span-3 rounded-xl border border-slate-200 bg-slate-50/40 p-2 overflow-x-auto"
-                >
-                  <div class="min-w-[660px] flex justify-center">
-                    <svg
-                      [attr.viewBox]="mainMapViewBox"
-                      class="w-full max-w-[760px] h-auto select-none overflow-visible"
-                    >
+              <!-- 3. MAIN SVG MAP VIEWPORT (FULL-WIDTH EXPANDED TO RIGHT EDGE) -->
+              <div
+                class="w-full rounded-2xl border border-slate-200 bg-slate-50/40 p-3 sm:p-5 overflow-x-auto relative shadow-2xs"
+                data-testid="map-fullwidth-container"
+              >
+                <!-- MAP CONTROLS OVERLAY BAR -->
+                <div class="flex items-center justify-between gap-3 mb-3 px-1">
+                  <div class="flex items-center gap-2">
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white border border-slate-200 text-xs font-semibold text-slate-700 shadow-2xs">
+                      <span class="w-2 h-2 rounded-full bg-emerald-600"></span>
+                      Peta Interaktif Jawa Tengah
+                    </span>
+                    <span class="text-xs text-slate-600 hidden sm:inline">
+                      Klik wilayah pada peta untuk melihat rincian capaian
+                    </span>
+                  </div>
+
+                  <!-- TOMBOL TOGGLE FLOATING PERINGKAT WILAYAH -->
+                  <button
+                    type="button"
+                    (click)="toggleMapRankings()"
+                    [class.bg-[#525AFF]]="showMapRankings()"
+                    [class.text-white]="showMapRankings()"
+                    [class.border-[#525AFF]]="showMapRankings()"
+                    [class.bg-white]="!showMapRankings()"
+                    [class.text-slate-700]="!showMapRankings()"
+                    [class.border-slate-300]="!showMapRankings()"
+                    class="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold hover:shadow-xs transition cursor-pointer shadow-2xs"
+                    title="Buka / Tutup Floating Window Peringkat Wilayah"
+                    data-testid="toggle-map-rankings-btn"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"/>
+                    </svg>
+                    <span>{{ showMapRankings() ? 'Tutup Peringkat' : 'Peringkat Wilayah' }}</span>
+                    @if (mapData.rankedItems.length > 0) {
+                      <span
+                        class="rounded-full px-1.5 py-0.2 text-[9px] font-bold"
+                        [class.bg-white/20]="showMapRankings()"
+                        [class.text-white]="showMapRankings()"
+                        [class.bg-slate-100]="!showMapRankings()"
+                        [class.text-slate-600]="!showMapRankings()"
+                      >
+                        {{ mapData.rankedItems.length }}
+                      </span>
+                    }
+                  </button>
+                </div>
+
+                <div class="min-w-[680px] w-full flex justify-center py-2">
+                  <svg
+                    [attr.viewBox]="mainMapViewBox"
+                    class="w-full max-w-[960px] xl:max-w-[1080px] h-auto select-none overflow-visible transition-all"
+                  >
                       <!-- Frame latar belakang & Garis Panduan Laut -->
                       <rect
                         x="5"
@@ -3135,7 +2564,8 @@
                         x="65"
                         y="230"
                         text-anchor="middle"
-                        class="text-[10px] font-bold fill-slate-400 font-sans rotate-[-90deg]"
+                        transform="rotate(-90 65 230)"
+                        class="text-[10px] font-bold fill-slate-400 font-sans"
                       >
                         JAWA BARAT
                       </text>
@@ -3151,7 +2581,8 @@
                         x="725"
                         y="260"
                         text-anchor="middle"
-                        class="text-[10px] font-bold fill-slate-400 font-sans rotate-90"
+                        transform="rotate(90 725 260)"
+                        class="text-[10px] font-bold fill-slate-400 font-sans"
                       >
                         JAWA TIMUR
                       </text>
@@ -3159,17 +2590,27 @@
                       <!-- 35 KABUPATEN/KOTA POLYGONS (HEATMAP) -->
                       @for (item of mapData.items; track item.district.id) {
                         @let isHovered = hoveredMapDistrict()?.district?.id === item.district.id;
+                        @let isSelected = selectedMapDistrict()?.district?.id === item.district.id;
                         <g
-                          class="cursor-pointer group"
+                          class="cursor-pointer group focus:outline-none"
+                          tabindex="0"
+                          role="button"
+                          [attr.aria-label]="item.district.kabupatenKota + ': ' + item.formattedValue"
                           (mouseenter)="hoveredMapDistrict.set(item)"
                           (mouseleave)="hoveredMapDistrict.set(null)"
+                          (focus)="hoveredMapDistrict.set(item)"
+                          (blur)="hoveredMapDistrict.set(null)"
+                          (click)="selectMapDistrict(item)"
+                          (keydown.enter)="selectMapDistrict(item); $event.preventDefault()"
+                          (keydown.space)="selectMapDistrict(item); $event.preventDefault()"
+                          data-testid="map-district-polygon"
                         >
                           <!-- Poligon Wilayah -->
                           <path
                             [attr.d]="item.district.pathD"
                             [attr.fill]="item.fillColor"
-                            [attr.stroke]="isHovered ? '#0f172a' : item.strokeColor"
-                            [attr.stroke-width]="isHovered ? '2.5' : '0.8'"
+                            [attr.stroke]="isSelected ? '#525AFF' : (isHovered ? '#0f172a' : item.strokeColor)"
+                            [attr.stroke-width]="isSelected ? '3' : (isHovered ? '2.5' : '0.8')"
                             class="transition-colors duration-100"
                           />
 
@@ -3291,185 +2732,295 @@
                   </div>
                 </div>
 
-                <!-- DISTRICT INSPECTOR PANEL (1 COL) -->
-                <div class="space-y-4">
-                  <!-- RINGKASAN TOP 5 KABUPATEN/KOTA (DITEMPATKAN DI ATAS AGAR POSISI STABIL SAAT HOVER) -->
-                  <div class="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
-                    <div class="flex items-center justify-between mb-2">
-                      <span class="text-xs font-bold text-slate-700">
-                        {{ mapData.stats.targetOperator === '<=' ? 'Peringkat Terbaik (Prevalensi Terendah)' : 'Peringkat Teratas (Top 5)' }}
+                <!-- FLOATING WINDOW PERINGKAT WILAYAH (TANPA DARK BACKDROP, CONTENT-SIZED) -->
+              @if (showMapRankings()) {
+                <aside
+                  class="fixed top-20 right-4 sm:right-6 z-40 w-80 sm:w-88 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-300 bg-white shadow-xl flex flex-col overflow-hidden transition-all"
+                  [class.sm:right-[23rem]]="selectedMapDistrict() !== null"
+                  role="region"
+                  aria-labelledby="map-rankings-title"
+                  data-testid="map-rankings-floating-window"
+                >
+                  <!-- HEADER JENDELA MENGAMBANG PERINGKAT -->
+                  <div class="px-4 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-2.5">
+                    <div class="flex items-center gap-2 truncate">
+                      <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#EEF0FF] text-[#525AFF]">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"/>
+                        </svg>
                       </span>
-                      <span class="text-[10px] text-slate-400">Jawa Tengah</span>
+                      <div class="truncate">
+                        <h4 class="text-xs sm:text-sm font-bold text-slate-900 truncate" id="map-rankings-title">
+                          {{ mapData.stats.targetOperator === '<=' ? 'Peringkat Prevalensi Terendah' : 'Peringkat Capaian Tertinggi' }}
+                        </h4>
+                        <span class="text-xs text-slate-600 block leading-tight truncate">
+                          {{ mapData.series.label }} • {{ mapData.stats.validCount }} Kab/Kota
+                        </span>
+                      </div>
                     </div>
-                    <div class="space-y-1.5">
-                      @for (topItem of mapData.rankedItems.slice(0, 5); track topItem.district.id) {
-                        @let isCurrentHovered =
-                          hoveredMapDistrict()?.district?.id === topItem.district.id;
-                        <div
-                          class="flex items-center justify-between text-xs py-1.5 px-2 rounded-lg cursor-pointer transition"
-                          [class.bg-[#EEF0FF]]="isCurrentHovered"
-                          [class.ring-1]="isCurrentHovered"
-                          [class.ring-[#525AFF]/30]="isCurrentHovered"
-                          [class.hover:bg-slate-50]="!isCurrentHovered"
-                          (mouseenter)="hoveredMapDistrict.set(topItem)"
-                          (mouseleave)="hoveredMapDistrict.set(null)"
-                        >
-                          <div class="flex items-center gap-1.5 truncate">
-                            <span
-                              class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold"
-                              [class.bg-emerald-100]="topItem.rank !== null && topItem.rank <= 3"
-                              [class.text-emerald-800]="topItem.rank !== null && topItem.rank <= 3"
-                              [class.bg-slate-100]="topItem.rank !== null && topItem.rank > 3"
-                              [class.text-slate-700]="topItem.rank !== null && topItem.rank > 3"
-                            >
-                              {{ topItem.rank }}
+                    <button
+                      type="button"
+                      (click)="closeMapRankings()"
+                      data-testid="close-map-rankings-btn"
+                      class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
+                      title="Tutup Peringkat (Esc)"
+                      aria-label="Tutup Peringkat"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                      </svg>
+                    </button>
+                  </div>
+
+                  <!-- FILTER TABS (SEMUA / TOP 5 / BOTTOM 5) -->
+                  <div class="px-4 pt-2.5 pb-2 bg-slate-50/70 border-b border-slate-200 flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      (click)="setMapRankingsFilter('all')"
+                      [class.bg-[#525AFF]]="mapRankingsFilter() === 'all'"
+                      [class.text-white]="mapRankingsFilter() === 'all'"
+                      [class.bg-white]="mapRankingsFilter() !== 'all'"
+                      [class.text-slate-700]="mapRankingsFilter() !== 'all'"
+                      class="px-2.5 py-1 rounded-md text-xs font-semibold transition border border-slate-200 shadow-2xs cursor-pointer"
+                      data-testid="rankings-filter-all"
+                    >
+                      Semua ({{ mapData.rankedItems.length }})
+                    </button>
+                    <button
+                      type="button"
+                      (click)="setMapRankingsFilter('top5')"
+                      [class.bg-[#525AFF]]="mapRankingsFilter() === 'top5'"
+                      [class.text-white]="mapRankingsFilter() === 'top5'"
+                      [class.bg-white]="mapRankingsFilter() !== 'top5'"
+                      [class.text-slate-700]="mapRankingsFilter() !== 'top5'"
+                      class="px-2.5 py-1 rounded-md text-xs font-semibold transition border border-slate-200 shadow-2xs cursor-pointer"
+                      data-testid="rankings-filter-top5"
+                    >
+                      Top 5
+                    </button>
+                    <button
+                      type="button"
+                      (click)="setMapRankingsFilter('bottom5')"
+                      [class.bg-[#525AFF]]="mapRankingsFilter() === 'bottom5'"
+                      [class.text-white]="mapRankingsFilter() === 'bottom5'"
+                      [class.bg-white]="mapRankingsFilter() !== 'bottom5'"
+                      [class.text-slate-700]="mapRankingsFilter() !== 'bottom5'"
+                      class="px-2.5 py-1 rounded-md text-xs font-semibold transition border border-slate-200 shadow-2xs cursor-pointer"
+                      data-testid="rankings-filter-bottom5"
+                    >
+                      Bottom 5
+                    </button>
+                  </div>
+
+                  <!-- DAFTAR PERINGKAT WILAYAH SESUAI KONTEN (SCROLLABLE DENGAN MAX TINGGI) -->
+                  <div class="p-3 space-y-1.5 max-h-[calc(100vh-14rem)] overflow-y-auto">
+                    @for (topItem of mapRankingsDisplayItems(); track topItem.district.id) {
+                      @let isCurrentHovered =
+                        hoveredMapDistrict()?.district?.id === topItem.district.id;
+                      @let isCurrentSelected =
+                        selectedMapDistrict()?.district?.id === topItem.district.id;
+                      <div
+                        class="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-xl cursor-pointer transition border focus-visible:ring-2 focus-visible:ring-[#525AFF]"
+                        tabindex="0"
+                        role="button"
+                        [class.bg-[#EEF0FF]]="isCurrentHovered || isCurrentSelected"
+                        [class.border-[#525AFF]/40]="isCurrentHovered || isCurrentSelected"
+                        [class.bg-white]="!isCurrentHovered && !isCurrentSelected"
+                        [class.border-slate-100]="!isCurrentHovered && !isCurrentSelected"
+                        [class.hover:bg-slate-50]="!isCurrentHovered && !isCurrentSelected"
+                        (mouseenter)="hoveredMapDistrict.set(topItem)"
+                        (mouseleave)="hoveredMapDistrict.set(null)"
+                        (focus)="hoveredMapDistrict.set(topItem)"
+                        (blur)="hoveredMapDistrict.set(null)"
+                        (click)="selectMapDistrict(topItem)"
+                        (keydown.enter)="selectMapDistrict(topItem); $event.preventDefault()"
+                        (keydown.space)="selectMapDistrict(topItem); $event.preventDefault()"
+                        data-testid="ranked-district-item"
+                      >
+                        <div class="flex items-center gap-2 truncate">
+                          <span
+                            class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold tabular-nums"
+                            [class.bg-amber-100]="topItem.rank === 1"
+                            [class.text-amber-800]="topItem.rank === 1"
+                            [class.bg-emerald-100]="topItem.rank !== null && topItem.rank > 1 && topItem.rank <= 3"
+                            [class.text-emerald-800]="topItem.rank !== null && topItem.rank > 1 && topItem.rank <= 3"
+                            [class.bg-slate-100]="topItem.rank !== null && topItem.rank > 3"
+                            [class.text-slate-700]="topItem.rank !== null && topItem.rank > 3"
+                          >
+                            {{ topItem.rank }}
+                          </span>
+                          <span
+                            class="truncate font-medium"
+                            [class.text-[#525AFF]]="isCurrentHovered || isCurrentSelected"
+                            [class.font-bold]="isCurrentHovered || isCurrentSelected"
+                            [class.text-slate-700]="!isCurrentHovered && !isCurrentSelected"
+                          >
+                            {{ topItem.displayName }}
+                          </span>
+                        </div>
+                        <div class="flex items-center gap-1.5 shrink-0 ml-2">
+                          @if (mapData.stats.targetValue !== null && topItem.status === 'achieved') {
+                            <span class="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-[11px]" title="Mencapai target">
+                              ✓
                             </span>
-                            <span
-                              class="truncate font-medium"
-                              [class.text-[#525AFF]]="isCurrentHovered"
-                              [class.font-bold]="isCurrentHovered"
-                              [class.text-slate-700]="!isCurrentHovered"
-                            >
-                              {{ topItem.displayName }}
-                            </span>
-                          </div>
-                          <span class="font-bold font-mono text-slate-800 shrink-0 ml-2">
+                          }
+                          <span class="font-bold font-mono tabular-nums text-slate-800">
                             {{ topItem.formattedValue }}
                           </span>
                         </div>
-                      }
-                      @if (mapData.rankedItems.length === 0) {
-                        <div class="text-[11px] text-slate-400 italic py-2 text-center">
-                          Tidak ada data wilayah untuk diurutkan.
-                        </div>
-                      }
-                    </div>
-                  </div>
-
-                  <!-- DETAIL KARTU WILAYAH DISOROT (PEMERIKSA WILAYAH) DENGAN MIN-HEIGHT STABIL -->
-                  <div
-                    class="rounded-xl border border-slate-200 bg-slate-50 p-4 min-h-[280px] flex flex-col justify-start"
-                  >
-                    <h5
-                      class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 shrink-0"
-                    >
-                      Pemeriksa Wilayah
-                    </h5>
-
-                    @if (hoveredMapDistrict(); as hDist) {
-                      <div class="space-y-3">
-                        <div class="border-b border-slate-200 pb-2.5">
-                          <div class="flex items-start justify-between gap-1">
-                            <h4 class="text-sm font-bold text-slate-900 leading-tight">
-                              {{ hDist.district.kabupatenKota }}
-                            </h4>
-                            <span
-                              class="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-mono text-slate-700 shrink-0"
-                            >
-                              {{ hDist.district.id }}
-                            </span>
-                          </div>
-                          <span class="text-[11px] text-slate-500 mt-0.5 block">
-                            {{ hDist.district.isKota ? 'Pemerintah Kota' : 'Pemerintah Kabupaten' }}
-                          </span>
-                        </div>
-
-                        <!-- ANGKA CAPAIAN & STATUS -->
-                        <div class="rounded-lg bg-white p-3 border border-slate-200 shadow-2xs">
-                          <div class="flex items-baseline justify-between">
-                            <span class="text-xs font-semibold text-slate-600">Capaian:</span>
-                            <span class="text-xl font-bold font-mono text-slate-900">
-                              {{ hDist.formattedValue }}
-                            </span>
-                          </div>
-
-                          @if (hDist.rank !== null) {
-                            <div class="mt-1.5 flex items-center justify-between text-xs">
-                              <span class="text-slate-500">Peringkat di Jateng:</span>
-                              <span
-                                class="font-bold text-[#525AFF] bg-[#EEF0FF] px-2 py-0.5 rounded-full text-[11px]"
-                              >
-                                #{{ hDist.rank }} dari {{ mapData.stats.validCount }}
-                              </span>
-                            </div>
-                          }
-
-                          @if (hDist.diffFromAvg !== null) {
-                            <div class="mt-1.5 flex items-center justify-between text-xs">
-                              <span class="text-slate-500">Selisih vs Rata-rata:</span>
-                              <span
-                                class="font-semibold font-mono text-[11px]"
-                                [class.text-emerald-700]="mapData.stats.targetOperator === '<=' ? hDist.diffFromAvg <= 0 : hDist.diffFromAvg >= 0"
-                                [class.text-rose-700]="mapData.stats.targetOperator === '<=' ? hDist.diffFromAvg > 0 : hDist.diffFromAvg < 0"
-                              >
-                                {{ hDist.diffFromAvg >= 0 ? '+' : '' }}{{ hDist.diffFromAvg }}
-                              </span>
-                            </div>
-                          }
-                        </div>
-
-                        <!-- STATUS TARGET -->
-                        @if (mapData.stats.targetValue !== null) {
-                          @if (hDist.status === 'achieved') {
-                            <div
-                              class="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 p-2.5 text-xs text-emerald-800 font-semibold"
-                            >
-                              <svg class="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-                              <div>
-                                <span>Mencapai Target ({{ mapData.stats.targetOperator || '≥' }} {{ mapData.stats.targetValue }})</span>
-                                @if (mapData.stats.targetOperator === '<=') {
-                                  <span class="block text-[10px] font-normal text-emerald-700">
-                                    {{ hDist.diffFromTarget !== null && hDist.diffFromTarget < 0 ? (Math.abs(hDist.diffFromTarget) + ' di bawah batas maksimal target') : 'Tepat pada target' }}
-                                  </span>
-                                } @else if (hDist.diffFromTarget !== null && hDist.diffFromTarget > 0) {
-                                  <span class="block text-[10px] font-normal text-emerald-700">
-                                    Melampaui target sebesar +{{ hDist.diffFromTarget }}
-                                  </span>
-                                }
-                              </div>
-                            </div>
-                          } @else if (hDist.status === 'unachieved') {
-                            <div
-                              class="flex items-center gap-2 rounded-lg bg-rose-50 border border-rose-200 p-2.5 text-xs text-rose-800 font-semibold"
-                            >
-                              <svg class="w-4 h-4 text-rose-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                              <div>
-                                <span>Belum Mencapai Target ({{ mapData.stats.targetOperator || '≥' }} {{ mapData.stats.targetValue }})</span>
-                                @if (mapData.stats.targetOperator === '<=') {
-                                  @if (hDist.diffFromTarget !== null) {
-                                    <span class="block text-[10px] font-normal text-rose-700">
-                                      Melebihi batas maksimal sebesar +{{ Math.abs(hDist.diffFromTarget) }}
-                                    </span>
-                                  }
-                                } @else if (hDist.diffFromTarget !== null) {
-                                  <span class="block text-[10px] font-normal text-rose-700">
-                                    Kurang {{ Math.abs(hDist.diffFromTarget) }} dari target
-                                  </span>
-                                }
-                              </div>
-                            </div>
-                          }
-                        } @else if (hDist.status === 'missing') {
-                          <div
-                            class="rounded-lg bg-slate-100 border border-slate-200 p-2.5 text-xs text-slate-500 italic"
-                          >
-                            Data indikator tidak tersedia untuk wilayah ini.
-                          </div>
-                        }
                       </div>
-                    } @else {
-                      <div class="text-center py-8 text-slate-400 my-auto">
-                        <svg class="w-8 h-8 text-slate-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
-                        <p class="text-xs font-medium text-slate-600">Sorot Wilayah pada Peta</p>
-                        <p class="text-[11px] text-slate-400 mt-1 max-w-[220px] mx-auto">
-                          Arahkan kursor mouse ke poligon kabupaten/kota atau daftar peringkat untuk
-                          melihat rincian capaian.
-                        </p>
+                    }
+                    @if (mapRankingsDisplayItems().length === 0) {
+                      <div class="text-xs text-slate-600 italic py-4 text-center">
+                        Tidak ada data wilayah untuk diurutkan.
                       </div>
                     }
                   </div>
-                </div>
-              </div>
+                </aside>
+              }
+
+              <!-- FLOATING WINDOW PEMERIKSA WILAYAH DI SISI KANAN (TANPA DARK BACKDROP) -->
+              @if (selectedMapDistrict(); as sDist) {
+                <aside
+                  class="fixed top-20 right-4 sm:right-6 z-40 w-80 sm:w-84 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-300 bg-white shadow-xl flex flex-col overflow-hidden"
+                  role="region"
+                  aria-labelledby="map-inspector-title"
+                  data-testid="map-district-inspector-modal"
+                >
+                  <!-- HEADER JENDELA MENGAMBANG -->
+                  <div class="px-4 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-2.5">
+                    <div class="flex items-center gap-2 truncate">
+                      <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#EEF0FF] text-[#525AFF]">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                      </span>
+                      <div class="truncate">
+                        <div class="flex items-center gap-1.5">
+                          <h4 class="text-xs sm:text-sm font-bold text-slate-900 truncate" id="map-inspector-title">
+                            {{ sDist.district.kabupatenKota }}
+                          </h4>
+                          <span class="rounded bg-slate-200/70 px-1.5 py-0.2 text-[11px] font-mono tabular-nums text-slate-700 shrink-0">
+                            {{ sDist.district.id }}
+                          </span>
+                        </div>
+                        <span class="text-xs text-slate-600 block leading-tight">
+                          {{ sDist.district.isKota ? 'Pemerintah Kota' : 'Pemerintah Kabupaten' }}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      (click)="closeMapDistrictInspector()"
+                      data-testid="close-map-inspector-btn"
+                      class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
+                      title="Tutup Jendela (Esc)"
+                      aria-label="Tutup Jendela"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                      </svg>
+                    </button>
+                  </div>
+
+                  <!-- KONTEN SESUAI UKURAN (JUST THE SIZE OF CONTENT) -->
+                  <div class="p-4 space-y-3 max-h-[calc(100vh-10rem)] overflow-y-auto">
+                    <!-- INDIKATOR AKTIF -->
+                    <div class="rounded-lg bg-slate-50 border border-slate-200 px-2.5 py-1.5">
+                      <span class="text-[11px] uppercase font-bold text-slate-600 tracking-wider block">Indikator</span>
+                      <span class="text-xs font-semibold text-slate-800 block truncate mt-0.5">{{ mapData.series.label }}</span>
+                    </div>
+
+                    <!-- KARTU ANGKA CAPAIAN & PERINGKAT -->
+                    <div class="rounded-xl bg-white p-3 border border-slate-200 shadow-2xs space-y-2">
+                      <div class="flex items-baseline justify-between border-b border-slate-100 pb-2">
+                        <span class="text-xs font-medium text-slate-600">Capaian:</span>
+                        <span class="text-xl font-bold font-mono tabular-nums text-slate-900">
+                          {{ sDist.formattedValue }}
+                        </span>
+                      </div>
+
+                      @if (sDist.rank !== null) {
+                        <div class="flex items-center justify-between text-xs">
+                          <span class="text-slate-600 text-xs">Peringkat Jateng:</span>
+                          <span class="font-bold tabular-nums text-[#525AFF] bg-[#EEF0FF] px-2 py-0.5 rounded-full text-xs">
+                            #{{ sDist.rank }} dari {{ mapData.stats.validCount }}
+                          </span>
+                        </div>
+                      }
+
+                      @if (sDist.diffFromAvg !== null) {
+                        <div class="flex items-center justify-between text-xs">
+                          <span class="text-slate-600 text-xs">Selisih vs Rata-rata:</span>
+                          <span
+                            class="font-semibold font-mono tabular-nums text-xs px-1.5 py-0.5 rounded"
+                            [class.bg-emerald-50]="mapData.stats.targetOperator === '<=' ? sDist.diffFromAvg <= 0 : sDist.diffFromAvg >= 0"
+                            [class.text-emerald-700]="mapData.stats.targetOperator === '<=' ? sDist.diffFromAvg <= 0 : sDist.diffFromAvg >= 0"
+                            [class.bg-rose-50]="mapData.stats.targetOperator === '<=' ? sDist.diffFromAvg > 0 : sDist.diffFromAvg < 0"
+                            [class.text-rose-700]="mapData.stats.targetOperator === '<=' ? sDist.diffFromAvg > 0 : sDist.diffFromAvg < 0"
+                          >
+                            {{ sDist.diffFromAvg >= 0 ? '+' : '' }}{{ sDist.diffFromAvg }}
+                          </span>
+                        </div>
+                      }
+                    </div>
+
+                    <!-- STATUS TARGET & EVALUASI -->
+                    @if (mapData.stats.targetValue !== null) {
+                      @if (sDist.status === 'achieved') {
+                        <div
+                          class="flex items-start gap-2 rounded-xl bg-emerald-50/80 border border-emerald-200/80 p-2.5 text-xs text-emerald-800"
+                        >
+                          <svg class="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                          <div class="min-w-0">
+                            <span class="font-bold text-emerald-900 block text-[11px]">Mencapai Target</span>
+                            <span class="text-[10px] text-emerald-700 block mt-0.5">
+                              Target: {{ mapData.stats.targetOperator || '≥' }} {{ mapData.stats.targetValue }}
+                            </span>
+                            @if (mapData.stats.targetOperator === '<=') {
+                              <span class="block text-[10px] text-emerald-700 mt-0.5">
+                                {{ sDist.diffFromTarget !== null && sDist.diffFromTarget < 0 ? (Math.abs(sDist.diffFromTarget) + ' di bawah batas maks') : 'Sesuai batas target' }}
+                              </span>
+                            } @else if (sDist.diffFromTarget !== null && sDist.diffFromTarget > 0) {
+                              <span class="block text-[10px] text-emerald-700 mt-0.5">
+                                +{{ sDist.diffFromTarget }} melampaui target
+                              </span>
+                            }
+                          </div>
+                        </div>
+                      } @else if (sDist.status === 'unachieved') {
+                        <div
+                          class="flex items-start gap-2 rounded-xl bg-rose-50/80 border border-rose-200/80 p-2.5 text-xs text-rose-800"
+                        >
+                          <svg class="w-4 h-4 text-rose-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                          <div class="min-w-0">
+                            <span class="font-bold text-rose-900 block text-[11px]">Belum Mencapai Target</span>
+                            <span class="text-[10px] text-rose-700 block mt-0.5">
+                              Target: {{ mapData.stats.targetOperator || '≥' }} {{ mapData.stats.targetValue }}
+                            </span>
+                            @if (mapData.stats.targetOperator === '<=') {
+                              @if (sDist.diffFromTarget !== null) {
+                                <span class="block text-[10px] text-rose-700 mt-0.5">
+                                  +{{ Math.abs(sDist.diffFromTarget) }} melebihi batas
+                                </span>
+                              }
+                            } @else if (sDist.diffFromTarget !== null) {
+                              <span class="block text-[10px] text-rose-700 mt-0.5">
+                                Kurang {{ Math.abs(sDist.diffFromTarget) }} dari target
+                              </span>
+                            }
+                          </div>
+                        </div>
+                      }
+                    } @else if (sDist.status === 'missing') {
+                      <div class="rounded-xl bg-slate-100 border border-slate-200 p-2.5 text-[11px] text-slate-500 italic">
+                        Data indikator tidak tersedia.
+                      </div>
+                    }
+                  </div>
+                </aside>
+              }
 
               <!-- FOOTER KARTU PETA -->
               <div
@@ -4605,7 +4156,7 @@
         }
 
         <!-- ============================================================ -->
-        <!-- 3.8 MODE 6: TREN LINTAS PERIODE (SERVER SQLITE ANALYTICS)    -->
+        <!-- 3.8 MODE 6: TREN LINTAS PERIODE (SERVER ANALYTICS)           -->
         <!-- ============================================================ -->
         @if (viewMode() === 'by-trends') {
           <div class="space-y-5" data-testid="trends-panel">
@@ -4615,7 +4166,7 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
                   <div>
                     <label class="block text-[11px] font-semibold text-slate-600 mb-1">
-                      Indikator Kesehatan (Database Server SQLite)
+                      Indikator Kesehatan (Data Tren)
                     </label>
                     <select
                       data-testid="trend-indicator-select"
@@ -4752,10 +4303,10 @@
             } @else if (!isLoadingTrends()) {
               <div class="rounded-xl border border-slate-200 bg-white p-10 text-center">
                 <h4 class="text-sm font-bold text-slate-800">
-                  Belum Ada Data Observasi Lintas Periode di Server SQLite
+                  Belum Ada Data Observasi Lintas Periode
                 </h4>
                 <p class="mt-1 text-xs text-slate-500 max-w-lg mx-auto">
-                  Simpan hasil penggabungan periode triwulan (TW1–TW4) pada modul <strong>Excel Join</strong> ke Server SQLite untuk mulai membandingkan tren perkembangan indikator lintas tahun secara otomatis.
+                  Simpan hasil penggabungan periode triwulan (TW1–TW4) pada modul <strong>Excel Join</strong> untuk mulai membandingkan tren perkembangan indikator lintas tahun secara otomatis.
                 </p>
               </div>
             }

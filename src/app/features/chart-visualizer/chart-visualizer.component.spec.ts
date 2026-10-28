@@ -31,10 +31,12 @@ describe('ChartVisualizerComponent', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    TestBed.inject(HealthDataExchange).clearChartData();
   });
 
   function populateTestData() {
     component.allColumns.set(['Wilayah', 'tw1', 'tw2', 'tw3', 'tw4']);
+    component.sheetColumns.set([]);
     component.categoryColumn.set('Wilayah');
     component.availableCategories.set([
       'Kab. Magelang',
@@ -629,9 +631,16 @@ describe('ChartVisualizerComponent', () => {
     it('should support sorting categories per indicator by value descending and ascending', () => {
       component.setViewMode('by-indicator');
 
-      // 1. Default order matches visibleCategories
-      expect(component.indicatorSortMode()).toBe('default');
+      // 1. Default order is descending: highest first
+      expect(component.indicatorSortMode()).toBe('desc');
       let layouts = component.indicatorLayouts();
+      const descCategories = layouts[0].layout.categoryGroups.map((g) => g.categoryName);
+      expect(descCategories[0]).toBe('Kota Magelang'); // 81.0
+      expect(descCategories[descCategories.length - 1]).toBe('Kab. Wonosobo'); // 65.0
+
+      // 2. Can be switched back to original data order
+      component.setIndicatorSortMode('default');
+      layouts = component.indicatorLayouts();
       expect(layouts[0].layout.categoryGroups.map((g) => g.categoryName)).toEqual([
         'Kab. Magelang',
         'Kota Magelang',
@@ -639,13 +648,6 @@ describe('ChartVisualizerComponent', () => {
         'Kab. Purworejo',
         'Kab. Wonosobo',
       ]);
-
-      // 2. Sort descending: highest first
-      component.setIndicatorSortMode('desc');
-      layouts = component.indicatorLayouts();
-      const descCategories = layouts[0].layout.categoryGroups.map((g) => g.categoryName);
-      expect(descCategories[0]).toBe('Kota Magelang'); // 81.0
-      expect(descCategories[descCategories.length - 1]).toBe('Kab. Wonosobo'); // 65.0
 
       // 3. Sort ascending: lowest first
       component.setIndicatorSortMode('asc');
@@ -944,6 +946,125 @@ describe('ChartVisualizerComponent', () => {
       expect(component.hoveredMapDistrict()).toBeNull();
     });
 
+    it('should open region inspector as a compact floating window on the right when a region is clicked without dark backdrop, and close on button/escape', () => {
+      populateTestData();
+      component.dataSource.set('join');
+      component.setViewMode('by-map');
+      fixture.detectChanges();
+
+      const result = component.mapHeatmapResult()!;
+      const magelangItem = result.items.find((i) => i.district.id === '33-71')!; // Kota Magelang
+      expect(magelangItem).toBeDefined();
+
+      expect(component.selectedMapDistrict()).toBeNull();
+
+      // Click district polygon or select via method
+      component.selectMapDistrict(magelangItem);
+      fixture.detectChanges();
+
+      expect(component.selectedMapDistrict()?.district.kabupatenKota).toBe('KOTA MAGELANG');
+
+      // Verify floating window is rendered without dark backdrop
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('[data-testid="map-inspector-backdrop"]')).toBeNull();
+
+      const floatingWindow = compiled.querySelector('[data-testid="map-district-inspector-modal"]');
+      expect(floatingWindow).toBeTruthy();
+      expect(floatingWindow?.textContent).toContain('KOTA MAGELANG');
+      expect(floatingWindow?.textContent).toContain(magelangItem.formattedValue);
+
+      // Close via close button
+      const closeBtn = compiled.querySelector('[data-testid="close-map-inspector-btn"]') as HTMLButtonElement;
+      expect(closeBtn).toBeTruthy();
+      closeBtn.click();
+      fixture.detectChanges();
+
+      expect(component.selectedMapDistrict()).toBeNull();
+      expect(compiled.querySelector('[data-testid="map-district-inspector-modal"]')).toBeNull();
+
+      // Reopen and test close via Escape key HostListener
+      component.selectMapDistrict(magelangItem);
+      expect(component.selectedMapDistrict()).not.toBeNull();
+      component.onEscapePressed();
+      expect(component.selectedMapDistrict()).toBeNull();
+    });
+
+    it('should expand map to full width and toggle region rankings in a floating window without dark backdrop', () => {
+      populateTestData();
+      component.dataSource.set('join');
+      component.setViewMode('by-map');
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+
+      // 1. Verify map container is full width and has no static 4-column sidebar
+      const mapContainer = compiled.querySelector('[data-testid="map-fullwidth-container"]');
+      expect(mapContainer).toBeTruthy();
+      expect(mapContainer?.classList.contains('w-full')).toBe(true);
+
+      // Verify toggle button exists in map overlay and redundant header button is removed
+      const toggleBtn = compiled.querySelector('[data-testid="toggle-map-rankings-btn"]') as HTMLButtonElement;
+      expect(toggleBtn).toBeTruthy();
+      expect(compiled.querySelector('[data-testid="header-toggle-map-rankings-btn"]')).toBeNull();
+
+      // Initially, rankings floating window is closed
+      expect(component.showMapRankings()).toBe(false);
+      expect(compiled.querySelector('[data-testid="map-rankings-floating-window"]')).toBeNull();
+
+      // 2. Click toggle button to open rankings floating window
+      toggleBtn.click();
+      fixture.detectChanges();
+
+      expect(component.showMapRankings()).toBe(true);
+      const rankingsWindow = compiled.querySelector('[data-testid="map-rankings-floating-window"]');
+      expect(rankingsWindow).toBeTruthy();
+      // Ensure no dark backdrop exists
+      expect(compiled.querySelector('[data-testid="map-inspector-backdrop"]')).toBeNull();
+
+      // Check rendered ranking items (5 valid in test data)
+      const rankedRows = compiled.querySelectorAll('[data-testid="ranked-district-item"]');
+      expect(rankedRows.length).toBe(5);
+      expect(rankingsWindow?.textContent).toContain('Kota Magelang');
+
+      // 3. Test filter tabs (top 5, bottom 5, all)
+      component.setMapRankingsFilter('top5');
+      fixture.detectChanges();
+      expect(component.mapRankingsDisplayItems().length).toBe(5);
+
+      component.setMapRankingsFilter('bottom5');
+      fixture.detectChanges();
+      expect(component.mapRankingsDisplayItems().length).toBe(5);
+
+      component.setMapRankingsFilter('all');
+      fixture.detectChanges();
+      expect(component.mapRankingsDisplayItems().length).toBe(5);
+
+      // 4. Clicking a district from ranking opens region inspector
+      const firstRankedRow = compiled.querySelector('[data-testid="ranked-district-item"]') as HTMLElement;
+      firstRankedRow.click();
+      fixture.detectChanges();
+
+      expect(component.selectedMapDistrict()).not.toBeNull();
+      const inspectorModal = compiled.querySelector('[data-testid="map-district-inspector-modal"]');
+      expect(inspectorModal).toBeTruthy();
+
+      // 5. Test close rankings window via close button
+      const closeRankingsBtn = compiled.querySelector('[data-testid="close-map-rankings-btn"]') as HTMLButtonElement;
+      expect(closeRankingsBtn).toBeTruthy();
+      closeRankingsBtn.click();
+      fixture.detectChanges();
+
+      expect(component.showMapRankings()).toBe(false);
+      expect(compiled.querySelector('[data-testid="map-rankings-floating-window"]')).toBeNull();
+
+      // 6. Test close rankings window via Escape key when inspector is closed
+      component.closeMapDistrictInspector();
+      component.toggleMapRankings();
+      expect(component.showMapRankings()).toBe(true);
+      component.onEscapePressed();
+      expect(component.showMapRankings()).toBe(false);
+    });
+
     it('should provide continuous gradient CSS and indicator explanation for stunting relevance', () => {
       component.setViewMode('by-map');
       component.setActiveMapIndicator('tw1');
@@ -1033,7 +1154,8 @@ describe('ChartVisualizerComponent', () => {
       const data: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
       expect(data.length).toBe(7); // 1 header + 5 rows + 1 target row
       expect(data[0]).toEqual(['Wilayah', 'Triwulan 1']);
-      expect(data[1]).toEqual(['Kab. Magelang', 72.4]);
+      expect(data[1]).toEqual(['Kota Magelang', 81]);
+      expect(data[2]).toEqual(['Kab. Magelang', 72.4]);
       expect(data[6]).toEqual(['Target', '-']);
 
       // Calling exportExcel should run without throwing and set notification
@@ -1474,17 +1596,17 @@ describe('ChartVisualizerComponent', () => {
       expect(sortSelect).toBeTruthy();
       expect(gridSelect).toBeTruthy();
 
-      // Verify initial selected state displays correct text and value without interaction
+      // Verify initial selected state displays correct text and value without interaction (default is desc)
       expect(gridSelect.value).toBe('2');
       expect(gridSelect.selectedOptions[0]?.text).toBe('2 Kolom / Baris');
-      expect(sortSelect.value).toBe('default');
-      expect(sortSelect.selectedOptions[0]?.text).toBe('Sesuai Urutan Data (Asli)');
+      expect(sortSelect.value).toBe('desc');
+      expect(sortSelect.selectedOptions[0]?.text).toContain('Rata-rata Tertinggi');
 
       // Change sort mode via method & verify select reflects value
-      component.setRegionSortMode('desc');
+      component.setRegionSortMode('default');
       fixture.detectChanges();
-      expect(component.regionSortMode()).toBe('desc');
-      expect(sortSelect.value).toBe('desc');
+      expect(component.regionSortMode()).toBe('default');
+      expect(sortSelect.value).toBe('default');
 
       component.setRegionSortMode('asc');
       fixture.detectChanges();
@@ -1579,16 +1701,21 @@ describe('ChartVisualizerComponent', () => {
       expect(sortSelect).toBeTruthy();
       expect(gridSelect).toBeTruthy();
 
-      // Verify initial selected state displays correct text and value without interaction
+      // Verify initial selected state displays correct text and value without interaction (default is desc)
       expect(gridSelect.value).toBe('2');
       expect(gridSelect.selectedOptions[0]?.text).toBe('2 Grafik / Baris');
-      expect(sortSelect.value).toBe('default');
-      expect(sortSelect.selectedOptions[0]?.text).toBe('Sesuai Urutan Data (Asli)');
-
-      component.setIndicatorSortMode('desc');
-      fixture.detectChanges();
-      expect(component.indicatorSortMode()).toBe('desc');
       expect(sortSelect.value).toBe('desc');
+      expect(sortSelect.selectedOptions[0]?.text).toContain('Capaian Tertinggi');
+
+      component.setIndicatorSortMode('default');
+      fixture.detectChanges();
+      expect(component.indicatorSortMode()).toBe('default');
+      expect(sortSelect.value).toBe('default');
+
+      component.setIndicatorSortMode('asc');
+      fixture.detectChanges();
+      expect(component.indicatorSortMode()).toBe('asc');
+      expect(sortSelect.value).toBe('asc');
 
       component.setIndicatorGridColumns(3);
       fixture.detectChanges();
@@ -1883,62 +2010,253 @@ describe('ChartVisualizerComponent', () => {
       expect(compiled.textContent).toContain('2025 TW4');
       expect(compiled.textContent).toContain('26 / 35');
     });
+  });
 
-    it('should switch viewMode to overview and compute diverging bars and district leaderboard', () => {
+  describe('Environment feature flags: Matriks Korelasi, Kuadran Prioritas & Tren Lintas Periode options', () => {
+    it('should hide Matriks Korelasi, Kuadran Prioritas and Tren Lintas Periode option buttons by default when disabled in environment', () => {
       component.dataSource.set('join');
-      component.categoryColumn.set('Kabupaten');
-      component.dataRows.set([
-        { Kabupaten: 'Kabupaten Cilacap', 'Stunting %': 12.0, 'Anemia %': 15.0 },
-        { Kabupaten: 'Kabupaten Banyumas', 'Stunting %': 16.5, 'Anemia %': 22.0 },
-        { Kabupaten: 'Kota Semarang', 'Stunting %': 8.5, 'Anemia %': 10.0 },
-        { Kabupaten: 'Rata-rata Jawa Tengah', 'Stunting %': 13.0, 'Anemia %': 16.0 },
-      ]);
-      component.selectedCategories.set([
-        'Kabupaten Cilacap',
-        'Kabupaten Banyumas',
-        'Kota Semarang',
-        'Rata-rata Jawa Tengah',
-      ]);
-      component.seriesList.set([
-        { key: 'Stunting %', label: 'Stunting %', color: '#dc2626' },
-        { key: 'Anemia %', label: 'Anemia %', color: '#ea580c' },
-      ]);
-      component.selectedSeriesKeys.set(['Stunting %', 'Anemia %']);
-      component.indicatorTargets.set({
-        'Stunting %': 14.0,
-        'Anemia %': 18.0,
-      });
-      component.indicatorTargetOperators.set({
-        'Stunting %': '<=',
-        'Anemia %': '<=',
-      });
-
-      component.setViewMode('overview');
       fixture.detectChanges();
 
-      expect(component.viewMode()).toBe('overview');
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('[data-testid="tab-by-correlation"]')).toBeNull();
+      expect(el.querySelector('[data-testid="tab-by-quadrant"]')).toBeNull();
+      expect(el.querySelector('[data-testid="tab-by-trends"]')).toBeNull();
+      expect(el.textContent).not.toContain('Matriks Korelasi');
+      expect(el.textContent).not.toContain('Kuadran Prioritas');
+      expect(el.textContent).not.toContain('Tren Lintas Periode');
+    });
 
-      const diverging = component.overviewDivergingResult();
-      expect(diverging).not.toBeNull();
-      expect(diverging?.totalTargeted).toBe(2);
-      expect(diverging?.items.length).toBe(2);
+    it('should show Matriks Korelasi button when enableCorrelationMatrix is true', () => {
+      component.dataSource.set('join');
+      component.enableCorrelationMatrix.set(true);
+      fixture.detectChanges();
 
-      const leaderboard = component.overviewDistrictLeaderboard();
-      expect(leaderboard.totalDistricts).toBe(3); // excludes Rata-rata Jawa Tengah
-      expect(leaderboard.top5.length).toBe(3);
-      expect(leaderboard.top5[0].name).toBe('Kota Semarang');
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('[data-testid="tab-by-correlation"]')).not.toBeNull();
+      expect(el.textContent).toContain('Matriks Korelasi');
+    });
 
-      // Diverging filter controls
-      component.setDivergingFilterMode('deficit-only');
-      expect(component.divergingFilterMode()).toBe('deficit-only');
+    it('should show Kuadran Prioritas button when enablePriorityQuadrant is true', () => {
+      component.dataSource.set('join');
+      component.enablePriorityQuadrant.set(true);
+      fixture.detectChanges();
 
-      // Diverging sort controls
-      component.setDivergingSortMode('achieved-first');
-      expect(component.divergingSortMode()).toBe('achieved-first');
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('[data-testid="tab-by-quadrant"]')).not.toBeNull();
+      expect(el.textContent).toContain('Kuadran Prioritas');
+    });
 
-      const compiled = fixture.nativeElement as HTMLElement;
-      expect(compiled.querySelector('[data-testid="overview-panel"]')).toBeTruthy();
-      expect(compiled.textContent).toContain('Analisis Kesenjangan Kinerja terhadap Target');
+    it('should show Tren Lintas Periode button when enablePeriodTrends is true', () => {
+      component.dataSource.set('join');
+      component.enablePeriodTrends.set(true);
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('[data-testid="tab-by-trends"]')).not.toBeNull();
+      expect(el.textContent).toContain('Tren Lintas Periode');
     });
   });
+
+  describe('Default Quarterly Loading and No Excel Upload Option', () => {
+    let mockBuffer: ArrayBuffer;
+
+    beforeEach(() => {
+      TestBed.inject(HealthDataExchange).clearChartData();
+      component.clearFile();
+      const ws = XLSX.utils.aoa_to_sheet([
+        ['Kabupaten/Kota', 'Cakupan ASI (%)', 'Imunisasi Lengkap (%)'],
+        ['Kab. Banyumas', 85, 90],
+        ['Kab. Cilacap', 78, 88],
+      ]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Hasil Join');
+      mockBuffer = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
+    });
+
+    it('should not contain any file input for uploading excel files', () => {
+      const fileInputs = fixture.nativeElement.querySelectorAll('input[type="file"][accept*=".xlsx"]');
+      expect(fileInputs.length).toBe(0);
+    });
+
+    it('should show empty state card directing to /data when no data is loaded', () => {
+      component.dataSource.set('empty');
+      fixture.detectChanges();
+      const emptyCard = fixture.nativeElement.querySelector('[data-testid="chart-empty-state"]');
+      expect(emptyCard).not.toBeNull();
+      expect(emptyCard.textContent).toContain('Belum Ada Data Tersimpan di Server');
+      expect(emptyCard.textContent).toContain('Buka Menu Data');
+    });
+
+    it('should load TW1 of previous year when it is the only dataset on the server', async () => {
+      vi.spyOn(component.periodPartitionWorkspace, 'isStorageConfigured').mockReturnValue(true);
+      vi.spyOn(component.periodPartitionWorkspace, 'refreshPeriods').mockResolvedValue([
+        { year: 2025, quarter: 'TW1', hasRaw: true, hasResult: true, hasConfig: false },
+      ]);
+      vi.spyOn(component.periodPartitionWorkspace, 'loadRawPeriod').mockResolvedValue({
+        success: true,
+        hasData: true,
+        year: 2025,
+        quarter: 'TW1',
+        resultExcelBuffer: mockBuffer,
+      });
+
+      const loaded = await component.loadDefaultQuarterFromServer(true);
+      expect(loaded).toBe(true);
+      expect(component.activePeriod()).toBe('TW1 2025');
+      expect(component.dataSource()).toBe('join');
+      expect(component.hasLoadedData()).toBe(true);
+      expect(component.dataRows().length).toBe(2);
+
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('Periode: TW1 2025');
+    });
+
+    it('should sort and load the most recent quarter among multiple datasets', async () => {
+      vi.spyOn(component.periodPartitionWorkspace, 'isStorageConfigured').mockReturnValue(true);
+      vi.spyOn(component.periodPartitionWorkspace, 'refreshPeriods').mockResolvedValue([
+        { year: 2024, quarter: 'TW4', hasRaw: true, hasResult: true, hasConfig: false },
+        { year: 2025, quarter: 'TW1', hasRaw: true, hasResult: true, hasConfig: false },
+        { year: 2025, quarter: 'TW3', hasRaw: true, hasResult: true, hasConfig: false },
+      ]);
+      const loadSpy = vi.spyOn(component.periodPartitionWorkspace, 'loadRawPeriod').mockResolvedValue({
+        success: true,
+        hasData: true,
+        year: 2025,
+        quarter: 'TW3',
+        resultExcelBuffer: mockBuffer,
+      });
+
+      const loaded = await component.loadDefaultQuarterFromServer(true);
+      expect(loaded).toBe(true);
+      expect(loadSpy).toHaveBeenCalledWith(2025, 'TW3', { preferResult: true });
+      expect(component.activePeriod()).toBe('TW3 2025');
+    });
+
+    it('should return false if server has no datasets stored', async () => {
+      vi.spyOn(component.periodPartitionWorkspace, 'isStorageConfigured').mockReturnValue(true);
+      vi.spyOn(component.periodPartitionWorkspace, 'refreshPeriods').mockResolvedValue([
+        { year: 2025, quarter: 'TW1', hasRaw: false, hasResult: false, hasConfig: false },
+      ]);
+
+      const loaded = await component.loadDefaultQuarterFromServer(true);
+      expect(loaded).toBe(false);
+      expect(component.dataSource()).toBe('empty');
+    });
+
+    it('should automatically invoke loadDefaultQuarterFromServer in ngOnInit if dataSource is empty', async () => {
+      component.dataSource.set('empty');
+      const loadSpy = vi.spyOn(component, 'loadDefaultQuarterFromServer').mockResolvedValue(true);
+      await component.ngOnInit();
+      expect(loadSpy).toHaveBeenCalled();
+    });
+  });
+
+
+  describe('Direct Switching Between Datasets in Visualization', () => {
+    let mockMultiWorkbook: any;
+
+    beforeEach(() => {
+      TestBed.inject(HealthDataExchange).clearChartData();
+      component.clearFile();
+
+      const wsHasilJoin = XLSX.utils.aoa_to_sheet([
+        ['Kabupaten/Kota', 'ASI Eksklusif (%)', 'Imunisasi Lengkap (%)'],
+        ['Kab. Banyumas', 85, 90],
+        ['Kab. Cilacap', 78, 88],
+      ]);
+      const wsMasalahGizi = XLSX.utils.aoa_to_sheet([
+        ['Kabupaten/Kota', 'Stunting (%)', 'Wasting (%)', 'BBLR (%)'],
+        ['Kab. Banyumas', 12.5, 6.2, 4.1],
+        ['Kab. Cilacap', 15.1, 7.8, 5.9],
+      ]);
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, wsHasilJoin, 'Hasil Join');
+      XLSX.utils.book_append_sheet(wb, wsMasalahGizi, 'MASALAH GIZI');
+      mockMultiWorkbook = wb;
+      component.workbook = wb;
+      component.rawExcelBuffer = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
+      TestBed.inject(HealthDataExchange).setRawWorkbook(wb, component.rawExcelBuffer);
+    });
+
+    it('should allow directly switching to Masalah Gizi from Intervensi Spesifik and default to percentage indicators only', () => {
+      component.switchDataset('intervensi-spesifik');
+      expect(component.activeDataset()).toBe('intervensi-spesifik');
+      expect(component.dataRows().length).toBe(2);
+      expect(component.allColumns()).toContain('ASI Eksklusif (%)');
+      // Defaults to percentage indicators only, excluding non-percentage like Sasaran Balita
+      expect(component.selectedSeriesKeys()).toEqual(['ASI Eksklusif (%)', 'Imunisasi Lengkap (%)']);
+      expect(component.selectedSeriesKeys()).not.toContain('Sasaran Balita');
+
+      component.switchDataset('masalah-gizi');
+      expect(component.activeDataset()).toBe('masalah-gizi');
+      expect(component.allColumns()).toContain('Stunting (%)');
+      expect(component.chartTitle()).toContain('Masalah Gizi');
+      // Defaults to percentage indicators only, excluding non-percentage like Jumlah Sasaran
+      expect(component.selectedSeriesKeys()).toEqual(['Stunting (%)', 'Wasting (%)', 'BBLR (%)']);
+      expect(component.selectedSeriesKeys()).not.toContain('Jumlah Sasaran');
+
+      // User can add or remove indicators as needed
+      component.toggleSeriesColumn('Jumlah Sasaran');
+      expect(component.selectedSeriesKeys()).toContain('Jumlah Sasaran');
+      component.toggleSeriesColumn('BBLR (%)');
+      expect(component.selectedSeriesKeys()).not.toContain('BBLR (%)');
+
+      component.switchDataset('intervensi-spesifik');
+      expect(component.activeDataset()).toBe('intervensi-spesifik');
+      expect(component.allColumns()).toContain('ASI Eksklusif (%)');
+      expect(component.selectedSeriesKeys()).toEqual(['ASI Eksklusif (%)', 'Imunisasi Lengkap (%)']);
+      expect(component.selectedSeriesKeys()).not.toContain('Sasaran Balita');
+    });
+
+    it('should render dataset switcher buttons in the template and respond to clicks', () => {
+      component.switchDataset('intervensi-spesifik');
+      fixture.detectChanges();
+
+      const intervensiBtn = fixture.nativeElement.querySelector('[data-testid="dataset-switch-intervensi"]') as HTMLButtonElement;
+      const giziBtn = fixture.nativeElement.querySelector('[data-testid="dataset-switch-gizi"]') as HTMLButtonElement;
+
+      expect(intervensiBtn).not.toBeNull();
+      expect(giziBtn).not.toBeNull();
+
+      giziBtn.click();
+      fixture.detectChanges();
+
+      expect(component.activeDataset()).toBe('masalah-gizi');
+      expect(fixture.nativeElement.textContent).toContain('Masalah Gizi');
+    });
+
+    it('should dynamically join Masalah Gizi from rawWorkbook if resultExcelBuffer only has Hasil Join', () => {
+      const wsHasilJoinOnly = XLSX.utils.aoa_to_sheet([
+        ['Kabupaten/Kota', 'ASI Eksklusif (%)'],
+        ['Banyumas', 85],
+      ]);
+      const resWb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(resWb, wsHasilJoinOnly, 'Hasil Join');
+      component.resultWorkbook = resWb;
+      component.resultExcelBuffer = XLSX.write(resWb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
+
+      const wsAnak = XLSX.utils.aoa_to_sheet([
+        ['Judul Anak'],
+        [],
+        ['No', 'Kabupaten/Kota', 'Bayi baru lahir - Persentase bayi dengan berat badan lahir rendah (berat badan < 2500 gram) - Jumlah bayi BBLR', 'Bayi baru lahir - Persentase bayi dengan berat badan lahir rendah (berat badan < 2500 gram) - %'],
+        [],
+        [],
+        [],
+        [1, 'Banyumas', 10, 4.5],
+      ]);
+      const rawWb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(rawWb, wsAnak, 'anak');
+      component.rawWorkbook = rawWb;
+      component.rawExcelBuffer = XLSX.write(rawWb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
+
+      component.switchDataset('masalah-gizi');
+
+      expect(component.activeDataset()).toBe('masalah-gizi');
+      expect(component.chartTitle()).toContain('Masalah Gizi');
+      expect(component.dataRows().length).toBeGreaterThan(0);
+      expect(component.allColumns().some((c) => c.toLowerCase().includes('bblr'))).toBe(true);
+    });
+  });
+
 });

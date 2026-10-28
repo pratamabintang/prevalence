@@ -135,7 +135,7 @@ export class GasStorageService {
   async ping(customUrl?: string): Promise<GasPingResult> {
     const url = (customUrl || this.getUrl()).trim();
     if (!url) {
-      return { success: false, error: 'URL Google Apps Script belum diisi.' };
+      return { success: false, error: 'URL server belum diisi.' };
     }
 
     try {
@@ -155,7 +155,7 @@ export class GasStorageService {
       const data = await res.json();
       return {
         success: !!data.success,
-        message: data.message || 'Koneksi ke Google Apps Script berhasil.',
+        message: data.message || 'Koneksi ke server penyimpanan berhasil.',
         timestamp: data.timestamp,
         error: data.error,
       };
@@ -163,7 +163,7 @@ export class GasStorageService {
       const msg = err instanceof Error ? err.message : String(err);
       return {
         success: false,
-        error: `Gagal terhubung ke Google Apps Script: ${msg}`,
+        error: `Gagal terhubung ke server: ${msg}`,
       };
     }
   }
@@ -177,7 +177,7 @@ export class GasStorageService {
       return {
         success: false,
         periods: [],
-        message: 'URL Google Apps Script belum dikonfigurasi.',
+        message: 'URL server belum dikonfigurasi.',
       };
     }
 
@@ -201,7 +201,7 @@ export class GasStorageService {
         return {
           success: false,
           periods: [],
-          error: data.error || 'Gagal mengambil daftar periode dari Google Drive.',
+          error: data.error || 'Gagal mengambil daftar periode tersimpan.',
         };
       }
 
@@ -214,7 +214,7 @@ export class GasStorageService {
       return {
         success: false,
         periods: [],
-        error: `Koneksi Google Apps Script bermasalah: ${msg}`,
+        error: `Koneksi server bermasalah: ${msg}`,
       };
     }
   }
@@ -235,7 +235,7 @@ export class GasStorageService {
       return {
         success: false,
         hasData: false,
-        message: 'URL Google Apps Script belum dikonfigurasi.',
+        message: 'URL server belum dikonfigurasi.',
       };
     }
 
@@ -263,7 +263,7 @@ export class GasStorageService {
         return {
           success: false,
           hasData: false,
-          error: data.error || `Gagal memuat periode ${year} ${quarter} dari Google Drive.`,
+          error: data.error || `Gagal memuat periode ${year} ${quarter}.`,
         };
       }
 
@@ -273,7 +273,7 @@ export class GasStorageService {
           hasData: false,
           year,
           quarter,
-          message: data.message || `Belum ada data untuk periode ${year} ${quarter} di Google Drive.`,
+          message: data.message || `Belum ada data tersimpan untuk periode ${year} ${quarter}.`,
         };
       }
 
@@ -314,7 +314,7 @@ export class GasStorageService {
       return {
         success: false,
         hasData: false,
-        error: `Koneksi Google Apps Script bermasalah: ${msg}`,
+        error: `Koneksi server bermasalah: ${msg}`,
       };
     }
   }
@@ -330,7 +330,7 @@ export class GasStorageService {
     if (!url) {
       return {
         success: false,
-        error: 'URL Google Apps Script belum dikonfigurasi.',
+        error: 'URL server belum dikonfigurasi.',
       };
     }
 
@@ -357,7 +357,7 @@ export class GasStorageService {
         config: payload.config,
       };
 
-      // Gunakan text/plain untuk melewati CORS preflight OPTIONS pada GAS
+      // Gunakan text/plain untuk melewati CORS preflight OPTIONS pada backend/GAS
       const res = await fetch(url, {
         method: 'POST',
         headers: {
@@ -370,7 +370,7 @@ export class GasStorageService {
       if (!res.ok) {
         return {
           success: false,
-          error: `Gagal mengunggah ke Google Drive (status ${res.status}: ${res.statusText})`,
+          error: `Gagal mengunggah ke penyimpanan (status ${res.status}: ${res.statusText})`,
         };
       }
 
@@ -378,24 +378,20 @@ export class GasStorageService {
       if (!data.success) {
         return {
           success: false,
-          error: data.error || 'Google Apps Script melaporkan kegagalan penyimpanan periode.',
+          error: data.error || 'Server melaporkan kegagalan penyimpanan periode.',
         };
       }
 
       return {
         success: true,
-        message: data.message || `Berhasil menyimpan data periode ${payload.year} ${payload.quarter} ke Google Drive.`,
+        message: data.message || `Berhasil menyimpan data periode ${payload.year} ${payload.quarter}.`,
         updatedAt: data.updatedAt,
       };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      let hint = '';
-      if (msg.includes('Failed to fetch')) {
-        hint = ' (Periksa hak akses deployment Google Apps Script "Anyone" dan pastikan URL berakhiran /exec)';
-      }
       return {
         success: false,
-        error: `Gagal mengirim data periode ke Google Apps Script: ${msg}${hint}`,
+        error: `Gagal mengirim data periode ke server: ${msg}`,
       };
     }
   }
@@ -409,7 +405,7 @@ export class GasStorageService {
       return {
         success: false,
         hasData: false,
-        message: 'URL Google Apps Script belum dikonfigurasi.',
+        message: 'URL server belum dikonfigurasi.',
       };
     }
 
@@ -433,7 +429,7 @@ export class GasStorageService {
         return {
           success: false,
           hasData: false,
-          error: data.error || 'Gagal memuat data dari Google Drive.',
+          error: data.error || 'Gagal memuat data tersimpan.',
         };
       }
 
@@ -441,7 +437,7 @@ export class GasStorageService {
         return {
           success: true,
           hasData: false,
-          message: data.message || 'Belum ada data default di Google Drive.',
+          message: data.message || 'Belum ada data default tersimpan.',
         };
       }
 
@@ -459,7 +455,7 @@ export class GasStorageService {
       return {
         success: false,
         hasData: false,
-        error: `Koneksi Google Apps Script bermasalah: ${msg}`,
+        error: `Koneksi server bermasalah: ${msg}`,
       };
     }
   }
@@ -476,7 +472,7 @@ export class GasStorageService {
     if (!url) {
       return {
         success: false,
-        error: 'URL Google Apps Script belum dikonfigurasi.',
+        error: 'URL server belum dikonfigurasi.',
       };
     }
 
@@ -515,7 +511,7 @@ export class GasStorageService {
       if (!res.ok) {
         return {
           success: false,
-          error: `Gagal mengunggah ke Google Drive (status ${res.status}: ${res.statusText})`,
+          error: `Gagal mengunggah ke server (status ${res.status}: ${res.statusText})`,
         };
       }
 
@@ -523,37 +519,33 @@ export class GasStorageService {
       if (!data.success) {
         return {
           success: false,
-          error: data.error || 'Google Apps Script melaporkan kegagalan penyimpanan.',
+          error: data.error || 'Server melaporkan kegagalan penyimpanan.',
         };
       }
 
       return {
         success: true,
-        message: data.message || 'Berhasil menyimpan default ke Google Drive.',
+        message: data.message || 'Berhasil menyimpan default.',
         updatedAt: data.updatedAt,
       };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      let hint = '';
-      if (msg.includes('Failed to fetch')) {
-        hint = ' (Periksa: 1. Hak akses deployment wajib "Anyone", 2. URL wajib berakhiran /exec, 3. Fungsi testAuthorizeDrive sudah dijalankan untuk izin Drive)';
-      }
       return {
         success: false,
-        error: `Gagal mengirim data ke Google Apps Script: ${msg}${hint}`,
+        error: `Gagal mengirim data ke server: ${msg}`,
       };
     }
   }
 
   /**
-   * Menghapus default kustom dari Google Drive (reset ke bawaan sistem).
+   * Menghapus default kustom (reset ke bawaan sistem).
    */
   async resetDefault(): Promise<GasSaveResult> {
     const url = this.getUrl();
     if (!url) {
       return {
         success: false,
-        error: 'URL Google Apps Script belum dikonfigurasi.',
+        error: 'URL server belum dikonfigurasi.',
       };
     }
 
@@ -574,20 +566,20 @@ export class GasStorageService {
       if (!res.ok) {
         return {
           success: false,
-          error: `Gagal reset di Google Drive (status ${res.status}: ${res.statusText})`,
+          error: `Gagal reset di server (status ${res.status}: ${res.statusText})`,
         };
       }
 
       const data = await res.json();
       return {
         success: !!data.success,
-        message: data.message || 'Default kustom di Google Drive berhasil dihapus.',
+        message: data.message || 'Default kustom berhasil dihapus.',
       };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       return {
         success: false,
-        error: `Gagal mengirim permintaan reset ke Google Apps Script: ${msg}`,
+        error: `Gagal mengirim permintaan reset ke server: ${msg}`,
       };
     }
   }
@@ -603,7 +595,7 @@ export class GasStorageService {
       return {
         success: false,
         hasConfig: false,
-        message: 'URL Google Apps Script belum dikonfigurasi.',
+        message: 'URL server belum dikonfigurasi.',
       };
     }
 
@@ -640,7 +632,7 @@ export class GasStorageService {
         return {
           success: false,
           hasConfig: false,
-          error: data.error || 'Gagal memuat template konfigurasi dari Google Drive.',
+          error: data.error || 'Gagal memuat template konfigurasi.',
         };
       }
 
@@ -657,13 +649,13 @@ export class GasStorageService {
       return {
         success: false,
         hasConfig: false,
-        error: `Koneksi Google Apps Script bermasalah: ${msg}`,
+        error: `Koneksi server bermasalah: ${msg}`,
       };
     }
   }
 
   /**
-   * Menyimpan template konfigurasi join murni ke Google Drive.
+   * Menyimpan template konfigurasi join murni.
    */
   async saveTemplateConfig(
     config: unknown,
@@ -673,7 +665,7 @@ export class GasStorageService {
     if (!url) {
       return {
         success: false,
-        error: 'URL Google Apps Script belum dikonfigurasi.',
+        error: 'URL server belum dikonfigurasi.',
       };
     }
 
@@ -702,7 +694,7 @@ export class GasStorageService {
       if (!res.ok) {
         return {
           success: false,
-          error: `Gagal menyimpan template ke Google Drive (status ${res.status}: ${res.statusText})`,
+          error: `Gagal menyimpan template ke server (status ${res.status}: ${res.statusText})`,
         };
       }
 
@@ -710,20 +702,20 @@ export class GasStorageService {
       if (!data.success) {
         return {
           success: false,
-          error: data.error || 'Google Apps Script melaporkan kegagalan penyimpanan template konfigurasi.',
+          error: data.error || 'Server melaporkan kegagalan penyimpanan template konfigurasi.',
         };
       }
 
       return {
         success: true,
-        message: data.message || 'Berhasil menyimpan template konfigurasi ke Google Drive.',
+        message: data.message || 'Berhasil menyimpan template konfigurasi.',
         updatedAt: data.updatedAt,
       };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       return {
         success: false,
-        error: `Gagal mengirim template konfigurasi ke Google Apps Script: ${msg}`,
+        error: `Gagal mengirim template konfigurasi ke server: ${msg}`,
       };
     }
   }

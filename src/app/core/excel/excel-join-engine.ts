@@ -95,6 +95,7 @@ export interface JoinExportSpec {
   enableTarget?: boolean;
   columnTargets?: Record<string, ColumnTargetConfig>;
   enableCapaian?: boolean;
+  additionalSheets?: JoinExportSpec[];
 }
 
 /**
@@ -550,13 +551,14 @@ export class ExcelJoinEngine {
       }
       summaryRows.push({
         values: avgValues,
-        styler: (_colKey, _val, colIdx) => ({
+        styler: (colKey, val, colIdx) => ({
           font: { bold: true, color: { rgb: '0369A1' }, sz: 10 },
           fill: { fgColor: { rgb: 'F0F9FF' } },
           alignment: {
             horizontal: colIdx === 1 ? 'left' : 'center',
             vertical: 'center',
           },
+          numFmt: columnConfigs[colKey]?.dataType === 'percentage' && typeof val === 'number' ? '0.0"%"' : undefined,
         }),
       });
     }
@@ -714,12 +716,80 @@ export class ExcelJoinEngine {
   }
 
   /**
+   * Mengonversi beberapa lembar hasil penggabungan tabel ber-styling menjadi ArrayBuffer biner multi-sheet.
+   */
+  static buildMultiSheetJoinedBuffer(specs: JoinExportSpec[]): ArrayBuffer | null {
+    if (!specs || specs.length === 0) return null;
+    const workbook = XLSX.utils.book_new();
+    let sheetCount = 0;
+    for (const spec of specs) {
+      const styledSpec = this.buildJoinedStyledSpec(spec);
+      if (!styledSpec) continue;
+      const worksheet = ExcelEngine.buildStyledWorksheet(styledSpec);
+      XLSX.utils.book_append_sheet(workbook, worksheet, spec.sheetName || `Sheet${sheetCount + 1}`);
+      sheetCount++;
+    }
+    if (sheetCount === 0) return null;
+    return ExcelEngine.writeWorkbookToBuffer(workbook);
+  }
+
+  /**
+   * Menyusun JoinExportSpec dari hasil eksekusi preset (JoinedDatasetResult).
+   */
+  static buildExportSpecFromPresetResult(
+    result: JoinedDatasetResult,
+    preset: JoinPresetExecutionSpec,
+    sheetName: string,
+  ): JoinExportSpec {
+    return {
+      sheetName,
+      resultRows: result.rows,
+      resultColumns: result.columns,
+      resultColumnsMeta: result.columns.map((c) => ({ key: c, layers: [c] })),
+      customColumnNames: preset.customColumnNames,
+      outputHeaderFormat: preset.outputHeaderFormat || 'concat',
+      columnConfigs: preset.columnConfigs,
+      enableJumlah: preset.enableJumlah ?? true,
+      sumColumns: preset.sumColumns,
+      enableAverage: preset.enableAverage ?? true,
+      avgColumns: preset.avgColumns,
+      enableTarget: preset.enableTarget ?? true,
+      columnTargets: preset.columnTargets,
+      enableCapaian: false,
+    };
+  }
+
+  /**
    * Menghasilkan buku kerja Excel ber-styling lengkap dengan baris ringkasan dan unduh.
    */
   static exportJoinedWorkbook(spec: JoinExportSpec): void {
+    if (spec.additionalSheets && spec.additionalSheets.length > 0) {
+      const allSpecs = [spec, ...spec.additionalSheets];
+      this.exportMultiSheetJoinedWorkbook(spec.fileName || 'Hasil_Join_Excel.xlsx', allSpecs);
+      return;
+    }
     const styledSpec = this.buildJoinedStyledSpec(spec);
     if (!styledSpec) return;
     ExcelEngine.exportStyledTable(styledSpec);
+  }
+
+  /**
+   * Menghasilkan buku kerja Excel multi-sheet ber-styling lengkap dan unduh.
+   */
+  static exportMultiSheetJoinedWorkbook(fileName: string, specs: JoinExportSpec[]): void {
+    if (!specs || specs.length === 0) return;
+    const sheets: { sheetName: string; worksheet: XLSX.WorkSheet }[] = [];
+    for (const spec of specs) {
+      const styledSpec = this.buildJoinedStyledSpec(spec);
+      if (!styledSpec) continue;
+      const worksheet = ExcelEngine.buildStyledWorksheet(styledSpec);
+      sheets.push({
+        sheetName: spec.sheetName || `Sheet${sheets.length + 1}`,
+        worksheet,
+      });
+    }
+    if (sheets.length === 0) return;
+    ExcelEngine.exportMultiSheetTable(fileName, sheets);
   }
 
   /**

@@ -18,6 +18,7 @@ import {
   StuntingSubCategoryConfig,
 } from '../../core/stunting/stunting-evaluation-engine';
 import { ColumnInfo, ExcelEngine } from '../../shared/excel';
+import type { ParsedDinkesDataset } from '../../core/excel/dinkes-spreadsheet-parser';
 import { StuntingExcelExporter } from '../../core/stunting/stunting-excel-exporter';
 import { StuntingWorkflowEngine } from '../../core/stunting/stunting-workflow-engine';
 import {
@@ -33,6 +34,7 @@ import {
   StuntingPipelinePreset,
 } from '../../core/storage/configuration-workspace';
 import { NgClass } from '@angular/common';
+import { environment } from '../../../environments/environment';
 
 export interface SecondarySheetSetup {
   sheetName: string;
@@ -92,6 +94,7 @@ export class StuntingMonitoringComponent implements OnInit {
     this.loadTransferredData();
     if (this.periodPartitionWorkspace.isStorageConfigured()) {
       await this.fetchPeriodSlots();
+      await this.syncPreviousYearTw4Data();
     }
   }
 
@@ -125,6 +128,7 @@ export class StuntingMonitoringComponent implements OnInit {
   quarterLocalFiles = signal<Partial<Record<QuarterSlot, File>>>({});
   cloudLoadNotice = signal<string | null>(null);
   isMultiQuarterCloudMode = signal<boolean>(false);
+  prevYearTw4Cache = new Map<number, ParsedDinkesDataset | null>();
 
   hasAnyGasConfigured = computed<boolean>(() => this.periodPartitionWorkspace.isStorageConfigured());
 
@@ -178,6 +182,7 @@ export class StuntingMonitoringComponent implements OnInit {
   // Raw & Joined Dataset
   joinedRows = this.workflowEngine.joinedRows;
   joinedColumns = this.workflowEngine.joinedColumns;
+  showDataSourceAndPreview = signal<boolean>(false);
   previewExpanded = signal<boolean>(false);
   previewWrapText = signal<boolean>(true);
 
@@ -239,6 +244,23 @@ export class StuntingMonitoringComponent implements OnInit {
   perluPerhatianCount = this.workflowEngine.perluPerhatianCount;
 
   // Regional Performance Evaluation
+  readonly enableComparativeMatrix = signal<boolean>(
+    Boolean(
+      (
+        environment as {
+          enableComparativeMatrix?: boolean;
+          enableRegionalComparativeMatrix?: boolean;
+        }
+      ).enableComparativeMatrix ??
+        (
+          environment as {
+            enableComparativeMatrix?: boolean;
+            enableRegionalComparativeMatrix?: boolean;
+          }
+        ).enableRegionalComparativeMatrix ??
+        false,
+    ),
+  );
   regionalScorecards = this.workflowEngine.filteredRegionalScorecards;
   unfilteredRegionalCount = computed<number>(() => this.workflowEngine.regionalScorecards().length);
   regionalSortBy = this.workflowEngine.regionalSortBy;
@@ -347,6 +369,7 @@ export class StuntingMonitoringComponent implements OnInit {
   async fetchPeriodSlots(): Promise<void> {
     if (this.isLoadingPeriods()) return;
     this.isLoadingPeriods.set(true);
+    this.prevYearTw4Cache.clear();
     try {
       const periods = await this.periodPartitionWorkspace.refreshPeriods();
       this.periodSlots.set(periods);
@@ -365,6 +388,46 @@ export class StuntingMonitoringComponent implements OnInit {
   onYearChange(year: number): void {
     this.selectedYear.set(year);
     this.updateQuarterSlotsSelectionForYear(year);
+    if (this.activeStep() === 2 || this.categories().some((c) => c.subCategories.length > 0)) {
+      void this.syncPreviousYearTw4Data();
+    }
+  }
+
+  /**
+   * Memuat dataset TW4 tahun sebelumnya jika tersedia pada ruang penyimpanan / server / Google Drive.
+   */
+  async loadPreviousYearTw4Dataset(prevYear: number): Promise<ParsedDinkesDataset | null> {
+    if (this.prevYearTw4Cache.has(prevYear)) {
+      return this.prevYearTw4Cache.get(prevYear) ?? null;
+    }
+    if (!this.periodPartitionWorkspace.isStorageConfigured()) {
+      return null;
+    }
+    try {
+      const qDataset = await this.periodPartitionWorkspace.loadSingleQuarter(
+        prevYear,
+        'TW4',
+        { prefer: 'result' },
+      );
+      const ds = qDataset?.dataset ?? null;
+      this.prevYearTw4Cache.set(prevYear, ds);
+      return ds;
+    } catch (err) {
+      console.warn(`Gagal memuat data TW4 tahun sebelumnya (${prevYear}):`, err);
+      this.prevYearTw4Cache.set(prevYear, null);
+      return null;
+    }
+  }
+
+  /**
+   * Menyinkronkan nilai target dan capaian tahun lalu (Stage 2) dari TW4 tahun sebelumnya ke seluruh indikator.
+   */
+  async syncPreviousYearTw4Data(): Promise<void> {
+    const prevYear = this.selectedYear() - 1;
+    const tw4Dataset = await this.loadPreviousYearTw4Dataset(prevYear);
+    if (tw4Dataset) {
+      this.workflowEngine.applyPreviousYearTw4Data(tw4Dataset);
+    }
   }
 
   updateQuarterSlotsSelectionForYear(year: number): void {
@@ -487,7 +550,7 @@ export class StuntingMonitoringComponent implements OnInit {
 
       if (loadedQuarters.length === 0) {
         this.notificationMessage.set(
-          `Tidak ada data valid yang dapat dimuat untuk triwulan terpilih pada tahun ${year}. Pastikan data tersedia di Google Drive atau unggah berkas lokal.`,
+          `Tidak ada data valid yang dapat dimuat untuk triwulan terpilih pada tahun ${year}. Pastikan data telah tersimpan atau unggah berkas data baru.`,
         );
         return;
       }
@@ -498,7 +561,7 @@ export class StuntingMonitoringComponent implements OnInit {
 
       this.isMultiQuarterCloudMode.set(true);
       this.processMergedQuarterDatasets(loadedQuarters, year);
-      this.autoPopulateIndicatorsFromData();
+      await this.autoPopulateIndicatorsFromData();
       this.setAllSubActiveQuarter(latestQ);
 
       const quarterNames = loadedQuarters.map((lq) => lq.slot).join(', ');
@@ -544,7 +607,7 @@ export class StuntingMonitoringComponent implements OnInit {
 
       this.configNotification.set({
         type: 'success',
-        message: `Berhasil memuat data periode Tahun ${year} (${quarterNames}) dari Google Drive.`,
+        message: `Berhasil memuat data periode Tahun ${year} (${quarterNames}).`,
         details,
       });
       this.notificationMessage.set(null);
@@ -717,6 +780,10 @@ export class StuntingMonitoringComponent implements OnInit {
 
   toggleSettings(): void {
     this.showSettings.update((v) => !v);
+  }
+
+  toggleDataSourceAndPreview(): void {
+    this.showDataSourceAndPreview.update((v) => !v);
   }
 
   togglePreviewExpanded(): void {
@@ -1210,13 +1277,14 @@ export class StuntingMonitoringComponent implements OnInit {
     this.workflowEngine.setCalculationDataSource(mode);
   }
 
-  autoPopulateIndicatorsFromData(): void {
+  async autoPopulateIndicatorsFromData(): Promise<void> {
     const totalLoaded = this.workflowEngine.autoPopulateIndicators();
     if (totalLoaded > 0) {
       this.notificationMessage.set(
-        `Berhasil memuat ${totalLoaded} indikator langsung dari baris data dan target. Silakan periksa pemetaan indikator atau lanjutkan ke Langkah 3.`,
+        `Berhasil memuat ${totalLoaded} indikator langsung dari baris data dan target. Silakan periksa pemetaan indikator atau lanjutkan ke Langkah 2.`,
       );
     }
+    await this.syncPreviousYearTw4Data();
   }
 
   moveSubCategoryToCategory(sourceCatId: string, subId: string, targetCatId: string): void {
@@ -1815,7 +1883,7 @@ export class StuntingMonitoringComponent implements OnInit {
     }));
   }
 
-  goToStep(step: 1 | 2 | 3): void {
+  async goToStep(step: 1 | 2 | 3): Promise<void> {
     const check = this.workflowEngine.canTransitionTo(step);
     if (!check.allowed) {
       if (step === 2) {
@@ -1830,6 +1898,9 @@ export class StuntingMonitoringComponent implements OnInit {
       return;
     }
     this.workflowEngine.transitionTo(step);
+    if (step === 2 || step === 3) {
+      await this.syncPreviousYearTw4Data();
+    }
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -1888,7 +1959,7 @@ export class StuntingMonitoringComponent implements OnInit {
       rows: res.rows,
     });
 
-    this.router.navigate(['/chart']);
+    this.router.navigate(['/visualisasi']);
   }
 
   // ============================================================
@@ -1966,7 +2037,7 @@ export class StuntingMonitoringComponent implements OnInit {
       });
       return;
     }
-    this.applyConfiguration(preset, preset.name || 'Penyimpanan Lokal');
+    this.applyConfiguration(preset, preset.name || 'Konfigurasi Tersimpan');
   }
 
   closeConfigNotification(): void {

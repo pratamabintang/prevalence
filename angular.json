@@ -30,7 +30,8 @@
             ],
             "allowedCommonJsDependencies": [
               "xlsx-js-style",
-              "xlsx"
+              "xlsx",
+              "leaflet"
             ]
           },
           "configurations": {
