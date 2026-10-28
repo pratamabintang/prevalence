@@ -177,25 +177,6 @@
             </button>
           }
         </div>
-
-        <!-- Tombol Sesi Aktif jika ada -->
-        @if (hasActiveSessionData()) {
-          <button
-            type="button"
-            data-testid="period-mode-session"
-            (click)="setPresentationSession()"
-            class="px-2.5 py-1 rounded-lg text-xs font-semibold border transition cursor-pointer"
-            [class.bg-emerald-600]="activePresentationPeriod().mode === 'session'"
-            [class.text-white]="activePresentationPeriod().mode === 'session'"
-            [class.border-emerald-600]="activePresentationPeriod().mode === 'session'"
-            [class.bg-white]="activePresentationPeriod().mode !== 'session'"
-            [class.text-emerald-700]="activePresentationPeriod().mode !== 'session'"
-            [class.border-emerald-200]="activePresentationPeriod().mode !== 'session'"
-            title="Gunakan data aktif yang baru ditransfer dari modul /data"
-          >
-            Sesi Aktif
-          </button>
-        }
       </div>
 
       <div class="flex items-center gap-2">

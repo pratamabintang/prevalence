@@ -772,10 +772,9 @@ describe('HomeComponent', () => {
       expect(component.hasActiveSessionData()).toBe(true);
 
       const el = fixture.nativeElement as HTMLElement;
-      const sessionBtn = el.querySelector('[data-testid="period-mode-session"]') as HTMLButtonElement;
-      expect(sessionBtn).toBeTruthy();
+      expect(el.querySelector('[data-testid="period-mode-session"]')).toBeNull();
 
-      sessionBtn.click();
+      component.setPresentationSession();
       fixture.detectChanges();
 
       expect(component.activePresentationPeriod().mode).toBe('session');
