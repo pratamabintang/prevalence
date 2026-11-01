@@ -157,6 +157,37 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       false,
     ),
   );
+
+  /**
+   * Kontrol visibilitas tombol "Pengaturan Kolom" (dan drawer panel pengaturannya).
+   * Dikonfigurasi melalui environment.enableColumnSettingsButton.
+   */
+  readonly enableColumnSettingsButton = signal<boolean>(
+    Boolean(
+      (
+        environment as {
+          enableColumnSettingsButton?: boolean;
+          enableExcelJoinColumnSettings?: boolean;
+          enableColumnSettings?: boolean;
+        }
+      ).enableColumnSettingsButton ??
+      (
+        environment as {
+          enableColumnSettingsButton?: boolean;
+          enableExcelJoinColumnSettings?: boolean;
+          enableColumnSettings?: boolean;
+        }
+      ).enableExcelJoinColumnSettings ??
+      (
+        environment as {
+          enableColumnSettingsButton?: boolean;
+          enableExcelJoinColumnSettings?: boolean;
+          enableColumnSettings?: boolean;
+        }
+      ).enableColumnSettings ??
+      false,
+    ),
+  );
   isDefaultData = signal<boolean>(false);
   isCloudDefault = signal<boolean>(false);
 
@@ -1008,6 +1039,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     this.customColumnNames.set(preset?.customColumnNames ? { ...preset.customColumnNames } : {});
     this.selectedColumnForMove.set(null);
     this.editingColumnKey.set(null);
+    this.editingTargetColKey.set(null);
 
     // Update state sinyal hasil
     this.resultRows.set(parsed.regionRows);
@@ -1772,7 +1804,13 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       const prev = targets[col] || { enabled: false, operator: '>=', value: null };
       const next = { ...prev, ...updates };
       if (updates.value !== undefined) {
-        next.enabled = updates.value !== null && !isNaN(updates.value);
+        if (updates.value !== null && !isNaN(updates.value)) {
+          next.value = Math.max(0, updates.value);
+          next.enabled = true;
+        } else {
+          next.value = null;
+          next.enabled = false;
+        }
       }
       return {
         ...targets,
@@ -1790,9 +1828,13 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     const input = event.target as HTMLInputElement;
     const rawVal = input.value.trim();
     const val = rawVal === '' ? null : parseFloat(rawVal);
+    const guardedVal = val !== null && !isNaN(val) ? Math.max(0, val) : null;
+    if (val !== null && val < 0) {
+      input.value = '0';
+    }
     this.updateTargetConfig(col, {
-      value: val,
-      enabled: val !== null && !isNaN(val),
+      value: guardedVal,
+      enabled: guardedVal !== null && !isNaN(guardedVal),
     });
   }
 
@@ -1814,6 +1856,75 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
         },
       };
     });
+  }
+
+  // ============================================================
+  // PENYUNTINGAN TARGET INLINE PADA SEL TABEL
+  // ============================================================
+
+  editingTargetColKey = signal<string | null>(null);
+  editingTargetOperator = signal<TargetOperator>('>=');
+  editingTargetValue = signal<string>('');
+
+  startEditingTarget(colKey: string | null | undefined, event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+    }
+    if (!colKey || colKey === this.resultColumns()[0]) {
+      return;
+    }
+    const cfg = this.columnConfigs()[colKey];
+    if (cfg?.dataType === 'string') {
+      return;
+    }
+    const currentTarget = this.columnTargets()[colKey];
+    this.editingTargetColKey.set(colKey);
+    this.editingTargetOperator.set(currentTarget?.operator || '>=');
+    if (
+      currentTarget?.enabled &&
+      currentTarget?.value !== null &&
+      currentTarget?.value !== undefined
+    ) {
+      this.editingTargetValue.set(String(currentTarget.value));
+    } else {
+      const defaultVal =
+        cfg?.dataType === 'percentage' || colKey.includes('%') ? '80' : '0';
+      this.editingTargetValue.set(defaultVal);
+    }
+
+    setTimeout(() => {
+      const input = document.querySelector<HTMLInputElement>(
+        '.inline-target-value-input',
+      );
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }, 50);
+  }
+
+  saveInlineTargetEdit(colKey: string | null | undefined): void {
+    if (!colKey || this.editingTargetColKey() !== colKey) {
+      return;
+    }
+    const op = this.editingTargetOperator();
+    const rawVal = this.editingTargetValue().trim();
+    let numVal = rawVal === '' ? null : parseFloat(rawVal);
+    if (numVal !== null && !isNaN(numVal)) {
+      numVal = Math.max(0, numVal);
+    }
+    this.editingTargetColKey.set(null);
+
+    this.updateTargetConfig(colKey, {
+      operator: op,
+      value: numVal,
+      enabled: numVal !== null && !isNaN(numVal),
+    });
+    this.saveCurrentStateToStore();
+  }
+
+  cancelInlineTargetEdit(): void {
+    this.editingTargetColKey.set(null);
   }
 
   // ============================================================
@@ -1860,6 +1971,12 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   closeTargetModal(): void {
     this.showTargetModal.set(false);
     this.modalTargetDrafts.set({});
+    // Target wajib diisi sebelum data dapat digunakan. Membatalkan modal = membatalkan keseluruhan import.
+    this.clearFile();
+    this.configNotification.set({
+      type: 'warning',
+      message: 'Import dibatalkan. Semua kolom persentase harus memiliki target sebelum data dapat digunakan.',
+    });
   }
 
   setModalTargetValue(col: string, operator: TargetOperator, value: number | null): void {
@@ -3462,6 +3579,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     this.defaultResultColumnsMeta.set([]);
     this.selectedColumnForMove.set(null);
     this.editingColumnKey.set(null);
+    this.editingTargetColKey.set(null);
   }
 
   private reset(): void {
@@ -3478,6 +3596,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     this.defaultResultColumnsMeta.set([]);
     this.selectedColumnForMove.set(null);
     this.editingColumnKey.set(null);
+    this.editingTargetColKey.set(null);
     this.customColumnNames.set({});
     this.columnTargets.set({});
     this.columnConfigs.set({});

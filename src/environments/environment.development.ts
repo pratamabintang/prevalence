@@ -5,6 +5,12 @@ export const environment = {
   enableStuntingDashboard: false,
   enableStuntingCohort: false,
   enableExcelJoinToolbarActions: false,
+  /**
+   * Tombol "Pengaturan Kolom" pada tabel hasil penggabungan data (/data).
+   * Menampilkan/menyembunyikan drawer collapsible untuk mengatur tipe data, anomali, kalkulasi baris jumlah & rata-rata, serta target kolom.
+   * Disembunyikan (false) karena target indikator dan nama kolom kini sudah dapat diubah langsung in-place lewat sel tabel.
+   */
+  enableColumnSettingsButton: false,
   enableChartToolbarActions: false,
   enableChartSettings: false,
   enablePriorityQuadrant: false,

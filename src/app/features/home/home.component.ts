@@ -403,14 +403,20 @@ export class HomeComponent implements OnInit {
       }
     }
 
-    // 3. Check OUTCOME_INDICATOR_COLUMN_MAP for standard Dinkes current-year targets
+    // 3. Check SPECIFIC_INTERVENTION_INDICATORS catalogue for declared target
+    const catalogueIndicator = SPECIFIC_INTERVENTION_INDICATORS.find((ind) => ind.key === indicatorKey);
+    if (catalogueIndicator && catalogueIndicator.target > 0) {
+      return catalogueIndicator.target;
+    }
+
+    // 4. Check OUTCOME_INDICATOR_COLUMN_MAP for standard Dinkes current-year targets (fallback only)
     for (const mapping of Object.values(OUTCOME_INDICATOR_COLUMN_MAP)) {
       if (mapping.pCol === indicatorKey && mapping.target) {
         return mapping.target;
       }
     }
 
-    // 4. Fallback
+    // 5. Fallback
     return fallbackTarget;
   }
 

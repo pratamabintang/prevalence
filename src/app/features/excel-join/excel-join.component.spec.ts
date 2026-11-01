@@ -404,6 +404,11 @@ describe('ExcelJoinComponent', () => {
       expect(component.showColumnSettings()).toBe(false);
     });
 
+    it('should configure enableColumnSettingsButton from environment', () => {
+      expect(typeof component.enableColumnSettingsButton()).toBe('boolean');
+      expect(component.enableColumnSettingsButton()).toBe(false);
+    });
+
     it('should toggle showResultsTable correctly via toggleShowResultsTable()', () => {
       expect(component.showResultsTable()).toBe(false);
       component.toggleShowResultsTable();
@@ -2660,6 +2665,152 @@ describe('ExcelJoinComponent', () => {
         component.applyTemplate('intervensi-spesifik');
         expect(component.isMasalahGizi()).toBe(false);
         expect(component.resultColumns()).toContain('% ASI Eksklusif');
+      });
+    });
+
+    describe('In-Place Column Target Editing (ADR-0019)', () => {
+      beforeEach(() => {
+        component.resultColumns.set([
+          'Kabupaten/Kota',
+          '% Konsumsi TTD',
+          'Rematri Konsumsi TTD',
+          'Keterangan',
+        ]);
+        component.columnConfigs.set({
+          'Kabupaten/Kota': {
+            dataType: 'string',
+            anomalyEnabled: false,
+            minAnomaly: null,
+            maxAnomaly: null,
+          },
+          '% Konsumsi TTD': {
+            dataType: 'percentage',
+            anomalyEnabled: false,
+            minAnomaly: null,
+            maxAnomaly: null,
+          },
+          'Rematri Konsumsi TTD': {
+            dataType: 'number',
+            anomalyEnabled: false,
+            minAnomaly: null,
+            maxAnomaly: null,
+          },
+          Keterangan: {
+            dataType: 'string',
+            anomalyEnabled: false,
+            minAnomaly: null,
+            maxAnomaly: null,
+          },
+        });
+        component.columnTargets.set({
+          '% Konsumsi TTD': { enabled: true, operator: '>=', value: 90 },
+        });
+        component.enableTarget.set(true);
+      });
+
+      it('harus menginisialisasi state penyuntingan inline dengan target yang sudah ada', () => {
+        component.startEditingTarget('% Konsumsi TTD');
+
+        expect(component.editingTargetColKey()).toBe('% Konsumsi TTD');
+        expect(component.editingTargetOperator()).toBe('>=');
+        expect(component.editingTargetValue()).toBe('90');
+      });
+
+      it('harus menginisialisasi default 80 untuk kolom persentase yang belum memiliki target', () => {
+        component.columnTargets.set({});
+        component.startEditingTarget('% Konsumsi TTD');
+
+        expect(component.editingTargetColKey()).toBe('% Konsumsi TTD');
+        expect(component.editingTargetOperator()).toBe('>=');
+        expect(component.editingTargetValue()).toBe('80');
+      });
+
+      it('harus mengabaikan startEditingTarget untuk kolom kunci (wilayah) atau kolom bertipe string', () => {
+        component.startEditingTarget('Kabupaten/Kota');
+        expect(component.editingTargetColKey()).toBeNull();
+
+        component.startEditingTarget('Keterangan');
+        expect(component.editingTargetColKey()).toBeNull();
+      });
+
+      it('harus menyimpan nilai dan operator target inline baru serta mengaktifkan target', () => {
+        component.startEditingTarget('% Konsumsi TTD');
+        component.editingTargetOperator.set('<=');
+        component.editingTargetValue.set('75.5');
+
+        component.saveInlineTargetEdit('% Konsumsi TTD');
+
+        expect(component.editingTargetColKey()).toBeNull();
+        const updated = component.columnTargets()['% Konsumsi TTD'];
+        expect(updated).toEqual({
+          enabled: true,
+          operator: '<=',
+          value: 75.5,
+        });
+      });
+
+      it('harus menonaktifkan target jika nilai target diubah menjadi kosong', () => {
+        component.startEditingTarget('% Konsumsi TTD');
+        component.editingTargetValue.set('   ');
+
+        component.saveInlineTargetEdit('% Konsumsi TTD');
+
+        expect(component.editingTargetColKey()).toBeNull();
+        const updated = component.columnTargets()['% Konsumsi TTD'];
+        expect(updated?.enabled).toBe(false);
+        expect(updated?.value).toBeNull();
+      });
+
+      it('harus membatalkan penyuntingan inline saat cancelInlineTargetEdit dipanggil tanpa mengubah data', () => {
+        component.startEditingTarget('% Konsumsi TTD');
+        component.editingTargetValue.set('50');
+
+        component.cancelInlineTargetEdit();
+
+        expect(component.editingTargetColKey()).toBeNull();
+        expect(component.columnTargets()['% Konsumsi TTD']?.value).toBe(90);
+      });
+
+      it('harus membatasi nilai target agar tidak boleh di bawah 0 (guard min 0)', () => {
+        component.startEditingTarget('% Konsumsi TTD');
+        component.editingTargetValue.set('-15');
+
+        component.saveInlineTargetEdit('% Konsumsi TTD');
+
+        const updated = component.columnTargets()['% Konsumsi TTD'];
+        expect(updated?.enabled).toBe(true);
+        expect(updated?.value).toBe(0);
+
+        // Uji juga via updateTargetConfig langsung
+        component.updateTargetConfig('% Konsumsi TTD', { value: -25 });
+        expect(component.columnTargets()['% Konsumsi TTD']?.value).toBe(0);
+      });
+    });
+
+    describe('Modal Target Wajib - Pembatalan Import', () => {
+      it('harus membatalkan import dan mengosongkan seluruh data saat closeTargetModal dipanggil', () => {
+        component.resultRows.set([{ 'Kabupaten/Kota': 'KUDUS', '% TTD': 80 }]);
+        component.resultColumns.set(['Kabupaten/Kota', '% TTD']);
+        component.file.set(new File([], 'test.xlsx'));
+        component.showTargetModal.set(true);
+        component.modalTargetDrafts.set({ '% TTD': { enabled: false, operator: '>=', value: null } });
+
+        component.closeTargetModal();
+
+        expect(component.showTargetModal()).toBe(false);
+        expect(component.file()).toBeNull();
+        expect(component.resultRows()).toHaveLength(0);
+        expect(component.resultColumns()).toHaveLength(0);
+      });
+
+      it('harus menampilkan notifikasi error saat closeTargetModal dipanggil', () => {
+        component.showTargetModal.set(true);
+
+        component.closeTargetModal();
+
+        const notif = component.configNotification();
+        expect(notif?.type).toBe('warning');
+        expect(notif?.message).toContain('Import dibatalkan');
       });
     });
   });

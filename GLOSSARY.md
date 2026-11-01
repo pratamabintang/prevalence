@@ -83,6 +83,20 @@ _Avoid_: Single-series chart, split chart, grafik per kolom mentah
 Mode visualisasi spasial geografis pada modul Visualisasi Grafik yang memetakan capaian indikator kesehatan terpilih ke dalam polygon peta SVG 35 Kabupaten/Kota Jawa Tengah. Menyajikan gradasi warna HSL adaptif, peringkat wilayah, selisih terhadap target/rata-rata provinsi, serta pemeriksa wilayah interaktif (*District Inspector*). Menampilkan satu indikator dalam satu layar dengan kendali pemilih indikator dinamis.
 _Avoid_: Peta biasa, GIS mentah, peta gambar statis
 
+**Penyuntingan Target In-Place (In-Place Column Target Editing)**:
+Mekanisme interaksi pada tabel hasil penggabungan data (modul Kelola Data) yang memungkinkan pengguna mengubah operator dan nilai target numerik suatu kolom indikator secara langsung pada sel baris target di footer tabel (melalui *double-click* atau tombol hover pensil) tanpa harus membuka modal pengaturan terpisah, dengan sinkronisasi reaktif instan ke evaluasi kelulusan sel dan kalkulasi Skor Capaian.
+_Avoid_: Edit target pop-up wajib, input target terpisah, konfigurasi manual modal
+
+**Kotak Capaian Indikator Wilayah**:
+Kotak ringkas pada kolom kiri Beranda yang menyajikan nama singkat, capaian persentase, dan target persentase satu indikator intervensi untuk satu Cakupan Wilayah terpilih (Provinsi atau salah satu dari 35 Kabupaten/Kota). Warna latar mengindikasikan status pencapaian (hijau tercapai, merah belum, netral jika data kosong), dipasangkan dengan teks status untuk aksesibilitas warna.
+_Avoid_: Kartu KPI wilayah, box per wilayah, metrik wilayah, ringkasan wilayah
+
+**Pemilih Cakupan Wilayah**:
+Kontrol dropdown pada kolom kiri Beranda yang memungkinkan pengguna memilih Cakupan Wilayah (Provinsi atau salah satu dari 35 Kabupaten/Kota), sehingga seluruh Kotak Capaian Indikator Wilayah pada kolom yang sama mengubah angka untuk konteks wilayah terpilih.
+_Avoid_: Filter wilayah, dropdown kabupaten, scope selector
+
+**Perbedaan dari konsep per-wilayah lainnya**: Kotak Capaian Indikator Wilayah adalah presentasi ringkas kotak untuk Beranda eksekutif dan berbeda secara mendasar dari **Mode Per Wilayah** (grafik batang horizontal dengan SVG layout dan peringkat), **Kartu Rapor Wilayah** (evaluasi multi-indikator satu wilayah di modul Pemantauan Stunting), dan **Matriks Komparasi Antar-Wilayah** (tabel 35 baris pada modul Pemantauan Stunting).
+
 ### Pertukaran Data Lintas Modul (Health Data Exchange)
 **Pertukaran Data Lintas Modul (Health Data Exchange)**:
 Mekanisme pengiriman data terpadu berbasis Angular Signals dan `sessionStorage` yang menghubungkan hasil operasi penggabungan lembar kerja (`ExcelJoin`) ke modul visualisasi grafik (`ChartVisualizer`) atau evaluasi stunting (`StuntingMonitoring`), memastikan ketersediaan data tetap utuh saat navigasi antar-halaman maupun penyegaran (*refresh*) peramban.
