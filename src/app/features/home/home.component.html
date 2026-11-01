@@ -226,38 +226,34 @@
         <aside class="lg:col-span-1 flex flex-col gap-4" data-testid="left-column-boxes">
           <!-- Grid of Overview Boxes (2 columns inside ratio 1 column) -->
           <div class="grid grid-cols-2 gap-2.5 sm:gap-3" data-testid="small-boxes-grid">
-            @for (box of filteredIntervensiBoxes(); track box.id) {
+            @for (box of wilayahIndicatorBoxes(); track box.indicatorKey) {
               <div
                 class="rounded-xl p-3.5 border shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between group cursor-default"
-                [class.bg-emerald-50]="box.badgeType === 'success'"
-                [class.border-emerald-200]="box.badgeType === 'success'"
-                [class.hover:border-emerald-300]="box.badgeType === 'success'"
-                [class.bg-amber-50]="box.badgeType === 'warning'"
-                [class.border-amber-200]="box.badgeType === 'warning'"
-                [class.hover:border-amber-300]="box.badgeType === 'warning'"
-                [class.bg-rose-50]="box.badgeType === 'rose'"
-                [class.border-rose-200]="box.badgeType === 'rose'"
-                [class.hover:border-rose-300]="box.badgeType === 'rose'"
-                [class.bg-blue-50]="box.badgeType === 'info'"
-                [class.border-blue-200]="box.badgeType === 'info'"
-                [class.hover:border-blue-300]="box.badgeType === 'info'"
-                [class.bg-white]="!box.badgeType || box.badgeType === 'neutral'"
-                [class.border-slate-200]="!box.badgeType || box.badgeType === 'neutral'"
-                [class.hover:border-slate-300]="!box.badgeType || box.badgeType === 'neutral'"
-                [attr.data-testid]="'box-' + box.id"
+                [class.bg-emerald-50]="box.isAchieved === true"
+                [class.border-emerald-200]="box.isAchieved === true"
+                [class.hover:border-emerald-300]="box.isAchieved === true"
+                [class.bg-rose-50]="box.isAchieved === false"
+                [class.border-rose-200]="box.isAchieved === false"
+                [class.hover:border-rose-300]="box.isAchieved === false"
+                [class.bg-slate-50]="box.isAchieved === null"
+                [class.border-slate-200]="box.isAchieved === null"
+                [class.hover:border-slate-300]="box.isAchieved === null"
+                [attr.data-testid]="'box-' + box.indicatorKey"
+                [attr.aria-label]="box.label + ': ' + (box.achievement || '-') + ' dari target ' + (box.target || '-') + ' ' + box.unit + ', ' + (box.isAchieved === true ? 'Tercapai' : box.isAchieved === false ? 'Belum tercapai' : 'Data tidak tersedia')"
               >
                 <div>
-                  <div class="text-xl font-black text-slate-900 tracking-tight tabular-nums group-hover:text-[#4348E6] transition-colors">
-                    {{ box.value }}
+                  <div class="text-2xl font-black text-slate-900 tracking-tight tabular-nums group-hover:text-blue-600 transition-colors">
+                    {{ box.achievement !== null ? (box.achievement | number: '1.0-1') + box.unit : '-' }}
                   </div>
                   <div class="text-xs font-semibold text-slate-800 line-clamp-1 mt-0.5" [title]="box.label">
-                    {{ box.label }}
+                    {{ box.shortLabel }}
                   </div>
-                  @if (box.subValue) {
-                    <div class="text-[11px] text-slate-600 mt-1 line-clamp-1 tabular-nums" [title]="box.subValue">
-                      {{ box.subValue }}
-                    </div>
-                  }
+                  <div class="text-[11px] text-slate-600 mt-1 line-clamp-1 tabular-nums">
+                    Target {{ box.target || '-' }}{{ box.unit }} 
+                    <span class="ml-1" [class.text-emerald-700]="box.isAchieved === true" [class.text-rose-700]="box.isAchieved === false" [class.text-slate-500]="box.isAchieved === null">
+                      {{ box.isAchieved === true ? 'Tercapai' : box.isAchieved === false ? 'Belum tercapai' : '-' }}
+                    </span>
+                  </div>
                 </div>
               </div>
             }

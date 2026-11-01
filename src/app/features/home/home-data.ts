@@ -43,108 +43,16 @@ export interface HomeMetricBox {
   icon: string;
 }
 
-export const INTERVENSI_METRIC_BOXES: HomeMetricBox[] = [
-  {
-    id: 'kab-kota',
-    label: 'Kabupaten & Kota Terdata',
-    value: '35',
-    subValue: '35 Kab/Kota di Jawa Tengah',
-    category: 'wilayah',
-    badge: 'Lengkap',
-    badgeType: 'success',
-    icon: '🏛️',
-  },
-  {
-    id: 'cakupan-ds',
-    label: 'Cakupan Penimbangan (D/S)',
-    value: '96.37%',
-    subValue: '1,462,055 Balita (Target ≥ 85%)',
-    category: 'wilayah',
-    badge: 'Target Tercapai',
-    badgeType: 'success',
-    icon: '⚖️',
-  },
-  {
-    id: 'sasaran-balita',
-    label: 'Balita Ditimbang (D/S)',
-    value: '1.46M',
-    subValue: '1,462,055 Balita Dipantau Posyandu',
-    category: 'sasaran',
-    badge: 'Sasaran Utama',
-    badgeType: 'info',
-    icon: '👶',
-  },
-  {
-    id: 'sasaran-rematri',
-    label: 'Remaja Putri Konsumsi TTD',
-    value: '1.48M',
-    subValue: '1,483,925 Rematri (Cakupan 94.57%)',
-    category: 'sasaran',
-    badge: 'Target Tercapai',
-    badgeType: 'success',
-    icon: '👩‍🦰',
-  },
-  {
-    id: 'sasaran-bumil',
-    label: 'Sasaran Ibu Hamil',
-    value: '64.6K',
-    subValue: '64,599 Bumil TTD/MMS (ANC 6x: 49,129)',
-    category: 'sasaran',
-    badge: 'Perlu Akselerasi',
-    badgeType: 'warning',
-    icon: '🤰',
-  },
-  {
-    id: 'stunting-prevalensi',
-    label: 'Prevalensi Stunting Jateng',
-    value: '9.81%',
-    subValue: '141,184 Balita (Target RPJMN ≤ 14.0%)',
-    category: 'capaian',
-    badge: 'Di Bawah Batas',
-    badgeType: 'success',
-    icon: '📉',
-  },
-  {
-    id: 'bb-tidak-naik',
-    label: 'Balita BB Tidak Naik (T) PMT',
-    value: '4.15%',
-    subValue: '80,218 MT / 626,629 Kasus (Target ≥ 70%)',
-    category: 'capaian',
-    badge: 'Risiko Kunci',
-    badgeType: 'rose',
-    icon: '⚠️',
-  },
-  {
-    id: 'asi-eksklusif',
-    label: 'ASI Eksklusif (<6 Bln)',
-    value: '88.75%',
-    subValue: '179,652 Bayi (Target Standar ≥ 76%)',
-    category: 'capaian',
-    badge: 'Proteksi Kuat',
-    badgeType: 'success',
-    icon: '🍼',
-  },
-  {
-    id: 'bumil-kek-pmt',
-    label: 'Bumil KEK Tambahan Gizi',
-    value: '26.39%',
-    subValue: '7,750 Terlayani (55.1K Bumil Risiko KEK)',
-    category: 'capaian',
-    badge: 'Gap Akselerasi',
-    badgeType: 'warning',
-    icon: '🥣',
-  },
-  {
-    id: 'imunisasi-idl',
-    label: 'Imunisasi Lengkap Baduta',
-    value: '46.71%',
-    subValue: '250,212 Baduta (Target Standar ≥ 97%)',
-    category: 'capaian',
-    badge: 'Perlu Akselerasi',
-    badgeType: 'warning',
-    icon: '💉',
-  },
-];
+export interface WilayahIndicatorBox {
+  indicatorKey: string;
+  label: string;
+  shortLabel: string;
+  achievement: number | null;
+  target: number | null;
+  isAchieved: boolean | null;
+  unit: string;
+}
+
 
 export const GIZI_METRIC_BOXES: HomeMetricBox[] = [
   {

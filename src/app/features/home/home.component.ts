@@ -47,7 +47,6 @@ import {
   GIZI_METRIC_BOXES,
   HomeIndicatorOption,
   HomeMetricBox,
-  INTERVENSI_METRIC_BOXES,
   INTERVENTION_OUTCOMES_DATA,
   InterventionOutcomeItem,
   NUTRITION_PROBLEM_INDICATORS,
@@ -55,6 +54,7 @@ import {
   OutcomeQuarterData,
   SPECIFIC_INTERVENTION_INDICATORS,
   SPECIFIC_INTERVENTIONS_DATA,
+  WilayahIndicatorBox,
 } from './home-data';
 
 export interface LoadedQuarterDinkesData {
@@ -332,30 +332,57 @@ export class HomeComponent implements OnInit {
   // -------------------------------------------------------------
   // CATEGORY 1: HEATMAP INTERVENSI SPESIFIK
   // -------------------------------------------------------------
-  // Overview Information Boxes for Ratio 1 Column
-  readonly intervensiBoxes = computed<HomeMetricBox[]>(() => {
+  // Overview Information Boxes for Ratio 1 Column - NEW: Wilayah Indicator Boxes (14 per indicator, per region)
+  readonly wilayahIndicatorBoxes = computed<WilayahIndicatorBox[]>(() => {
+    const indicators = SPECIFIC_INTERVENTION_INDICATORS.slice(0, 14); // Exclude 15th "Capaian" entry
+    
+    // For baseline, derive from INTERVENTION_OUTCOMES_DATA using capaianTW2
     if (this.presentationMode() === 'baseline') {
-      return INTERVENSI_METRIC_BOXES;
+      return this.deriveWilayahBoxesFromBaselineOutcomes(indicators);
     }
-    const loadedMap = this.loadedQuarterDatasets();
-    if (this.presentationMode() === 'period' && loadedMap[this.presentationQuarter()]) {
-      return this.buildIntervensiBoxes(loadedMap[this.presentationQuarter()]);
-    }
-    const availableQNums = ([4, 3, 2, 1] as const).filter((q) => loadedMap[q]);
-    if (availableQNums.length === 0) {
-      return INTERVENSI_METRIC_BOXES;
-    }
-    const latestQ = availableQNums[0];
-    return this.buildIntervensiBoxes(loadedMap[latestQ]);
+    
+    // For loaded periods, also use baseline for now (Ticket 04 will add per-region data)
+    return this.deriveWilayahBoxesFromBaselineOutcomes(indicators);
   });
-  readonly intervensiBoxFilter = signal<string>('all');
 
-  readonly filteredIntervensiBoxes = computed<HomeMetricBox[]>(() => {
-    const filter = this.intervensiBoxFilter();
-    const boxes = this.intervensiBoxes();
-    if (filter === 'all') return boxes;
-    return boxes.filter((b) => b.category === filter);
-  });
+  private deriveWilayahBoxesFromBaselineOutcomes(indicators: HomeIndicatorOption[]): WilayahIndicatorBox[] {
+    // Map INTERVENTION_OUTCOMES_DATA by indicator, keyed by the first few words of indicator label
+    const outcomesByIndicator: Record<string, InterventionOutcomeItem | undefined> = {};
+    for (const outcome of INTERVENTION_OUTCOMES_DATA) {
+      // Match by indicator label prefix (first two words or more, case-insensitive)
+      for (const ind of indicators) {
+        if (outcome.indicator.toLowerCase().includes(ind.label.toLowerCase().slice(0, 20))) {
+          outcomesByIndicator[ind.key] = outcome;
+          break;
+        }
+      }
+    }
+
+    return indicators.map((ind) => {
+      const outcome = outcomesByIndicator[ind.key];
+      const achievement = outcome?.capaianTW2 ?? null;
+      const target = this.getResolvedIntervensiTarget(ind.key, ind.target);
+      
+      let isAchieved: boolean | null = null;
+      if (achievement !== null && target !== null) {
+        if (ind.operator === '>=') {
+          isAchieved = achievement >= target;
+        } else {
+          isAchieved = achievement <= target;
+        }
+      }
+
+      return {
+        indicatorKey: ind.key,
+        label: ind.label,
+        shortLabel: ind.shortLabel,
+        achievement,
+        target,
+        isAchieved,
+        unit: ind.unit,
+      };
+    });
+  }
 
   readonly intervensiIndicators = SPECIFIC_INTERVENTION_INDICATORS;
   readonly activeIntervensiIndicatorKey = signal<string>('% Konsumsi TTD');
@@ -1835,147 +1862,7 @@ export class HomeComponent implements OnInit {
     }
   }
 
-  buildIntervensiBoxes(dataset?: LoadedQuarterDinkesData): HomeMetricBox[] {
-    if (!dataset || !dataset.summaryRow || !dataset.totalRow) {
-      return INTERVENSI_METRIC_BOXES;
-    }
 
-    const cDS = this.extractValueFromRow(dataset.totalRow, 'Balita dipantau Pertumbuhan (D/S)');
-    const pDS = this.extractValueFromRow(dataset.summaryRow, '% D/S');
-    const cTTD =
-      this.extractValueFromRow(dataset.totalRow, 'Rematri  Konsumsi TTD') ??
-      this.extractValueFromRow(dataset.totalRow, 'Rematri Konsumsi TTD');
-    const pTTD = this.extractValueFromRow(dataset.summaryRow, '% Konsumsi TTD');
-    const cANC = this.extractValueFromRow(dataset.totalRow, 'Ibu Hamil ANC 6x');
-    const pANC = this.extractValueFromRow(dataset.summaryRow, '% ANC 6x');
-    const cMMS = this.extractValueFromRow(dataset.totalRow, 'Ibu Hamil Konsumsi TTD/MMS');
-    const pMMS = this.extractValueFromRow(dataset.summaryRow, '% TTD/MMS');
-    const pASI = this.extractValueFromRow(dataset.summaryRow, '% ASI');
-    const cASI = this.extractValueFromRow(dataset.totalRow, 'ASI Eksklusif');
-    const pBumilPMT = this.extractValueFromRow(dataset.summaryRow, '% Bumil PMT');
-    const cBumilPMT = this.extractValueFromRow(dataset.totalRow, 'Ibu Hamil KEK Konsumsi MT');
-    const pIDL = this.extractValueFromRow(dataset.summaryRow, '% IDL');
-    const cIDL = this.extractValueFromRow(dataset.totalRow, 'Baduta IDL');
-    const pBBMT = this.extractValueFromRow(dataset.summaryRow, '% BB Tidak Naik (T) dapat MT');
-    const cBBMT = this.extractValueFromRow(dataset.totalRow, 'Jumlah BB Tidak Naik (T) dapat MT');
-
-    const totalDistricts = dataset.regionRows.length >= 30 ? dataset.regionRows.length : 35;
-
-    const formatCompact = (val: number | null): string => {
-      if (val === null) return '-';
-      if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(2)}M`;
-      if (val >= 1_000) return `${(val / 1_000).toFixed(1)}K`;
-      return val.toLocaleString('id-ID');
-    };
-
-    const formatPct = (val: number | null): string => {
-      if (val === null) return '-';
-      return `${(Math.round(val * 100) / 100).toFixed(2)}%`;
-    };
-
-    return [
-      {
-        id: 'kab-kota',
-        label: 'Kabupaten & Kota Terdata',
-        value: String(totalDistricts),
-        subValue: `${totalDistricts} Kab/Kota di Jawa Tengah`,
-        category: 'wilayah',
-        badge: 'Lengkap',
-        badgeType: 'success',
-        icon: '🏛️',
-      },
-      {
-        id: 'cakupan-ds',
-        label: 'Cakupan Penimbangan (D/S)',
-        value: formatPct(pDS),
-        subValue: `${cDS ? cDS.toLocaleString('id-ID') : '-'} Balita (Target ≥ 85%)`,
-        category: 'wilayah',
-        badge: pDS && pDS >= 85 ? 'Target Tercapai' : 'Perlu Perhatian',
-        badgeType: pDS && pDS >= 85 ? 'success' : 'warning',
-        icon: '⚖️',
-      },
-      {
-        id: 'sasaran-balita',
-        label: 'Balita Ditimbang (D/S)',
-        value: formatCompact(cDS),
-        subValue: `${cDS ? cDS.toLocaleString('id-ID') : '-'} Balita Dipantau Posyandu`,
-        category: 'sasaran',
-        badge: 'Sasaran Utama',
-        badgeType: 'info',
-        icon: '👶',
-      },
-      {
-        id: 'sasaran-rematri',
-        label: 'Remaja Putri Konsumsi TTD',
-        value: formatCompact(cTTD),
-        subValue: `${cTTD ? cTTD.toLocaleString('id-ID') : '-'} Rematri (Cakupan ${formatPct(pTTD)})`,
-        category: 'sasaran',
-        badge: pTTD && pTTD >= 67 ? 'Target Tercapai' : 'Perlu Akselerasi',
-        badgeType: pTTD && pTTD >= 67 ? 'success' : 'warning',
-        icon: '👩‍🦰',
-      },
-      {
-        id: 'sasaran-bumil',
-        label: 'Sasaran Ibu Hamil',
-        value: formatCompact(cMMS ?? cANC),
-        subValue: `TTD: ${formatPct(pMMS)} (${cMMS ? cMMS.toLocaleString('id-ID') : '-'}) | ANC 6x: ${formatPct(pANC)}`,
-        category: 'sasaran',
-        badge: 'Perlu Akselerasi',
-        badgeType: 'warning',
-        icon: '🤰',
-      },
-      {
-        id: 'stunting-prevalensi',
-        label: 'Prevalensi Stunting Jateng',
-        value: '9.81%',
-        subValue: '141,184 Balita (Target RPJMN ≤ 14.0%)',
-        category: 'capaian',
-        badge: 'Di Bawah Batas',
-        badgeType: 'success',
-        icon: '📉',
-      },
-      {
-        id: 'bb-tidak-naik',
-        label: 'Balita BB Tidak Naik (T) PMT',
-        value: formatPct(pBBMT),
-        subValue: `${cBBMT ? cBBMT.toLocaleString('id-ID') : '-'} MT / 626.6K Kasus (Target ≥ 70%)`,
-        category: 'capaian',
-        badge: 'Risiko Kunci',
-        badgeType: 'rose',
-        icon: '⚠️',
-      },
-      {
-        id: 'asi-eksklusif',
-        label: 'ASI Eksklusif (<6 Bln)',
-        value: formatPct(pASI),
-        subValue: `${cASI ? cASI.toLocaleString('id-ID') : '-'} Bayi (Target Standar ≥ 76%)`,
-        category: 'capaian',
-        badge: pASI && pASI >= 76 ? 'Proteksi Kuat' : 'Perlu Peningkatan',
-        badgeType: pASI && pASI >= 76 ? 'success' : 'warning',
-        icon: '🍼',
-      },
-      {
-        id: 'bumil-kek-pmt',
-        label: 'Bumil KEK Tambahan Gizi',
-        value: formatPct(pBumilPMT),
-        subValue: `${cBumilPMT ? cBumilPMT.toLocaleString('id-ID') : '-'} Terlayani (55.1K Bumil Risiko KEK)`,
-        category: 'capaian',
-        badge: pBumilPMT && pBumilPMT >= 85 ? 'Tercapai' : 'Gap Akselerasi',
-        badgeType: pBumilPMT && pBumilPMT >= 85 ? 'success' : 'warning',
-        icon: '🥣',
-      },
-      {
-        id: 'imunisasi-idl',
-        label: 'Imunisasi Lengkap Baduta',
-        value: formatPct(pIDL),
-        subValue: `${cIDL ? cIDL.toLocaleString('id-ID') : '-'} Baduta (Target Standar ≥ 97%)`,
-        category: 'capaian',
-        badge: pIDL && pIDL >= 97 ? 'Tercapai' : 'Perlu Akselerasi',
-        badgeType: pIDL && pIDL >= 97 ? 'success' : 'warning',
-        icon: '💉',
-      },
-    ];
-  }
 
   isOverTarget(val: unknown, threshold: number): boolean {
     const num = typeof val === 'number' ? val : parseFloat(String(val || 0));
