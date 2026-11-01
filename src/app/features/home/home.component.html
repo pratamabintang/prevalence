@@ -224,6 +224,28 @@
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start" data-testid="intervensi-2column-grid">
         <!-- First Column: Overview Information Boxes (Ratio 1) -->
         <aside class="lg:col-span-1 flex flex-col gap-4" data-testid="left-column-boxes">
+          <!-- Wilayah Scope Selector -->
+          <div class="flex flex-col gap-1.5">
+            <label for="wilayah-scope-select" class="text-xs font-semibold text-slate-600">
+              Cakupan Wilayah
+            </label>
+            <select
+              id="wilayah-scope-select"
+              [value]="selectedWilayahScope()"
+              (change)="setSelectedWilayahScope($any($event.target).value)"
+              class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-[#525AFF] cursor-pointer shadow-2xs"
+              data-testid="wilayah-scope-select"
+              title="Pilih wilayah untuk menampilkan capaian indikator"
+            >
+              <option value="province">PROVINSI JAWA TENGAH (Agregat)</option>
+              <optgroup label="Kabupaten / Kota (35 Wilayah)">
+                @for (opt of wilayahDistrictOptions(); track opt.value) {
+                  <option [value]="opt.value">{{ opt.label }}</option>
+                }
+              </optgroup>
+            </select>
+          </div>
+
           <!-- Grid of Overview Boxes (2 columns inside ratio 1 column) -->
           <div class="grid grid-cols-2 gap-2.5 sm:gap-3" data-testid="small-boxes-grid">
             @for (box of wilayahIndicatorBoxes(); track box.indicatorKey) {

@@ -118,6 +118,46 @@ export class HomeComponent implements OnInit {
   readonly intervensiViewMode = signal<'map' | 'table'>('map');
   readonly giziViewMode = signal<'map' | 'table'>('map');
 
+  // Wilayah (Region) Scope for Indicator Boxes
+  readonly selectedWilayahScope = signal<'province' | string>('province');
+  readonly provinceAggregationContributingRegions = computed<number>(() => {
+    const scope = this.selectedWilayahScope();
+    const mode = this.presentationMode();
+    const rows = this.intervensiRows();
+
+    // Only compute when in period mode and province scope
+    if (mode !== 'period' || scope !== 'province' || rows.length === 0) {
+      return 0;
+    }
+
+    // Use first indicator to determine region count (they all have the same rows)
+    const firstIndicator = SPECIFIC_INTERVENTION_INDICATORS[0];
+    if (!firstIndicator) return 0;
+
+    const result = this.computeProvinceAchievement(firstIndicator.key, rows);
+    return result.contributingRegions;
+  });
+
+  readonly wilayahScopeLabel = computed<string>(() => {
+    const scope = this.selectedWilayahScope();
+    if (scope === 'province') {
+      return 'PROVINSI JAWA TENGAH (Agregat)';
+    }
+    return scope;
+  });
+
+  readonly provinceAggregationNotice = computed<string | null>(() => {
+    const scope = this.selectedWilayahScope();
+    const mode = this.presentationMode();
+    const count = this.provinceAggregationContributingRegions();
+
+    // Only show notice when in period mode, province scope, and fewer than 35 regions
+    if (mode === 'period' && scope === 'province' && count > 0 && count < 35) {
+      return `Dihitung dari ${count} dari 35 wilayah`;
+    }
+    return null;
+  });
+
   // SVG Map Geometry
   readonly centralJavaDistricts = CENTRAL_JAVA_DISTRICTS;
   readonly neighborProvinces = NEIGHBOR_PROVINCES;
@@ -335,15 +375,153 @@ export class HomeComponent implements OnInit {
   // Overview Information Boxes for Ratio 1 Column - NEW: Wilayah Indicator Boxes (14 per indicator, per region)
   readonly wilayahIndicatorBoxes = computed<WilayahIndicatorBox[]>(() => {
     const indicators = SPECIFIC_INTERVENTION_INDICATORS.slice(0, 14); // Exclude 15th "Capaian" entry
+    const scope = this.selectedWilayahScope();
+    const mode = this.presentationMode();
     
-    // For baseline, derive from INTERVENTION_OUTCOMES_DATA using capaianTW2
-    if (this.presentationMode() === 'baseline') {
+    if (scope === 'province') {
+      // In period mode, aggregate from region rows; otherwise use baseline outcomes
+      if (mode === 'period') {
+        const rows = this.intervensiRows();
+        return this.deriveWilayahBoxesFromPeriodProvince(indicators, rows);
+      }
       return this.deriveWilayahBoxesFromBaselineOutcomes(indicators);
     }
     
-    // For loaded periods, also use baseline for now (Ticket 04 will add per-region data)
-    return this.deriveWilayahBoxesFromBaselineOutcomes(indicators);
+    // For a selected district, extract from intervensiRows()
+    return this.deriveWilayahBoxesFromDistrictRow(indicators, scope);
   });
+
+  private deriveWilayahBoxesFromDistrictRow(indicators: HomeIndicatorOption[], districtName: string): WilayahIndicatorBox[] {
+    const rows = this.intervensiRows();
+    
+    // Find the matching row in intervensiRows, using prefix normalization
+    const districtUpper = districtName.trim().toUpperCase();
+    const cleanDistrictName = districtUpper.replace(/^(KABUPATEN|KOTA|KAB\.)\s+/i, '').trim();
+    
+    const matchedRow = rows.find((r) => {
+      const name = String(r['Kabupaten/Kota'] || r['Kab/Kota'] || r['Wilayah'] || '')
+        .trim()
+        .toUpperCase();
+      if (name === districtUpper) return true;
+      const cleanName = name.replace(/^(KABUPATEN|KOTA|KAB\.)\s+/i, '').trim();
+      return cleanName === cleanDistrictName;
+    });
+    
+    if (!matchedRow) {
+      // District row not found, return boxes with null values
+      return indicators.map((ind) => ({
+        indicatorKey: ind.key,
+        label: ind.label,
+        shortLabel: ind.shortLabel,
+        achievement: null,
+        target: this.getResolvedIntervensiTarget(ind.key, ind.target),
+        isAchieved: null,
+        unit: ind.unit,
+      }));
+    }
+    
+    // Extract achievement values from the matched row
+    return indicators.map((ind) => {
+      const achievement = this.extractValueFromRow(matchedRow, ind.key);
+      const target = this.getResolvedIntervensiTarget(ind.key, ind.target);
+      
+      let isAchieved: boolean | null = null;
+      if (achievement !== null && target !== null) {
+        if (ind.operator === '>=') {
+          isAchieved = achievement >= target;
+        } else {
+          isAchieved = achievement <= target;
+        }
+      }
+      
+      return {
+        indicatorKey: ind.key,
+        label: ind.label,
+        shortLabel: ind.shortLabel,
+        achievement,
+        target,
+        isAchieved,
+        unit: ind.unit,
+      };
+    });
+  }
+
+  private deriveWilayahBoxesFromPeriodProvince(indicators: HomeIndicatorOption[], regionRows: Record<string, unknown>[]): WilayahIndicatorBox[] {
+    return indicators.map((ind) => {
+      const result = this.computeProvinceAchievement(ind.key, regionRows);
+      const target = this.getResolvedIntervensiTarget(ind.key, ind.target);
+      
+      let isAchieved: boolean | null = null;
+      if (result.achievement !== null && target !== null) {
+        if (ind.operator === '>=') {
+          isAchieved = result.achievement >= target;
+        } else {
+          isAchieved = result.achievement <= target;
+        }
+      }
+
+      return {
+        indicatorKey: ind.key,
+        label: ind.label,
+        shortLabel: ind.shortLabel,
+        achievement: result.achievement,
+        target,
+        isAchieved,
+        unit: ind.unit,
+      };
+    });
+  }
+
+  private computeProvinceAchievement(indicatorKey: string, regionRows: Record<string, unknown>[]): { achievement: number | null; contributingRegions: number } {
+    if (!regionRows || regionRows.length === 0) return { achievement: null, contributingRegions: 0 };
+
+    let sumNumerator = 0;
+    let sumDenominator = 0;
+    let contributingRegions = 0;
+
+    for (const row of regionRows) {
+      const percentageVal = IndicatorEvaluator.parseSmartNumber(row[indicatorKey]);
+      if (percentageVal === null) continue;
+
+      const numeratorCol = this.findNumeratorColumnForIndicator(indicatorKey);
+      const numeratorVal = numeratorCol ? IndicatorEvaluator.parseSmartNumber(row[numeratorCol]) : null;
+
+      if (numeratorVal !== null && numeratorVal >= 0 && percentageVal > 0) {
+        const denominator = (numeratorVal / percentageVal) * 100;
+        sumNumerator += numeratorVal;
+        sumDenominator += denominator;
+        contributingRegions++;
+      }
+    }
+
+    if (sumDenominator <= 0 || contributingRegions === 0) return { achievement: null, contributingRegions };
+
+    const provinceAchievement = (sumNumerator / sumDenominator) * 100;
+    
+    return { achievement: Math.round(provinceAchievement * 100) / 100, contributingRegions };
+  }
+
+  private findNumeratorColumnForIndicator(indicatorKey: string): string | null {
+    // Map indicator keys to their numerator column names
+    const numeratorMap: Record<string, string> = {
+      '% Konsumsi TTD': 'Rematri Konsumsi TTD',
+      '% Skrining Anemia': 'Rematri Skrining Anemia',
+      '% ANC 6x': 'Ibu Hamil ANC 6x',
+      '% TTD/MMS': 'Ibu Hamil Konsumsi TTD/MMS',
+      '% Bumil PMT': 'Ibu Hamil KEK Konsumsi MT',
+      '% D/S': 'Balita dipantau Pertumbuhan (D/S)',
+      '% Tumbang': 'Jumlah Balita dipantau Tumbang',
+      '% ASI': 'ASI Eksklusif',
+      '% MPASI': 'MPASI',
+      '% BB Tidak Naik (T) dapat MT': 'Jumlah BB Tidak Naik (T) dapat MT',
+      '% BB Kurang dapat MT': 'Jumlah BB Kurang dapat MT',
+      '% Gizi Kurang dapat MT': 'Jumlah Gizi Kurang dapat MT',
+      '% Talak Gibur': 'Jumlah Kasus Gizi Buruk Mendapat Tata Laksana',
+      '% IDL': 'Baduta IDL',
+    };
+
+    return numeratorMap[indicatorKey] || null;
+  }
 
   private deriveWilayahBoxesFromBaselineOutcomes(indicators: HomeIndicatorOption[]): WilayahIndicatorBox[] {
     // Map INTERVENTION_OUTCOMES_DATA by indicator, keyed by the first few words of indicator label
@@ -1895,6 +2073,33 @@ export class HomeComponent implements OnInit {
     this.selectedMapDistrict.set(null);
     this.showMapRankings.set(false);
   }
+
+  setSelectedWilayahScope(scope: 'province' | string): void {
+    this.selectedWilayahScope.set(scope);
+  }
+
+  readonly wilayahDistrictOptions = computed<Array<{ value: string; label: string }>>(() => {
+    const rows = this.intervensiRows();
+    if (rows.length >= 30) {
+      // Extract unique district names from loaded rows
+      const districtNames = new Set<string>();
+      rows.forEach((r) => {
+        const name = String(r['Kabupaten/Kota'] || r['Kab/Kota'] || r['Wilayah'] || '').trim();
+        if (name) {
+          districtNames.add(name);
+        }
+      });
+      return Array.from(districtNames)
+        .sort()
+        .map((name) => ({ value: name, label: name }));
+    }
+    
+    // Fallback to canonical static district master
+    return CENTRAL_JAVA_DISTRICTS.map((d) => ({
+      value: d.kabupatenKota,
+      label: d.displayName,
+    }));
+  });
 
   setIntervensiIndicator(key: string): void {
     this.activeIntervensiIndicatorKey.set(key);

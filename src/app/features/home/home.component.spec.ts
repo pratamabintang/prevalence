@@ -193,6 +193,97 @@ describe('HomeComponent', () => {
         expect(numericVals[i - 1]).toBeGreaterThanOrEqual(numericVals[i]);
       }
     });
+
+    it('should render wilayah scope selector dropdown with province and 35 district options', () => {
+      const compiled = fixture.nativeElement as HTMLElement;
+      const selector = compiled.querySelector('[data-testid="wilayah-scope-select"]') as HTMLSelectElement;
+
+      expect(selector).toBeTruthy();
+      expect(selector.id).toBe('wilayah-scope-select');
+
+      const optgroups = selector.querySelectorAll('optgroup');
+      expect(optgroups.length).toBe(1);
+      expect(optgroups[0].label).toContain('Kabupaten');
+
+      const districtOpts = optgroups[0].querySelectorAll('option');
+      expect(districtOpts.length).toBe(35);
+    });
+
+    it('should default to province scope', () => {
+      expect(component.selectedWilayahScope()).toBe('province');
+      expect(component.wilayahScopeLabel()).toBe('PROVINSI JAWA TENGAH (Agregat)');
+    });
+
+    it('should switch box values when region changes to a kabupaten', () => {
+      const initialBoxes = component.wilayahIndicatorBoxes();
+      const initialFirstKey = initialBoxes[0]?.indicatorKey;
+
+      const districts = component.wilayahDistrictOptions();
+      if (districts.length > 0) {
+        component.setSelectedWilayahScope(districts[0].value);
+        fixture.detectChanges();
+
+        const newBoxes = component.wilayahIndicatorBoxes();
+        expect(newBoxes.length).toBe(14);
+        expect(newBoxes[0]?.indicatorKey).toBe(initialFirstKey);
+      }
+    });
+
+    it('should restore province scope on switch back', () => {
+      const districts = component.wilayahDistrictOptions();
+      if (districts.length > 0) {
+        component.setSelectedWilayahScope(districts[0].value);
+        fixture.detectChanges();
+
+        component.setSelectedWilayahScope('province');
+        fixture.detectChanges();
+
+        expect(component.wilayahScopeLabel()).toBe('PROVINSI JAWA TENGAH (Agregat)');
+        expect(component.wilayahIndicatorBoxes().length).toBe(14);
+      }
+    });
+
+    it('should render 14 boxes with stable identifiers regardless of region', () => {
+      const provinceBoxes = component.wilayahIndicatorBoxes();
+      const provinceIds = provinceBoxes.map((b) => b.indicatorKey);
+
+      expect(provinceBoxes.length).toBe(14);
+
+      const districts = component.wilayahDistrictOptions();
+      if (districts.length > 0) {
+        component.setSelectedWilayahScope(districts[0].value);
+        fixture.detectChanges();
+
+        const districtBoxes = component.wilayahIndicatorBoxes();
+        const districtIds = districtBoxes.map((b) => b.indicatorKey);
+
+        expect(districtIds).toEqual(provinceIds);
+      }
+    });
+
+    it('should aggregate province achievement from region rows when in period mode', () => {
+      // Setup: Create mock region rows with known percentages and numerators
+      const mockRegions: Record<string, unknown>[] = [
+        { 'Kabupaten/Kota': 'Kab. Blora', '% ANC 6x': 40, 'Ibu Hamil ANC 6x': 100 },
+        { 'Kabupaten/Kota': 'Kab. Boyolali', '% ANC 6x': 50, 'Ibu Hamil ANC 6x': 200 },
+        { 'Kabupaten/Kota': 'Kab. Grobogan', '% ANC 6x': 30, 'Ibu Hamil ANC 6x': 150 },
+      ];
+
+      // Set to period mode and province scope
+      component.presentationMode.set('period');
+      component.selectedWilayahScope.set('province');
+      component.intervensiRows.set(mockRegions);
+      fixture.detectChanges();
+
+      const boxes = component.wilayahIndicatorBoxes();
+      const ancBox = boxes.find((b) => b.indicatorKey === '% ANC 6x');
+
+      // Expected: (100 + 200 + 150) / ((100/40)*100 + (200/50)*100 + (150/30)*100)
+      // = 450 / (250 + 400 + 500) = 450 / 1150 ≈ 39.13%
+      expect(ancBox?.achievement).toBeDefined();
+      expect(ancBox?.achievement).toBeGreaterThan(30);
+      expect(ancBox?.achievement).toBeLessThan(50);
+    });
   });
 
   describe('Category 2: Heatmap Masalah Gizi', () => {
