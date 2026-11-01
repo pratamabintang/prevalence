@@ -633,6 +633,10 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   enableAverage = signal(false);
   avgColumns = signal<Record<string, boolean>>({});
 
+  // Modal target wajib saat import
+  showTargetModal = signal(false);
+  modalTargetDrafts = signal<Record<string, ColumnTargetConfig>>({});
+
   activeTargetCount = computed(() => {
     if (!this.enableTarget()) {
       return 0;
@@ -642,6 +646,18 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     return Object.entries(targets).filter(
       ([col, t]) => configs[col]?.dataType !== 'string' && t.enabled && t.value !== null,
     ).length;
+  });
+
+  missingPercentageTargets = computed(() => {
+    if (!this.enableTarget()) return [];
+    const configs = this.columnConfigs();
+    const targets = this.columnTargets();
+    return this.resultColumns().filter((col) => {
+      const cfg = configs[col];
+      if (cfg?.dataType !== 'percentage') return false;
+      const t = targets[col];
+      return !t?.enabled || t.value === null || t.value === undefined;
+    });
   });
 
   capaianStats = computed<CapaianSummary>(() => {
@@ -1800,6 +1816,79 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     });
   }
 
+  // ============================================================
+  // MODAL TARGET WAJIB SAAT IMPORT
+  // ============================================================
+
+  percentageColumnsNeedingTarget = computed(() => {
+    const configs = this.columnConfigs();
+    const targets = this.columnTargets();
+    return this.resultColumns().filter((col) => {
+      const cfg = configs[col];
+      if (cfg?.dataType !== 'percentage') return false;
+      const t = targets[col];
+      return !t?.enabled || t.value === null || t.value === undefined;
+    });
+  });
+
+  modalTargetsComplete = computed(() => {
+    const cols = this.percentageColumnsNeedingTarget();
+    if (cols.length === 0) return true;
+    const drafts = this.modalTargetDrafts();
+    for (const col of cols) {
+      const target = drafts[col];
+      if (!target || target.value === null || target.value === undefined || isNaN(target.value) || target.value < 0 || target.value > 100) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  openTargetModal(): void {
+    const drafts: Record<string, ColumnTargetConfig> = {};
+    for (const col of this.percentageColumnsNeedingTarget()) {
+      drafts[col] = {
+        enabled: true,
+        operator: '>=',
+        value: null,
+      };
+    }
+    this.modalTargetDrafts.set(drafts);
+    this.showTargetModal.set(true);
+  }
+
+  closeTargetModal(): void {
+    this.showTargetModal.set(false);
+    this.modalTargetDrafts.set({});
+  }
+
+  setModalTargetValue(col: string, operator: TargetOperator, value: number | null): void {
+    const clamped = value !== null && !isNaN(value) ? Math.max(0, Math.min(100, value)) : null;
+    this.modalTargetDrafts.update((drafts) => ({
+      ...drafts,
+      [col]: { enabled: clamped !== null, operator, value: clamped },
+    }));
+  }
+
+  confirmTargetModal(): void {
+    const drafts = this.modalTargetDrafts();
+    const incomplete = Object.entries(drafts).filter(
+      ([, t]) => !t.enabled || t.value === null || t.value === undefined,
+    );
+    if (incomplete.length > 0) {
+      return;
+    }
+
+    this.columnTargets.update((curr) => ({ ...curr, ...drafts }));
+    this.showTargetModal.set(false);
+    this.modalTargetDrafts.set({});
+
+    // Setelah target diisi, coba jalankan preview jika sudah memenuhi syarat
+    if (this.canPreview() && this.workbook) {
+      this.preview();
+    }
+  }
+
   getRowCapaian(row: ResultRow): number {
     if (!this.enableTarget()) {
       return 0;
@@ -2905,6 +2994,12 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       this.preview();
       this.reconcileOutputConfigs(preset);
       this.saveCurrentStateToStore();
+
+      // Jika fitur target aktif dan ada kolom persentase yang belum diisi target,
+      // buka modal wajib isi target sebelum user dapat melanjutkan ke preview.
+      if (this.enableTarget() && this.percentageColumnsNeedingTarget().length > 0) {
+        this.openTargetModal();
+      }
     }
 
     const details: string[] = [];
@@ -2994,20 +3089,10 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
 
     const currentAliases = this.customColumnNames();
 
-    // 2. Target capaian indikator
-    if (preset.columnTargets) {
-      const newTargets: Record<string, ColumnTargetConfig> = {};
-      for (const col of cols) {
-        const alias = currentAliases[col];
-        const matchedKey = this.findMatchingConfigKey(preset.columnTargets, col, alias);
-        if (matchedKey && preset.columnTargets[matchedKey]) {
-          newTargets[col] = preset.columnTargets[matchedKey];
-        }
-      }
-      if (Object.keys(newTargets).length > 0) {
-        this.columnTargets.update((curr) => ({ ...curr, ...newTargets }));
-      }
-    }
+    // 2. Target capaian indikator (DITINGGALKAN kosong saat import;
+    //    user wajib mengisi melalui modal target yang muncul setelah import)
+    //    Jika preset.columnTargets tersedia, tidak diaplikasikan secara otomatis
+    //    agar user harus mengisi target secara manual untuk setiap kolom persentase.
 
     // 3. Tipe data kolom
     if (preset.columnConfigs) {

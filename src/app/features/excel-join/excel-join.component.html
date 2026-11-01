@@ -2369,63 +2369,58 @@
   <!-- ======================================================== -->
   <!-- MODAL KONFIRMASI HAPUS DATA PERIODE DARI SERVER          -->
   <!-- ======================================================== -->
-  @if (showDeletePeriodConfirm()) {
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
-      <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
-        <div class="flex items-center gap-3 text-rose-600 mb-4">
-          <div class="flex h-10 w-10 items-center justify-center rounded-full bg-rose-100 shrink-0">
-            <svg class="w-6 h-6 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
+  @if (showTargetModal()) {
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+      <div class="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
+        <div class="flex items-start gap-3.5 mb-5 pb-4 border-b border-slate-100">
+          <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sky-600 shrink-0 border border-sky-100 shadow-2xs">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
           </div>
           <div>
-            <h3 class="text-base font-bold text-slate-900">Hapus Data Periode</h3>
-            <p class="text-xs text-slate-500">Periode {{ selectedYear() }} {{ selectedQuarter() }}</p>
+            <h3 class="text-base font-bold text-slate-900">Konfigurasi Target Kolom Persentase</h3>
+            <p class="text-xs text-slate-500 mt-0.5">Berkas yang diimpor memiliki kolom persentase yang memerlukan operator dan nilai target untuk evaluasi capaian intervensi.</p>
           </div>
         </div>
 
-        <p class="text-xs text-slate-600 leading-relaxed mb-4">
-          Apakah Anda yakin ingin menghapus seluruh data pada periode <strong class="text-slate-900">{{ selectedYear() }} {{ selectedQuarter() }}</strong>?
-        </p>
-
-        <div class="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-3 mb-6 flex items-start gap-2">
-          <svg class="w-4 h-4 shrink-0 mt-0.5 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <div>
-            <strong>Peringatan:</strong> Tindakan ini akan menghapus berkas spreadsheet mentah, hasil olahan, serta seluruh data observasi terkait pada server secara permanen.
-          </div>
+        <div class="max-h-[55vh] overflow-y-auto space-y-3 pr-1 mb-6">
+          @for (col of percentageColumnsNeedingTarget(); track col) {
+            <div class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200/80 bg-slate-50/50 hover:bg-slate-50 transition">
+              <span class="text-xs font-semibold text-slate-700 truncate max-w-[220px]" [title]="col">{{ col }}</span>
+              <div class="flex items-center gap-2 shrink-0">
+                <select class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs bg-white text-slate-700 font-medium focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none transition" [value]="modalTargetDrafts()[col]?.operator || '>='" (change)="setModalTargetValue(col, $any($event.target).value, modalTargetDrafts()[col]?.value ?? null)">
+                  <option value=">=">&ge; (Minimal)</option>
+                  <option value="<=">&le; (Maksimal)</option>
+                  <option value=">">&gt; (Lebih Dari)</option>
+                  <option value="<">&lt; (Kurang Dari)</option>
+                  <option value="==">= (Tepat)</option>
+                </select>
+                <input class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs w-24 bg-white text-slate-800 font-semibold focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none transition" type="number" min="0" max="100" placeholder="Cth: 80" [value]="modalTargetDrafts()[col]?.value ?? ''" (input)="setModalTargetValue(col, modalTargetDrafts()[col]?.operator ?? '>=', $any($event.target).value ? +$any($event.target).value : null)" />
+                <span class="text-xs text-slate-400 font-medium w-4">%</span>
+              </div>
+            </div>
+          }
         </div>
 
-        <div class="flex items-center justify-end gap-3">
-          <button
-            type="button"
-            uiButton
-            variant="secondary"
-            size="sm"
-            [disabled]="isDeletingPeriod()"
-            (click)="closeDeletePeriodConfirm()"
-          >
-            Batal
-          </button>
-          <button
-            type="button"
-            uiButton
-            variant="danger"
-            size="sm"
-            data-testid="confirm-delete-period-btn"
-            [disabled]="isDeletingPeriod()"
-            (click)="confirmDeletePeriod()"
-          >
-            @if (isDeletingPeriod()) {
-              <span class="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin mr-1.5"></span>
-              Menghapus...
-            } @else {
-              Ya, Hapus Data
-            }
-          </button>
+        <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+          <button type="button" uiButton variant="secondary" size="sm" (click)="closeTargetModal()">Batal</button>
+          <button type="button" uiButton variant="primary" size="sm" [disabled]="!modalTargetsComplete()" (click)="confirmTargetModal()">Simpan &amp; Lanjutkan Join</button>
         </div>
       </div>
     </div>
   }
-</div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL KONFIRMASI HAPUS DATA PERIODE DARI SERVER          -->
+  <!-- ======================================================== -->
+  @if (showDeletePeriodConfirm()) {
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+      <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
+        <h3 class="text-base font-bold text-slate-900 mb-2">Konfirmasi Hapus Periode</h3>
+        <p class="text-sm text-slate-500 mb-6">Apakah Anda yakin ingin menghapus data periode {{ selectedYear() }} {{ selectedQuarter() }}? Tindakan ini tidak dapat dibatalkan.</p>
+        <div class="flex items-center justify-end gap-3">
+          <button type="button" uiButton variant="secondary" size="sm" (click)="closeDeletePeriodConfirm()">Batal</button>
+          <button type="button" uiButton variant="danger" size="sm" (click)="confirmDeletePeriod()" data-testid="confirm-delete-period-btn">Hapus Permanen</button>
+        </div>
+      </div>
+    </div>
+  }

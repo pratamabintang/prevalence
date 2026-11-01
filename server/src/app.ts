@@ -8,6 +8,7 @@ import { defaultRouter } from './routes/default';
 import { analyticsRouter } from './routes/analytics';
 import { authRouter } from './routes/auth';
 import { requireAdminForMutations } from './middleware/auth';
+import { globalLimiter, authLimiter, mutationLimiter } from './middleware/rateLimiter';
 
 export function createApp(): Express {
   const app = express();
@@ -16,6 +17,11 @@ export function createApp(): Express {
   app.use(cors());
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+  // Rate limiting
+  app.use('/api', globalLimiter);
+  app.use('/api/auth/login', authLimiter);
+  app.use('/api', mutationLimiter);
 
   // Admin authentication guard for mutating endpoints
   app.use('/api', requireAdminForMutations);
