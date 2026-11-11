@@ -29,7 +29,7 @@ describe('AppNavbarComponent', () => {
     expect(el.querySelector('[data-testid="show-navbar-btn"]')).toBeTruthy();
   });
 
-  it('should render 4 module items without "Modul Aplikasi" heading or numbering badges, with Kohort Stunting completely hidden', () => {
+  it('should render 2 module items without "Modul Aplikasi" heading or numbering badges, with Visualisasi, Kohort Stunting and Capaian Intervensi hidden', () => {
     component.showNavbar();
     fixture.detectChanges();
 
@@ -38,15 +38,15 @@ describe('AppNavbarComponent', () => {
     expect(desktopNav).toBeTruthy();
 
     const links = desktopNav?.querySelectorAll('a');
-    expect(links?.length).toBe(4);
+    expect(links?.length).toBe(2);
 
     const disabledBtn = desktopNav?.querySelector('[data-testid="nav-disabled-kohort"]');
     expect(disabledBtn).toBeNull();
 
     expect(desktopNav?.textContent).toContain('Beranda');
     expect(desktopNav?.textContent).toContain('Kelola Data');
-    expect(desktopNav?.textContent).toContain('Visualisasi');
-    expect(desktopNav?.textContent).toContain('Capaian Intervensi');
+    expect(desktopNav?.textContent).not.toContain('Visualisasi');
+    expect(desktopNav?.textContent).not.toContain('Capaian Intervensi');
     expect(desktopNav?.textContent).not.toContain('Kohort Stunting');
     expect(desktopNav?.textContent).not.toContain('Dashboard Stunting');
 
@@ -60,7 +60,7 @@ describe('AppNavbarComponent', () => {
     expect(secondLink?.textContent?.trim()).toBe('Kelola Data');
   });
 
-  it('should render 5 active links when enableStuntingDashboard is true and Kohort is hidden', () => {
+  it('should render 3 active links when enableStuntingDashboard is true and Kohort is hidden', () => {
     component.showNavbar();
     component.enableStuntingDashboard.set(true);
     fixture.detectChanges();
@@ -70,12 +70,13 @@ describe('AppNavbarComponent', () => {
     expect(desktopNav).toBeTruthy();
 
     const links = desktopNav?.querySelectorAll('a');
-    expect(links?.length).toBe(5);
+    expect(links?.length).toBe(3);
 
     expect(desktopNav?.textContent).toContain('Dashboard Stunting');
     expect(desktopNav?.textContent).not.toContain('Kohort Stunting');
-    expect(component.navItems()[4]).toEqual({
-      id: 5,
+    expect(desktopNav?.textContent).not.toContain('Capaian Intervensi');
+    expect(component.navItems()[2]).toEqual({
+      id: 3,
       label: 'Dashboard Stunting',
       shortLabel: 'Dashboard',
       route: '/stunting-dashboard',
@@ -114,22 +115,24 @@ describe('AppNavbarComponent', () => {
     expect(secondItem.label).toBe('Kelola Data');
   });
 
-  it('should route Visualisasi to /visualisasi', () => {
-    const thirdItem = component.navItems()[2];
-    expect(thirdItem.route).toBe('/visualisasi');
-    expect(thirdItem.label).toBe('Visualisasi');
+  it('should hide Visualisasi from the navbar', () => {
+    const visualisasiItem = component.navItems().find(
+      (item) => item.route === '/visualisasi',
+    );
+    expect(visualisasiItem).toBeUndefined();
   });
 
-  it('should route Capaian Intervensi to /capaian-intervensi', () => {
-    const fourthItem = component.navItems()[3];
-    expect(fourthItem.route).toBe('/capaian-intervensi');
-    expect(fourthItem.label).toBe('Capaian Intervensi');
+  it('should hide Capaian Intervensi from the navbar', () => {
+    const capaianItem = component.navItems().find(
+      (item) => item.route === '/capaian-intervensi',
+    );
+    expect(capaianItem).toBeUndefined();
   });
 
-  it('should order Kohort Stunting consecutively at #5 when enabled and Dashboard Stunting is disabled', () => {
+  it('should order Kohort Stunting after Kelola Data when enabled and Dashboard Stunting is disabled', () => {
     component.enableStuntingCohort.set(true);
-    expect(component.navItems()[4]).toEqual({
-      id: 5,
+    expect(component.navItems()[2]).toEqual({
+      id: 3,
       label: 'Kohort Stunting',
       shortLabel: 'Kohort',
       route: '/stunting-cohort',

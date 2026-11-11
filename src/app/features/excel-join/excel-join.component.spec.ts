@@ -435,6 +435,22 @@ describe('ExcelJoinComponent', () => {
       expect(el.querySelector('table.border-collapse')).toBeTruthy();
     });
 
+    it('should toggle the results table via the clickable section header', () => {
+      component.resultRows.set([{ 'KABUPATEN/KOTA': 'BANYUMAS', 'Stunting': 15.2 }]);
+      component.resultColumns.set(['KABUPATEN/KOTA', 'Stunting']);
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      const header = el.querySelector('[data-testid="results-table-header"]') as HTMLElement;
+      expect(header.getAttribute('aria-expanded')).toBe('false');
+      expect(el.querySelector('table.border-collapse')).toBeNull();
+
+      header.click();
+      fixture.detectChanges();
+      expect(header.getAttribute('aria-expanded')).toBe('true');
+      expect(el.querySelector('table.border-collapse')).toBeTruthy();
+    });
+
     it('should control visibility of toolbar actions via enableToolbarActions signal initialized from environment', () => {
       expect(component.enableToolbarActions()).toBe(false);
 
@@ -475,13 +491,11 @@ describe('ExcelJoinComponent', () => {
       expect(targets.some((t) => typeof t.value === 'number' && t.value > 0)).toBe(true);
     });
 
-    it('should reset isDefaultData and show settings when clearFile is called', () => {
-      component.isDefaultData.set(true);
+    it('should show settings and clear file when clearFile is called', () => {
       component.showSettings.set(false);
 
       component.clearFile();
 
-      expect(component.isDefaultData()).toBe(false);
       expect(component.showSettings()).toBe(true);
       expect(component.file()).toBeNull();
       expect(component.sheets()).toEqual([]);
@@ -510,105 +524,6 @@ describe('ExcelJoinComponent', () => {
       expect(preset.sheets).toHaveLength(1);
       expect(preset.sheets[0].sheetName).toBe('gizi');
       expect(preset.sheets[0].variables).toContain('Balita Stunting');
-    });
-
-    it('openSaveDefaultConfirm membuka modal konfirmasi jika file dan URL GAS tersedia', () => {
-      const dummyFile = new File(['dummy'], 'test.xlsx');
-      component.file.set(dummyFile);
-      environment.googleAppsScriptUrl = 'https://script.google.com/macros/s/TEST/exec';
-
-      component.openSaveDefaultConfirm();
-      expect(component.showSaveDefaultConfirm()).toBe(true);
-
-      component.closeSaveDefaultConfirm();
-      expect(component.showSaveDefaultConfirm()).toBe(false);
-    });
-
-    it('openSaveDefaultConfirm menampilkan peringatan jika penyimpanan server belum dikonfigurasi', () => {
-      const dummyFile = new File(['dummy'], 'test.xlsx');
-      component.file.set(dummyFile);
-      environment.googleAppsScriptUrl = '';
-      vi.spyOn(component.periodPartitionWorkspace, 'isStorageConfigured').mockReturnValue(false);
-
-      component.openSaveDefaultConfirm();
-      expect(component.showSaveDefaultConfirm()).toBe(false);
-      expect(component.configNotification()?.type).toBe('warning');
-    });
-
-    it('confirmSaveDefaultToCloud, loadDefaultDataAndConfig, dan confirmResetToFactoryDefault berjalan melalui BackendStorageService ketika GAS dinonaktifkan', async () => {
-      environment.googleAppsScriptUrl = '';
-      vi.spyOn(component.gasStorageService, 'isConfigured').mockReturnValue(false);
-      const gasSaveSpy = vi.spyOn(component.gasStorageService, 'saveDefault');
-      const gasLoadSpy = vi.spyOn(component.gasStorageService, 'loadDefault');
-      const gasResetSpy = vi.spyOn(component.gasStorageService, 'resetDefault');
-
-      const backendStorage = TestBed.inject(BackendStorageService);
-      vi.spyOn(backendStorage, 'isConfigured').mockReturnValue(true);
-
-      const wb = ExcelWorkbookAdapter.createTabularWorkbook([
-        {
-          name: 'Sheet1',
-          headers: ['Kabupaten/Kota', 'Indikator A'],
-          rows: [['CILACAP', 92]],
-        },
-      ]);
-      const buf = ExcelWorkbookAdapter.writeToBuffer(wb);
-
-      const backendSaveSpy = vi.spyOn(backendStorage, 'saveDefault').mockResolvedValue({
-        success: true,
-        message: 'Default Kustom disimpan di SQLite',
-        updatedAt: '2026-10-23T09:00:00Z',
-      });
-      const backendLoadSpy = vi.spyOn(backendStorage, 'loadDefault').mockResolvedValue({
-        success: true,
-        hasData: true,
-        fileName: 'server-default.xlsx',
-        excelBuffer: buf,
-        config: { version: '1.0', name: 'Default Server SQLite', joinBy: 'Kabupaten/Kota', sheets: [] },
-      });
-      const backendResetSpy = vi.spyOn(backendStorage, 'resetDefault').mockResolvedValue({
-        success: true,
-        message: 'Default Kustom dihapus',
-      });
-
-      const dummyFile = new File([buf], 'server-default.xlsx');
-      component.file.set(dummyFile);
-
-      component.openSaveDefaultConfirm();
-      expect(component.showSaveDefaultConfirm()).toBe(true);
-
-      await component.confirmSaveDefaultToCloud();
-      expect(backendSaveSpy).toHaveBeenCalled();
-      expect(gasSaveSpy).not.toHaveBeenCalled();
-      expect(component.isCloudDefault()).toBe(true);
-
-      await component.loadDefaultDataAndConfig(true);
-      expect(backendLoadSpy).toHaveBeenCalled();
-      expect(gasLoadSpy).not.toHaveBeenCalled();
-      expect(component.isDefaultData()).toBe(true);
-
-      await component.confirmResetToFactoryDefault();
-      expect(backendResetSpy).toHaveBeenCalled();
-      expect(gasResetSpy).not.toHaveBeenCalled();
-    });
-
-    it('confirmSaveDefaultToCloud mengunggah data dan memperbarui isCloudDefault', async () => {
-      const dummyFile = new File(['content'], 'test.xlsx');
-      component.file.set(dummyFile);
-      environment.googleAppsScriptUrl = 'https://script.google.com/macros/s/TEST/exec';
-
-      const mockSave = vi.spyOn(component.gasStorageService, 'saveDefault').mockResolvedValue({
-        success: true,
-        message: 'Disimpan di Google Drive',
-      });
-
-      await component.confirmSaveDefaultToCloud();
-
-      expect(mockSave).toHaveBeenCalled();
-      expect(component.isCloudDefault()).toBe(true);
-      expect(component.isDefaultData()).toBe(true);
-      expect(component.showSaveDefaultConfirm()).toBe(false);
-      expect(component.configNotification()?.type).toBe('success');
     });
   });
 
@@ -1158,8 +1073,6 @@ describe('ExcelJoinComponent', () => {
         version: '1.0',
         savedAt: new Date().toISOString(),
         fileInfo: { name: 'MySavedData.xlsx' },
-        isDefaultData: false,
-        isCloudDefault: false,
         showSettings: false,
         activePresetName: 'Saved Preset',
         sheets: [
@@ -1230,73 +1143,7 @@ describe('ExcelJoinComponent', () => {
     });
   });
 
-  describe('Google Drive reload and save default', () => {
-    it('should reload data and config from Google Drive via resetToDefaultData()', async () => {
-      const gasService = TestBed.inject(GasStorageService);
-      const store = TestBed.inject(ExcelJoinStore);
-      const clearStateSpy = vi.spyOn(store, 'clearState');
-
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.aoa_to_sheet([['Kabupaten/Kota', 'Var A'], ['CILACAP', 99]]);
-      XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
-      const u8 = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as Uint8Array;
-      const buf = new Uint8Array(u8).buffer;
-
-      vi.spyOn(gasService, 'isConfigured').mockReturnValue(true);
-      vi.spyOn(gasService, 'loadDefault').mockResolvedValue({
-        success: true,
-        hasData: true,
-        fileName: 'drive-data.xlsx',
-        excelBuffer: buf,
-        config: {
-          version: '1.0',
-          name: 'Preset Dari Drive',
-          outputHeaderFormat: 'concat',
-          sheets: [
-            {
-              sheetName: 'Sheet1',
-              variables: ['Var A'],
-              joinColumn: 'Kabupaten/Kota',
-            },
-          ],
-        },
-      });
-
-      await component.resetToDefaultData();
-
-      expect(clearStateSpy).toHaveBeenCalled();
-      expect(component.file()?.name).toBe('drive-data.xlsx');
-      expect(component.isCloudDefault()).toBe(true);
-      expect(component.configNotification()?.type).toBe('success');
-      expect(component.configNotification()?.message).toContain('tersimpan');
-    });
-
-    it('should serialize workbook to non-empty buffer when file is 0 bytes on confirmSaveDefaultToCloud()', async () => {
-      const gasService = TestBed.inject(GasStorageService);
-      vi.spyOn(gasService, 'isConfigured').mockReturnValue(true);
-
-      let savedBuffer: ArrayBuffer | null = null;
-      vi.spyOn(gasService, 'saveDefault').mockImplementation(async (buf) => {
-        savedBuffer = buf;
-        return { success: true, message: 'Berhasil' };
-      });
-
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.aoa_to_sheet([['Kabupaten/Kota', 'Var A'], ['BANYUMAS', 85]]);
-      XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
-
-      // Emulate restored file with 0 size
-      component.file.set(new File([], 'restored-zero-byte.xlsx'));
-      component.workbook = wb;
-
-      await component.confirmSaveDefaultToCloud();
-
-      expect(savedBuffer).not.toBeNull();
-      expect((savedBuffer as unknown as ArrayBuffer).byteLength).toBeGreaterThan(0);
-      expect(component.configNotification()?.type).toBe('success');
-    });
-
-    it('should allow canPreview() when at least one selected sheet has variables, even if another has 0', () => {
+  it('should allow canPreview() when at least one selected sheet has variables, even if another has 0', () => {
       const sheet1: SheetInfo = {
         name: 'Sheet1',
         columns: [
@@ -1644,7 +1491,6 @@ describe('ExcelJoinComponent', () => {
       component.handleKeyboardMove(escEvent);
       expect(component.selectedColumnForMove()).toBeNull();
     });
-  });
 
   describe('Inline Column Renaming (Double-Click)', () => {
     beforeEach(() => {
@@ -1892,8 +1738,9 @@ describe('ExcelJoinComponent', () => {
       expect(component.selectedQuarter()).toBe('TW3');
     });
 
-    it('openSavePeriodConfirm membuka modal jika GAS siap dan ada data', () => {
+    it('openSavePeriodConfirm membuka modal jika GAS siap, tahun terpilih, dan ada data', () => {
       vi.spyOn(component.gasStorageService, 'isConfigured').mockReturnValue(true);
+      component.selectYear(2026);
       component.file.set(new File(['content'], 'test.xlsx'));
 
       component.openSavePeriodConfirm();
@@ -1901,6 +1748,15 @@ describe('ExcelJoinComponent', () => {
 
       component.closeSavePeriodConfirm();
       expect(component.showSavePeriodConfirm()).toBe(false);
+    });
+
+    it('openSavePeriodConfirm meminta tahun jika belum ada tahun terpilih', () => {
+      vi.spyOn(component.gasStorageService, 'isConfigured').mockReturnValue(true);
+      component.file.set(new File(['content'], 'test.xlsx'));
+
+      component.openSavePeriodConfirm();
+      expect(component.showSavePeriodConfirm()).toBe(false);
+      expect(component.configNotification()?.type).toBe('warning');
     });
 
     it('openSavePeriodConfirm menampilkan peringatan jika penyimpanan belum dikonfigurasi', () => {
@@ -2087,6 +1943,105 @@ describe('ExcelJoinComponent', () => {
       });
     });
 
+    it('loadSelectedPeriod memuat tabel Masalah Gizi dari workbook periode dual-sheet', async () => {
+      component.isProcessing.set(false);
+      component.selectYear(2026);
+      component.selectedQuarter.set('TW1');
+
+      const wb = XLSX.utils.book_new();
+      const wsIntervensi = XLSX.utils.aoa_to_sheet([
+        ['No', 'Kabupaten/Kota', '% Konsumsi TTD'],
+        [1, 'Cilacap', 85],
+        [2, 'Banyumas', 88],
+        ['-', 'Target', '>= 90'],
+      ]);
+      const wsGizi = XLSX.utils.aoa_to_sheet([
+        ['No', 'Kabupaten/Kota', 'BBLR - %', 'Stunting - %'],
+        [1, 'Cilacap', 6.5, 12.0],
+        [2, 'Banyumas', 5.1, 9.8],
+        ['-', 'Target', '<= 5.5', '<= 14'],
+      ]);
+      XLSX.utils.book_append_sheet(wb, wsIntervensi, 'Hasil Join');
+      XLSX.utils.book_append_sheet(wb, wsGizi, 'MASALAH GIZI');
+      const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+
+      vi.spyOn(component.periodPartitionWorkspace, 'loadRawPeriod').mockResolvedValue({
+        success: true,
+        hasData: true,
+        year: 2026,
+        quarter: 'TW1',
+        rawExcelBuffer: buf,
+        resultExcelBuffer: buf,
+        config: { name: 'Periode 2026 TW1', sheets: [] } as never,
+        resultExcelAvailable: true,
+      });
+
+      await component.loadSelectedPeriod();
+
+      expect(component.resultColumns()).toContain('% Konsumsi TTD');
+      expect(component.masalahGiziTable.hasData()).toBe(true);
+      expect(component.masalahGiziTable.resultColumns()).toContain('BBLR - %');
+      expect(component.masalahGiziTable.resultColumns()).toContain('Stunting - %');
+    });
+
+    it('loadSelectedPeriod memulihkan tabel Masalah Gizi dari berkas mentah jika arsip hasil hanya memuat intervensi', async () => {
+      component.isProcessing.set(false);
+      component.selectYear(2026);
+      component.selectedQuarter.set('TW2');
+
+      const resultWb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(
+        resultWb,
+        XLSX.utils.aoa_to_sheet([
+          ['No', 'Kabupaten/Kota', '% Konsumsi TTD'],
+          [1, 'Cilacap', 85],
+          [2, 'Banyumas', 88],
+          ['-', 'Target', '>= 90'],
+        ]),
+        'Hasil Join',
+      );
+      const resultBuf = XLSX.write(resultWb, { bookType: 'xlsx', type: 'array' });
+
+      const rawWb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(
+        rawWb,
+        XLSX.utils.aoa_to_sheet([
+          ['No', 'Kabupaten/Kota', '% Konsumsi TTD'],
+          [1, 'Cilacap', 85],
+          [2, 'Banyumas', 88],
+        ]),
+        'Hasil Join',
+      );
+      XLSX.utils.book_append_sheet(
+        rawWb,
+        XLSX.utils.aoa_to_sheet([
+          ['No', 'Kabupaten/Kota', 'BBLR - %', 'Stunting - %'],
+          [1, 'Cilacap', 6.5, 12.0],
+          [2, 'Banyumas', 5.1, 9.8],
+        ]),
+        'MASALAH GIZI',
+      );
+      const rawBuf = XLSX.write(rawWb, { bookType: 'xlsx', type: 'array' });
+
+      vi.spyOn(component.periodPartitionWorkspace, 'loadRawPeriod').mockResolvedValue({
+        success: true,
+        hasData: true,
+        year: 2026,
+        quarter: 'TW2',
+        rawExcelBuffer: resultBuf,
+        resultExcelBuffer: resultBuf,
+        sourceRawExcelBuffer: rawBuf,
+        config: { name: 'Periode 2026 TW2', sheets: [] } as never,
+        resultExcelAvailable: true,
+      });
+
+      await component.loadSelectedPeriod();
+
+      expect(component.resultColumns()).toContain('% Konsumsi TTD');
+      expect(component.masalahGiziTable.hasData()).toBe(true);
+      expect(component.masalahGiziTable.resultColumns()).toContain('BBLR - %');
+    });
+
     it('confirmSavePeriodToCloud mengunggah raw dan result buffer ke GAS', async () => {
       component.selectYear(2026);
       component.selectedQuarter.set('TW2');
@@ -2121,15 +2076,48 @@ describe('ExcelJoinComponent', () => {
       expect(component.configNotification()?.type).toBe('success');
     });
 
-    it('availableYears mencakup 5 tahun ke belakang dari tahun saat ini', () => {
-      const cur = new Date().getFullYear();
-      const expected = [cur, cur - 1, cur - 2, cur - 3, cur - 4, cur - 5];
-      for (const y of expected) {
-        expect(component.availableYears()).toContain(y);
-      }
+    it('availableYears kosong sampai ada data server, acuan target, atau tahun kustom', () => {
+      expect(component.availableYears()).toEqual([]);
+      expect(component.selectedYear()).toBeNull();
     });
 
-    it('mendukung penambahan tahun kustom di luar rentang default melalui input UI', () => {
+    it('hapus tahun: menolak tahun berisi data dan menghapus tahun kosong via konfirmasi', async () => {
+      component.periodSlots.set([
+        { year: 2026, quarter: 'TW1', hasRaw: true, hasResult: true, hasConfig: true },
+      ]);
+      component.periodPartitionWorkspace.addCustomYear(2031);
+
+      // Tahun dengan data periode tidak boleh dihapus
+      component.selectYear(2026);
+      expect(component.canDeleteSelectedYear()).toBe(false);
+      component.openDeleteYearConfirm();
+      expect(component.showDeleteYearConfirm()).toBe(false);
+
+      // Tahun kosong (kustom, tanpa data/acuan) dihapus lewat konfirmasi
+      component.selectYear(2031);
+      expect(component.canDeleteSelectedYear()).toBe(true);
+      component.openDeleteYearConfirm();
+      expect(component.showDeleteYearConfirm()).toBe(true);
+
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, message: 'Terhapus' }),
+      });
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
+      try {
+        await component.confirmDeleteYear();
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+
+      expect(component.showDeleteYearConfirm()).toBe(false);
+      expect(component.availableYears()).not.toContain(2031);
+      expect(component.selectedYear()).not.toBe(2031);
+    });
+
+    it('mendukung penambahan tahun kustom di luar rentang default melalui input UI', async () => {
       // 1. Memilih option __custom__ membuka form input tahun kustom
       component.onYearSelectChange('__custom__');
       expect(component.showCustomYearInput()).toBe(true);
@@ -2140,10 +2128,26 @@ describe('ExcelJoinComponent', () => {
       expect(component.configNotification()?.type).toBe('warning');
       expect(component.showCustomYearInput()).toBe(true);
 
-      // 3. Menambahkan tahun yang valid (misal: 2019)
+      // 3. Tahun valid membuka modal acuan; tahun ditambahkan setelah acuan tersimpan
       component.customYearValue.set(2019);
       component.submitCustomYear();
       expect(component.showCustomYearInput()).toBe(false);
+      expect(component.showTargetModal()).toBe(true);
+      expect(component.availableYears()).not.toContain(2019);
+
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, message: 'Tersimpan' }),
+      });
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
+      try {
+        await component.confirmYearTargetModal();
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+
       expect(component.availableYears()).toContain(2019);
       expect(component.selectedYear()).toBe(2019);
 
@@ -2459,6 +2463,7 @@ describe('ExcelJoinComponent', () => {
         expect(MASALAH_GIZI_JOIN_CONFIG.enableJumlah).toBe(true);
         expect(MASALAH_GIZI_JOIN_CONFIG.enableAverage).toBe(true);
         expect(MASALAH_GIZI_JOIN_CONFIG.enableTarget).toBe(true);
+        expect(MASALAH_GIZI_JOIN_CONFIG.enableCapaian).toBe(true);
 
         // Verifikasi target batas maksimal (<=) untuk indikator masalah gizi
         expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['BBLR - %']?.operator).toBe('<=');
@@ -2475,6 +2480,9 @@ describe('ExcelJoinComponent', () => {
         expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['Stunting - %']?.value).toBe(14);
         expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['Insiden Stunting - %']?.operator).toBe('<=');
         expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['Insiden Stunting - %']?.value).toBe(2.3);
+        expect(MASALAH_GIZI_JOIN_CONFIG.columnConfigs?.['Insiden Stunting - %']?.dataType).toBe(
+          'percentage',
+        );
         expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['Bumil KEK/Risiko KEK - %']?.operator).toBe('<=');
         expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['Bumil KEK/Risiko KEK - %']?.value).toBe(13);
         expect(MASALAH_GIZI_JOIN_CONFIG.columnTargets?.['Bumil Anemia - %']?.operator).toBe('<=');
@@ -2787,30 +2795,164 @@ describe('ExcelJoinComponent', () => {
       });
     });
 
-    describe('Modal Target Wajib - Pembatalan Import', () => {
-      it('harus membatalkan import dan mengosongkan seluruh data saat closeTargetModal dipanggil', () => {
+    describe('Modal Acuan Target Tahunan', () => {
+      it('harus menutup modal tanpa membatalkan import saat cancelYearTargetModal dipanggil', () => {
         component.resultRows.set([{ 'Kabupaten/Kota': 'KUDUS', '% TTD': 80 }]);
         component.resultColumns.set(['Kabupaten/Kota', '% TTD']);
         component.file.set(new File([], 'test.xlsx'));
         component.showTargetModal.set(true);
         component.modalTargetDrafts.set({ '% TTD': { enabled: false, operator: '>=', value: null } });
 
-        component.closeTargetModal();
+        component.cancelYearTargetModal();
 
         expect(component.showTargetModal()).toBe(false);
-        expect(component.file()).toBeNull();
-        expect(component.resultRows()).toHaveLength(0);
-        expect(component.resultColumns()).toHaveLength(0);
+        expect(component.file()).not.toBeNull();
+        expect(component.resultRows()).toHaveLength(1);
+        expect(component.resultColumns()).toHaveLength(2);
+        expect(component.targetModalYear()).toBeNull();
       });
 
-      it('harus menampilkan notifikasi error saat closeTargetModal dipanggil', () => {
-        component.showTargetModal.set(true);
+      it('harus tetap membuka modal acuan meski fitur target nonaktif', () => {
+        component.enableTarget.set(false);
+        component.periodPartitionWorkspace.addCustomYear(2026);
 
-        component.closeTargetModal();
+        component.openEditYearTargetModal();
 
-        const notif = component.configNotification();
-        expect(notif?.type).toBe('warning');
-        expect(notif?.message).toContain('Import dibatalkan');
+        expect(component.showTargetModal()).toBe(true);
+        expect(component.targetModalYear()).toBe(2026);
+        expect(component.targetModalMode()).toBe('edit');
+      });
+
+      it('harus membuka modal acuan saat menambah tahun meski fitur target nonaktif', () => {
+        component.enableTarget.set(false);
+        component.customYearValue.set(2030);
+
+        component.submitCustomYear();
+
+        expect(component.showTargetModal()).toBe(true);
+        expect(component.targetModalYear()).toBe(2030);
+        expect(component.periodPartitionWorkspace.availableYears()).not.toContain(2030);
+      });
+
+      it('harus menampilkan acuan intervensi spesifik dan masalah gizi terprefill default preset', () => {
+        component.enableTarget.set(true);
+        component.activePresetName.set(DEFAULT_JOIN_CONFIG.name || '');
+        component.resultColumns.set([...(DEFAULT_JOIN_CONFIG.columnOrder || [])]);
+
+        component.openYearTargetModal(2027, 'add');
+
+        expect(component.showTargetModal()).toBe(true);
+        expect(component.targetModalYear()).toBe(2027);
+        expect(component.targetModalMode()).toBe('add');
+        const sections = component.modalTargetSections();
+        expect(sections.map((section) => section.key)).toEqual([
+          'intervensi-spesifik',
+          'masalah-gizi',
+        ]);
+
+        const giziSection = sections.find((section) => section.key === 'masalah-gizi');
+        expect(giziSection?.columns).toContain('BBLR - %');
+        expect(giziSection?.columns).toContain('Insiden Stunting - %');
+        const giziDraft = component.getModalTargetDraft('masalah-gizi', 'BBLR - %');
+        expect(giziDraft?.operator).toBe('<=');
+        expect(giziDraft?.value).toBe(5.5);
+      });
+
+      it('harus membuka modal saat menambah tahun dan baru menambahkan tahun setelah acuan tersimpan', async () => {
+        component.enableTarget.set(true);
+        component.customYearValue.set(2028);
+
+        component.submitCustomYear();
+
+        expect(component.showTargetModal()).toBe(true);
+        expect(component.targetModalYear()).toBe(2028);
+        expect(component.periodPartitionWorkspace.availableYears()).not.toContain(2028);
+
+        const fetchMock = vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: async () => ({ success: true, message: 'Tersimpan' }),
+        });
+        const originalFetch = globalThis.fetch;
+        globalThis.fetch = fetchMock as unknown as typeof fetch;
+        try {
+          await component.confirmYearTargetModal();
+        } finally {
+          globalThis.fetch = originalFetch;
+        }
+
+        expect(component.showTargetModal()).toBe(false);
+        expect(component.periodPartitionWorkspace.availableYears()).toContain(2028);
+        expect(component.selectedYear()).toBe(2028);
+        expect(component.periodPartitionWorkspace.hasYearTargets(2028)).toBe(true);
+      });
+
+      it('tidak menambahkan tahun bila modal tambah tahun dibatalkan', () => {
+        component.enableTarget.set(true);
+        component.customYearValue.set(2029);
+
+        component.submitCustomYear();
+        component.cancelYearTargetModal();
+
+        expect(component.showTargetModal()).toBe(false);
+        expect(component.periodPartitionWorkspace.availableYears()).not.toContain(2029);
+      });
+
+      it('harus menyimpan acuan tahun ke workspace, menerapkannya ke sesi, dan memakainya di preset', async () => {
+        component.enableTarget.set(true);
+        component.periodPartitionWorkspace.addCustomYear(2027);
+        expect(component.selectedYear()).toBe(2027);
+        component.activePresetName.set(DEFAULT_JOIN_CONFIG.name || '');
+        component.resultColumns.set([...(DEFAULT_JOIN_CONFIG.columnOrder || [])]);
+
+        component.openYearTargetModal(2027, 'edit');
+        component.setModalTargetValue('intervensi-spesifik', '% Konsumsi TTD', '>=', 70);
+        component.setModalTargetValue('masalah-gizi', 'BBLR - %', '<=', 4.5);
+
+        const fetchMock = vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: async () => ({ success: true, message: 'Tersimpan' }),
+        });
+        const originalFetch = globalThis.fetch;
+        globalThis.fetch = fetchMock as unknown as typeof fetch;
+        try {
+          await component.confirmYearTargetModal();
+        } finally {
+          globalThis.fetch = originalFetch;
+        }
+
+        expect(component.showTargetModal()).toBe(false);
+        const saved = component.periodPartitionWorkspace.getYearTargets(2027);
+        expect(saved?.['intervensi-spesifik']['% Konsumsi TTD']).toEqual({
+          enabled: true,
+          operator: '>=',
+          value: 70,
+        });
+        expect(saved?.['masalah-gizi']['BBLR - %']?.value).toBe(4.5);
+        expect(component.columnTargets()['% Konsumsi TTD']).toEqual({
+          enabled: true,
+          operator: '>=',
+          value: 70,
+        });
+        expect(component.datasetTargets()['masalah-gizi']['BBLR - %']?.value).toBe(4.5);
+
+        const preset = component.getCurrentPreset('Simpan Periode');
+        expect(preset.columnTargets?.['% Konsumsi TTD']?.value).toBe(70);
+        expect(preset.columnTargets?.['BBLR - %']?.value).toBe(4.5);
+      });
+
+      it('harus memblokir simpan periode saat tahun aktif belum memiliki acuan target', () => {
+        component.enableTarget.set(true);
+        component.periodPartitionWorkspace.addCustomYear(2031);
+        component.file.set(new File([], 'test.xlsx'));
+        vi.spyOn(component.periodPartitionWorkspace, 'isStorageConfigured').mockReturnValue(true);
+
+        component.openSavePeriodConfirm();
+
+        expect(component.showSavePeriodConfirm()).toBe(false);
+        expect(component.showTargetModal()).toBe(true);
+        expect(component.targetModalYear()).toBe(2031);
       });
     });
   });

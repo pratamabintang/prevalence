@@ -13,10 +13,7 @@ export interface ExcelJoinStoredState {
     name: string;
     size?: number;
     type?: string;
-    base64?: string;
   } | null;
-  isDefaultData: boolean;
-  isCloudDefault: boolean;
   showSettings: boolean;
   activePresetName: string;
   sheets: SheetInfo[];
@@ -43,36 +40,38 @@ export interface ExcelJoinStoredState {
 }
 
 /**
- * ExcelJoinStore: Layanan state singleton tingkat aplikasi (providedIn: 'root')
- * yang mempertahankan data, progress konfigurasi, dan hasil join ketika user
- * berpindah menu/rute lain dalam tab yang sama (SPA navigation) via sessionStorage.
+ * ExcelJoinStore: layanan state singleton (providedIn: 'root') yang mempertahankan
+ * data, progress konfigurasi, dan hasil join selama sesi aplikasi berjalan, sehingga
+ * pekerjaan tidak hilang ketika user berpindah menu/rute (SPA navigation).
  *
- * Pada saat user membuka browser atau tab baru, sessionStorage kosong sehingga
- * sumber awal data dipastikan selalu fresh dari Google Drive.
+ * State sengaja TIDAK ditulis ke sessionStorage/localStorage: membuka atau memuat
+ * ulang aplikasi selalu menampilkan halaman Kelola Data yang bersih, sehingga data
+ * yang belum tersimpan di server tidak pernah muncul seperti data bawaan.
  */
 @Injectable({
   providedIn: 'root',
 })
 export class ExcelJoinStore {
-  static readonly STORAGE_KEY = 'dinkes_excel_join_session_state';
+  static readonly LEGACY_STORAGE_KEY = 'dinkes_excel_join_session_state';
 
   private inMemoryState: ExcelJoinStoredState | null = null;
   private inMemoryWorkbook: ExcelWorkbook | null = null;
   private inMemoryFile: File | null = null;
 
   constructor() {
-    // Bersihkan legacy localStorage jika ada dari versi sebelumnya
+    // Bersihkan sisa state lama dari versi yang masih memakai sessionStorage
     try {
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        sessionStorage.removeItem(ExcelJoinStore.LEGACY_STORAGE_KEY);
+      }
       if (typeof window !== 'undefined' && window.localStorage) {
         localStorage.removeItem('dinkes_excel_join_state');
       }
     } catch {}
-
-    this.inMemoryState = this.readFromSessionStorage();
   }
 
   /**
-   * Menyimpan snapshot state dan objek workbook/file ke in-memory service dan sessionStorage tab aktif.
+   * Menyimpan snapshot state dan objek workbook/file ke memori sesi aplikasi.
    */
   saveState(
     state: ExcelJoinStoredState,
@@ -86,42 +85,27 @@ export class ExcelJoinStore {
     if (file !== undefined && file !== null) {
       this.inMemoryFile = file;
     }
-
-    this.persistToSessionStorage(state);
   }
 
   /**
-   * Memeriksa apakah terdapat state tersimpan yang valid pada sesi tab saat ini.
+   * Memeriksa apakah terdapat state yang valid pada sesi aplikasi berjalan.
    */
   hasState(): boolean {
-    if (this.inMemoryState) {
-      return (
-        (this.inMemoryState.sheets && this.inMemoryState.sheets.length > 0) ||
-        (this.inMemoryState.resultRows && this.inMemoryState.resultRows.length > 0) ||
-        !!this.inMemoryState.fileInfo
-      );
+    const state = this.inMemoryState;
+    if (!state) {
+      return false;
     }
-
-    const fromSession = this.readFromSessionStorage();
-    if (fromSession) {
-      this.inMemoryState = fromSession;
-      return (
-        (fromSession.sheets && fromSession.sheets.length > 0) ||
-        (fromSession.resultRows && fromSession.resultRows.length > 0) ||
-        !!fromSession.fileInfo
-      );
-    }
-
-    return false;
+    return (
+      (state.sheets && state.sheets.length > 0) ||
+      (state.resultRows && state.resultRows.length > 0) ||
+      !!state.fileInfo
+    );
   }
 
   /**
-   * Mengambil snapshot state aktif sesi ini.
+   * Mengambil snapshot state aktif sesi aplikasi berjalan.
    */
   getState(): ExcelJoinStoredState | null {
-    if (!this.inMemoryState) {
-      this.inMemoryState = this.readFromSessionStorage();
-    }
     return this.inMemoryState;
   }
 
@@ -129,27 +113,7 @@ export class ExcelJoinStore {
    * Mengambil referensi workbook SheetJS yang tersimpan di memori sesi.
    */
   getWorkbook(): ExcelWorkbook | null {
-    if (this.inMemoryWorkbook) {
-      return this.inMemoryWorkbook;
-    }
-
-    // Jika di memori null tapi ada base64 di sessionStorage
-    if (this.inMemoryState?.fileInfo?.base64) {
-      try {
-        const binary = atob(this.inMemoryState.fileInfo.base64);
-        const len = binary.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = binary.charCodeAt(i);
-        }
-        this.inMemoryWorkbook = ExcelWorkbookAdapter.readWorkbook(bytes.buffer);
-        return this.inMemoryWorkbook;
-      } catch (e) {
-        console.warn('Gagal merekonstruksi workbook dari base64 sessionStorage:', e);
-      }
-    }
-
-    return null;
+    return this.inMemoryWorkbook;
   }
 
   /**
@@ -167,7 +131,7 @@ export class ExcelJoinStore {
         const rawBuffer = ExcelWorkbookAdapter.writeToBuffer(this.inMemoryWorkbook);
         this.inMemoryFile = new File(
           [rawBuffer],
-          this.inMemoryState?.fileInfo?.name || 'default-join-data.xlsx',
+          this.inMemoryState?.fileInfo?.name || 'hasil-join.xlsx',
           { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
         );
         return this.inMemoryFile;
@@ -176,93 +140,15 @@ export class ExcelJoinStore {
       }
     }
 
-    if (this.inMemoryState?.fileInfo?.base64 && typeof window !== 'undefined') {
-      try {
-        const binary = atob(this.inMemoryState.fileInfo.base64);
-        const len = binary.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = binary.charCodeAt(i);
-        }
-        const restoredFile = new File(
-          [bytes],
-          this.inMemoryState.fileInfo.name || 'restored.xlsx',
-          { type: this.inMemoryState.fileInfo.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
-        );
-        this.inMemoryFile = restoredFile;
-        return restoredFile;
-      } catch (e) {
-        console.warn('Gagal merekonstruksi File dari base64 sessionStorage:', e);
-      }
-    }
-
     return null;
   }
 
   /**
-   * Membersihkan seluruh data state (in-memory dan sessionStorage).
+   * Membersihkan seluruh data state dari memori sesi aplikasi.
    */
   clearState(): void {
     this.inMemoryState = null;
     this.inMemoryWorkbook = null;
     this.inMemoryFile = null;
-
-    try {
-      if (typeof window !== 'undefined' && window.sessionStorage) {
-        sessionStorage.removeItem(ExcelJoinStore.STORAGE_KEY);
-      }
-    } catch (e) {
-      console.warn('Gagal menghapus state dari sessionStorage:', e);
-    }
-  }
-
-  private persistToSessionStorage(state: ExcelJoinStoredState): void {
-    if (typeof window === 'undefined' || !window.sessionStorage) {
-      return;
-    }
-
-    try {
-      const serialized = JSON.stringify(state);
-      sessionStorage.setItem(ExcelJoinStore.STORAGE_KEY, serialized);
-    } catch (err: unknown) {
-      // Jika melebihi kuota penyimpanan, buang base64 binary dan simpan hanya metadata konfigurasi + baris data
-      if (state.fileInfo?.base64) {
-        try {
-          const strippedState: ExcelJoinStoredState = {
-            ...state,
-            fileInfo: {
-              ...state.fileInfo,
-              base64: undefined,
-            },
-          };
-          sessionStorage.setItem(ExcelJoinStore.STORAGE_KEY, JSON.stringify(strippedState));
-        } catch (innerErr) {
-          console.warn('Gagal menyimpan state ke sessionStorage (kuota penuh):', innerErr);
-        }
-      } else {
-        console.warn('Gagal menyimpan state ke sessionStorage:', err);
-      }
-    }
-  }
-
-  private readFromSessionStorage(): ExcelJoinStoredState | null {
-    if (typeof window === 'undefined' || !window.sessionStorage) {
-      return null;
-    }
-
-    try {
-      const raw = sessionStorage.getItem(ExcelJoinStore.STORAGE_KEY);
-      if (!raw) {
-        return null;
-      }
-      const parsed = JSON.parse(raw) as ExcelJoinStoredState;
-      if (parsed && parsed.version === '1.0') {
-        return parsed;
-      }
-      return null;
-    } catch (e) {
-      console.warn('Gagal membaca state dari sessionStorage:', e);
-      return null;
-    }
   }
 }

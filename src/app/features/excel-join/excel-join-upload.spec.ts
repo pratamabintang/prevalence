@@ -14,7 +14,6 @@ function loadFile(path: string, name: string): File {
   });
 }
 
-const DEFAULT_FILE = 'public/data/default-join-data.xlsx';
 const HASIL_FILE = 'public/Hasil_Join_TW1.xlsx';
 
 function hasilJoinHeaders(): string[] {
@@ -49,35 +48,22 @@ describe('ExcelJoinComponent - regresi unggah berkas dengan penyimpanan server',
   const displayNames = (c: ExcelJoinComponent) =>
     c.resultColumns().map((k) => c.getColumnDisplayName(k));
 
-  it('default-join-data.xlsx langsung datar (flat) dengan urutan kolom sesuai konfigurasi awal', async () => {
+  it('Hasil_Join_TW1.xlsx langsung datar (flat) dengan urutan kolom sesuai hasil join', async () => {
     const c = await setup(null);
-    await upload(c, loadFile(DEFAULT_FILE, 'default-join-data.xlsx'));
+    await upload(c, loadFile(HASIL_FILE, 'Hasil_Join_TW1.xlsx'));
 
-    expect(c.outputHeaderFormat()).toBe('concat');
     expect(c.htmlHeaderGrid().length).toBe(1);
     expect(displayNames(c)).toEqual(hasilJoinHeaders());
   });
 
-  it('unggah Hasil Join lalu default-join-data.xlsx tidak memunculkan peringatan sheet tidak cocok', async () => {
+  it('unggah Hasil Join berulang tidak memunculkan peringatan sheet tidak cocok', async () => {
     const c = await setup(null);
     await upload(c, loadFile(HASIL_FILE, 'Hasil_Join_TW1.xlsx'));
-    await upload(c, loadFile(DEFAULT_FILE, 'default-join-data.xlsx'));
+    await upload(c, loadFile(HASIL_FILE, 'Hasil_Join_TW1.xlsx'));
 
     expect(c.configNotification()?.type).not.toBe('warning');
     expect(c.resultRows().length).toBeGreaterThan(0);
     expect(c.htmlHeaderGrid().length).toBe(1);
-    expect(displayNames(c)).toEqual(hasilJoinHeaders());
-  });
-
-  it('preset basi di server yang tidak menghasilkan data digantikan template standar Dinkes', async () => {
-    const c = await setup({
-      version: '1.0',
-      joinBy: 'Kabupaten/Kota',
-      sheets: [{ sheetName: 'Gizi', variables: ['Stunting %'] }],
-    });
-    await upload(c, loadFile(DEFAULT_FILE, 'default-join-data.xlsx'));
-
-    expect(c.resultRows().length).toBeGreaterThan(0);
     expect(displayNames(c)).toEqual(hasilJoinHeaders());
   });
 });

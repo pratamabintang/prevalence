@@ -175,6 +175,8 @@ export class AppNavbarComponent implements OnInit {
     const isCohortEnabled = this.enableStuntingCohort();
     return this.allNavItems
       .filter((nav) => {
+        if (nav.route === '/capaian-intervensi') return false;
+        if (nav.route === '/visualisasi') return false;
         if (nav.route === '/stunting-dashboard' && !isDashboardEnabled) return false;
         if (nav.route === '/stunting-cohort' && !isCohortEnabled) return false;
         return true;

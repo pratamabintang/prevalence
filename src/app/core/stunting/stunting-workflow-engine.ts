@@ -1405,7 +1405,6 @@ export class StuntingWorkflowEngine {
             sumCol: sub.sumCol,
             dataCol: sub.dataCol,
             defaultTargetPrev: std?.defaultTargetPrev,
-            defaultActualPrev: std?.defaultActualPrev,
             targetPrevYear: sub.targetPrevYear,
             actualPrevYear: sub.actualPrevYear,
           };

@@ -1,9 +1,10 @@
 import { Component, computed, HostListener, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { QuarterSlot } from '../../core/storage/gas-storage.service';
 
-export type PresentationMode = 'period' | 'session' | 'baseline';
+export type PresentationMode = 'period' | 'session';
 
 export interface ActivePresentationPeriod {
   mode: PresentationMode;
@@ -43,17 +44,13 @@ import { DinkesSpreadsheetParser } from '../../core/excel/dinkes-spreadsheet-par
 import { MASALAH_GIZI_JOIN_CONFIG } from '../excel-join/masalah-gizi-join-config';
 import { JoinPresetExecutionSpec } from '../../core/excel/excel-join-engine';
 import {
-  DISTRICT_PREV_YEAR_OUTCOMES,
-  GIZI_METRIC_BOXES,
+  GIZI_COLUMN_ALIASES,
   HomeIndicatorOption,
-  HomeMetricBox,
   INTERVENTION_OUTCOMES_DATA,
   InterventionOutcomeItem,
   NUTRITION_PROBLEM_INDICATORS,
-  NUTRITION_PROBLEMS_DATA,
   OutcomeQuarterData,
   SPECIFIC_INTERVENTION_INDICATORS,
-  SPECIFIC_INTERVENTIONS_DATA,
   WilayahIndicatorBox,
 } from './home-data';
 
@@ -95,7 +92,7 @@ export type HomeCategory =
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './home.component.html',
   styles: [
     `
@@ -174,11 +171,14 @@ export class HomeComponent implements OnInit {
   // -------------------------------------------------------------
   // PERIODE PRESENTASI AKTIF (ACTIVE PRESENTATION PERIOD)
   // -------------------------------------------------------------
-  readonly presentationMode = signal<PresentationMode>('baseline');
+  readonly presentationMode = signal<PresentationMode>('period');
   readonly presentationYear = signal<number>(new Date().getFullYear());
   readonly presentationQuarter = signal<1 | 2 | 3 | 4>(1);
   readonly presentationQuarters: readonly (1 | 2 | 3 | 4)[] = [1, 2, 3, 4] as const;
   readonly isRefreshingPeriods = signal<boolean>(false);
+
+  // Dashboard hanya dirender ketika ada data impor pengguna (sesi atau periode server).
+  readonly hasPresentationData = computed<boolean>(() => this.intervensiRows().length > 0);
 
   readonly availablePresentationYears = computed<number[]>(() => {
     const slots = this.periodPartitionWorkspace?.periodSlots() || [];
@@ -212,8 +212,8 @@ export class HomeComponent implements OnInit {
     const slotKey: QuarterSlot = `TW${quarter}` as QuarterSlot;
 
     let fileName: string | undefined;
-    let sourceLabel = 'Data Bawaan (Baseline)';
-    let tooltip = 'Data Bawaan (Baseline) Provinsi';
+    let sourceLabel = 'Belum Ada Data';
+    let tooltip = 'Belum ada data yang dimuat';
 
     if (mode === 'period') {
       const loadedQ = this.loadedQuarterDatasets()[quarter];
@@ -290,14 +290,6 @@ export class HomeComponent implements OnInit {
     }
   }
 
-  setPresentationBaseline(): void {
-    this.presentationMode.set('baseline');
-    this.intervensiRows.set(SPECIFIC_INTERVENTIONS_DATA);
-    this.giziRows.set(NUTRITION_PROBLEMS_DATA);
-    this.isGiziFallback.set(false);
-    this.setSelectedOutcomeQuarter(2);
-  }
-
   async refreshPresentationPeriods(): Promise<void> {
     if (this.isRefreshingPeriods()) return;
     this.isRefreshingPeriods.set(true);
@@ -342,31 +334,78 @@ export class HomeComponent implements OnInit {
       }
 
       // Bi-category: Extract Masalah Gizi
-      const buffer = qDataset?.resultBuffer || qDataset?.rawBuffer;
-      let giziParsed = false;
-      if (buffer) {
-        try {
-          const parsedGizi = DinkesSpreadsheetParser.parse(buffer, {
-            preset: MASALAH_GIZI_JOIN_CONFIG as unknown as JoinPresetExecutionSpec,
-            preferredSheetName: 'MASALAH GIZI',
-          });
-          if (parsedGizi.regionRows && parsedGizi.regionRows.length >= 30) {
-            this.giziRows.set(parsedGizi.regionRows);
-            this.isGiziFallback.set(false);
-            giziParsed = true;
-          }
-        } catch {
-          // ignore parsing error and fall back
-        }
-      }
+      const giziParsed = this.applyGiziDataset(
+        qDataset?.resultBuffer,
+        qDataset?.rawBuffer,
+        qDataset?.config,
+      );
 
       if (!giziParsed) {
-        this.giziRows.set(NUTRITION_PROBLEMS_DATA);
+        this.giziRows.set([]);
+        this.giziTargets.set({});
         this.isGiziFallback.set(true);
       }
     } catch (err) {
       console.warn(`Gagal memuat dataset presentasi ${year} ${slotKey}:`, err);
     }
+  }
+
+  private applyGiziColumnAliases(
+    row: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const normalized = { ...row };
+    for (const [catalogueKey, dataKeys] of Object.entries(GIZI_COLUMN_ALIASES)) {
+      if (normalized[catalogueKey] !== undefined) continue;
+      const dataKey = dataKeys.find((key) => normalized[key] !== undefined);
+      if (dataKey) normalized[catalogueKey] = normalized[dataKey];
+    }
+    return normalized;
+  }
+
+  private applyGiziDataset(
+    resultBuffer: ArrayBuffer | Uint8Array | undefined,
+    rawBuffer: ArrayBuffer | Uint8Array | undefined,
+    savedPreset?: JoinPresetExecutionSpec,
+  ): boolean {
+    if (!resultBuffer && !rawBuffer) return false;
+
+    const giziPreset: JoinPresetExecutionSpec = {
+      ...(MASALAH_GIZI_JOIN_CONFIG as unknown as JoinPresetExecutionSpec),
+      columnTargets: {
+        ...MASALAH_GIZI_JOIN_CONFIG.columnTargets,
+        ...(savedPreset?.columnTargets ?? {}),
+      },
+    };
+
+    for (const buffer of [resultBuffer, rawBuffer]) {
+      if (!buffer) continue;
+      try {
+        const parsedGizi = DinkesSpreadsheetParser.parse(buffer, {
+          preset: giziPreset,
+          preferredSheetName: 'MASALAH GIZI',
+        });
+        const giziKeys = new Set([
+          ...(parsedGizi.columns ?? []),
+          ...Object.keys(parsedGizi.regionRows?.[0] ?? {}),
+        ]);
+        const hasGiziColumns =
+          giziKeys.has('Stunting - %') ||
+          giziKeys.has('Gizi Kurang - %') ||
+          giziKeys.has('BBLR - %');
+        if (hasGiziColumns && parsedGizi.regionRows && parsedGizi.regionRows.length >= 30) {
+          this.giziRows.set(
+            parsedGizi.regionRows.map((row) => this.applyGiziColumnAliases(row)),
+          );
+          this.giziTargets.set(parsedGizi.columnTargets ?? {});
+          this.isGiziFallback.set(false);
+          return true;
+        }
+      } catch {
+        // coba buffer berikutnya
+      }
+    }
+
+    return false;
   }
 
   // -------------------------------------------------------------
@@ -376,28 +415,26 @@ export class HomeComponent implements OnInit {
   readonly wilayahIndicatorBoxes = computed<WilayahIndicatorBox[]>(() => {
     const indicators = SPECIFIC_INTERVENTION_INDICATORS.slice(0, 14); // Exclude 15th "Capaian" entry
     const scope = this.selectedWilayahScope();
-    const mode = this.presentationMode();
-    
+
     if (scope === 'province') {
-      // In period mode, aggregate from region rows; otherwise use baseline outcomes
-      if (mode === 'period') {
-        const rows = this.intervensiRows();
-        return this.deriveWilayahBoxesFromPeriodProvince(indicators, rows);
-      }
-      return this.deriveWilayahBoxesFromBaselineOutcomes(indicators);
+      return this.deriveWilayahBoxesFromPeriodProvince(indicators, this.intervensiRows());
     }
-    
+
     // For a selected district, extract from intervensiRows()
     return this.deriveWilayahBoxesFromDistrictRow(indicators, scope);
   });
 
-  private deriveWilayahBoxesFromDistrictRow(indicators: HomeIndicatorOption[], districtName: string): WilayahIndicatorBox[] {
-    const rows = this.intervensiRows();
-    
-    // Find the matching row in intervensiRows, using prefix normalization
+  private buildDistrictBoxes(
+    indicators: HomeIndicatorOption[],
+    districtName: string,
+    rows: Record<string, unknown>[],
+    resolveTarget: (indicator: HomeIndicatorOption) => number,
+    resolveOperator: (indicator: HomeIndicatorOption) => string,
+  ): WilayahIndicatorBox[] {
+    // Find the matching row using prefix normalization
     const districtUpper = districtName.trim().toUpperCase();
     const cleanDistrictName = districtUpper.replace(/^(KABUPATEN|KOTA|KAB\.)\s+/i, '').trim();
-    
+
     const matchedRow = rows.find((r) => {
       const name = String(r['Kabupaten/Kota'] || r['Kab/Kota'] || r['Wilayah'] || '')
         .trim()
@@ -406,7 +443,7 @@ export class HomeComponent implements OnInit {
       const cleanName = name.replace(/^(KABUPATEN|KOTA|KAB\.)\s+/i, '').trim();
       return cleanName === cleanDistrictName;
     });
-    
+
     if (!matchedRow) {
       // District row not found, return boxes with null values
       return indicators.map((ind) => ({
@@ -414,26 +451,23 @@ export class HomeComponent implements OnInit {
         label: ind.label,
         shortLabel: ind.shortLabel,
         achievement: null,
-        target: this.getResolvedIntervensiTarget(ind.key, ind.target),
+        target: resolveTarget(ind),
         isAchieved: null,
         unit: ind.unit,
       }));
     }
-    
+
     // Extract achievement values from the matched row
     return indicators.map((ind) => {
       const achievement = this.extractValueFromRow(matchedRow, ind.key);
-      const target = this.getResolvedIntervensiTarget(ind.key, ind.target);
-      
+      const target = resolveTarget(ind);
+      const operator = resolveOperator(ind);
+
       let isAchieved: boolean | null = null;
       if (achievement !== null && target !== null) {
-        if (ind.operator === '>=') {
-          isAchieved = achievement >= target;
-        } else {
-          isAchieved = achievement <= target;
-        }
+        isAchieved = operator === '<=' ? achievement <= target : achievement >= target;
       }
-      
+
       return {
         indicatorKey: ind.key,
         label: ind.label,
@@ -444,6 +478,16 @@ export class HomeComponent implements OnInit {
         unit: ind.unit,
       };
     });
+  }
+
+  private deriveWilayahBoxesFromDistrictRow(indicators: HomeIndicatorOption[], districtName: string): WilayahIndicatorBox[] {
+    return this.buildDistrictBoxes(
+      indicators,
+      districtName,
+      this.intervensiRows(),
+      (ind) => this.getResolvedIntervensiTarget(ind.key, ind.target),
+      (ind) => ind.operator,
+    );
   }
 
   private deriveWilayahBoxesFromPeriodProvince(indicators: HomeIndicatorOption[], regionRows: Record<string, unknown>[]): WilayahIndicatorBox[] {
@@ -480,11 +524,13 @@ export class HomeComponent implements OnInit {
     let contributingRegions = 0;
 
     for (const row of regionRows) {
-      const percentageVal = IndicatorEvaluator.parseSmartNumber(row[indicatorKey]);
+      // Header kolom dataset bisa memakai spasi ganda (mis. "Rematri  Konsumsi TTD"),
+      // jadi ambil nilai lewat pencocokan ter-normalisasi, bukan akses key mentah.
+      const percentageVal = this.extractValueFromRow(row, indicatorKey);
       if (percentageVal === null) continue;
 
       const numeratorCol = this.findNumeratorColumnForIndicator(indicatorKey);
-      const numeratorVal = numeratorCol ? IndicatorEvaluator.parseSmartNumber(row[numeratorCol]) : null;
+      const numeratorVal = numeratorCol ? this.extractValueFromRow(row, numeratorCol) : null;
 
       if (numeratorVal !== null && numeratorVal >= 0 && percentageVal > 0) {
         const denominator = (numeratorVal / percentageVal) * 100;
@@ -523,46 +569,7 @@ export class HomeComponent implements OnInit {
     return numeratorMap[indicatorKey] || null;
   }
 
-  private deriveWilayahBoxesFromBaselineOutcomes(indicators: HomeIndicatorOption[]): WilayahIndicatorBox[] {
-    // Map INTERVENTION_OUTCOMES_DATA by indicator, keyed by the first few words of indicator label
-    const outcomesByIndicator: Record<string, InterventionOutcomeItem | undefined> = {};
-    for (const outcome of INTERVENTION_OUTCOMES_DATA) {
-      // Match by indicator label prefix (first two words or more, case-insensitive)
-      for (const ind of indicators) {
-        if (outcome.indicator.toLowerCase().includes(ind.label.toLowerCase().slice(0, 20))) {
-          outcomesByIndicator[ind.key] = outcome;
-          break;
-        }
-      }
-    }
-
-    return indicators.map((ind) => {
-      const outcome = outcomesByIndicator[ind.key];
-      const achievement = outcome?.capaianTW2 ?? null;
-      const target = this.getResolvedIntervensiTarget(ind.key, ind.target);
-      
-      let isAchieved: boolean | null = null;
-      if (achievement !== null && target !== null) {
-        if (ind.operator === '>=') {
-          isAchieved = achievement >= target;
-        } else {
-          isAchieved = achievement <= target;
-        }
-      }
-
-      return {
-        indicatorKey: ind.key,
-        label: ind.label,
-        shortLabel: ind.shortLabel,
-        achievement,
-        target,
-        isAchieved,
-        unit: ind.unit,
-      };
-    });
-  }
-
-  readonly intervensiIndicators = SPECIFIC_INTERVENTION_INDICATORS;
+  readonly intervensiIndicators = SPECIFIC_INTERVENTION_INDICATORS.slice(0, 14); // Exclude 15th "Capaian" entry
   readonly activeIntervensiIndicatorKey = signal<string>('% Konsumsi TTD');
   readonly intervensiTableSearch = signal<string>('');
 
@@ -574,29 +581,38 @@ export class HomeComponent implements OnInit {
     );
   });
 
-  // Base rows for Specific Interventions (fallbacks to preloaded data, or uses transferred data if available)
-  readonly intervensiRows = signal<Record<string, unknown>[]>(
-    SPECIFIC_INTERVENTIONS_DATA,
-  );
+  // Base rows for Specific Interventions (hanya dari data impor: sesi atau periode server)
+  readonly intervensiRows = signal<Record<string, unknown>[]>([]);
 
   getResolvedIntervensiTarget(indicatorKey: string, fallbackTarget: number): number {
-    // 1. Check loaded quarter targetRow
+    // 1. Acuan target tahunan server (sumber utama)
+    const yearTarget = this.resolveYearTargetConfig(indicatorKey, 'intervensi-spesifik');
+    if (yearTarget?.enabled && yearTarget.value !== null && !isNaN(yearTarget.value)) {
+      return yearTarget.value;
+    }
+
+    // 2. Check loaded quarter columnTargets / targetRow
     const loadedMap = this.loadedQuarterDatasets();
-    let targetRow: Record<string, unknown> | null | undefined = null;
+    let activeDataset: LoadedQuarterDinkesData | null | undefined = null;
     if (this.presentationMode() === 'period' && loadedMap[this.presentationQuarter()]) {
-      targetRow = loadedMap[this.presentationQuarter()]?.targetRow;
+      activeDataset = loadedMap[this.presentationQuarter()];
     } else {
       const availableQNums = ([4, 3, 2, 1] as const).filter((q) => loadedMap[q]);
       if (availableQNums.length > 0) {
-        targetRow = loadedMap[availableQNums[0]]?.targetRow;
+        activeDataset = loadedMap[availableQNums[0]];
       }
     }
+    const savedTarget = activeDataset?.columnTargets?.[indicatorKey];
+    if (savedTarget?.enabled && savedTarget.value !== null && !isNaN(savedTarget.value)) {
+      return savedTarget.value;
+    }
+    const targetRow = activeDataset?.targetRow;
     if (targetRow) {
       const val = this.extractValueFromRow(targetRow, indicatorKey);
       if (val !== null && val > 0) return val;
     }
 
-    // 2. Check HealthDataExchange chartData indicatorTargets or global targetValue
+    // 3. Check HealthDataExchange chartData indicatorTargets or global targetValue
     const transferred = this.healthDataExchange.chartData();
     if (transferred) {
       if (transferred.indicatorTargets && transferred.indicatorTargets[indicatorKey] !== undefined) {
@@ -608,20 +624,20 @@ export class HomeComponent implements OnInit {
       }
     }
 
-    // 3. Check SPECIFIC_INTERVENTION_INDICATORS catalogue for declared target
+    // 4. Check SPECIFIC_INTERVENTION_INDICATORS catalogue for declared target
     const catalogueIndicator = SPECIFIC_INTERVENTION_INDICATORS.find((ind) => ind.key === indicatorKey);
     if (catalogueIndicator && catalogueIndicator.target > 0) {
       return catalogueIndicator.target;
     }
 
-    // 4. Check OUTCOME_INDICATOR_COLUMN_MAP for standard Dinkes current-year targets (fallback only)
+    // 5. Check OUTCOME_INDICATOR_COLUMN_MAP for standard Dinkes current-year targets (fallback only)
     for (const mapping of Object.values(OUTCOME_INDICATOR_COLUMN_MAP)) {
       if (mapping.pCol === indicatorKey && mapping.target) {
         return mapping.target;
       }
     }
 
-    // 5. Fallback
+    // 6. Fallback
     return fallbackTarget;
   }
 
@@ -767,17 +783,6 @@ export class HomeComponent implements OnInit {
   // -------------------------------------------------------------
   // CATEGORY 2: HEATMAP MASALAH GIZI
   // -------------------------------------------------------------
-  // Overview Information Boxes for Ratio 1 Column
-  readonly giziBoxes = signal<HomeMetricBox[]>(GIZI_METRIC_BOXES);
-  readonly giziBoxFilter = signal<string>('all');
-
-  readonly filteredGiziBoxes = computed<HomeMetricBox[]>(() => {
-    const filter = this.giziBoxFilter();
-    const boxes = this.giziBoxes();
-    if (filter === 'all') return boxes;
-    return boxes.filter((b) => b.category === filter);
-  });
-
   readonly giziIndicators = NUTRITION_PROBLEM_INDICATORS;
   readonly activeGiziIndicatorKey = signal<string>('Stunting - %');
   readonly giziTableSearch = signal<string>('');
@@ -789,7 +794,118 @@ export class HomeComponent implements OnInit {
     );
   });
 
-  readonly giziRows = signal<Record<string, unknown>[]>(NUTRITION_PROBLEMS_DATA);
+  readonly giziRows = signal<Record<string, unknown>[]>([]);
+  readonly giziTargets = signal<Record<string, ColumnTargetConfig>>({});
+
+  /** Pencocokan key indikator ke kolom target: persis, ternormalisasi, lalu awalan. */
+  private matchTargetKey(
+    indicatorKey: string,
+    targets: Record<string, ColumnTargetConfig>,
+  ): ColumnTargetConfig | undefined {
+    const direct = targets[indicatorKey];
+    if (direct) return direct;
+
+    const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normalizedKey = normalize(indicatorKey);
+    const entries = Object.entries(targets);
+    const exactMatch = entries.find(([key]) => normalize(key) === normalizedKey);
+    if (exactMatch) return exactMatch[1];
+
+    const fuzzyMatch = entries.find(([key]) => {
+      const normalizedTargetKey = normalize(key);
+      return (
+        normalizedTargetKey.startsWith(normalizedKey) ||
+        normalizedKey.startsWith(normalizedTargetKey)
+      );
+    });
+    return fuzzyMatch?.[1];
+  }
+
+  /** Acuan target tahunan tahun aktif dari server untuk dataset tertentu. */
+  private resolveYearTargetConfig(
+    indicatorKey: string,
+    datasetKey: 'intervensi-spesifik' | 'masalah-gizi',
+  ): ColumnTargetConfig | undefined {
+    const targets = this.periodPartitionWorkspace?.getYearTargets(this.presentationYear())?.[
+      datasetKey
+    ];
+    if (!targets) return undefined;
+    return this.matchTargetKey(indicatorKey, targets);
+  }
+
+  private resolveGiziTargetConfig(indicatorKey: string): ColumnTargetConfig | undefined {
+    return (
+      this.resolveYearTargetConfig(indicatorKey, 'masalah-gizi') ??
+      this.matchTargetKey(indicatorKey, this.giziTargets())
+    );
+  }
+
+  getResolvedGiziTarget(indicatorKey: string, fallbackTarget: number): number {
+    const target = this.resolveGiziTargetConfig(indicatorKey);
+    if (target?.enabled && target.value !== null && !isNaN(target.value)) {
+      return target.value;
+    }
+    return fallbackTarget;
+  }
+
+  getResolvedGiziOperator(indicatorKey: string, fallbackOperator: string): string {
+    const target = this.resolveGiziTargetConfig(indicatorKey);
+    if (target?.enabled && target.operator) {
+      return target.operator;
+    }
+    return fallbackOperator;
+  }
+
+  readonly giziWilayahIndicatorBoxes = computed<WilayahIndicatorBox[]>(() => {
+    const indicators = this.giziIndicators;
+    const scope = this.selectedWilayahScope();
+    const rows = this.giziRows();
+
+    if (scope === 'province') {
+      return this.deriveGiziBoxesFromProvince(indicators, rows);
+    }
+
+    return this.buildDistrictBoxes(
+      indicators,
+      scope,
+      rows,
+      (ind) => this.getResolvedGiziTarget(ind.key, ind.target),
+      (ind) => this.getResolvedGiziOperator(ind.key, ind.operator),
+    );
+  });
+
+  private deriveGiziBoxesFromProvince(
+    indicators: HomeIndicatorOption[],
+    rows: Record<string, unknown>[],
+  ): WilayahIndicatorBox[] {
+    return indicators.map((ind) => {
+      const values = rows
+        .map((row) => this.extractValueFromRow(row, ind.key))
+        .filter((value): value is number => value !== null);
+
+      const achievement =
+        values.length > 0
+          ? Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 100) / 100
+          : null;
+      const target = this.getResolvedGiziTarget(ind.key, ind.target);
+      const operator = this.getResolvedGiziOperator(ind.key, ind.operator);
+
+      let isAchieved: boolean | null = null;
+      if (achievement !== null && target !== null) {
+        isAchieved = operator === '<=' ? achievement <= target : achievement >= target;
+      }
+
+      return {
+        indicatorKey: ind.key,
+        label: ind.label,
+        shortLabel: ind.shortLabel,
+        achievement,
+        target,
+        isAchieved,
+        unit: ind.unit,
+      };
+    });
+  }
 
   readonly giziHeatmapResult = computed<DistrictHeatmapResult | null>(() => {
     const indicator = this.activeGiziIndicator();
@@ -805,8 +921,8 @@ export class HomeComponent implements OnInit {
         label: indicator.label,
         color: '#E11D48',
       },
-      targetValue: indicator.target,
-      targetOperator: '<=',
+      targetValue: this.getResolvedGiziTarget(indicator.key, indicator.target),
+      targetOperator: this.getResolvedGiziOperator(indicator.key, '<='),
       paletteId: 'red-yellow-green',
     });
   });
@@ -874,8 +990,11 @@ export class HomeComponent implements OnInit {
     const indicatorTargets: Record<string, number | null> = {};
     const indicatorTargetOperators: Record<string, string> = {};
     for (const ind of this.giziIndicators) {
-      indicatorTargets[ind.key] = ind.target;
-      indicatorTargetOperators[ind.key] = ind.operator || '<=';
+      indicatorTargets[ind.key] = this.getResolvedGiziTarget(ind.key, ind.target);
+      indicatorTargetOperators[ind.key] = this.getResolvedGiziOperator(
+        ind.key,
+        ind.operator || '<=',
+      );
     }
 
     return ChartSlicingEngine.computeIndicatorGroups({
@@ -994,29 +1113,28 @@ export class HomeComponent implements OnInit {
   readonly selectedOutcomeScopeLabel = computed<string>(() => {
     const scope = this.selectedOutcomeScope();
     if (scope === 'province') {
-      return 'PROVINSI JAWA TENGAH (Agregat)';
+      return 'PROVINSI JAWA TENGAH';
     }
     return scope;
   });
 
   getScopePrevYearOutcome(scope: 'province' | string, indNo: string): number | null {
+    const cfg = OUTCOME_INDICATOR_COLUMN_MAP[indNo];
+    if (this.isOldestPresentationYear()) return 0;
     if (scope === 'province') {
       const prevData = this.loadedPrevYearDataset();
-      const cfg = OUTCOME_INDICATOR_COLUMN_MAP[indNo];
       if (prevData && cfg?.pCol) {
         const p = this.extractValueFromRow(prevData.summaryRow, cfg.pCol);
         if (p !== null) return Math.round(p * 100) / 100;
       }
-      const defaultProv = INTERVENTION_OUTCOMES_DATA.find((it) => it.no === indNo);
-      return defaultProv?.realisasi2025 ?? null;
+      return null;
     }
 
     const scopeUpper = scope.trim().toUpperCase();
     const cleanScope = scopeUpper.replace(/^(KABUPATEN|KOTA|KAB\.)\s+/i, '').trim();
 
-    // 1. Check loadedPrevYearDataset region rows if available
+    // Capaian tahun lalu hanya dari dataset TW4 tahun sebelumnya yang dimuat dari server
     const prevData = this.loadedPrevYearDataset();
-    const cfg = OUTCOME_INDICATOR_COLUMN_MAP[indNo];
     if (prevData && prevData.regionRows && prevData.regionRows.length > 0 && cfg?.pCol) {
       const row = prevData.regionRows.find((r) => {
         const name = String(r['Kabupaten/Kota'] || r['Kab/Kota'] || r['Wilayah'] || '')
@@ -1032,24 +1150,38 @@ export class HomeComponent implements OnInit {
       }
     }
 
-    // 2. Check DISTRICT_PREV_YEAR_OUTCOMES
-    const matchKey = Object.keys(DISTRICT_PREV_YEAR_OUTCOMES).find((k) => {
-      if (k === scopeUpper) return true;
-      const cleanK = k.replace(/^(KABUPATEN|KOTA|KAB\.)\s+/i, '').trim();
-      return cleanK === cleanScope;
-    });
+    return null;
+  }
 
-    if (matchKey && DISTRICT_PREV_YEAR_OUTCOMES[matchKey]?.[indNo] !== undefined) {
-      return DISTRICT_PREV_YEAR_OUTCOMES[matchKey][indNo];
+  /** Tahun paling lama tidak punya pembanding tahun sebelumnya. */
+  private isOldestPresentationYear(): boolean {
+    const years = this.periodPartitionWorkspace?.availableYears() ?? [];
+    if (years.length === 0) return false;
+    return !years.some((y) => y < this.presentationYear());
+  }
+
+  /** Acuan target tahunan menimpa target tertanam di berkas arsip (1 tahun = 1 acuan). */
+  private resolveYearTargetOverride(indNo: string, year: number): string | null {
+    const cfg = OUTCOME_INDICATOR_COLUMN_MAP[indNo];
+    if (!cfg?.pCol) return null;
+    const cell = this.periodPartitionWorkspace?.getYearTargets(year)?.['intervensi-spesifik']?.[
+      cfg.pCol
+    ];
+    if (cell?.enabled && cell.value !== null && !isNaN(cell.value)) {
+      return `${cell.value}%`;
     }
-
-    // 3. Fallback to provincial default if not found
-    const defaultProv = INTERVENTION_OUTCOMES_DATA.find((it) => it.no === indNo);
-    return defaultProv?.realisasi2025 ?? null;
+    return null;
   }
 
   getScopePrevYearTarget(indNo: string): string {
     const cfg = OUTCOME_INDICATOR_COLUMN_MAP[indNo];
+
+    // Tahun paling lama tidak punya pembanding tahun lalu.
+    if (this.isOldestPresentationYear()) return '0%';
+
+    // 0. Acuan target tahun lalu dari server (sumber utama)
+    const yearOverride = this.resolveYearTargetOverride(indNo, this.presentationYear() - 1);
+    if (yearOverride !== null) return yearOverride;
 
     // 1. Cek konfigurasi StuntingWorkflowEngine jika tersedia
     if (this.workflowEngine) {
@@ -1104,7 +1236,31 @@ export class HomeComponent implements OnInit {
   getScopeCurrentYearTarget(indNo: string): string {
     const cfg = OUTCOME_INDICATOR_COLUMN_MAP[indNo];
 
-    // 1. Cek konfigurasi StuntingWorkflowEngine jika tersedia
+    // 0. Acuan target tahun ini dari server (sumber utama)
+    const yearOverride = this.resolveYearTargetOverride(indNo, this.presentationYear());
+    if (yearOverride !== null) return yearOverride;
+
+    // 1. Cek dataset kuartal aktif atau kuartal terbaru yang dimuat (target yang disimpan pengguna)
+    const loaded = this.loadedQuarterDatasets();
+    const selQ = this.selectedOutcomeQuarter();
+    const checkOrder: (1 | 2 | 3 | 4)[] = [selQ, 4, 3, 2, 1];
+    for (const q of checkOrder) {
+      const qData = loaded[q];
+      if (qData && cfg?.pCol) {
+        if (
+          qData.columnTargets?.[cfg.pCol]?.enabled &&
+          qData.columnTargets[cfg.pCol]?.value !== null
+        ) {
+          return `${qData.columnTargets[cfg.pCol].value}%`;
+        }
+        if (qData.targetRow && qData.targetRow[cfg.pCol] !== undefined) {
+          const cleaned = StuntingEvaluationEngine.cleanTargetValue(qData.targetRow[cfg.pCol]);
+          if (cleaned.value !== null) return `${cleaned.value}%`;
+        }
+      }
+    }
+
+    // 2. Cek konfigurasi StuntingWorkflowEngine jika tersedia
     if (this.workflowEngine) {
       const cats = this.workflowEngine.categories();
       for (const cat of cats) {
@@ -1122,26 +1278,6 @@ export class HomeComponent implements OnInit {
         ) {
           const num = IndicatorEvaluator.parseSmartNumber(sub.targetCurrentYear);
           if (num !== null) return `${num}%`;
-        }
-      }
-    }
-
-    // 2. Cek dataset kuartal aktif atau kuartal terbaru yang dimuat
-    const loaded = this.loadedQuarterDatasets();
-    const selQ = this.selectedOutcomeQuarter();
-    const checkOrder: (1 | 2 | 3 | 4)[] = [selQ, 4, 3, 2, 1];
-    for (const q of checkOrder) {
-      const qData = loaded[q];
-      if (qData && cfg?.pCol) {
-        if (
-          qData.columnTargets?.[cfg.pCol]?.enabled &&
-          qData.columnTargets[cfg.pCol]?.value !== null
-        ) {
-          return `${qData.columnTargets[cfg.pCol].value}%`;
-        }
-        if (qData.targetRow && qData.targetRow[cfg.pCol] !== undefined) {
-          const cleaned = StuntingEvaluationEngine.cleanTargetValue(qData.targetRow[cfg.pCol]);
-          if (cleaned.value !== null) return `${cleaned.value}%`;
         }
       }
     }
@@ -1186,32 +1322,20 @@ export class HomeComponent implements OnInit {
       return isNaN(n) ? null : n;
     };
 
-    const calcTW1 = (valTW2: number | null, provTW1: number, provTW2: number) => {
-      if (valTW2 === null || isNaN(valTW2)) return null;
-      const ratio = provTW2 > 0 ? provTW1 / provTW2 : 1;
-      return Math.round(valTW2 * ratio * 100) / 100;
-    };
-
-    const calcCountTW1 = (countTW2: number | null, valTW2: number | null, valTW1: number | null) => {
-      if (countTW2 === null || valTW2 === null || valTW1 === null || valTW2 === 0) return null;
-      return Math.round(countTW2 * (valTW1 / valTW2));
-    };
-
+    // TW1 tidak disintesis dari konstanta provinsi; hanya TW2 dari baris wilayah yang dipakai.
     const makeQuarterData = (
       c2: number | null,
-      p2: number | null,
-      provTW1: number,
-      provTW2: number
-    ): Record<number, OutcomeQuarterData> => {
-      const p1 = calcTW1(p2, provTW1, provTW2);
-      const c1 = calcCountTW1(c2, p2, p1);
-      return {
-        1: { sumNumerator: c1, actualAchievement: p1, hasData: p1 !== null },
-        2: { sumNumerator: c2, actualAchievement: p2, hasData: p2 !== null },
-        3: { sumNumerator: null, actualAchievement: null, hasData: false },
-        4: { sumNumerator: null, actualAchievement: null, hasData: false },
-      };
-    };
+      p2: number | null
+    ): Record<number, OutcomeQuarterData> => ({
+      1: { sumNumerator: null, actualAchievement: null, hasData: false },
+      2: {
+        sumNumerator: c2 !== null ? Math.round(c2) : null,
+        actualAchievement: p2,
+        hasData: p2 !== null,
+      },
+      3: { sumNumerator: null, actualAchievement: null, hasData: false },
+      4: { sumNumerator: null, actualAchievement: null, hasData: false },
+    });
 
     const p1 = getPercent('% Skrining Anemia');
     const c1 = getNum('Rematri Skrining Anemia');
@@ -1241,21 +1365,6 @@ export class HomeComponent implements OnInit {
     const c9d = getNum('Jumlah Kasus Gizi Buruk Mendapat Tata Laksana');
     const p10 = getPercent('% IDL');
     const c10 = getNum('Baduta IDL');
-
-    const tw1_1 = calcTW1(p1, 84.09, 93.76);
-    const tw1_2 = calcTW1(p2, 76.06, 93.64);
-    const tw1_3 = calcTW1(p3, 28, 39.64);
-    const tw1_4 = calcTW1(p4, 7.27, 10.9);
-    const tw1_5 = calcTW1(p5, 0.5, 26.44);
-    const tw1_6a = calcTW1(p6a, 96.08, 96.13);
-    const tw1_6b = calcTW1(p6b, 8.83, 11.73);
-    const tw1_7 = calcTW1(p7, 88.47, 89.77);
-    const tw1_8 = calcTW1(p8, 95.53, 95.31);
-    const tw1_9a = calcTW1(p9a, 0.54, 3.37);
-    const tw1_9b = calcTW1(p9b, 0.44, 6.32);
-    const tw1_9c = calcTW1(p9c, 0.54, 8.27);
-    const tw1_9d = calcTW1(p9d, 21.81, 38.51);
-    const tw1_10 = calcTW1(p10, 12.02, 45.67);
 
     const t1 = this.getScopeCurrentYearTarget('1');
     const t1Num = IndicatorEvaluator.parseSmartNumber(t1) ?? 77;
@@ -1298,10 +1407,10 @@ export class HomeComponent implements OnInit {
         realisasi2025: this.getScopePrevYearOutcome(distName, '1'),
         target2026: t1,
         jumlahSasaranTW2: c1,
-        capaianTW1: tw1_1,
+        capaianTW1: null,
         capaianTW2: p1,
         status: p1 !== null && p1 >= t1Num ? 'On track' : 'Perlu percepatan',
-        quarters: makeQuarterData(c1, p1, 84.09, 93.76),
+        quarters: makeQuarterData(c1, p1),
       },
       {
         no: '2',
@@ -1312,10 +1421,10 @@ export class HomeComponent implements OnInit {
         realisasi2025: this.getScopePrevYearOutcome(distName, '2'),
         target2026: t2,
         jumlahSasaranTW2: c2,
-        capaianTW1: tw1_2,
+        capaianTW1: null,
         capaianTW2: p2,
         status: p2 !== null && p2 >= t2Num ? 'On track' : 'Perlu percepatan',
-        quarters: makeQuarterData(c2, p2, 76.06, 93.64),
+        quarters: makeQuarterData(c2, p2),
       },
       {
         no: '3',
@@ -1326,10 +1435,10 @@ export class HomeComponent implements OnInit {
         realisasi2025: this.getScopePrevYearOutcome(distName, '3'),
         target2026: t3,
         jumlahSasaranTW2: c3,
-        capaianTW1: tw1_3,
+        capaianTW1: null,
         capaianTW2: p3,
         status: p3 !== null && p3 >= t3Num ? 'On track' : 'Perlu percepatan',
-        quarters: makeQuarterData(c3, p3, 28, 39.64),
+        quarters: makeQuarterData(c3, p3),
       },
       {
         no: '4',
@@ -1340,10 +1449,10 @@ export class HomeComponent implements OnInit {
         realisasi2025: this.getScopePrevYearOutcome(distName, '4'),
         target2026: t4,
         jumlahSasaranTW2: c4,
-        capaianTW1: tw1_4,
+        capaianTW1: null,
         capaianTW2: p4,
         status: p4 !== null && p4 >= t4Num ? 'On track' : 'Perlu percepatan',
-        quarters: makeQuarterData(c4, p4, 7.27, 10.9),
+        quarters: makeQuarterData(c4, p4),
       },
       {
         no: '5',
@@ -1354,10 +1463,10 @@ export class HomeComponent implements OnInit {
         realisasi2025: this.getScopePrevYearOutcome(distName, '5'),
         target2026: t5,
         jumlahSasaranTW2: c5,
-        capaianTW1: tw1_5,
+        capaianTW1: null,
         capaianTW2: p5,
         status: p5 !== null && p5 >= t5Num ? 'On track' : 'Perlu percepatan',
-        quarters: makeQuarterData(c5, p5, 0.5, 26.44),
+        quarters: makeQuarterData(c5, p5),
       },
       {
         no: '6a',
@@ -1368,10 +1477,10 @@ export class HomeComponent implements OnInit {
         realisasi2025: this.getScopePrevYearOutcome(distName, '6a'),
         target2026: t6a,
         jumlahSasaranTW2: c6a,
-        capaianTW1: tw1_6a,
+        capaianTW1: null,
         capaianTW2: p6a,
         status: p6a !== null && p6a >= t6aNum ? 'On track' : 'Perlu percepatan',
-        quarters: makeQuarterData(c6a, p6a, 96.08, 96.13),
+        quarters: makeQuarterData(c6a, p6a),
       },
       {
         no: '6b',
@@ -1382,10 +1491,10 @@ export class HomeComponent implements OnInit {
         realisasi2025: this.getScopePrevYearOutcome(distName, '6b'),
         target2026: t6b,
         jumlahSasaranTW2: c6b,
-        capaianTW1: tw1_6b,
+        capaianTW1: null,
         capaianTW2: p6b,
         status: p6b !== null && p6b >= t6bNum ? 'On track' : 'Perlu percepatan',
-        quarters: makeQuarterData(c6b, p6b, 8.83, 11.73),
+        quarters: makeQuarterData(c6b, p6b),
       },
       {
         no: '7',
@@ -1396,10 +1505,10 @@ export class HomeComponent implements OnInit {
         realisasi2025: this.getScopePrevYearOutcome(distName, '7'),
         target2026: t7,
         jumlahSasaranTW2: c7,
-        capaianTW1: tw1_7,
+        capaianTW1: null,
         capaianTW2: p7,
         status: p7 !== null && p7 >= t7Num ? 'On track' : 'Perlu percepatan',
-        quarters: makeQuarterData(c7, p7, 88.47, 89.77),
+        quarters: makeQuarterData(c7, p7),
       },
       {
         no: '8',
@@ -1410,10 +1519,10 @@ export class HomeComponent implements OnInit {
         realisasi2025: this.getScopePrevYearOutcome(distName, '8'),
         target2026: t8,
         jumlahSasaranTW2: c8,
-        capaianTW1: tw1_8,
+        capaianTW1: null,
         capaianTW2: p8,
         status: p8 !== null && p8 >= t8Num ? 'On track' : 'Perlu percepatan',
-        quarters: makeQuarterData(c8, p8, 95.53, 95.31),
+        quarters: makeQuarterData(c8, p8),
       },
       {
         no: '9a',
@@ -1424,10 +1533,10 @@ export class HomeComponent implements OnInit {
         realisasi2025: this.getScopePrevYearOutcome(distName, '9a'),
         target2026: t9a,
         jumlahSasaranTW2: c9a,
-        capaianTW1: tw1_9a,
+        capaianTW1: null,
         capaianTW2: p9a,
         status: p9a !== null && p9a >= t9aNum ? 'On track' : 'Perlu percepatan',
-        quarters: makeQuarterData(c9a, p9a, 0.54, 3.37),
+        quarters: makeQuarterData(c9a, p9a),
       },
       {
         no: '9b',
@@ -1438,10 +1547,10 @@ export class HomeComponent implements OnInit {
         realisasi2025: this.getScopePrevYearOutcome(distName, '9b'),
         target2026: t9b,
         jumlahSasaranTW2: c9b,
-        capaianTW1: tw1_9b,
+        capaianTW1: null,
         capaianTW2: p9b,
         status: p9b !== null && p9b >= t9bNum ? 'On track' : 'Perlu percepatan',
-        quarters: makeQuarterData(c9b, p9b, 0.44, 6.32),
+        quarters: makeQuarterData(c9b, p9b),
       },
       {
         no: '9c',
@@ -1452,10 +1561,10 @@ export class HomeComponent implements OnInit {
         realisasi2025: this.getScopePrevYearOutcome(distName, '9c'),
         target2026: t9c,
         jumlahSasaranTW2: c9c,
-        capaianTW1: tw1_9c,
+        capaianTW1: null,
         capaianTW2: p9c,
         status: p9c !== null && p9c >= t9cNum ? 'On track' : 'Perlu percepatan',
-        quarters: makeQuarterData(c9c, p9c, 0.54, 8.27),
+        quarters: makeQuarterData(c9c, p9c),
       },
       {
         no: '9d',
@@ -1466,10 +1575,10 @@ export class HomeComponent implements OnInit {
         realisasi2025: this.getScopePrevYearOutcome(distName, '9d'),
         target2026: t9d,
         jumlahSasaranTW2: c9d,
-        capaianTW1: tw1_9d,
+        capaianTW1: null,
         capaianTW2: p9d,
         status: p9d !== null && p9d >= t9dNum ? 'On track' : 'Perlu percepatan',
-        quarters: makeQuarterData(c9d, p9d, 21.81, 38.51),
+        quarters: makeQuarterData(c9d, p9d),
       },
       {
         no: '10',
@@ -1480,10 +1589,10 @@ export class HomeComponent implements OnInit {
         realisasi2025: this.getScopePrevYearOutcome(distName, '10'),
         target2026: t10,
         jumlahSasaranTW2: c10,
-        capaianTW1: tw1_10,
+        capaianTW1: null,
         capaianTW2: p10,
         status: p10 !== null && p10 >= t10Num ? 'On track' : 'Perlu percepatan',
-        quarters: makeQuarterData(c10, p10, 12.02, 45.67),
+        quarters: makeQuarterData(c10, p10),
       },
       {
         no: '11',
@@ -1494,12 +1603,12 @@ export class HomeComponent implements OnInit {
         realisasi2025: this.getScopePrevYearOutcome(distName, '11'),
         target2026: t11,
         jumlahSasaranTW2: null,
-        capaianTW1: 100,
-        capaianTW2: 100,
-        status: 'On track',
+        capaianTW1: null,
+        capaianTW2: null,
+        status: 'Perlu percepatan',
         quarters: {
-          1: { sumNumerator: null, actualAchievement: 100, hasData: true },
-          2: { sumNumerator: null, actualAchievement: 100, hasData: true },
+          1: { sumNumerator: null, actualAchievement: null, hasData: false },
+          2: { sumNumerator: null, actualAchievement: null, hasData: false },
           3: { sumNumerator: null, actualAchievement: null, hasData: false },
           4: { sumNumerator: null, actualAchievement: null, hasData: false },
         },
@@ -1569,7 +1678,7 @@ export class HomeComponent implements OnInit {
         const qData = loaded[q];
         if (qData) {
           if (base.no === '11') {
-            quartersObj[q] = { sumNumerator: null, actualAchievement: 100, hasData: true };
+            quartersObj[q] = { sumNumerator: null, actualAchievement: null, hasData: false };
           } else if (scope === 'province') {
             const pCol = cfg?.pCol;
             let p = pCol ? this.extractValueFromRow(qData.summaryRow, pCol) : null;
@@ -1962,6 +2071,9 @@ export class HomeComponent implements OnInit {
 
           // Load data for all available quarters on the server
           const loadedMap: Record<number, LoadedQuarterDinkesData> = {};
+          let latestGiziResultBuffer: ArrayBuffer | Uint8Array | undefined;
+          let latestGiziRawBuffer: ArrayBuffer | Uint8Array | undefined;
+          let latestGiziPreset: JoinPresetExecutionSpec | undefined;
           for (const slot of availableSlots) {
             const qNum = slotMap[slot];
             try {
@@ -1987,6 +2099,12 @@ export class HomeComponent implements OnInit {
                   columnTargets: qDataset.dataset.columnTargets || null,
                   fileName: resolvedFileName,
                 };
+
+                if (qNum === latestQuarter) {
+                  latestGiziResultBuffer = qDataset.resultBuffer;
+                  latestGiziRawBuffer = qDataset.rawBuffer;
+                  latestGiziPreset = qDataset.config;
+                }
               }
             } catch (loadErr) {
               console.warn(`Gagal memuat dataset kuartal ${slot}:`, loadErr);
@@ -1997,11 +2115,18 @@ export class HomeComponent implements OnInit {
             if (loadedMap[latestQuarter]?.regionRows?.length >= 30) {
               this.intervensiRows.set(loadedMap[latestQuarter].regionRows);
             }
+            if (
+              !this.applyGiziDataset(
+                latestGiziResultBuffer,
+                latestGiziRawBuffer,
+                latestGiziPreset,
+              )
+            ) {
+              this.isGiziFallback.set(true);
+            }
           }
         } else if (this.hasActiveSessionData()) {
           this.setPresentationSession();
-        } else {
-          this.setPresentationBaseline();
         }
 
         // Auto-load available period for previous year (TW4)

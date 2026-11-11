@@ -83,7 +83,8 @@
       </nav>
     </div>
 
-    <!-- BILAH KENDALI PERIODE PRESENTASI AKTIF -->
+    <!-- BILAH KENDALI PERIODE PRESENTASI AKTIF (hanya saat ada data) -->
+    @if (hasPresentationData()) {
     <div
       class="flex flex-wrap items-center justify-between gap-3 p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs"
       data-testid="presentation-period-bar"
@@ -100,9 +101,6 @@
           [class.bg-emerald-50]="activePresentationPeriod().mode === 'session'"
           [class.text-emerald-800]="activePresentationPeriod().mode === 'session'"
           [class.border-emerald-200]="activePresentationPeriod().mode === 'session'"
-          [class.bg-slate-100]="activePresentationPeriod().mode === 'baseline'"
-          [class.text-slate-700]="activePresentationPeriod().mode === 'baseline'"
-          [class.border-slate-200]="activePresentationPeriod().mode === 'baseline'"
           data-testid="presentation-source-badge"
           [title]="activePresentationPeriod().tooltip || activePresentationPeriod().sourceLabel"
         >
@@ -110,7 +108,6 @@
             class="w-2 h-2 rounded-full shrink-0"
             [class.bg-[#525AFF]]="activePresentationPeriod().mode === 'period'"
             [class.bg-emerald-600]="activePresentationPeriod().mode === 'session'"
-            [class.bg-slate-400]="activePresentationPeriod().mode === 'baseline'"
           ></span>
           @if (activePresentationPeriod().fileName) {
             <svg
@@ -180,23 +177,6 @@
       </div>
 
       <div class="flex items-center gap-2">
-        <!-- Tombol Reset ke Data Bawaan -->
-        <button
-          type="button"
-          data-testid="period-mode-baseline"
-          (click)="setPresentationBaseline()"
-          class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition cursor-pointer"
-          [class.bg-slate-800]="activePresentationPeriod().mode === 'baseline'"
-          [class.text-white]="activePresentationPeriod().mode === 'baseline'"
-          [class.border-slate-800]="activePresentationPeriod().mode === 'baseline'"
-          [class.bg-white]="activePresentationPeriod().mode !== 'baseline'"
-          [class.text-slate-700]="activePresentationPeriod().mode !== 'baseline'"
-          [class.border-slate-300]="activePresentationPeriod().mode !== 'baseline'"
-          title="Tampilkan data dasar bawaan (baseline) provinsi"
-        >
-          <span>Data Bawaan</span>
-        </button>
-
         <!-- Tombol Refresh Periode -->
         <button
           type="button"
@@ -213,27 +193,55 @@
         </button>
       </div>
     </div>
+    }
   </header>
+
+  <!-- EMPTY STATE: BELUM ADA DATA (seluruh dashboard digantikan blok ini) -->
+  @if (!hasPresentationData()) {
+    <section
+      class="rounded-2xl border border-slate-200 bg-white p-8 sm:p-12 text-center shadow-xs"
+      data-testid="home-empty-state"
+    >
+      <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#525AFF]/10 text-[#525AFF] mb-4">
+        <svg class="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-6m4 6V7m4 10v-3M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" />
+        </svg>
+      </div>
+      <h2 class="text-base font-bold text-slate-900">Belum Ada Data Capaian</h2>
+      <p class="mt-2 text-sm text-slate-500 max-w-md mx-auto">
+        Belum ada dataset capaian yang dimuat. Impor dan simpan data triwulan melalui menu
+        <strong>Kelola Data</strong> untuk menampilkan peta, indikator, dan evaluasi capaian di halaman ini.
+      </p>
+      <div class="mt-6 flex justify-center">
+        <a routerLink="/data" class="inline-flex items-center gap-1.5 rounded-lg bg-[#525AFF] px-3.5 py-2 text-xs font-semibold text-white hover:bg-[#4348E6] shadow-xs shadow-[#525AFF]/25 transition-all cursor-pointer">
+          <span>Buka Menu Kelola Data</span>
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+          </svg>
+        </a>
+      </div>
+    </section>
+  }
 
   <!-- ============================================================== -->
   <!-- CATEGORY 1: HEATMAP INTERVENSI SPESIFIK                       -->
   <!-- ============================================================== -->
-  @if (activeCategory() === 'intervensi-heatmap') {
+  @if (hasPresentationData() && activeCategory() === 'intervensi-heatmap') {
     <section class="flex flex-col gap-5 animate-fadeIn" data-testid="category-intervensi-heatmap">
       <!-- 2-Column Layout (1:2 Ratio) -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start" data-testid="intervensi-2column-grid">
         <!-- First Column: Overview Information Boxes (Ratio 1) -->
         <aside class="lg:col-span-1 flex flex-col gap-4" data-testid="left-column-boxes">
           <!-- Wilayah Scope Selector -->
-          <div class="flex flex-col gap-1.5">
-            <label for="wilayah-scope-select" class="text-xs font-semibold text-slate-600">
-              Cakupan Wilayah
+          <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-xs flex flex-row items-center gap-2">
+            <label for="wilayah-scope-select" class="text-xs font-semibold text-slate-600 whitespace-nowrap">
+              Cakupan Wilayah:
             </label>
             <select
               id="wilayah-scope-select"
               [value]="selectedWilayahScope()"
               (change)="setSelectedWilayahScope($any($event.target).value)"
-              class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-[#525AFF] cursor-pointer shadow-2xs"
+              class="text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#525AFF]/30 focus:border-[#525AFF] transition cursor-pointer"
               data-testid="wilayah-scope-select"
               title="Pilih wilayah untuk menampilkan capaian indikator"
             >
@@ -271,10 +279,7 @@
                     {{ box.shortLabel }}
                   </div>
                   <div class="text-[11px] text-slate-600 mt-1 line-clamp-1 tabular-nums">
-                    Target {{ box.target || '-' }}{{ box.unit }} 
-                    <span class="ml-1" [class.text-emerald-700]="box.isAchieved === true" [class.text-rose-700]="box.isAchieved === false" [class.text-slate-500]="box.isAchieved === null">
-                      {{ box.isAchieved === true ? 'Tercapai' : box.isAchieved === false ? 'Belum tercapai' : '-' }}
-                    </span>
+                    Target {{ box.target || '-' }}{{ box.unit }}
                   </div>
                 </div>
               </div>
@@ -283,7 +288,7 @@
         </aside>
 
         <!-- Second Column: Existing Information (Ratio 2) -->
-        <section class="lg:col-span-2 flex flex-col gap-4 sm:gap-5" data-testid="right-column-heatmap">
+        <section class="lg:col-span-2 flex flex-col gap-4 sm:gap-5 lg:border-l lg:border-slate-200 lg:pl-6" data-testid="right-column-heatmap">
           <!-- Section Controls Bar -->
           <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-xs flex flex-wrap items-center justify-between gap-3">
             <!-- Indicator Select & Sort Dropdowns -->
@@ -304,7 +309,7 @@
                   }
                   @for (ind of intervensiIndicators; track ind.key) {
                     <option [value]="ind.key">
-                      {{ ind.label }} (Target: {{ ind.target }}{{ ind.unit }})
+                      {{ ind.label }}
                     </option>
                   }
                 </select>
@@ -725,22 +730,9 @@
                   >
                     <div>
                       <div class="flex items-center gap-2">
-                        <span
-                          class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white shadow-2xs"
-                          [style.backgroundColor]="item.series.color"
-                        >
-                          {{ idx + 1 }}
-                        </span>
                         <h3 class="text-sm font-bold text-slate-900">
                           {{ item.series.label }}
                         </h3>
-                        <span
-                          class="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                          [style.backgroundColor]="item.series.color + '1a'"
-                          [style.color]="item.series.color"
-                        >
-                          Kolom Indikator
-                        </span>
                       </div>
 
                       <!-- METRIK SUMMARY STATS -->
@@ -1034,57 +1026,62 @@
   <!-- ============================================================== -->
   <!-- CATEGORY 2: HEATMAP MASALAH GIZI                              -->
   <!-- ============================================================== -->
-  @if (activeCategory() === 'gizi-heatmap') {
+  @if (hasPresentationData() && activeCategory() === 'gizi-heatmap') {
     <section class="flex flex-col gap-5 animate-fadeIn" data-testid="category-gizi-heatmap">
-      @if (isGiziFallback()) {
-        <div
-          data-testid="gizi-fallback-notice"
-          class="flex items-center gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800 shadow-2xs"
-        >
-          <svg class="h-4 w-4 shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <span>Data Masalah Gizi untuk periode ini tidak tersedia di file sumber, menampilkan data bawaan (baseline).</span>
-        </div>
-      }
-      <!-- 2-Column Layout (1:2 Ratio) -->
+      @if (giziRows().length > 0) {
+      <!-- Konten peta & grafik masalah gizi dari data impor pengguna -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start" data-testid="gizi-2column-grid">
-        <!-- First Column: Overview Information Boxes for Nutritional Issues (Ratio 1) -->
+        <!-- First Column: Overview Information Boxes (Ratio 1) -->
         <aside class="lg:col-span-1 flex flex-col gap-4" data-testid="left-column-gizi-boxes">
-          <!-- Grid of Gizi Overview Boxes (2 columns inside ratio 1 column) -->
-          <div class="grid grid-cols-2 gap-2.5 sm:gap-3" data-testid="small-gizi-boxes-grid">
-            @for (box of filteredGiziBoxes(); track box.id) {
+          <!-- Wilayah Scope Selector -->
+          <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-xs flex flex-row items-center gap-2">
+            <label for="gizi-wilayah-scope-select" class="text-xs font-semibold text-slate-600 whitespace-nowrap">
+              Cakupan Wilayah:
+            </label>
+            <select
+              id="gizi-wilayah-scope-select"
+              [value]="selectedWilayahScope()"
+              (change)="setSelectedWilayahScope($any($event.target).value)"
+              class="text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#525AFF]/30 focus:border-[#525AFF] transition cursor-pointer"
+              data-testid="gizi-wilayah-scope-select"
+              title="Pilih wilayah untuk menampilkan prevalensi masalah gizi"
+            >
+              <option value="province">PROVINSI JAWA TENGAH (Agregat)</option>
+              <optgroup label="Kabupaten / Kota (35 Wilayah)">
+                @for (opt of wilayahDistrictOptions(); track opt.value) {
+                  <option [value]="opt.value">{{ opt.label }}</option>
+                }
+              </optgroup>
+            </select>
+          </div>
+
+          <!-- Grid of Overview Boxes (2 columns inside ratio 1 column) -->
+          <div class="grid grid-cols-2 gap-2.5 sm:gap-3" data-testid="gizi-small-boxes-grid">
+            @for (box of giziWilayahIndicatorBoxes(); track box.indicatorKey) {
               <div
                 class="rounded-xl p-3.5 border shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between group cursor-default"
-                [class.bg-emerald-50]="box.badgeType === 'success'"
-                [class.border-emerald-200]="box.badgeType === 'success'"
-                [class.hover:border-emerald-300]="box.badgeType === 'success'"
-                [class.bg-amber-50]="box.badgeType === 'warning'"
-                [class.border-amber-200]="box.badgeType === 'warning'"
-                [class.hover:border-amber-300]="box.badgeType === 'warning'"
-                [class.bg-rose-50]="box.badgeType === 'rose'"
-                [class.border-rose-200]="box.badgeType === 'rose'"
-                [class.hover:border-rose-300]="box.badgeType === 'rose'"
-                [class.bg-blue-50]="box.badgeType === 'info'"
-                [class.border-blue-200]="box.badgeType === 'info'"
-                [class.hover:border-blue-300]="box.badgeType === 'info'"
-                [class.bg-white]="!box.badgeType || box.badgeType === 'neutral'"
-                [class.border-slate-200]="!box.badgeType || box.badgeType === 'neutral'"
-                [class.hover:border-slate-300]="!box.badgeType || box.badgeType === 'neutral'"
-                [attr.data-testid]="'gizi-box-' + box.id"
+                [class.bg-emerald-50]="box.isAchieved === true"
+                [class.border-emerald-200]="box.isAchieved === true"
+                [class.hover:border-emerald-300]="box.isAchieved === true"
+                [class.bg-rose-50]="box.isAchieved === false"
+                [class.border-rose-200]="box.isAchieved === false"
+                [class.hover:border-rose-300]="box.isAchieved === false"
+                [class.bg-slate-50]="box.isAchieved === null"
+                [class.border-slate-200]="box.isAchieved === null"
+                [class.hover:border-slate-300]="box.isAchieved === null"
+                [attr.data-testid]="'gizi-box-' + box.indicatorKey"
+                [attr.aria-label]="box.label + ': ' + (box.achievement || '-') + ' dari target ' + (box.target || '-') + ' ' + box.unit + ', ' + (box.isAchieved === true ? 'Tercapai' : box.isAchieved === false ? 'Belum tercapai' : 'Data tidak tersedia')"
               >
                 <div>
-                  <div class="text-xl font-black text-slate-900 tracking-tight tabular-nums group-hover:text-rose-700 transition-colors">
-                    {{ box.value }}
+                  <div class="text-2xl font-black text-slate-900 tracking-tight tabular-nums group-hover:text-blue-600 transition-colors">
+                    {{ box.achievement !== null ? (box.achievement | number: '1.0-1') + box.unit : '-' }}
                   </div>
                   <div class="text-xs font-semibold text-slate-800 line-clamp-1 mt-0.5" [title]="box.label">
-                    {{ box.label }}
+                    {{ box.shortLabel }}
                   </div>
-                  @if (box.subValue) {
-                    <div class="text-[11px] text-slate-600 mt-1 line-clamp-1 tabular-nums" [title]="box.subValue">
-                      {{ box.subValue }}
-                    </div>
-                  }
+                  <div class="text-[11px] text-slate-600 mt-1 line-clamp-1 tabular-nums">
+                    Target {{ box.target || '-' }}{{ box.unit }}
+                  </div>
                 </div>
               </div>
             }
@@ -1106,14 +1103,14 @@
                   data-testid="gizi-indicator-select"
                   [ngModel]="activeGiziIndicatorKey()"
                   (ngModelChange)="setGiziIndicator($event)"
-                  class="text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/30 focus:border-rose-500 transition"
+                  class="text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#525AFF]/30 focus:border-[#525AFF] transition"
                 >
                   @if (giziViewMode() === 'table') {
                     <option value="all">Semua Masalah Gizi ({{ giziIndicators.length }} Grafik)</option>
                   }
                   @for (ind of giziIndicators; track ind.key) {
                     <option [value]="ind.key">
-                      {{ ind.label }} (Batas Aman: ≤ {{ ind.target }}{{ ind.unit }})
+                      {{ ind.label }} (Batas Aman: ≤ {{ getResolvedGiziTarget(ind.key, ind.target) }}{{ ind.unit }})
                     </option>
                   }
                 </select>
@@ -1129,7 +1126,7 @@
                     id="giziSortModeSelect"
                     [ngModel]="giziSortMode()"
                     (ngModelChange)="giziSortMode.set($event)"
-                    class="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs font-semibold text-slate-700 focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-500/30 cursor-pointer"
+                    class="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs font-semibold text-slate-700 focus:border-[#525AFF] focus:outline-none focus:ring-2 focus:ring-[#525AFF]/30 cursor-pointer"
                   >
                     <option value="desc">Prevalensi Tertinggi ↓</option>
                     <option value="asc">Prevalensi Terendah ↑</option>
@@ -1147,14 +1144,14 @@
                 data-testid="gizi-toggle-map"
                 class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
                 [class.bg-white]="giziViewMode() === 'map'"
-                [class.text-rose-600]="giziViewMode() === 'map'"
+                [class.text-[#525AFF]]="giziViewMode() === 'map'"
                 [class.shadow-2xs]="giziViewMode() === 'map'"
                 [class.text-slate-600]="giziViewMode() !== 'map'"
               >
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Peta Spasial
+                Peta
               </button>
               <button
                 type="button"
@@ -1162,7 +1159,7 @@
                 data-testid="gizi-toggle-table"
                 class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
                 [class.bg-white]="giziViewMode() === 'table'"
-                [class.text-rose-600]="giziViewMode() === 'table'"
+                [class.text-[#525AFF]]="giziViewMode() === 'table'"
                 [class.shadow-2xs]="giziViewMode() === 'table'"
                 [class.text-slate-600]="giziViewMode() !== 'table'"
                 title="Mode Per Indikator: Grafik batang perbandingan masalah gizi wilayah"
@@ -1189,11 +1186,21 @@
                   </div>
 
                   <div
-                    class="rounded-lg border p-2.5 border-rose-200 bg-rose-50/50"
+                    class="rounded-lg border p-2.5"
+                    [class.border-emerald-200]="mapData.stats.targetOperator !== '<='"
+                    [class.bg-emerald-50/50]="mapData.stats.targetOperator !== '<='"
+                    [class.border-rose-200]="mapData.stats.targetOperator === '<='"
+                    [class.bg-rose-50/50]="mapData.stats.targetOperator === '<='"
                   >
-                    <span class="text-[11px] font-medium block text-rose-700">Beban Tertinggi</span>
                     <span
-                      class="text-base font-bold font-mono mt-0.5 block truncate text-rose-800"
+                      class="text-[11px] font-medium block"
+                      [class.text-emerald-700]="mapData.stats.targetOperator !== '<='"
+                      [class.text-rose-700]="mapData.stats.targetOperator === '<='"
+                    >Tertinggi</span>
+                    <span
+                      class="text-base font-bold font-mono mt-0.5 block truncate"
+                      [class.text-emerald-800]="mapData.stats.targetOperator !== '<='"
+                      [class.text-rose-800]="mapData.stats.targetOperator === '<='"
                       [title]="mapData.stats.highest?.name"
                     >
                       {{
@@ -1205,11 +1212,21 @@
                   </div>
 
                   <div
-                    class="rounded-lg border p-2.5 border-emerald-200 bg-emerald-50/50"
+                    class="rounded-lg border p-2.5"
+                    [class.border-rose-200]="mapData.stats.targetOperator !== '<='"
+                    [class.bg-rose-50/50]="mapData.stats.targetOperator !== '<='"
+                    [class.border-emerald-200]="mapData.stats.targetOperator === '<='"
+                    [class.bg-emerald-50/50]="mapData.stats.targetOperator === '<='"
                   >
-                    <span class="text-[11px] font-medium block text-emerald-700">Terkendali / Terendah</span>
                     <span
-                      class="text-base font-bold font-mono mt-0.5 block truncate text-emerald-800"
+                      class="text-[11px] font-medium block"
+                      [class.text-rose-700]="mapData.stats.targetOperator !== '<='"
+                      [class.text-emerald-700]="mapData.stats.targetOperator === '<='"
+                    >Terendah</span>
+                    <span
+                      class="text-base font-bold font-mono mt-0.5 block truncate"
+                      [class.text-rose-800]="mapData.stats.targetOperator !== '<='"
+                      [class.text-emerald-800]="mapData.stats.targetOperator === '<='"
                       [title]="mapData.stats.lowest?.name"
                     >
                       {{
@@ -1221,7 +1238,7 @@
                   </div>
 
                   <div class="rounded-lg border border-blue-200 bg-blue-50/50 p-2.5">
-                    <span class="text-[11px] font-medium text-blue-700 block">Terkendali (≤ Target)</span>
+                    <span class="text-[11px] font-medium text-blue-700 block">Tercapai Target</span>
                     <span class="text-base font-bold text-blue-800 font-mono mt-0.5 block">
                       @if (mapData.stats.targetValue !== null) {
                         {{ mapData.stats.achievedCount }} / {{ mapData.stats.validCount }}
@@ -1249,11 +1266,11 @@
                   <div class="flex items-center justify-between gap-3 mb-3 px-1">
                     <div class="flex items-center gap-2">
                       <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white border border-slate-200 text-xs font-semibold text-slate-700 shadow-2xs">
-                        <span class="w-2 h-2 rounded-full bg-rose-600"></span>
-                        Peta Spasial Masalah Gizi
+                        <span class="w-2 h-2 rounded-full bg-[#0F766E]"></span>
+                        Peta Interaktif Jawa Tengah
                       </span>
                       <span class="text-xs text-slate-600 hidden sm:inline">
-                        Klik atau tekan Enter pada wilayah untuk melihat rincian prevalensi
+                        Klik atau tekan Enter pada wilayah untuk melihat rincian capaian
                       </span>
                     </div>
 
@@ -1261,9 +1278,9 @@
                     <button
                       type="button"
                       (click)="toggleMapRankings()"
-                      [class.bg-rose-600]="showMapRankings()"
+                      [class.bg-[#525AFF]]="showMapRankings()"
                       [class.text-white]="showMapRankings()"
-                      [class.border-rose-600]="showMapRankings()"
+                      [class.border-[#525AFF]]="showMapRankings()"
                       [class.bg-white]="!showMapRankings()"
                       [class.text-slate-700]="!showMapRankings()"
                       [class.border-slate-300]="!showMapRankings()"
@@ -1386,7 +1403,7 @@
                           <path
                             [attr.d]="item.district.pathD"
                             [attr.fill]="item.fillColor"
-                            [attr.stroke]="isSelected ? '#E11D48' : (isHovered ? '#0f172a' : item.strokeColor)"
+                            [attr.stroke]="isSelected ? '#525AFF' : (isHovered ? '#0f172a' : item.strokeColor)"
                             [attr.stroke-width]="isSelected ? '3' : (isHovered ? '2.5' : '0.8')"
                             class="transition-colors duration-100"
                             [attr.data-district-id]="item.district.id"
@@ -1425,7 +1442,7 @@
                   <div class="mt-4 border-t border-slate-200 pt-3 px-2">
                     <div class="flex flex-col gap-2.5">
                       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-xs">
-                        <span class="font-bold text-slate-700 text-[11px]">Skala Gradien Kontinu (Beban Rendah ke Tinggi):</span>
+                        <span class="font-bold text-slate-700 text-[11px]">Skala Gradien Kontinu (0–100):</span>
                         <div class="flex items-center gap-3 text-[11px] text-slate-500">
                           <div class="flex items-center gap-1.5">
                             <span class="w-3.5 h-3.5 rounded-xs bg-[#f1f5f9] border border-[#cbd5e1]"></span>
@@ -1435,7 +1452,7 @@
                             <div class="flex items-center gap-1.5">
                               <span class="h-2.5 w-2.5 rounded-full bg-slate-900"></span>
                               <span class="font-bold text-slate-800">
-                                Batas Target ({{ mapData.stats.targetOperator || '≤' }} {{ mapData.stats.targetValue }}{{ activeGiziIndicator().unit }})
+                                Target ({{ mapData.stats.targetOperator || '≤' }} {{ mapData.stats.targetValue }}{{ activeGiziIndicator().unit }})
                               </span>
                             </div>
                           }
@@ -1458,7 +1475,7 @@
                             <span
                               class="rounded bg-slate-900 text-white text-[9px] font-bold px-1.5 py-0.2 mt-0.5 shadow-xs whitespace-nowrap"
                             >
-                              Batas: {{ mapData.stats.targetValue }}
+                              Target: {{ mapData.stats.targetValue }}
                             </span>
                           </div>
                         }
@@ -1482,11 +1499,11 @@
 
                       <!-- LABEL SKALA NILAI DI BAWAH BAR -->
                       <div class="flex items-center justify-between text-[10px] font-mono text-slate-500 px-0.5">
-                        <span>Min (Beban Terendah): <strong>{{ formatNumber(mapData.stats.min) }}</strong></span>
+                        <span>0 (Min Data: <strong>{{ formatNumber(mapData.stats.min) }}</strong>)</span>
                         @if (mapData.stats.avg !== null) {
-                          <span class="text-slate-600 font-semibold">Rata-rata Jateng: {{ formatNumber(mapData.stats.avg) }}</span>
+                          <span class="text-slate-600 font-semibold">Rata-rata: {{ formatNumber(mapData.stats.avg) }}</span>
                         }
-                        <span>Maks (Beban Tertinggi): <strong>{{ formatNumber(mapData.stats.max) }}</strong></span>
+                        <span>100 (Maks Data: <strong>{{ formatNumber(mapData.stats.max) }}</strong>)</span>
                       </div>
                     </div>
                   </div>
@@ -1512,20 +1529,9 @@
                   >
                     <div>
                       <div class="flex items-center gap-2">
-                        <span
-                          class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white shadow-2xs"
-                          [style.backgroundColor]="item.series.color"
-                        >
-                          {{ idx + 1 }}
-                        </span>
                         <h3 class="text-sm font-bold text-slate-900">
                           {{ item.series.label }}
                         </h3>
-                        <span
-                          class="rounded-full px-2 py-0.5 text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200"
-                        >
-                          Beban Masalah Gizi
-                        </span>
                       </div>
 
                       <!-- METRIK SUMMARY STATS -->
@@ -1541,7 +1547,7 @@
                         @if (item.stats.highest) {
                           <span
                             >Tertinggi:
-                            <strong class="text-rose-700"
+                            <strong class="text-slate-700"
                               >{{ item.stats.highest.name }} ({{ formatNumber(item.stats.highest.value) }}%)</strong
                             ></span
                           >
@@ -1549,7 +1555,7 @@
                         @if (item.stats.lowest) {
                           <span
                             >Terendah:
-                            <strong class="text-emerald-700"
+                            <strong class="text-slate-700"
                               >{{ item.stats.lowest.name }} ({{ formatNumber(item.stats.lowest.value) }}%)</strong
                             ></span
                           >
@@ -1564,7 +1570,7 @@
                             [class.bg-slate-100]="item.stats.achievedCount === 0"
                             [class.text-slate-600]="item.stats.achievedCount === 0"
                           >
-                            {{ item.stats.achievedCount }}/{{ item.stats.total }} Wilayah Memenuhi Batas Aman (≤ {{ item.stats.targetValue }}%)
+                            {{ item.stats.achievedCount }}/{{ item.stats.total }} Wilayah Capai Target (≤ {{ item.stats.targetValue }}%)
                           </span>
                         }
                       </div>
@@ -1586,7 +1592,7 @@
                       <button
                         type="button"
                         (click)="exportPng('giziChartSvg-' + idx, item.series.label)"
-                        class="inline-flex items-center gap-1 rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-rose-700 shadow-xs shadow-rose-600/20 transition cursor-pointer"
+                        class="inline-flex items-center gap-1 rounded-lg bg-[#525AFF] px-2.5 py-1.5 text-xs font-medium text-white hover:bg-[#4348E6] shadow-xs shadow-[#525AFF]/20 transition cursor-pointer"
                         title="Unduh grafik PNG"
                       >
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1813,133 +1819,72 @@
           }
         </section>
       </div>
+      } @else {
+        <div
+          class="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-xs"
+          data-testid="home-gizi-empty"
+        >
+          <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-500 mb-3">
+            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+            </svg>
+          </div>
+          <h3 class="text-sm font-bold text-slate-900">Data Masalah Gizi Belum Tersedia</h3>
+          <p class="mt-1.5 text-xs text-slate-500 max-w-md mx-auto">
+            @if (isGiziFallback()) {
+              Sheet MASALAH GIZI tidak ditemukan pada berkas periode ini. Impor berkas yang memuat sheet tersebut untuk menampilkan peta masalah gizi.
+            } @else {
+              Belum ada data masalah gizi pada sesi atau periode yang dimuat.
+            }
+          </p>
+        </div>
+      }
     </section>
   }
 
   <!-- ============================================================== -->
   <!-- CATEGORY 3: CAPAIAN & HASIL INTERVENSI SPESIFIK               -->
   <!-- ============================================================== -->
-  @if (activeCategory() === 'intervensi-outcomes') {
+  @if (hasPresentationData() && activeCategory() === 'intervensi-outcomes') {
     <section class="flex flex-col gap-6 animate-fadeIn" data-testid="category-intervensi-outcomes">
       <!-- Lingkup Evaluasi Kinerja (Scope & View Mode Toolbar Card) -->
       <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div class="flex items-center gap-3">
-          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-[#525AFF]">
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </span>
           <div>
             <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Lingkup Evaluasi Kinerja</span>
             <div class="flex items-center gap-2">
               <h2 class="text-base sm:text-lg font-bold text-slate-900">
-                {{ outcomeTableDisplayMode() === 'all' ? 'Seluruh Jawa Tengah (' + allDisplayOutcomeTables().length + ' Tabel Wilayah)' : selectedOutcomeScopeLabel() }}
+                {{ selectedOutcomeScopeLabel() }}
               </h2>
-              @if (outcomeTableDisplayMode() === 'all') {
-                <span class="px-2 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full">
-                  Mode Batch (1 Provinsi + 35 Kab/Kota)
-                </span>
-              } @else if (selectedOutcomeScope() !== 'province') {
-                <span class="px-2 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full">
-                  Tingkat Kabupaten/Kota
-                </span>
-              } @else {
-                <span class="px-2 py-0.5 text-xs font-semibold bg-indigo-50 text-[#525AFF] border border-indigo-200 rounded-full">
-                  Agregat Tingkat Provinsi
-                </span>
-              }
             </div>
           </div>
         </div>
 
         <!-- View Mode & Scope Switcher Controls -->
         <div class="flex flex-wrap items-center gap-3">
-          <!-- Segmented View Mode Toggle -->
-          <div class="inline-flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
-            <button
-              type="button"
-              (click)="setOutcomeTableDisplayMode('single')"
-              class="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
-              [class.bg-white]="outcomeTableDisplayMode() === 'single'"
-              [class.text-slate-900]="outcomeTableDisplayMode() === 'single'"
-              [class.shadow-xs]="outcomeTableDisplayMode() === 'single'"
-              [class.text-slate-600]="outcomeTableDisplayMode() !== 'single'"
-              title="Tampilkan satu tabel wilayah terpilih (Fokus)"
+          <!-- Scope Switcher Control -->
+          <div class="flex items-center gap-2">
+            <label for="outcomeWilayahSelector" class="text-xs font-medium text-slate-600">Pilih:</label>
+            <select
+              id="outcomeWilayahSelector"
+              data-testid="outcome-scope-select"
+              [value]="selectedOutcomeScope()"
+              (change)="setSelectedOutcomeScope($any($event.target).value)"
+              class="text-xs font-semibold px-3 py-1.5 border border-slate-300 rounded-xl bg-white text-slate-800 shadow-xs focus:ring-2 focus:ring-[#525AFF] focus:border-[#525AFF] cursor-pointer"
             >
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <span>Fokus 1 Wilayah</span>
-            </button>
-
-            <button
-              type="button"
-              (click)="setOutcomeTableDisplayMode('all')"
-              class="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
-              [class.bg-white]="outcomeTableDisplayMode() === 'all'"
-              [class.text-slate-900]="outcomeTableDisplayMode() === 'all'"
-              [class.shadow-xs]="outcomeTableDisplayMode() === 'all'"
-              [class.text-slate-600]="outcomeTableDisplayMode() !== 'all'"
-              title="Tampilkan tabel lengkap seluruh 35 Kabupaten/Kota + 1 Provinsi sekaligus"
-            >
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-              </svg>
-              <span>Semua Tabel ({{ allDisplayOutcomeTables().length }})</span>
-            </button>
+              <option value="province">PROVINSI JAWA TENGAH (Agregat)</option>
+              <optgroup label="Kabupaten / Kota (35 Wilayah)">
+                @for (r of intervensiRows(); track $index) {
+                  <option [value]="r['Kabupaten/Kota']">{{ r['Kabupaten/Kota'] }}</option>
+                }
+              </optgroup>
+            </select>
           </div>
-
-          <!-- Scope Switcher Control (Available in single mode) -->
-          @if (outcomeTableDisplayMode() === 'single') {
-            <div class="flex items-center gap-2">
-              <label for="outcomeWilayahSelector" class="text-xs font-medium text-slate-600">Pilih:</label>
-              <select
-                id="outcomeWilayahSelector"
-                data-testid="outcome-scope-select"
-                [value]="selectedOutcomeScope()"
-                (change)="setSelectedOutcomeScope($any($event.target).value)"
-                class="text-xs font-semibold px-3 py-1.5 border border-slate-300 rounded-xl bg-white text-slate-800 shadow-xs focus:ring-2 focus:ring-[#525AFF] focus:border-[#525AFF] cursor-pointer"
-              >
-                <option value="province">PROVINSI JAWA TENGAH (Agregat)</option>
-                <optgroup label="Kabupaten / Kota (35 Wilayah)">
-                  @for (r of intervensiRows(); track $index) {
-                    <option [value]="r['Kabupaten/Kota']">{{ r['Kabupaten/Kota'] }}</option>
-                  }
-                </optgroup>
-              </select>
-
-              @if (selectedOutcomeScope() !== 'province') {
-                <button
-                  type="button"
-                  (click)="setSelectedOutcomeScope('province')"
-                  class="px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors flex items-center gap-1 border border-slate-200 cursor-pointer"
-                  title="Kembali ke tampilan agregat Provinsi Jawa Tengah"
-                >
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  <span>Reset</span>
-                </button>
-              }
-            </div>
-          }
         </div>
       </div>
 
       <!-- KPI Executive Summary Cards -->
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4" data-testid="outcomes-kpi-grid">
-        <!-- KPI 1: Total Interventions -->
-        <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs flex flex-col justify-between">
-          <span class="text-xs font-semibold text-slate-600">Total Program Intervensi</span>
-          <div class="flex items-baseline gap-2 mt-2">
-            <span class="text-2xl sm:text-3xl font-black text-slate-900 tabular-nums">{{ outcomeKpiSummary().total }}</span>
-            <span class="text-xs text-slate-600">Indikator Terstandar</span>
-          </div>
-          <div class="text-xs text-slate-600 mt-2">
-            3 Siklus Kehidupan
-          </div>
-        </div>
-
+      <div class="grid grid-cols-2 lg:grid-cols-3 gap-4" data-testid="outcomes-kpi-grid">
         <!-- KPI 2: On Track -->
         <div class="bg-white rounded-2xl p-4 sm:p-5 border border-emerald-200/80 shadow-xs flex flex-col justify-between">
           <span class="text-xs font-semibold text-teal-800 flex items-center gap-1.5">
@@ -1992,34 +1937,6 @@
 
       <!-- Main Outcomes Table with Phase & Status Filters -->
       <div id="outcomes-main-table" class="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden flex flex-col space-y-4 p-4 sm:p-5" data-testid="outcomes-table-container">
-        <!-- Integrated Header Toolbar -->
-        <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200">
-          <div>
-            <h3 class="text-sm font-semibold text-slate-900">
-              @if (outcomeTableDisplayMode() === 'all') {
-                Tabel Analisis Capaian Intervensi Spesifik &mdash; Seluruh Wilayah (1 Provinsi + 35 Kab/Kota)
-              } @else {
-                Tabel Analisis Capaian Intervensi Spesifik &mdash; {{ selectedOutcomeScopeLabel() }}
-              }
-            </h3>
-            <p class="text-xs text-slate-500 mt-0.5">
-              @if (outcomeTableDisplayMode() === 'all') {
-                Daftar seluruh tabel rapor kinerja intervensi stunting untuk Provinsi Jawa Tengah dan 35 Kabupaten/Kota.
-              } @else if (selectedOutcomeScope() === 'province') {
-                Standar Laporan Dinas Kesehatan Provinsi Jawa Tengah (Lembar capaian agregat 35 Kab/Kota).
-              } @else {
-                Rapor Kinerja Intervensi Penurunan Stunting Khusus {{ selectedOutcomeScopeLabel() }}.
-              }
-            </p>
-          </div>
-
-          <div class="flex items-center gap-2">
-            <span class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-indigo-50 text-[#525AFF] border border-indigo-200">
-              15 Indikator Standar Dinkes
-            </span>
-          </div>
-        </div>
-
         <!-- Search Bar, Status Filter & Phase Chips -->
         <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
           <!-- Status & Quarter Filter Chips -->
@@ -2106,69 +2023,8 @@
           </div>
         </div>
 
-        <!-- Phase Category Filter Pills -->
-        <div class="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs select-none border-b border-slate-100 pb-2">
-          <button
-            type="button"
-            (click)="outcomeCategoryFilter.set('all')"
-            class="px-3 py-1 rounded-full font-medium transition-all shrink-0 border cursor-pointer"
-            [class.bg-[#EEF0FF]]="outcomeCategoryFilter() === 'all'"
-            [class.text-[#525AFF]]="outcomeCategoryFilter() === 'all'"
-            [class.border-[#525AFF]/40]="outcomeCategoryFilter() === 'all'"
-            [class.font-semibold]="outcomeCategoryFilter() === 'all'"
-            [class.bg-white]="outcomeCategoryFilter() !== 'all'"
-            [class.text-slate-600]="outcomeCategoryFilter() !== 'all'"
-            [class.border-slate-200]="outcomeCategoryFilter() !== 'all'"
-          >
-            Semua Siklus (15)
-          </button>
-          <button
-            type="button"
-            (click)="outcomeCategoryFilter.set('sebelum-kelahiran')"
-            class="px-3 py-1 rounded-full font-medium transition-all shrink-0 border cursor-pointer"
-            [class.bg-[#EEF0FF]]="outcomeCategoryFilter() === 'sebelum-kelahiran'"
-            [class.text-[#525AFF]]="outcomeCategoryFilter() === 'sebelum-kelahiran'"
-            [class.border-[#525AFF]/40]="outcomeCategoryFilter() === 'sebelum-kelahiran'"
-            [class.font-semibold]="outcomeCategoryFilter() === 'sebelum-kelahiran'"
-            [class.bg-white]="outcomeCategoryFilter() !== 'sebelum-kelahiran'"
-            [class.text-slate-600]="outcomeCategoryFilter() !== 'sebelum-kelahiran'"
-            [class.border-slate-200]="outcomeCategoryFilter() !== 'sebelum-kelahiran'"
-          >
-            Sebelum Kelahiran (Remaja & Bumil)
-          </button>
-          <button
-            type="button"
-            (click)="outcomeCategoryFilter.set('setelah-kelahiran')"
-            class="px-3 py-1 rounded-full font-medium transition-all shrink-0 border cursor-pointer"
-            [class.bg-[#EEF0FF]]="outcomeCategoryFilter() === 'setelah-kelahiran'"
-            [class.text-[#525AFF]]="outcomeCategoryFilter() === 'setelah-kelahiran'"
-            [class.border-[#525AFF]/40]="outcomeCategoryFilter() === 'setelah-kelahiran'"
-            [class.font-semibold]="outcomeCategoryFilter() === 'setelah-kelahiran'"
-            [class.bg-white]="outcomeCategoryFilter() !== 'setelah-kelahiran'"
-            [class.text-slate-600]="outcomeCategoryFilter() !== 'setelah-kelahiran'"
-            [class.border-slate-200]="outcomeCategoryFilter() !== 'setelah-kelahiran'"
-          >
-            Setelah Kelahiran (Balita)
-          </button>
-          <button
-            type="button"
-            (click)="outcomeCategoryFilter.set('lintas-siklus')"
-            class="px-3 py-1 rounded-full font-medium transition-all shrink-0 border cursor-pointer"
-            [class.bg-[#EEF0FF]]="outcomeCategoryFilter() === 'lintas-siklus'"
-            [class.text-[#525AFF]]="outcomeCategoryFilter() === 'lintas-siklus'"
-            [class.border-[#525AFF]/40]="outcomeCategoryFilter() === 'lintas-siklus'"
-            [class.font-semibold]="outcomeCategoryFilter() === 'lintas-siklus'"
-            [class.bg-white]="outcomeCategoryFilter() !== 'lintas-siklus'"
-            [class.text-slate-600]="outcomeCategoryFilter() !== 'lintas-siklus'"
-            [class.border-slate-200]="outcomeCategoryFilter() !== 'lintas-siklus'"
-          >
-            Lintas Siklus (Sanitasi)
-          </button>
-        </div>
-
         <!-- TABLE VIEW: SINGLE REGION FOCUS -->
-        @if (outcomeTableDisplayMode() === 'single') {
-          <div class="overflow-x-auto border border-slate-200 rounded-xl shadow-xs">
+        <div class="overflow-x-auto border border-slate-200 rounded-xl shadow-xs">
             <table class="w-full text-xs text-left">
               <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200 sticky top-0 z-10 shadow-xs">
                 <tr>
@@ -2264,13 +2120,9 @@
                           }"
                         >
                           @if (row.status === 'On track') {
-                            <span class="inline-flex items-center gap-1 font-bold">
-                              <span>✓</span> On Track
-                            </span>
+                            <span class="font-bold">On Track</span>
                           } @else {
-                            <span class="inline-flex items-center gap-1 font-bold">
-                              <span>!</span> Percepatan
-                            </span>
+                            <span class="font-bold">Percepatan</span>
                           }
                         </td>
                       </tr>
@@ -2287,138 +2139,6 @@
               </tbody>
             </table>
           </div>
-        } @else {
-          <!-- ALL TABLES MODE: 1 PROVINSI + 35 KABUPATEN/KOTA -->
-          <div class="space-y-6">
-            <!-- Sticky Quick Wilayah Navigator -->
-            <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center gap-1.5 sticky top-2 z-20 backdrop-blur-md">
-              <span class="text-xs font-semibold text-slate-500 mr-1.5">Lompat Cepat:</span>
-              <button
-                type="button"
-                (click)="scrollToOutcomeTable('table-province')"
-                class="px-2.5 py-1 text-xs font-bold rounded-lg bg-indigo-100 text-indigo-800 border border-indigo-200 hover:bg-indigo-200 transition-colors cursor-pointer"
-              >
-                🏛️ Provinsi Jateng
-              </button>
-              @for (tbl of allDisplayOutcomeTables().slice(1); track tbl.id) {
-                <button
-                  type="button"
-                  (click)="scrollToOutcomeTable(tbl.id)"
-                  class="px-2 py-0.5 text-xs font-medium rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer"
-                >
-                  {{ tbl.name }}
-                </button>
-              }
-            </div>
-
-            <!-- List of All Tables -->
-            @for (tbl of allDisplayOutcomeTables(); track tbl.id) {
-              <div
-                [id]="tbl.id"
-                class="border border-slate-200 rounded-xl overflow-hidden shadow-xs bg-white scroll-mt-20"
-              >
-                <!-- Wilayah Card Header -->
-                <div class="p-3.5 bg-slate-50/80 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
-                  <div class="flex items-center gap-2">
-                    <span class="text-sm font-bold text-slate-900">{{ tbl.name }}</span>
-                    @if (tbl.isProvince) {
-                      <span class="px-2 py-0.5 text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full">
-                        Agregat Provinsi
-                      </span>
-                    } @else {
-                      <span class="px-2 py-0.5 text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full">
-                        Kabupaten/Kota
-                      </span>
-                    }
-                  </div>
-
-                  <div class="flex items-center gap-2">
-                    <span class="px-2 py-0.5 text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md">
-                      On Track: {{ tbl.onTrackCount }}
-                    </span>
-                    <span class="px-2 py-0.5 text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200 rounded-md">
-                      Percepatan: {{ tbl.needAccelCount }}
-                    </span>
-                  </div>
-                </div>
-
-                <!-- Table Content -->
-                <div class="overflow-x-auto">
-                  <table class="w-full text-xs text-left">
-                    <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
-                      <tr>
-                        <th rowspan="2" class="px-3 py-2 text-center w-12 bg-slate-100">No</th>
-                        <th rowspan="2" class="px-3.5 py-2 text-left min-w-[280px] bg-slate-100">Intervensi Percepatan Penurunan Stunting</th>
-                        <th rowspan="2" class="px-3 py-2 text-right whitespace-nowrap bg-slate-100">Target Tahun Lalu</th>
-                        <th rowspan="2" class="px-3 py-2 text-right whitespace-nowrap bg-slate-100">Capaian Tahun Lalu</th>
-                        <th rowspan="2" class="px-3 py-2 text-right whitespace-nowrap bg-slate-100">Target Tahun Ini</th>
-                        @for (q of displayedOutcomeQuarters(); track q) {
-                          <th colspan="2" class="px-3 py-1.5 text-center border-l font-semibold bg-slate-200/70 text-slate-800 border-slate-300">
-                            Triwulan {{ q }}
-                          </th>
-                        }
-                        <th rowspan="2" class="px-3.5 py-2 text-center border-l border-slate-200 bg-slate-100">Status</th>
-                      </tr>
-                      <tr class="bg-slate-50 text-slate-600 text-[11px] border-b border-slate-200">
-                        @for (q of displayedOutcomeQuarters(); track q) {
-                          <th class="px-3 py-1.5 text-right font-medium border-l border-slate-200 text-slate-700 whitespace-nowrap">
-                            Jumlah
-                          </th>
-                          <th class="px-3 py-1.5 text-right font-medium text-slate-800 whitespace-nowrap min-w-[90px]">
-                            Capaian (%)
-                          </th>
-                        }
-                      </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100">
-                      @for (group of tbl.groupedRows; track group.categoryName) {
-                        <tr class="bg-slate-100/50 font-semibold text-slate-800">
-                          <td [attr.colspan]="6 + (displayedOutcomeQuarters().length * 2)" class="px-3.5 py-1.5 text-[11px]">
-                            <span>{{ group.categoryName }}</span>
-                            <span class="ml-2 font-normal text-slate-500">({{ group.rows.length }} indikator)</span>
-                          </td>
-                        </tr>
-                        @for (row of group.rows; track row.no + row.indicator) {
-                          <tr class="hover:bg-slate-50 transition-colors">
-                            <td class="px-3 py-2 text-center text-slate-700 font-mono font-bold text-xs">{{ row.no }}</td>
-                            <td class="px-3.5 py-2 font-medium text-slate-900 text-xs">{{ row.indicator }}</td>
-                            <td class="px-3 py-2 text-right font-mono text-slate-700 text-xs whitespace-nowrap">{{ row.target2025 }}</td>
-                            <td class="px-3 py-2 text-right font-mono text-slate-700 text-xs whitespace-nowrap">
-                              {{ row.realisasi2025 !== null && row.realisasi2025 !== undefined ? row.realisasi2025 + '%' : '-' }}
-                            </td>
-                            <td class="px-3 py-2 text-right font-mono font-semibold text-indigo-950 text-xs whitespace-nowrap">{{ row.target2026 }}</td>
-                            @for (q of displayedOutcomeQuarters(); track q) {
-                              @let qData = row.quarters?.[q];
-                              <td class="px-3 py-2 text-right font-mono text-slate-700 border-l border-slate-100 text-xs whitespace-nowrap">
-                                {{ qData?.sumNumerator !== null && qData?.sumNumerator !== undefined ? (qData?.sumNumerator | number) : '-' }}
-                              </td>
-                              <td class="px-3 py-2 text-right font-mono font-bold text-slate-900 text-xs whitespace-nowrap border-l border-slate-100">
-                                @if (qData?.hasData && qData?.actualAchievement !== null && qData?.actualAchievement !== undefined) {
-                                  {{ qData?.actualAchievement | number:'1.2-2' }}%
-                                } @else {
-                                  <span class="text-slate-400 font-normal italic">-</span>
-                                }
-                              </td>
-                            }
-                            <td
-                              class="px-3 py-2 text-center border-l border-slate-100 whitespace-nowrap font-semibold text-[11px]"
-                              [ngClass]="{
-                                'bg-emerald-50 text-emerald-700': row.status === 'On track',
-                                'bg-rose-50 text-rose-700': row.status === 'Perlu percepatan'
-                              }"
-                            >
-                              {{ row.status === 'On track' ? 'On Track' : 'Percepatan' }}
-                            </td>
-                          </tr>
-                        }
-                      }
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            }
-          </div>
-        }
       </div>
     </section>
   }

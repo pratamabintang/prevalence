@@ -1219,7 +1219,7 @@ describe('StuntingMonitoringComponent', () => {
       expect(indRow!.no).toBe('2');
       expect(indRow!.category).toContain('Intervensi untuk remaja putri dan ibu hamil');
       expect(indRow!.targetPrevYear).toBe(65);
-      expect(indRow!.actualPrevYear).toBe(89.34);
+      expect(indRow!.actualPrevYear).toBeNull();
       expect(indRow!.quarters[1].hasData).toBe(false);
       expect(indRow!.quarters[1].actualAchievement).toBeNull();
       expect(indRow!.quarters[2].hasData).toBe(true);
@@ -1278,7 +1278,7 @@ describe('StuntingMonitoringComponent', () => {
       expect(indRow).toBeDefined();
       expect(indRow!.no).toBe('2');
       expect(indRow!.targetPrevYear).toBe(65);
-      expect(indRow!.actualPrevYear).toBe(89.34);
+      expect(indRow!.actualPrevYear).toBeNull();
       expect(indRow!.quarters[1].hasData).toBe(true);
       expect(indRow!.quarters[1].actualAchievement).toBe(65);
       expect(indRow!.quarters[2].hasData).toBe(true);
@@ -1784,11 +1784,11 @@ describe('StuntingMonitoringComponent', () => {
 
       await component.autoPopulateIndicatorsFromData();
 
-      // Indikator skrining anemia (#1) fallback ke default Dinkes: 75 & 90.58
+      // Indikator skrining anemia (#1): target fallback 75, capaian tahun lalu tetap null
       const sub1 = component.categories()[0].subCategories.find((s) => s.no === '1');
       expect(sub1).toBeDefined();
       expect(sub1?.targetPrevYear).toBe(75);
-      expect(sub1?.actualPrevYear).toBe(90.58);
+      expect(sub1?.actualPrevYear).toBeNull();
     });
 
     it('should synchronize existing categories with preceding year TW4 upon goToStep(2)', async () => {
@@ -1824,7 +1824,7 @@ describe('StuntingMonitoringComponent', () => {
       component.workflowEngine.autoPopulateIndicators(null);
       let sub1 = component.categories()[0].subCategories.find((s) => s.no === '1');
       expect(sub1?.targetPrevYear).toBe(75);
-      expect(sub1?.actualPrevYear).toBe(90.58);
+      expect(sub1?.actualPrevYear).toBeNull();
 
       // Transition to Step 2
       await component.goToStep(2);
@@ -1861,10 +1861,10 @@ describe('StuntingMonitoringComponent', () => {
       const provCard = component.activeDisplayScorecard();
       const provRow1 = provCard?.rows.find((r) => r.no === '1');
 
-      // Individual regencies have district-specific outcomes, province has provincial aggregate
-      expect(grobRow1?.actualPrevYear).toBe(95.18);
-      expect(brebesRow1?.actualPrevYear).toBe(97.41);
-      expect(provRow1?.actualPrevYear).toBe(90.58);
+      // Tanpa dataset TW4 tahun lalu, capaian tahun lalu tidak memakai angka bawaan
+      expect(grobRow1?.actualPrevYear).toBeNull();
+      expect(brebesRow1?.actualPrevYear).toBeNull();
+      expect(provRow1?.actualPrevYear).toBeNull();
     });
   });
 });

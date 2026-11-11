@@ -67,7 +67,7 @@ export const MASALAH_GIZI_JOIN_CONFIG: JoinConfigurationPreset = {
     },
   ],
   enableTarget: true,
-  enableCapaian: false,
+  enableCapaian: true,
   enableJumlah: true,
   enableAverage: true,
   columnTargets: {
@@ -210,7 +210,7 @@ export const MASALAH_GIZI_JOIN_CONFIG: JoinConfigurationPreset = {
 
     'gizi - Tatalaksana Balita Bermasalah Gizi - Persentase balita stunting dirujuk PKM ke RS - Jumlah balita stunting dirujuk Puskesmas ke RS': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
     'Tatalaksana Balita Bermasalah Gizi - Persentase balita stunting dirujuk PKM ke RS - Jumlah balita stunting dirujuk Puskesmas ke RS': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
-    'Insiden Stunting - %': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
+    'Insiden Stunting - %': { dataType: 'percentage', anomalyEnabled: true, minAnomaly: 0, maxAnomaly: 100 },
 
     'BUMIL - Persentase ibu hamil kurang energi kronik - Jumlah ibu hamil risiko KEK/KEK sampai TW ini': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },
     'Persentase ibu hamil kurang energi kronik - Jumlah ibu hamil risiko KEK/KEK sampai TW ini': { dataType: 'number', anomalyEnabled: false, minAnomaly: null, maxAnomaly: null },

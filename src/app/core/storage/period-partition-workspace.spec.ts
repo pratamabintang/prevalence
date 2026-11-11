@@ -36,6 +36,9 @@ describe('PeriodPartitionWorkspace', () => {
   ];
 
   beforeEach(() => {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.clear();
+    }
     mockGasStorage = {
       isConfigured: vi.fn().mockReturnValue(true),
       listPeriods: vi.fn().mockResolvedValue({
@@ -61,19 +64,119 @@ describe('PeriodPartitionWorkspace', () => {
       expect(workspace.isLoading()).toBe(false);
     });
 
-    it('harus menggabungkan tahun dari slot cloud dengan 5 tahun ke belakang dan mengurutkannya menurun', async () => {
+    it('harus memulai dengan daftar tahun kosong sebelum ada data atau acuan target', () => {
+      expect(workspace.availableYears()).toEqual([]);
+      expect(workspace.selectedYear()).toBeNull();
+    });
+
+    it('harus menggabungkan tahun dari slot cloud dan acuan target tanpa jendela tahun bawaan', async () => {
       await workspace.refreshPeriods();
 
-      const years = workspace.availableYears();
-      const currentYear = new Date().getFullYear();
+      // Hanya tahun dari slot cloud (dan acuan/kustom); tanpa jendela 5 tahun bawaan
+      expect(workspace.availableYears()).toEqual([2026, 2025]);
+    });
 
-      expect(years).toContain(2026);
-      expect(years).toContain(2025);
-      expect(years).toContain(currentYear);
-      // Dipastikan terurut menurun (descending)
-      for (let i = 0; i < years.length - 1; i++) {
-        expect(years[i]).toBeGreaterThanOrEqual(years[i + 1]);
-      }
+    it('harus menyimpan acuan target tahunan dan menampilkan tahunnya di daftar', async () => {
+      await workspace.refreshPeriods();
+      expect(workspace.hasYearTargets(2027)).toBe(false);
+
+      const res = await workspace.setYearTargets(2027, {
+        'intervensi-spesifik': { 'ANC K6 - %': { enabled: true, operator: '>=', value: 95 } },
+        'masalah-gizi': { 'Stunting - %': { enabled: true, operator: '<=', value: 14 } },
+      });
+
+      expect(res.success).toBe(true);
+      expect(workspace.hasYearTargets(2027)).toBe(true);
+      expect(workspace.getYearTargets(2027)?.['masalah-gizi']['Stunting - %']).toEqual({
+        enabled: true,
+        operator: '<=',
+        value: 14,
+      });
+      expect(workspace.availableYears()).toContain(2027);
+      // Tahun aktif tidak ikut berganti hanya karena acuan baru ditambahkan
+      expect(workspace.selectedYear()).toBe(2026);
+
+      // Acuan tersimpan juga sebagai cermin localStorage untuk fallback tanpa backend
+      const mirror = JSON.parse(localStorage.getItem('dinkes_year_indicator_targets') || '{}');
+      expect(mirror['2027']?.['masalah-gizi']?.['Stunting - %']?.value).toBe(14);
+    });
+
+    it('harus memuat ulang acuan target dari cermin localStorage saat backend tidak tersedia', async () => {
+      localStorage.setItem(
+        'dinkes_year_indicator_targets',
+        JSON.stringify({
+          '2024': {
+            'intervensi-spesifik': {},
+            'masalah-gizi': { 'Gizi Kurang - %': { enabled: true, operator: '<=', value: 8 } },
+          },
+        }),
+      );
+
+      await workspace.loadYearTargets();
+
+      expect(workspace.hasYearTargets(2024)).toBe(true);
+      expect(workspace.availableYears()).toContain(2024);
+      // Tahun dari acuan menjadi tahun terpilih bila belum ada tahun aktif
+      expect(workspace.selectedYear()).toBe(2024);
+    });
+
+    it('harus menghapus tahun kosong beserta acuannya, dan menolak tahun yang masih punya data', async () => {
+      await workspace.refreshPeriods();
+      await workspace.setYearTargets(2027, {
+        'intervensi-spesifik': {},
+        'masalah-gizi': { 'Stunting - %': { enabled: true, operator: '<=', value: 14 } },
+      });
+      expect(workspace.availableYears()).toContain(2027);
+
+      // Tahun dengan data periode (2026 dari samplePeriods) ditolak
+      const blocked = await workspace.deleteYear(2026);
+      expect(blocked.success).toBe(false);
+      expect(blocked.error).toContain('masih memiliki data periode');
+
+      // Tahun kosong (hanya acuan) terhapus dari daftar dan acuan lokal
+      const res = await workspace.deleteYear(2027);
+      expect(res.success).toBe(true);
+      expect(workspace.availableYears()).not.toContain(2027);
+      expect(workspace.hasYearTargets(2027)).toBe(false);
+
+      const mirror = JSON.parse(localStorage.getItem('dinkes_year_indicator_targets') || '{}');
+      expect(mirror['2027']).toBeUndefined();
+    });
+
+    it('harus menggeser tahun aktif ke daftar tersisa saat tahun aktif dihapus', async () => {
+      await workspace.refreshPeriods();
+      await workspace.setYearTargets(2030, {
+        'intervensi-spesifik': {},
+        'masalah-gizi': { 'Stunting - %': { enabled: true, operator: '<=', value: 14 } },
+      });
+      workspace.setSelectedYear(2030);
+      expect(workspace.selectedYear()).toBe(2030);
+
+      const res = await workspace.deleteYear(2030);
+      expect(res.success).toBe(true);
+      expect(workspace.selectedYear()).toBe(2026);
+    });
+
+    it('harus mengabaikan entri acuan dengan tahun atau operator tidak valid saat memuat', async () => {
+      localStorage.setItem(
+        'dinkes_year_indicator_targets',
+        JSON.stringify({
+          '1899': { 'masalah-gizi': { 'X - %': { enabled: true, operator: '<=', value: 5 } } },
+          '2024': {
+            'masalah-gizi': {
+              'A - %': { enabled: true, operator: '??', value: 5 },
+              'B - %': { enabled: true, operator: '<=', value: 'bukan-angka' },
+            },
+          },
+        }),
+      );
+
+      await workspace.loadYearTargets();
+
+      expect(workspace.availableYears()).not.toContain(1899);
+      const set = workspace.getYearTargets(2024);
+      expect(set?.['masalah-gizi']['A - %']?.operator).toBe('>=');
+      expect(set?.['masalah-gizi']['B - %']?.value).toBeNull();
     });
 
     it('harus memvalidasi rentang tahun anggaran 2000-2100 dengan isValidYear', () => {
@@ -393,6 +496,7 @@ describe('PeriodPartitionWorkspace', () => {
       expect(rawPeriodRes.hasData).toBe(true);
       expect(rawPeriodRes.rawExcelBuffer).toBe(rawBuf);
       expect(rawPeriodRes.resultExcelBuffer).toBe(resBuf);
+      expect(rawPeriodRes.sourceRawExcelBuffer).toBe(rawBuf);
       expect(rawPeriodRes.resultExcelAvailable).toBe(true);
       expect(rawPeriodRes.config).toEqual(mockPreset);
       expect(mockGasStorage.loadPeriod).not.toHaveBeenCalled();
@@ -404,6 +508,7 @@ describe('PeriodPartitionWorkspace', () => {
       expect(resPeriodRes.success).toBe(true);
       expect(resPeriodRes.hasData).toBe(true);
       expect(resPeriodRes.rawExcelBuffer).toBe(resBuf);
+      expect(resPeriodRes.sourceRawExcelBuffer).toBe(rawBuf);
       expect(resPeriodRes.isResultExcel).toBe(true);
 
       // 2. Uji loadMultiQuarters dengan berkas lokal tetap mengambil config dari backendStorage tanpa menyentuh gasStorage
@@ -474,7 +579,8 @@ describe('PeriodPartitionWorkspace', () => {
 
       const injected = TestBed.inject(PeriodPartitionWorkspace);
       expect(injected).toBeInstanceOf(PeriodPartitionWorkspace);
-      expect(injected.availableYears().length).toBeGreaterThan(0);
+      expect(injected.availableYears()).toEqual([]);
+      expect(injected.selectedYear()).toBeNull();
     });
   });
 });

@@ -140,10 +140,7 @@ export class DinkesSpreadsheetParser {
                 return s === 'kabupaten/kota' || s === 'kab/kota' || s === 'kabupaten';
               }),
           );
-          if (
-            headerRow &&
-            headerRow.some((col) => String(col || '').includes('%'))
-          ) {
+          if (headerRow && this.hasPercentIndicator(rawData, headerRow)) {
             return giziCandidate;
           }
         }
@@ -230,6 +227,16 @@ export class DinkesSpreadsheetParser {
   }
 
   /**
+   * Cek indikator persentase pada header utama atau baris sub-header (format dua tingkat).
+   */
+  private static hasPercentIndicator(rawData: unknown[][], headerRow: unknown[]): boolean {
+    if (headerRow.some((col) => String(col ?? '').includes('%'))) return true;
+    const headerIdx = rawData.indexOf(headerRow);
+    const subHeader = headerIdx >= 0 ? rawData[headerIdx + 1] : undefined;
+    return Boolean(subHeader?.some((cell) => String(cell ?? '').trim().includes('%')));
+  }
+
+  /**
    * Mendeteksi nama sheet pre-joined Masalah Gizi pada workbook.
    */
   static detectMasalahGiziPreJoinedSheet(workbook: ExcelWorkbook): string | null {
@@ -262,10 +269,7 @@ export class DinkesSpreadsheetParser {
               return s === 'kabupaten/kota' || s === 'kab/kota' || s === 'kabupaten';
             }),
         );
-        if (
-          headerRow &&
-          headerRow.some((col) => String(col || '').includes('%'))
-        ) {
+        if (headerRow && this.hasPercentIndicator(rawData, headerRow)) {
           return candidate;
         }
       }
@@ -349,6 +353,69 @@ export class DinkesSpreadsheetParser {
   }
 
   /**
+   * Deteksi baris sub-header (mis. "Jumlah"/"%") di bawah header utama.
+   */
+  private static detectSubHeaderRow(
+    candidate: unknown[] | undefined,
+    headerRow: unknown[],
+    regionColIdx: number,
+  ): unknown[] | null {
+    if (!candidate || !Array.isArray(candidate)) return null;
+
+    const cells = candidate.map((cell) => String(cell ?? '').trim());
+    if (!cells.some(Boolean)) return null;
+    if (cells[regionColIdx]) return null;
+
+    const knownLabels = new Set([
+      'jumlah',
+      'total',
+      '%',
+      'persen',
+      'persentase',
+      'n',
+      'numer',
+      'denom',
+      'target',
+      'capaian',
+      'l',
+      'p',
+      'laki-laki',
+      'perempuan',
+    ]);
+
+    const headerCounts = new Map<string, number>();
+    headerRow.forEach((cell) => {
+      const name = String(cell ?? '').trim().toLowerCase();
+      if (name) headerCounts.set(name, (headerCounts.get(name) ?? 0) + 1);
+    });
+    const hasDuplicateHeaders = Array.from(headerCounts.values()).some((count) => count > 1);
+    const hasKnownLabel = cells.some(
+      (cell, idx) => idx !== regionColIdx && cell && knownLabels.has(cell.toLowerCase()),
+    );
+    const onlyKnownLabels = cells.every(
+      (cell, idx) =>
+        idx === regionColIdx ||
+        !cell ||
+        knownLabels.has(cell.toLowerCase()) ||
+        cell.startsWith('%'),
+    );
+
+    return hasDuplicateHeaders || hasKnownLabel || onlyKnownLabels ? candidate : null;
+  }
+
+  /**
+   * Gabungkan header utama dan sub-header bila ada, mis. "Stunting" + "%" -> "Stunting - %".
+   */
+  private static resolveColumnHeader(primary: unknown, secondary: unknown): string {
+    const base = String(primary ?? '').trim();
+    const sub = String(secondary ?? '').trim();
+    if (!sub) return base;
+    if (!base) return sub;
+    if (base.toLowerCase() === sub.toLowerCase()) return base;
+    return `${base} - ${sub}`;
+  }
+
+  /**
    * Ekstraksi lembar kerja hasil penggabungan standar (pre-joined).
    */
   private static extractPreJoinedSheet(
@@ -397,6 +464,9 @@ export class DinkesSpreadsheetParser {
 
     if (regionColIdx === -1) regionColIdx = 1;
 
+    // Header dua tingkat (mis. "BBLR" + "Jumlah"/"%"): gabungkan menjadi "BBLR - Jumlah" / "BBLR - %"
+    const subHeaderRow = this.detectSubHeaderRow(rawData[headerRowIdx + 1], headerRow, regionColIdx);
+
     const validCols: string[] = [];
     const validColIndices: number[] = [];
     const primaryRegionHeader = String(headerRow[regionColIdx] || 'Kabupaten/Kota').trim();
@@ -404,7 +474,7 @@ export class DinkesSpreadsheetParser {
     validColIndices.push(regionColIdx);
 
     headerRow.forEach((col, idx) => {
-      const colName = String(col || '').trim();
+      const colName = this.resolveColumnHeader(col, subHeaderRow?.[idx]);
       if (idx !== regionColIdx && colName && !/^(no|nomor|no\.|capaian)$/i.test(colName)) {
         validCols.push(colName);
         validColIndices.push(idx);
@@ -416,7 +486,7 @@ export class DinkesSpreadsheetParser {
     let rawRataRataRow: unknown[] | null = null;
     let rawTargetRow: unknown[] | null = null;
 
-    for (let r = headerRowIdx + 1; r < rawData.length; r++) {
+    for (let r = headerRowIdx + (subHeaderRow ? 2 : 1); r < rawData.length; r++) {
       const row = rawData[r];
       if (!row || row.length === 0) continue;
 

@@ -125,6 +125,22 @@ export interface BackendDefaultSaveResult {
   error?: string;
 }
 
+/** Acuan target tahunan: { [datasetKey]: { [columnKey]: { enabled, operator, value } } } */
+export type BackendYearTargetSet = Record<string, Record<string, { enabled: boolean; operator: string; value: number | null }>>;
+
+export interface BackendYearTargetsResult {
+  success: boolean;
+  targets: Record<string, BackendYearTargetSet>;
+  error?: string;
+}
+
+export interface BackendYearTargetsSaveResult {
+  success: boolean;
+  message?: string;
+  updatedAt?: string;
+  error?: string;
+}
+
 export interface BackendTrendPoint {
   year: number;
   quarter: string;
@@ -346,10 +362,71 @@ export class BackendStorageService {
   }
 
   /**
+   * Mengambil seluruh acuan target tahunan dari server, terkelompok per tahun.
+   */
+  async getYearTargets(): Promise<BackendYearTargetsResult> {
+    const res = await this.requestJson('/targets', { method: 'GET' }, 'Gagal memuat acuan target tahunan.');
+    if (!res.ok) {
+      return { success: false, targets: {}, error: res.error };
+    }
+
+    const json = res.data;
+    return {
+      success: !!json.success,
+      targets: (json.targets || {}) as Record<string, BackendYearTargetSet>,
+    };
+  }
+
+  /**
+   * Menyimpan acuan target tahunan untuk satu tahun (mengganti seluruh baris tahun tersebut).
+   */
+  async saveYearTargets(year: number, targets: BackendYearTargetSet): Promise<BackendYearTargetsSaveResult> {
+    const res = await this.requestJson(
+      `/targets/${year}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targets }),
+      },
+      'Gagal menyimpan acuan target tahunan.',
+    );
+    if (!res.ok) {
+      return { success: false, error: res.error };
+    }
+
+    const json = res.data;
+    return {
+      success: !!json.success,
+      message: json.message,
+      updatedAt: json.updatedAt,
+    };
+  }
+
+  /**
+   * Menghapus seluruh acuan target tahunan untuk satu tahun di server.
+   */
+  async deleteYearTargets(year: number): Promise<BackendYearTargetsSaveResult> {
+    const res = await this.requestJson(
+      `/targets/${year}`,
+      { method: 'DELETE' },
+      'Gagal menghapus acuan target tahunan.',
+    );
+    if (!res.ok) {
+      return { success: false, error: res.error };
+    }
+
+    const json = res.data;
+    return {
+      success: !!json.success,
+      message: json.message,
+      updatedAt: json.updatedAt,
+    };
+  }
+
+  /**
    * Mengambil daftar seluruh periode yang telah tersimpan di server.
    */
-  async listPeriods(): Promise<BackendPeriodListResult> {
-    const res = await this.requestJson('/periods', { method: 'GET' }, 'Gagal mengambil daftar periode.');
+  async listPeriods(): Promise<BackendPeriodListResult> {    const res = await this.requestJson('/periods', { method: 'GET' }, 'Gagal mengambil daftar periode.');
     if (!res.ok) {
       return { success: false, periods: [], error: res.error };
     }

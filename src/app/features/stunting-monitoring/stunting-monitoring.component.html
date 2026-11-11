@@ -305,9 +305,13 @@
               </select>
             </div>
 
-            @if (yearQuarterCount() > 0) {
+            @if (selectedYear() === null) {
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                <span>Belum ada tahun anggaran. Tambahkan tahun lewat halaman Kelola Data.</span>
+              </span>
+            } @else if (yearQuarterCount() > 0) {
               <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <span class="w-1.5 w-1.5 rounded-full bg-emerald-500"></span>
                 <span>{{ yearQuarterCount() }} Triwulan Tersimpan di Cloud (Tahun {{ selectedYear() }})</span>
               </span>
             } @else {
@@ -419,7 +423,7 @@
           <!-- TOMBOL EKSEKUSI PENGGABUNGAN DATA MULTI-TRIWULAN -->
           <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
             <div class="text-xs text-slate-500">
-              <span>{{ selectedQuartersWithDataCount() }} dari 4 triwulan memiliki sumber data (Cloud/Lokal) untuk Tahun {{ selectedYear() }}.</span>
+              <span>{{ selectedQuartersWithDataCount() }} dari 4 triwulan memiliki sumber data (Cloud/Lokal) untuk Tahun {{ selectedYear() ?? '-' }}.</span>
             </div>
 
             <button

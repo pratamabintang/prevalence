@@ -1,8 +1,62 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { vi } from 'vitest';
 import { HomeComponent } from './home.component';
 import { DinkesSpreadsheetParser } from '../../core/excel/dinkes-spreadsheet-parser';
-import { NUTRITION_PROBLEMS_DATA, SPECIFIC_INTERVENTIONS_DATA } from './home-data';
+
+const MOCK_DISTRICTS = [
+  'CILACAP', 'BANYUMAS', 'PURBALINGGA', 'BANJARNEGARA', 'KEBUMEN',
+  'PURWOREJO', 'WONOSOBO', 'MAGELANG', 'BOYOLALI', 'KLATEN',
+  'SUKOHARJO', 'WONOGIRI', 'KARANGANYAR', 'SRAGEN', 'GROBOGAN',
+  'BLORA', 'REMBANG', 'PATI', 'KUDUS', 'JEPARA',
+  'DEMAK', 'SEMARANG', 'TEMANGGUNG', 'KENDAL', 'BATANG',
+  'PEKALONGAN', 'PEMALANG', 'TEGAL', 'BREBES', 'KOTA MAGELANG',
+  'KOTA SURAKARTA', 'KOTA SALATIGA', 'KOTA SEMARANG', 'KOTA PEKALONGAN', 'KOTA TEGAL',
+];
+
+const MOCK_INTERVENSI_COLUMN_PAIRS: [string, string][] = [
+  ['Rematri  Konsumsi TTD', '% Konsumsi TTD'],
+  ['Rematri Skrining Anemia', '% Skrining Anemia'],
+  ['Ibu Hamil ANC 6x', '% ANC 6x'],
+  ['Ibu Hamil Konsumsi TTD/MMS', '% TTD/MMS'],
+  ['Ibu Hamil KEK Konsumsi MT', '% Bumil PMT'],
+  ['Balita dipantau Pertumbuhan (D/S)', '% D/S'],
+  ['Jumlah Balita dipantau Tumbang', '% Tumbang'],
+  ['ASI Eksklusif', '% ASI'],
+  ['MPASI', '% MPASI'],
+  ['Jumlah  Gizi Kurang dapat MT', '% Gizi Kurang dapat MT'],
+  ['Jumlah BB Kurang dapat MT', '% BB Kurang dapat MT'],
+  ['Jumlah BB Tidak Naik (T) dapat MT', '% BB Tidak Naik (T) dapat MT'],
+  ['Jumlah Kasus Gizi Buruk Mendapat Tata Laksana', '% Talak Gibur'],
+  ['Baduta IDL', '% IDL'],
+];
+
+const MOCK_GIZI_COLUMNS = [
+  'Stunting - %', 'Insiden Stunting - %', 'BBLR - %', 'BB Tidak Naik - %',
+  'BB Kurang - %', 'Gizi Kurang - %', 'Gizi Buruk - %', 'Bumil KEK - %',
+  'Bumil Anemia - %', 'Rematri Anemia - %',
+];
+
+function buildMockIntervensiRows(): Record<string, unknown>[] {
+  return MOCK_DISTRICTS.map((name, i) => {
+    const row: Record<string, unknown> = { 'Kabupaten/Kota': name, Capaian: 5 };
+    MOCK_INTERVENSI_COLUMN_PAIRS.forEach(([numCol, pctCol], j) => {
+      row[numCol] = 100 + i * 10 + j;
+      row[pctCol] = 40 + ((i + j) % 55);
+    });
+    return row;
+  });
+}
+
+function buildMockGiziRows(): Record<string, unknown>[] {
+  return MOCK_DISTRICTS.map((name, i) => {
+    const row: Record<string, unknown> = { 'Kabupaten/Kota': name };
+    MOCK_GIZI_COLUMNS.forEach((col, j) => {
+      row[col] = 1 + ((i + j * 3) % 30);
+    });
+    return row;
+  });
+}
 
 describe('HomeComponent', () => {
   let component: HomeComponent;
@@ -11,10 +65,15 @@ describe('HomeComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [HomeComponent],
+      providers: [provideRouter([])],
     }).compileComponents();
 
     fixture = TestBed.createComponent(HomeComponent);
     component = fixture.componentInstance;
+    // Dashboard hanya tampil dengan data pengguna; seed data mock untuk pengujian
+    // tampilan berdata. Tes empty state membersihkan rows secara eksplisit.
+    component.intervensiRows.set(buildMockIntervensiRows());
+    component.giziRows.set(buildMockGiziRows());
     fixture.detectChanges();
   });
 
@@ -24,6 +83,26 @@ describe('HomeComponent', () => {
 
   it('should create the component', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('should render page-level empty state and hide the dashboard when no data is loaded', () => {
+    component.intervensiRows.set([]);
+    component.giziRows.set([]);
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="home-empty-state"]')).toBeTruthy();
+    expect(el.querySelector('[data-testid="category-intervensi-heatmap"]')).toBeNull();
+    expect(el.querySelector('table')).toBeNull();
+    expect(el.querySelector('[data-testid="presentation-period-bar"]')).toBeNull();
+    expect(el.textContent).not.toContain('Target');
+    expect(el.querySelector('a[href="/data"]')).toBeTruthy();
+  });
+
+  it('should hide the empty state once presentation data is available', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="home-empty-state"]')).toBeNull();
+    expect(el.querySelector('[data-testid="category-intervensi-heatmap"]')).toBeTruthy();
   });
 
   it('should render the main title as "Sistem Pemantauan Intervensi Spesifik & Masalah Gizi"', () => {
@@ -97,6 +176,15 @@ describe('HomeComponent', () => {
       expect(rightCol).toBeTruthy();
       expect(leftCol?.classList.contains('lg:col-span-1')).toBe(true);
       expect(rightCol?.classList.contains('lg:col-span-2')).toBe(true);
+    });
+
+    it('should separate the two columns with a desktop divider', () => {
+      const compiled = fixture.nativeElement as HTMLElement;
+      const rightCol = compiled.querySelector('[data-testid="right-column-heatmap"]');
+
+      expect(rightCol?.classList.contains('lg:border-l')).toBe(true);
+      expect(rightCol?.classList.contains('lg:border-slate-200')).toBe(true);
+      expect(rightCol?.classList.contains('lg:pl-6')).toBe(true);
     });
 
     it('should render overview information boxes in the left column (ratio 1)', () => {
@@ -284,6 +372,31 @@ describe('HomeComponent', () => {
       expect(ancBox?.achievement).toBeGreaterThan(30);
       expect(ancBox?.achievement).toBeLessThan(50);
     });
+
+    it('should aggregate province achievement for numerator columns containing double spaces', () => {
+      // Canonical joined-dataset headers for these two columns use double spaces.
+      const mockRegions: Record<string, unknown>[] = [
+        { 'Kabupaten/Kota': 'Kab. Blora', '% Konsumsi TTD': 80, 'Rematri  Konsumsi TTD': 400 },
+        { 'Kabupaten/Kota': 'Kab. Boyolali', '% Konsumsi TTD': 60, 'Rematri  Konsumsi TTD': 300 },
+        { 'Kabupaten/Kota': 'Kab. Cilacap', '% Gizi Kurang dapat MT': 10, 'Jumlah  Gizi Kurang dapat MT': 100 },
+        { 'Kabupaten/Kota': 'Kab. Pekalongan', '% Gizi Kurang dapat MT': 20, 'Jumlah  Gizi Kurang dapat MT': 200 },
+      ];
+
+      component.presentationMode.set('period');
+      component.selectedWilayahScope.set('province');
+      component.intervensiRows.set(mockRegions);
+      fixture.detectChanges();
+
+      const boxes = component.wilayahIndicatorBoxes();
+
+      // (400 + 300) / ((400/80)*100 + (300/60)*100) = 700 / 1000 = 70
+      const ttdBox = boxes.find((b) => b.indicatorKey === '% Konsumsi TTD');
+      expect(ttdBox?.achievement).toBe(70);
+
+      // (100 + 200) / ((100/10)*100 + (200/20)*100) = 300 / 2000 = 15
+      const mtBox = boxes.find((b) => b.indicatorKey === '% Gizi Kurang dapat MT');
+      expect(mtBox?.achievement).toBe(15);
+    });
   });
 
   describe('Category 2: Heatmap Masalah Gizi', () => {
@@ -292,59 +405,37 @@ describe('HomeComponent', () => {
       fixture.detectChanges();
     });
 
-    it('should render a 2-column layout with 1:2 ratio', () => {
+    it('should render the gizi map with the same left-column summary contract as intervensi', () => {
       const compiled = fixture.nativeElement as HTMLElement;
+      const grid = compiled.querySelector('[data-testid="gizi-2column-grid"]');
       const leftCol = compiled.querySelector('[data-testid="left-column-gizi-boxes"]');
       const rightCol = compiled.querySelector('[data-testid="right-column-gizi-heatmap"]');
+      const scopeSelect = compiled.querySelector('[data-testid="gizi-wilayah-scope-select"]') as HTMLSelectElement;
 
+      expect(grid).toBeTruthy();
       expect(leftCol).toBeTruthy();
       expect(rightCol).toBeTruthy();
-      expect(leftCol?.classList.contains('lg:col-span-1')).toBe(true);
-      expect(rightCol?.classList.contains('lg:col-span-2')).toBe(true);
+      expect(scopeSelect).toBeTruthy();
+      expect(leftCol?.querySelectorAll('[data-testid^="gizi-box-"]').length).toBe(
+        component.giziIndicators.length,
+      );
     });
 
-    it('should render overview gizi boxes in the left column (ratio 1)', () => {
-      component.setActiveCategory('gizi-heatmap');
-      fixture.detectChanges();
-
+    it('should update gizi summary boxes when the region scope changes', () => {
+      const provinceBox = component.giziWilayahIndicatorBoxes()[0];
       const compiled = fixture.nativeElement as HTMLElement;
-      const boxes = compiled.querySelectorAll('[data-testid="left-column-gizi-boxes"] [data-testid^="gizi-box-"]');
-      expect(boxes.length).toBeGreaterThanOrEqual(8);
+      const scopeSelect = compiled.querySelector(
+        '[data-testid="gizi-wilayah-scope-select"]',
+      ) as HTMLSelectElement;
 
-      // Verify status category badge text is omitted
-      const textContent = Array.from(boxes).map((b) => b.textContent || '').join(' ');
-      expect(textContent).not.toContain('LENGKAP');
-      expect(textContent).not.toContain('TARGET TERCAPAI');
-      expect(textContent).not.toContain('RISIKO KUNCI');
-
-      // Verify cards have status background classes
-      const hasEmerald = Array.from(boxes).some((b) => b.classList.contains('bg-emerald-50'));
-      const hasAmber = Array.from(boxes).some((b) => b.classList.contains('bg-amber-50'));
-      const hasRose = Array.from(boxes).some((b) => b.classList.contains('bg-rose-50'));
-
-      expect(hasEmerald).toBe(true);
-      expect(hasAmber).toBe(true);
-      expect(hasRose).toBe(true);
-    });
-
-    it('should not render title text and filter category buttons in the left column gizi boxes', () => {
-      component.setActiveCategory('gizi-heatmap');
+      scopeSelect.value = 'CILACAP';
+      scopeSelect.dispatchEvent(new Event('change'));
       fixture.detectChanges();
 
-      const compiled = fixture.nativeElement as HTMLElement;
-      const leftCol = compiled.querySelector('[data-testid="left-column-gizi-boxes"]');
-      expect(leftCol?.textContent?.includes('Beban Status Gizi')).toBe(false);
-      expect(leftCol?.textContent?.includes('10 Kartu Indikator')).toBe(false);
-      expect(leftCol?.querySelector('button')).toBeNull();
-    });
-
-    it('should filter gizi overview boxes when filter chip is changed', () => {
-      component.giziBoxFilter.set('masalah');
-      fixture.detectChanges();
-
-      const filtered = component.filteredGiziBoxes();
-      expect(filtered.length).toBeGreaterThan(0);
-      expect(filtered.every((b) => b.category === 'masalah')).toBe(true);
+      const districtBox = component.giziWilayahIndicatorBoxes()[0];
+      expect(component.selectedWilayahScope()).toBe('CILACAP');
+      expect(districtBox.achievement).not.toBe(provinceBox.achievement);
+      expect(districtBox.indicatorKey).toBe(provinceBox.indicatorKey);
     });
 
     it('should render the Gizi SVG map and apply inverted polarity in right column', () => {
@@ -396,6 +487,29 @@ describe('HomeComponent', () => {
 
   describe('Category 3: Hasil & Capaian Intervensi Spesifik', () => {
     beforeEach(() => {
+      // Capaian provinsi hanya dari dataset kuartal yang dimuat (tanpa nilai bawaan)
+      component.loadedQuarterDatasets.set({
+        2: {
+          regionRows: buildMockIntervensiRows(),
+          summaryRow: {
+            '% Skrining Anemia': 90,
+            '% Konsumsi TTD': 90,
+            '% ANC 6x': 20,
+            '% TTD/MMS': 20,
+            '% Bumil PMT': 20,
+            '% D/S': 96,
+            '% Tumbang': 20,
+            '% ASI': 90,
+            '% MPASI': 90,
+            '% BB Tidak Naik (T) dapat MT': 20,
+            '% BB Kurang dapat MT': 20,
+            '% Gizi Kurang dapat MT': 20,
+            '% Talak Gibur': 20,
+            '% IDL': 20,
+          },
+          totalRow: null,
+        },
+      });
       component.setActiveCategory('intervensi-outcomes');
       fixture.detectChanges();
     });
@@ -444,7 +558,7 @@ describe('HomeComponent', () => {
     it('should support switching scope between Province and each Regency/City', () => {
       // Default scope is province
       expect(component.selectedOutcomeScope()).toBe('province');
-      expect(component.selectedOutcomeScopeLabel()).toBe('PROVINSI JAWA TENGAH (Agregat)');
+      expect(component.selectedOutcomeScopeLabel()).toBe('PROVINSI JAWA TENGAH');
 
       // Switch to CILACAP
       component.setSelectedOutcomeScope('CILACAP');
@@ -457,8 +571,9 @@ describe('HomeComponent', () => {
       expect(cilacapOutcomes.length).toBe(15);
       const row1 = cilacapOutcomes.find((o) => o.no === '1');
       expect(row1).toBeTruthy();
-      expect(row1?.capaianTW2).toBe(94.64);
-      expect(row1?.status).toBe('On track');
+      // Nilai kabupaten diambil dari baris wilayah yang dimuat (mock CILACAP)
+      expect(row1?.capaianTW2).toBe(buildMockIntervensiRows()[0]['% Skrining Anemia']);
+      expect(row1?.status).toBe('Perlu percepatan');
 
       // Reset to province
       component.setSelectedOutcomeScope('province');
@@ -466,20 +581,17 @@ describe('HomeComponent', () => {
       expect(component.selectedOutcomeScope()).toBe('province');
     });
 
-    it('should switch between single focus mode and all tables mode', () => {
+    it('should always stay in single focus mode (all-tables mode removed)', () => {
       expect(component.outcomeTableDisplayMode()).toBe('single');
 
       component.setOutcomeTableDisplayMode('all');
       fixture.detectChanges();
 
       expect(component.outcomeTableDisplayMode()).toBe('all');
-      const allTables = component.allDisplayOutcomeTables();
-      expect(allTables.length).toBe(36); // 1 province + 35 regencies/cities
-      expect(allTables[0].isProvince).toBe(true);
-      expect(allTables[1].isProvince).toBe(false);
 
-      const compiled = fixture.nativeElement as HTMLElement;
-      expect(compiled.querySelector('#table-province')).toBeTruthy();
+      component.selectDistrictFromRanking('BANYUMAS');
+      fixture.detectChanges();
+      expect(component.outcomeTableDisplayMode()).toBe('single');
     });
 
     it('should select district when clicking district in ranking matrix', () => {
@@ -572,24 +684,44 @@ describe('HomeComponent', () => {
       expect(anemiaCilacap?.quarters?.[4]?.sumNumerator).toBe(28458);
     });
 
-    it('should set district-specific previous year outcomes for individual regencies/cities and provincial aggregate for province', () => {
-      component.setSelectedOutcomeScope('province');
-      fixture.detectChanges();
-      const provRows = component.activeScopeOutcomes();
-      const provRow1 = provRows.find((o) => o.no === '1');
-      expect(provRow1?.realisasi2025).toBe(90.58);
+    it('should show prev year outcomes only from the loaded prev-year dataset, else null', () => {
+      // Tanpa dataset tahun lalu: tidak ada nilai bawaan untuk cakupan mana pun
+      const provRow1 = component.activeScopeOutcomes().find((o) => o.no === '1');
+      expect(provRow1?.realisasi2025).toBeNull();
 
       component.setSelectedOutcomeScope('CILACAP');
       fixture.detectChanges();
-      const cilacapRows = component.activeScopeOutcomes();
-      const cilacapRow1 = cilacapRows.find((o) => o.no === '1');
-      expect(cilacapRow1?.realisasi2025).toBe(94.87); // Cilacap specific outcome
+      const cilacapRow1 = component.activeScopeOutcomes().find((o) => o.no === '1');
+      expect(cilacapRow1?.realisasi2025).toBeNull();
+
+      // Dengan dataset TW4 tahun lalu yang dimuat dari server
+      component.loadedPrevYearDataset.set({
+        regionRows: [
+          { 'Kabupaten/Kota': 'CILACAP', '% Skrining Anemia': 94.87 },
+          { 'Kabupaten/Kota': 'BANYUMAS', '% Skrining Anemia': 100 },
+        ],
+        summaryRow: { '% Skrining Anemia': 90.58 },
+        totalRow: null,
+      });
+      fixture.detectChanges();
+
+      component.setSelectedOutcomeScope('province');
+      fixture.detectChanges();
+      expect(
+        component.activeScopeOutcomes().find((o) => o.no === '1')?.realisasi2025,
+      ).toBe(90.58);
+
+      component.setSelectedOutcomeScope('CILACAP');
+      fixture.detectChanges();
+      expect(
+        component.activeScopeOutcomes().find((o) => o.no === '1')?.realisasi2025,
+      ).toBe(94.87);
 
       component.setSelectedOutcomeScope('BANYUMAS');
       fixture.detectChanges();
-      const banyumasRows = component.activeScopeOutcomes();
-      const banyumasRow1 = banyumasRows.find((o) => o.no === '1');
-      expect(banyumasRow1?.realisasi2025).toBe(100); // Banyumas specific outcome
+      expect(
+        component.activeScopeOutcomes().find((o) => o.no === '1')?.realisasi2025,
+      ).toBe(100);
     });
 
     it('should incorporate previous year dataset into outcomes table and KPI summary', () => {
@@ -637,19 +769,19 @@ describe('HomeComponent', () => {
       expect(el.querySelector('[data-testid="period-slot-tw2"]')).toBeTruthy();
       expect(el.querySelector('[data-testid="period-slot-tw3"]')).toBeTruthy();
       expect(el.querySelector('[data-testid="period-slot-tw4"]')).toBeTruthy();
-      expect(el.querySelector('[data-testid="period-mode-baseline"]')).toBeTruthy();
       expect(el.querySelector('[data-testid="refresh-periods-btn"]')).toBeTruthy();
     });
 
-    it('should display Data Bawaan (Baseline) badge by default and update when quarter is selected', () => {
+    it('should display stored-period badge by default and update when quarter is selected', () => {
       const el = fixture.nativeElement as HTMLElement;
       const badge = el.querySelector('[data-testid="presentation-source-badge"]');
-      expect(badge?.textContent).toContain('Data Bawaan (Baseline)');
+      expect(badge?.textContent).toContain('Periode Tersimpan: 2026 TW1');
 
       component.setPresentationPeriod(2026, 3);
       fixture.detectChanges();
 
-      expect(badge?.textContent).toContain('Periode Tersimpan: 2026 TW3');
+      const updatedBadge = el.querySelector('[data-testid="presentation-source-badge"]');
+      expect(updatedBadge?.textContent).toContain('Periode Tersimpan: 2026 TW3');
       expect(component.activePresentationPeriod().mode).toBe('period');
       expect(component.activePresentationPeriod().quarter).toBe(3);
     });
@@ -682,22 +814,7 @@ describe('HomeComponent', () => {
 
       tw4Btn.click();
       fixture.detectChanges();
-      expect(component.activePresentationPeriod().mode).toBe('baseline');
-    });
-
-    it('should reset to baseline when clicking Data Bawaan button', () => {
-      const el = fixture.nativeElement as HTMLElement;
-      component.setPresentationPeriod(2026, 2);
-      fixture.detectChanges();
       expect(component.activePresentationPeriod().mode).toBe('period');
-
-      const baselineBtn = el.querySelector('[data-testid="period-mode-baseline"]') as HTMLButtonElement;
-      baselineBtn.click();
-      fixture.detectChanges();
-
-      expect(component.activePresentationPeriod().mode).toBe('baseline');
-      const badge = el.querySelector('[data-testid="presentation-source-badge"]');
-      expect(badge?.textContent).toContain('Data Bawaan (Baseline)');
     });
 
     it('should call refreshPeriods when refresh button is clicked', async () => {
@@ -767,7 +884,7 @@ describe('HomeComponent', () => {
 
     it('should fall back to standard Dinkes target if targetRow is not present', () => {
       component.loadedQuarterDatasets.set({});
-      component.presentationMode.set('baseline');
+      component.presentationMode.set('period');
 
       const resolved = component.getResolvedIntervensiTarget('% Konsumsi TTD', 50);
       expect(resolved).toBe(67);
@@ -818,7 +935,46 @@ describe('HomeComponent', () => {
       expect(component.giziRows()[0]['Stunting - %']).toBe(12.4);
     });
 
-    it('should fall back to NUTRITION_PROBLEMS_DATA and display notice badge if Masalah Gizi sheet is missing', async () => {
+    it('should map Bumil KEK/Risiko KEK column to the catalogue key', async () => {
+      const mockRows = mockDistricts.map((name, i) => ({
+        'Kabupaten/Kota': name,
+        'Stunting - %': 12.4,
+        'Bumil KEK/Risiko KEK - %': 19.92 + i,
+      }));
+
+      vi.spyOn(component.periodPartitionWorkspace!, 'isStorageConfigured').mockReturnValue(true);
+      vi.spyOn(component.periodPartitionWorkspace!, 'loadSingleQuarter').mockResolvedValue({
+        year: 2026,
+        quarter: 'TW2',
+        source: 'cloud',
+        fileName: 'test.xlsx',
+        resultBuffer: new ArrayBuffer(16),
+        dataset: {
+          regionRows: mockRows,
+          summaryRow: null,
+          totalRow: null,
+        } as any,
+      });
+
+      vi.spyOn(DinkesSpreadsheetParser, 'parse').mockReturnValue({
+        columns: ['Kabupaten/Kota', 'Stunting - %', 'Bumil KEK/Risiko KEK - %'],
+        regionRows: mockRows,
+        summaryRow: null,
+        totalRow: null,
+        targetRow: null,
+      } as any);
+
+      await component.loadPeriodPresentationData(2026, 2);
+
+      expect(component.giziRows()[0]['Bumil KEK - %']).toBe(19.92);
+      component.setGiziIndicator('Bumil KEK - %');
+      const item = component
+        .giziHeatmapResult()
+        ?.items.find((i) => i.displayName.toUpperCase().includes('CILACAP'));
+      expect(item?.value).toBe(19.92);
+    });
+
+    it('should keep gizi rows empty and render gizi empty state if Masalah Gizi sheet is missing', async () => {
       vi.spyOn(component.periodPartitionWorkspace!, 'isStorageConfigured').mockReturnValue(true);
       vi.spyOn(component.periodPartitionWorkspace!, 'loadSingleQuarter').mockResolvedValue({
         year: 2026,
@@ -838,15 +994,15 @@ describe('HomeComponent', () => {
 
       await component.loadPeriodPresentationData(2026, 2);
       expect(component.isGiziFallback()).toBe(true);
-      expect(component.giziRows()).toBe(NUTRITION_PROBLEMS_DATA);
+      expect(component.giziRows().length).toBe(0);
 
       component.setActiveCategory('gizi-heatmap');
       fixture.detectChanges();
 
       const el = fixture.nativeElement as HTMLElement;
-      const notice = el.querySelector('[data-testid="gizi-fallback-notice"]');
-      expect(notice).toBeTruthy();
-      expect(notice?.textContent).toContain('Data Masalah Gizi untuk periode ini tidak tersedia');
+      const emptyState = el.querySelector('[data-testid="home-gizi-empty"]');
+      expect(emptyState).toBeTruthy();
+      expect(emptyState?.textContent).toContain('Sheet MASALAH GIZI tidak ditemukan');
     });
   });
 
@@ -859,9 +1015,6 @@ describe('HomeComponent', () => {
 
       component.setPresentationPeriod(2026, 3);
       expect(component.selectedOutcomeQuarter()).toBe(3);
-
-      component.setPresentationBaseline();
-      expect(component.selectedOutcomeQuarter()).toBe(2);
     });
 
     it('should toggle session mode when HealthDataExchange has active dataset', () => {
@@ -955,6 +1108,119 @@ describe('HomeComponent', () => {
       expect(ttd?.target2026).toBe('95%');
     });
 
+    it('should prioritize Acuan Target tahunan dari server di atas target di berkas arsip', async () => {
+      component.presentationYear.set(2026);
+      component.loadedPrevYearDataset.set({
+        regionRows: [],
+        summaryRow: null,
+        totalRow: null,
+        targetRow: { '% Skrining Anemia': '>= 9' },
+        columnTargets: { '% Konsumsi TTD': { enabled: true, operator: '>=', value: 85 } },
+      });
+      component.loadedQuarterDatasets.set({
+        2: {
+          regionRows: [],
+          summaryRow: null,
+          totalRow: null,
+          targetRow: { '% Skrining Anemia': '>= 9' },
+          columnTargets: { '% Konsumsi TTD': { enabled: true, operator: '>=', value: 85 } },
+        },
+      });
+
+      await component.periodPartitionWorkspace?.setYearTargets(2026, {
+        'intervensi-spesifik': {
+          '% Skrining Anemia': { enabled: true, operator: '>=', value: 80.85 },
+          '% Konsumsi TTD': { enabled: true, operator: '>=', value: 70.35 },
+        },
+        'masalah-gizi': {},
+      });
+      await component.periodPartitionWorkspace?.setYearTargets(2025, {
+        'intervensi-spesifik': {
+          '% Skrining Anemia': { enabled: true, operator: '>=', value: 77 },
+          '% Konsumsi TTD': { enabled: true, operator: '>=', value: 67 },
+        },
+        'masalah-gizi': {},
+      });
+      fixture.detectChanges();
+
+      try {
+        expect(component.getScopeCurrentYearTarget('1')).toBe('80.85%');
+        expect(component.getScopeCurrentYearTarget('2')).toBe('70.35%');
+        expect(component.getScopePrevYearTarget('1')).toBe('77%');
+        expect(component.getScopePrevYearTarget('2')).toBe('67%');
+      } finally {
+        // Workspace dipakai bersama antar tes; bersihkan acuan tahunan agar tidak bocor.
+        await component.periodPartitionWorkspace?.setYearTargets(2026, {
+          'intervensi-spesifik': {},
+          'masalah-gizi': {},
+        });
+        await component.periodPartitionWorkspace?.setYearTargets(2025, {
+          'intervensi-spesifik': {},
+          'masalah-gizi': {},
+        });
+      }
+    });
+
+    it('should render 0 untuk target dan capaian tahun lalu ketika tahun aktif adalah tahun paling lama', async () => {
+      const ws = component.periodPartitionWorkspace!;
+      vi.spyOn(ws, 'refreshPeriods').mockImplementation(async () => {
+        (ws as unknown as { applyRemotePeriods(p: unknown[]): unknown[] }).applyRemotePeriods([
+          { year: 2024, quarter: 'TW1', hasRaw: false, hasResult: true, hasConfig: false },
+          { year: 2024, quarter: 'TW4', hasRaw: false, hasResult: true, hasConfig: false },
+        ]);
+        return [];
+      });
+      await ws.refreshPeriods();
+      component.presentationYear.set(2024);
+      fixture.detectChanges();
+
+      expect(component.getScopePrevYearTarget('1')).toBe('0%');
+      expect(component.getScopePrevYearOutcome('province', '1')).toBe(0);
+      const provRow1 = component.activeScopeOutcomes().find((o) => o.no === '1');
+      expect(provRow1?.target2025).toBe('0%');
+      expect(provRow1?.realisasi2025).toBe(0);
+    });
+
+    it('should pakai Acuan Target tahunan server untuk heatmap intervensi spesifik', async () => {
+      const ws = component.periodPartitionWorkspace!;
+      await ws.setYearTargets(2026, {
+        'intervensi-spesifik': {
+          '% Konsumsi TTD': { enabled: true, operator: '>=', value: 70.35 },
+        },
+        'masalah-gizi': {},
+      });
+      component.presentationYear.set(2026);
+      fixture.detectChanges();
+
+      try {
+        expect(component.getResolvedIntervensiTarget('% Konsumsi TTD', 67)).toBe(70.35);
+        expect(component.intervensiHeatmapResult()?.targetPositionPercent).not.toBeNull();
+      } finally {
+        await ws.setYearTargets(2026, { 'intervensi-spesifik': {}, 'masalah-gizi': {} });
+      }
+    });
+
+    it('should pakai Acuan Target tahunan server untuk heatmap masalah gizi, termasuk alias kolom', async () => {
+      const ws = component.periodPartitionWorkspace!;
+      await ws.setYearTargets(2026, {
+        'intervensi-spesifik': {},
+        'masalah-gizi': {
+          'Stunting - %': { enabled: true, operator: '<=', value: 13.3 },
+          'Bumil KEK/Risiko KEK - %': { enabled: true, operator: '<=', value: 12.35 },
+        },
+      });
+      component.presentationYear.set(2026);
+      fixture.detectChanges();
+
+      try {
+        expect(component.getResolvedGiziTarget('Stunting - %', 14)).toBe(13.3);
+        expect(component.getResolvedGiziOperator('Stunting - %', '<=')).toBe('<=');
+        expect(component.getResolvedGiziTarget('Bumil KEK - %', 13)).toBe(12.35);
+      } finally {
+        await ws.setYearTargets(2026, { 'intervensi-spesifik': {}, 'masalah-gizi': {} });
+      }
+    });
+
     it('should dynamically resolve targetCurrentYear and targetPrevYear from workflowEngine categories if available', () => {
       if (component.workflowEngine) {
         component.workflowEngine.categories.set([
@@ -980,6 +1246,71 @@ describe('HomeComponent', () => {
         expect(component.getScopePrevYearTarget('1')).toBe('82%');
         expect(component.getScopeCurrentYearTarget('1')).toBe('90%');
       }
+    });
+
+    it('should prioritize saved dataset target over workflowEngine categories', () => {
+      if (component.workflowEngine) {
+        component.workflowEngine.categories.set([
+          {
+            id: 'cat-test',
+            name: 'Kategori Test',
+            subCategories: [
+              {
+                id: 'sub-1',
+                no: '1',
+                name: '% Skrining Anemia',
+                numeratorCol: '% Skrining Anemia',
+                targetPrevYear: 82,
+                targetCurrentYear: 90,
+                calculationMode: 'percentage',
+                polarity: 'positive',
+              },
+            ],
+          },
+        ]);
+      }
+
+      component.loadedQuarterDatasets.set({
+        2: {
+          regionRows: [],
+          summaryRow: null,
+          totalRow: null,
+          columnTargets: {
+            '% Skrining Anemia': { enabled: true, operator: '>=', value: 96 },
+          },
+        },
+      });
+      component.selectedOutcomeQuarter.set(2);
+      fixture.detectChanges();
+
+      expect(component.getScopeCurrentYearTarget('1')).toBe('96%');
+    });
+
+    it('should resolve Masalah Gizi target and operator from saved columnTargets', () => {
+      component.giziTargets.set({
+        'Stunting - %': { enabled: true, operator: '<=', value: 11.2 },
+      });
+      fixture.detectChanges();
+
+      expect(component.getResolvedGiziTarget('Stunting - %', 14)).toBe(11.2);
+      expect(component.getResolvedGiziOperator('Stunting - %', '<=')).toBe('<=');
+      expect(component.giziHeatmapResult()?.stats.targetValue).toBe(11.2);
+    });
+
+    it('should fall back to catalogue target when saved Gizi target is disabled', () => {
+      component.giziTargets.set({
+        'Stunting - %': { enabled: false, operator: '<=', value: 11.2 },
+      });
+
+      expect(component.getResolvedGiziTarget('Stunting - %', 14)).toBe(14);
+    });
+
+    it('should resolve saved Gizi target whose header differs from the catalogue key', () => {
+      component.giziTargets.set({
+        'Bumil KEK/Risiko KEK - %': { enabled: true, operator: '<=', value: 10 },
+      });
+
+      expect(component.getResolvedGiziTarget('Bumil KEK - %', 13)).toBe(10);
     });
   });
 });

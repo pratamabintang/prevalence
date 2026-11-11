@@ -27,7 +27,11 @@ import {
   GasStorageService,
   QuarterSlot,
 } from '../../core/storage/gas-storage.service';
-import { PeriodPartitionWorkspace } from '../../core/storage/period-partition-workspace';
+import {
+  PeriodPartitionWorkspace,
+  YearTargetDatasetKey,
+  YearTargetSet,
+} from '../../core/storage/period-partition-workspace';
 import {
   ColumnHeaderMeta,
   ColumnInfo,
@@ -45,6 +49,8 @@ import {
 import { DEFAULT_JOIN_CONFIG } from './default-join-config';
 import { MASALAH_GIZI_JOIN_CONFIG } from './masalah-gizi-join-config';
 import { ExcelJoinStore, ExcelJoinStoredState } from './excel-join-store';
+import { DatasetTableModel } from './dataset-table.model';
+import { DatasetTableComponent } from './dataset-table.component';
 import { DataAuthService } from '../../core/auth/data-auth.service';
 import { environment } from '../../../environments/environment';
 
@@ -76,10 +82,25 @@ export interface ResultRow {
   [key: string]: unknown;
 }
 
+export type TargetDatasetKey = YearTargetDatasetKey;
+
+export interface TargetModalSection {
+  key: TargetDatasetKey;
+  label: string;
+  hint: string;
+  columns: string[];
+}
+
 @Component({
   selector: 'app-excel-join',
   standalone: true,
-  imports: [FormsModule, UiPageHeaderComponent, UiButtonComponent, UiAlertComponent],
+  imports: [
+    FormsModule,
+    UiPageHeaderComponent,
+    UiButtonComponent,
+    UiAlertComponent,
+    DatasetTableComponent,
+  ],
   templateUrl: './excel-join.component.html',
 })
 export class ExcelJoinComponent implements OnInit, OnDestroy {
@@ -188,18 +209,12 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       false,
     ),
   );
-  isDefaultData = signal<boolean>(false);
-  isCloudDefault = signal<boolean>(false);
 
-  // Status dan modal Google Apps Script Cloud Storage
-  isSavingDefault = signal<boolean>(false);
-  showSaveDefaultConfirm = signal<boolean>(false);
-  showResetDefaultConfirm = signal<boolean>(false);
-
-  // Manajemen Partisi Periode Lintas Triwulan (Google Drive) - 5 Tahun ke Belakang
+  // Manajemen Partisi Periode Lintas Triwulan - daftar tahun kosong hingga
+  // pengguna menambahkan tahun atau ada data/acuan di server.
   currentYear = new Date().getFullYear();
   readonly availableYears: Signal<number[]> = this.periodPartitionWorkspace.availableYears;
-  readonly selectedYear: Signal<number> = this.periodPartitionWorkspace.selectedYear;
+  readonly selectedYear: Signal<number | null> = this.periodPartitionWorkspace.selectedYear;
   showCustomYearInput = signal<boolean>(false);
   customYearValue = signal<number | null>(null);
   selectedQuarter = signal<QuarterSlot>('TW1');
@@ -210,6 +225,8 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   showSavePeriodConfirm = signal<boolean>(false);
   isDeletingPeriod = signal<boolean>(false);
   showDeletePeriodConfirm = signal<boolean>(false);
+  isDeletingYear = signal<boolean>(false);
+  showDeleteYearConfirm = signal<boolean>(false);
   activePeriodLabel = signal<string | null>(null);
 
   readonly quarterOptions: {
@@ -267,8 +284,6 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
             type: fileObj.type,
           }
         : null,
-      isDefaultData: this.isDefaultData(),
-      isCloudDefault: this.isCloudDefault(),
       showSettings: this.showSettings(),
       activePresetName: this.activePresetName(),
       sheets: this.sheets(),
@@ -303,46 +318,9 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       return false;
     }
 
-    // Jika data yang tersimpan di sesi browser adalah data default template lama,
-    // bersihkan sesi tersebut agar halaman tampil bersih dan pengguna dapat memilih periode
-    // triwulan atau mengunggah berkas secara eksplisit.
-    if (state.isDefaultData) {
-      this.excelJoinStore.clearState();
-      return false;
-    }
-
     try {
       let wb = this.excelJoinStore.getWorkbook();
       let file = this.excelJoinStore.getFile();
-
-      if (!wb) {
-        if (state.isCloudDefault && this.isStorageConfigured()) {
-          try {
-            const cloudRes = await this.periodPartitionWorkspace.loadDefault();
-            if (cloudRes.success && cloudRes.excelBuffer) {
-              wb = ExcelEngine.readWorkbook(cloudRes.excelBuffer);
-              file = new File(
-                [cloudRes.excelBuffer],
-                cloudRes.fileName || 'default-join-data.xlsx',
-                {
-                  type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                },
-              );
-            }
-          } catch {}
-        } else if (state.isDefaultData) {
-          try {
-            const res = await fetch('/data/default-join-data.xlsx');
-            if (res.ok) {
-              const buf = await res.arrayBuffer();
-              wb = ExcelEngine.readWorkbook(buf);
-              file = new File([buf], 'Format Analisas Intervensi Spesifik TW3 01102026.xlsx', {
-                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-              });
-            }
-          } catch {}
-        }
-      }
 
       if (!file && state.fileInfo) {
         file = new File([], state.fileInfo.name, { type: state.fileInfo.type || '' });
@@ -378,8 +356,6 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       this.originalResultRows.set(state.originalResultRows || []);
 
       this.showSettings.set(state.showSettings ?? false);
-      this.isDefaultData.set(state.isDefaultData ?? false);
-      this.isCloudDefault.set(state.isCloudDefault ?? false);
       this.activePresetName.set(state.activePresetName || '');
 
       return true;
@@ -392,127 +368,6 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   toggleSettings(): void {
     this.showSettings.update((v) => !v);
     this.saveCurrentStateToStore();
-  }
-
-  async loadDefaultDataAndConfig(force = false): Promise<void> {
-    if (!force && (this.file() || this.resultRows().length > 0)) {
-      return;
-    }
-
-    try {
-      this.isProcessing.set(true);
-
-      // 1. Coba muat dari Penyimpanan Terpusat Server SQLite (utama) atau penyimpanan eksternal cadangan
-      if (this.isStorageConfigured()) {
-        try {
-          const cloudRes = await this.periodPartitionWorkspace.loadDefault();
-          if (cloudRes.success && cloudRes.hasData && cloudRes.excelBuffer) {
-            const fileName = cloudRes.fileName || 'default-join-data.xlsx';
-            const cloudFile = new File([cloudRes.excelBuffer], fileName, {
-              type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            });
-
-            this.file.set(cloudFile);
-            this.workbook = ExcelEngine.readWorkbook(cloudRes.excelBuffer);
-            this.dataFetchTimestamp.set(
-              DinkesSpreadsheetParser.extractDataFetchTimestamp(this.workbook),
-            );
-            this.loadSheets();
-
-            const hasilJoinSheetName = this.detectHasilJoinSheet(this.workbook);
-            if (hasilJoinSheetName) {
-              this.loadPreJoinedHasilJoinSheet(this.workbook, hasilJoinSheetName, fileName);
-              this.isDefaultData.set(true);
-              this.isCloudDefault.set(true);
-              this.showSettings.set(false);
-              this.configNotification.set({
-                type: 'success',
-                message: 'Berhasil memuat file Excel dan konfigurasi default tersimpan.',
-              });
-              return;
-            }
-
-            if (cloudRes.config) {
-              const preset = cloudRes.config as JoinConfigurationPreset;
-              this.applyConfiguration(preset, preset.name || 'Default Tersimpan');
-            } else {
-              this.applyConfiguration(
-                DEFAULT_JOIN_CONFIG,
-                DEFAULT_JOIN_CONFIG.name || 'Konfigurasi Standar TW3',
-              );
-            }
-
-            this.isDefaultData.set(true);
-            this.isCloudDefault.set(true);
-            this.showSettings.set(false);
-            this.configNotification.set({
-              type: 'success',
-              message: 'Berhasil memuat file Excel dan konfigurasi default tersimpan.',
-            });
-            return;
-          } else if (cloudRes.error) {
-            this.configNotification.set({
-              type: 'warning',
-              message: `Penyimpanan Cloud: ${cloudRes.error}. Menggunakan template bawaan sistem.`,
-            });
-          } else if (cloudRes.message) {
-            this.configNotification.set({
-              type: 'info',
-              message: `Penyimpanan Cloud: ${cloudRes.message}. Menggunakan template bawaan sistem.`,
-            });
-          }
-        } catch (gasErr) {
-          console.warn('Gagal memuat dari Google Apps Script:', gasErr);
-        }
-      } else if (force) {
-        this.configNotification.set({
-          type: 'warning',
-          message:
-            'Penyimpanan server belum dikonfigurasi. Menggunakan template bawaan sistem.',
-        });
-      }
-
-      // 2. Fallback ke file aset bawaan sistem (/data/default-join-data.xlsx)
-      const res = await fetch('/data/default-join-data.xlsx');
-      if (!res.ok) {
-        this.showSettings.set(true);
-        return;
-      }
-      const arrayBuffer = await res.arrayBuffer();
-      const defaultFile = new File(
-        [arrayBuffer],
-        'Format Analisas Intervensi Spesifik TW3 01102026.xlsx',
-        { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
-      );
-
-      this.file.set(defaultFile);
-      this.workbook = ExcelEngine.readWorkbook(arrayBuffer);
-      this.dataFetchTimestamp.set(
-        DinkesSpreadsheetParser.extractDataFetchTimestamp(this.workbook),
-      );
-      this.loadSheets();
-
-      // Terapkan konfigurasi default (konfigurasi_join_excel_2026-10-08.json)
-      this.applyConfiguration(
-        DEFAULT_JOIN_CONFIG,
-        DEFAULT_JOIN_CONFIG.name || 'Konfigurasi Standar TW3',
-      );
-      this.isDefaultData.set(true);
-      this.isCloudDefault.set(false);
-      this.showSettings.set(false);
-    } catch {
-      this.showSettings.set(true);
-    } finally {
-      this.isProcessing.set(false);
-    }
-  }
-
-  async resetToDefaultData(): Promise<void> {
-    this.excelJoinStore.clearState();
-    this.clearFile();
-    this.preservedPreset = null;
-    this.preservedPresetName = null;
-    await this.loadDefaultDataAndConfig(true);
   }
 
   visualizeInChart(): void {
@@ -656,6 +511,9 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   showColumnSettings = signal(false);
   showResultsTable = signal<boolean>(false);
 
+  // Tabel Masalah Gizi ditampilkan berdampingan vertikal dengan tabel Intervensi Spesifik.
+  readonly masalahGiziTable = new DatasetTableModel('masalah-gizi');
+
   // Fitur Jumlah
   enableJumlah = signal(false);
   sumColumns = signal<Record<string, boolean>>({});
@@ -664,9 +522,16 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   enableAverage = signal(false);
   avgColumns = signal<Record<string, boolean>>({});
 
-  // Modal target wajib saat import
+  // Modal acuan target tahunan: diisi saat menambah tahun, diedit lewat tombol Target Tahun.
   showTargetModal = signal(false);
+  targetModalMode = signal<'add' | 'edit'>('add');
+  targetModalYear = signal<number | null>(null);
   modalTargetDrafts = signal<Record<string, ColumnTargetConfig>>({});
+  modalTargetSections = signal<TargetModalSection[]>([]);
+  datasetTargets = signal<Record<TargetDatasetKey, Record<string, ColumnTargetConfig>>>({
+    'intervensi-spesifik': {},
+    'masalah-gizi': {},
+  });
 
   activeTargetCount = computed(() => {
     if (!this.enableTarget()) {
@@ -863,15 +728,12 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       presetNameToApply =
         this.activePresetName() ||
         this.preservedPresetName ||
-        (this.isCloudDefault()
-          ? 'Default Tersimpan'
-          : DEFAULT_JOIN_CONFIG.name || 'Template Standar Dinkes');
+        DEFAULT_JOIN_CONFIG.name ||
+        'Template Standar Dinkes';
     }
 
     this.reset();
 
-    this.isDefaultData.set(false);
-    this.isCloudDefault.set(false);
     this.activePeriodLabel.set(null);
     this.file.set(file);
 
@@ -1062,6 +924,16 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       }
     }
 
+    // Acuan tahun menimpa target yang tertanam di arsip agar 1 tahun = 1 acuan bagi semua TW
+    const overrideYear = this.selectedYear();
+    const overrideDatasetKey: TargetDatasetKey = isGizi ? 'masalah-gizi' : 'intervensi-spesifik';
+    const yearOverride = overrideYear !== null
+      ? this.periodPartitionWorkspace.getYearTargets(overrideYear)?.[overrideDatasetKey]
+      : undefined;
+    if (yearOverride && Object.keys(yearOverride).length > 0) {
+      finalTargets = { ...finalTargets, ...yearOverride };
+    }
+
     let finalConfigs = parsed.columnConfigs;
     if (preset?.columnConfigs && Object.keys(preset.columnConfigs).length > 0) {
       finalConfigs = { ...parsed.columnConfigs };
@@ -1147,13 +1019,106 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     } else {
       this.activePresetName.set(`Hasil Join - ${fileName}`);
     }
+    this.mergeSavedDatasetTargets();
     this.showSettings.set(false);
     this.configNotification.set({
       type: 'success',
       message: `File hasil join "${fileName}" (${isGizi ? 'Masalah Gizi' : 'Intervensi Spesifik'}) berhasil dimuat! Terdeteksi ${parsed.regionRows.length} wilayah, ${parsed.columns.length - 1} indikator, baris ringkasan (Jumlah & Rata-rata), serta target capaian. Siap disimpan ke server atau dianalisis.`,
     });
 
+    if (!isGizi) {
+      this.loadMasalahGiziTable();
+    } else {
+      this.masalahGiziTable.clear();
+    }
+
     this.saveCurrentStateToStore();
+  }
+
+  /**
+   * Mengisi tabel Masalah Gizi secara terpisah agar kedua tabel dapat tampil
+   * sekaligus di halaman Kelola Data.
+   */
+  loadMasalahGiziTable(
+    config?: JoinConfigurationPreset | null,
+    workbookOverride?: ExcelWorkbook | null,
+  ): void {
+    this.masalahGiziTable.clear();
+    const workbook = workbookOverride ?? this.workbook;
+    if (!workbook || this.isMasalahGizi()) {
+      return;
+    }
+
+    const preset = (config ?? MASALAH_GIZI_JOIN_CONFIG) as unknown as JoinPresetExecutionSpec;
+
+    try {
+      const giziSheet = this.detectMasalahGiziSheet(workbook);
+      if (giziSheet) {
+        const parsed = DinkesSpreadsheetParser.parse(workbook, {
+          stripKabupaten: this.stripKabupaten(),
+          preferredSheetName: giziSheet,
+          preset,
+        });
+        if (parsed.regionRows.length > 0 && parsed.columns.length > 0) {
+          const targets = { ...parsed.columnTargets };
+          const configs = { ...parsed.columnConfigs };
+          for (const col of parsed.columns) {
+            const presetTarget = MASALAH_GIZI_JOIN_CONFIG.columnTargets?.[col];
+            const presetConfig = MASALAH_GIZI_JOIN_CONFIG.columnConfigs?.[col];
+            if (presetTarget) targets[col] = presetTarget;
+            if (presetConfig) configs[col] = presetConfig;
+          }
+          this.masalahGiziTable.load({
+            rows: parsed.regionRows,
+            columns: parsed.columns,
+            columnsMeta: parsed.columnsMeta,
+            targets,
+            configs,
+            sums: parsed.sums,
+            averages: parsed.averages,
+            customNames: MASALAH_GIZI_JOIN_CONFIG.customColumnNames,
+            enableJumlah:
+              MASALAH_GIZI_JOIN_CONFIG.enableJumlah ??
+              (parsed.totalRow !== null || Object.values(parsed.sums).some(Boolean)),
+            enableAverage:
+              MASALAH_GIZI_JOIN_CONFIG.enableAverage ??
+              (parsed.summaryRow !== null || Object.values(parsed.averages).some(Boolean)),
+            enableTarget: MASALAH_GIZI_JOIN_CONFIG.enableTarget,
+            enableCapaian: MASALAH_GIZI_JOIN_CONFIG.enableCapaian,
+          });
+          return;
+        }
+      }
+
+      const giziResult = ExcelJoinEngine.executeJoinFromPreset(
+        workbook,
+        MASALAH_GIZI_JOIN_CONFIG as unknown as JoinPresetExecutionSpec,
+      );
+      if (giziResult.rows.length > 0 && giziResult.columns.length > 0) {
+        const spec = ExcelJoinEngine.buildExportSpecFromPresetResult(
+          giziResult,
+          MASALAH_GIZI_JOIN_CONFIG as unknown as JoinPresetExecutionSpec,
+          'MASALAH GIZI',
+        );
+        this.masalahGiziTable.load({
+          rows: spec.resultRows,
+          columns: spec.resultColumns,
+          columnsMeta: spec.resultColumnsMeta,
+          targets: spec.columnTargets,
+          configs: spec.columnConfigs,
+          sums: spec.sumColumns,
+          averages: spec.avgColumns,
+          customNames: spec.customColumnNames,
+          enableJumlah: spec.enableJumlah,
+          enableAverage: spec.enableAverage,
+          enableTarget: spec.enableTarget,
+          enableCapaian: spec.enableCapaian,
+        });
+      }
+    } catch (err) {
+      console.warn('Gagal memuat tabel Masalah Gizi:', err);
+      this.masalahGiziTable.clear();
+    }
   }
 
   // ============================================================
@@ -1928,82 +1893,277 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   }
 
   // ============================================================
-  // MODAL TARGET WAJIB SAAT IMPORT
+  // MODAL ACUAN TARGET TAHUNAN
   // ============================================================
 
-  percentageColumnsNeedingTarget = computed(() => {
-    const configs = this.columnConfigs();
-    const targets = this.columnTargets();
-    return this.resultColumns().filter((col) => {
-      const cfg = configs[col];
-      if (cfg?.dataType !== 'percentage') return false;
-      const t = targets[col];
-      return !t?.enabled || t.value === null || t.value === undefined;
-    });
-  });
-
   modalTargetsComplete = computed(() => {
-    const cols = this.percentageColumnsNeedingTarget();
-    if (cols.length === 0) return true;
+    const sections = this.modalTargetSections();
+    if (sections.length === 0) return true;
     const drafts = this.modalTargetDrafts();
-    for (const col of cols) {
-      const target = drafts[col];
-      if (!target || target.value === null || target.value === undefined || isNaN(target.value) || target.value < 0 || target.value > 100) {
-        return false;
+    for (const section of sections) {
+      for (const col of section.columns) {
+        const target = drafts[this.modalDraftKey(section.key, col)];
+        if (
+          !target ||
+          !target.enabled ||
+          target.value === null ||
+          target.value === undefined ||
+          isNaN(target.value) ||
+          target.value < 0 ||
+          target.value > 100
+        ) {
+          return false;
+        }
       }
     }
     return true;
   });
 
-  openTargetModal(): void {
+  /**
+   * Membuka modal acuan target tahunan. Prefill mengikuti sumber tunggal:
+   * acuan tahun yang tersimpan, lalu default preset untuk tahun baru.
+   */
+  openYearTargetModal(year: number, mode: 'add' | 'edit'): void {
+    const sections = this.buildTargetModalSections();
+    if (sections.length === 0) return;
+
+    const yearSet = this.periodPartitionWorkspace.getYearTargets(year);
     const drafts: Record<string, ColumnTargetConfig> = {};
-    for (const col of this.percentageColumnsNeedingTarget()) {
-      drafts[col] = {
-        enabled: true,
-        operator: '>=',
-        value: null,
-      };
+    for (const section of sections) {
+      for (const col of section.columns) {
+        const saved = yearSet?.[section.key]?.[col];
+        const existing = saved ?? this.resolveTargetForColumn(section.key, col);
+        drafts[this.modalDraftKey(section.key, col)] = {
+          enabled: existing?.value !== null && existing?.value !== undefined,
+          operator: existing?.operator ?? '>=',
+          value: existing?.value ?? null,
+        };
+      }
     }
+
+    this.targetModalMode.set(mode);
+    this.targetModalYear.set(year);
+    this.modalTargetSections.set(sections);
     this.modalTargetDrafts.set(drafts);
     this.showTargetModal.set(true);
   }
 
-  closeTargetModal(): void {
-    this.showTargetModal.set(false);
-    this.modalTargetDrafts.set({});
-    // Target wajib diisi sebelum data dapat digunakan. Membatalkan modal = membatalkan keseluruhan import.
-    this.clearFile();
-    this.configNotification.set({
-      type: 'warning',
-      message: 'Import dibatalkan. Semua kolom persentase harus memiliki target sebelum data dapat digunakan.',
-    });
+  openEditYearTargetModal(): void {
+    const year = this.selectedYear();
+    if (year === null) return;
+    this.openYearTargetModal(year, 'edit');
   }
 
-  setModalTargetValue(col: string, operator: TargetOperator, value: number | null): void {
+  cancelYearTargetModal(): void {
+    this.showTargetModal.set(false);
+    this.targetModalYear.set(null);
+    this.modalTargetDrafts.set({});
+    this.modalTargetSections.set([]);
+  }
+
+  getModalTargetDraft(dataset: TargetDatasetKey, col: string): ColumnTargetConfig | undefined {
+    return this.modalTargetDrafts()[this.modalDraftKey(dataset, col)];
+  }
+
+  setModalTargetValue(
+    dataset: TargetDatasetKey,
+    col: string,
+    operator: TargetOperator,
+    value: number | null,
+  ): void {
     const clamped = value !== null && !isNaN(value) ? Math.max(0, Math.min(100, value)) : null;
     this.modalTargetDrafts.update((drafts) => ({
       ...drafts,
-      [col]: { enabled: clamped !== null, operator, value: clamped },
+      [this.modalDraftKey(dataset, col)]: { enabled: clamped !== null, operator, value: clamped },
     }));
   }
 
-  confirmTargetModal(): void {
-    const drafts = this.modalTargetDrafts();
-    const incomplete = Object.entries(drafts).filter(
-      ([, t]) => !t.enabled || t.value === null || t.value === undefined,
-    );
-    if (incomplete.length > 0) {
+  async confirmYearTargetModal(): Promise<void> {
+    if (!this.modalTargetsComplete()) {
       return;
     }
 
-    this.columnTargets.update((curr) => ({ ...curr, ...drafts }));
+    const year = this.targetModalYear();
+    if (year === null || !this.periodPartitionWorkspace.isValidYear(year)) {
+      return;
+    }
+
+    const drafts = this.modalTargetDrafts();
+    const grouped: Record<TargetDatasetKey, Record<string, ColumnTargetConfig>> = {
+      'intervensi-spesifik': {},
+      'masalah-gizi': {},
+    };
+
+    for (const section of this.modalTargetSections()) {
+      for (const col of section.columns) {
+        const draft = drafts[this.modalDraftKey(section.key, col)];
+        if (draft) {
+          grouped[section.key][col] = draft;
+        }
+      }
+    }
+
+    const res = await this.periodPartitionWorkspace.setYearTargets(year, grouped);
+    if (!res.success) {
+      this.configNotification.set({
+        type: 'warning',
+        message: res.error || `Gagal menyimpan acuan target tahun ${year}.`,
+      });
+      return;
+    }
+
+    // Tahun baru baru resmi ada di daftar setelah acuannya tersimpan.
+    if (this.targetModalMode() === 'add') {
+      this.periodPartitionWorkspace.addCustomYear(year);
+    }
+
     this.showTargetModal.set(false);
     this.modalTargetDrafts.set({});
+    this.modalTargetSections.set([]);
 
-    // Setelah target diisi, coba jalankan preview jika sudah memenuhi syarat
-    if (this.canPreview() && this.workbook) {
-      this.preview();
+    if (this.selectedYear() === year) {
+      this.applyYearTargetsToSession(year);
     }
+
+    this.configNotification.set({
+      type: 'success',
+      message:
+        res.message ||
+        `Acuan target tahun ${year} tersimpan dan berlaku untuk seluruh triwulan tahun tersebut.`,
+    });
+  }
+
+  /**
+   * Menerapkan acuan tahun sebagai sumber tunggal target sesi aktif. Tampilan
+   * (baris TARGET, capaian) ikut terubah karena terikat pada sinyal target.
+   */
+  private applyYearTargetsToSession(year: number): void {
+    const yearSet = this.periodPartitionWorkspace.getYearTargets(year);
+    if (!yearSet) return;
+
+    this.datasetTargets.set({
+      'intervensi-spesifik': { ...yearSet['intervensi-spesifik'] },
+      'masalah-gizi': { ...yearSet['masalah-gizi'] },
+    });
+    this.columnTargets.update((curr) => ({ ...curr, ...yearSet[this.currentDatasetKey()] }));
+    this.saveCurrentStateToStore();
+  }
+
+  private currentDatasetKey(): TargetDatasetKey {
+    return this.isMasalahGizi() ? 'masalah-gizi' : 'intervensi-spesifik';
+  }
+
+  private modalDraftKey(dataset: TargetDatasetKey, col: string): string {
+    return `${dataset}::${col}`;
+  }
+
+  private buildTargetModalSections(): TargetModalSection[] {
+    const activeKey = this.currentDatasetKey();
+    const sections: TargetModalSection[] = [
+      {
+        key: 'intervensi-spesifik',
+        label: 'Intervensi Spesifik',
+        hint: 'Kolom persentase capaian intervensi spesifik',
+        columns: [],
+      },
+      {
+        key: 'masalah-gizi',
+        label: 'Masalah Gizi',
+        hint: 'Kolom persentase prevalensi dan tata laksana gizi',
+        columns: [],
+      },
+    ];
+
+    for (const section of sections) {
+      const preset =
+        section.key === 'masalah-gizi' ? MASALAH_GIZI_JOIN_CONFIG : DEFAULT_JOIN_CONFIG;
+      const activeColumns = this.resultColumns();
+      const columns =
+        section.key === activeKey && activeColumns.length > 0
+          ? activeColumns
+          : this.getColumnsForPreset(section.key, preset);
+      section.columns = columns.filter(
+        (col) => this.resolveConfigForColumn(section.key, col)?.dataType === 'percentage',
+      );
+    }
+
+    return sections.filter((section) => section.columns.length > 0);
+  }
+
+  private getColumnsForPreset(dataset: TargetDatasetKey, preset: JoinConfigurationPreset): string[] {
+    const workbook = this.workbook;
+    if (!workbook) {
+      return preset.columnOrder ? [...preset.columnOrder] : [];
+    }
+
+    const preJoinedSheet =
+      dataset === 'masalah-gizi'
+        ? this.detectMasalahGiziSheet(workbook)
+        : this.detectHasilJoinSheet(workbook);
+
+    if (preJoinedSheet) {
+      const parsed = DinkesSpreadsheetParser.parse(workbook, {
+        preset: preset as unknown as JoinPresetExecutionSpec,
+        preferredSheetName: preJoinedSheet,
+      });
+      if (parsed.columns.length > 0) {
+        return parsed.columns;
+      }
+    }
+
+    const result = ExcelJoinEngine.executeJoinFromPreset(
+      workbook,
+      preset as unknown as JoinPresetExecutionSpec,
+    );
+    if (result.columns.length > 0) {
+      return result.columns;
+    }
+
+    return preset.columnOrder ? [...preset.columnOrder] : [];
+  }
+
+  private resolveConfigForColumn(dataset: TargetDatasetKey, col: string): ColumnConfig | undefined {
+    if (dataset === this.currentDatasetKey()) {
+      const active = this.columnConfigs()[col];
+      if (active) return active;
+    }
+    const preset = dataset === 'masalah-gizi' ? MASALAH_GIZI_JOIN_CONFIG : DEFAULT_JOIN_CONFIG;
+    return this.resolvePresetEntry(preset.columnConfigs, col);
+  }
+
+  private resolveTargetForColumn(
+    dataset: TargetDatasetKey,
+    col: string,
+  ): ColumnTargetConfig | undefined {
+    if (dataset === this.currentDatasetKey()) {
+      const active = this.columnTargets()[col];
+      if (active) return active;
+    }
+    const preset = dataset === 'masalah-gizi' ? MASALAH_GIZI_JOIN_CONFIG : DEFAULT_JOIN_CONFIG;
+    return this.resolvePresetEntry(preset.columnTargets, col);
+  }
+
+  private resolvePresetEntry<T>(map: Record<string, T> | undefined, col: string): T | undefined {
+    if (!map) return undefined;
+    if (map[col] !== undefined) return map[col];
+    const matchedKey = this.findMatchingConfigKey(map as Record<string, unknown>, col);
+    return matchedKey ? map[matchedKey] : undefined;
+  }
+
+  private mergeSavedDatasetTargets(): void {
+    const saved = this.datasetTargets()[this.currentDatasetKey()];
+    if (!saved || Object.keys(saved).length === 0) return;
+
+    const columns = new Set(this.resultColumns());
+    const relevant: Record<string, ColumnTargetConfig> = {};
+    for (const [col, target] of Object.entries(saved)) {
+      if (columns.has(col)) {
+        relevant[col] = target;
+      }
+    }
+    if (Object.keys(relevant).length === 0) return;
+
+    this.columnTargets.update((curr) => ({ ...curr, ...relevant }));
   }
 
   getRowCapaian(row: ResultRow): number {
@@ -2024,6 +2184,13 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
 
   toggleShowResultsTable(): void {
     this.showResultsTable.update((v) => !v);
+  }
+
+  onResultsHeaderKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      this.toggleShowResultsTable();
+    }
   }
 
   setColumnDataType(col: string, dataType: ColumnDataType): void {
@@ -2324,6 +2491,18 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
 
   getCurrentPreset(customName?: string): JoinConfigurationPreset {
     const selected = this.selectedSheets();
+    // Acuan tahun adalah sumber tunggal target; tanpa acuan, gabungkan target kedua
+    // dataset sesi (modal tahun lama / default preset) seperti sebelumnya.
+    const yearTargets = this.selectedYear()
+      ? this.periodPartitionWorkspace.getYearTargets(this.selectedYear()!)
+      : undefined;
+    const mergedTargets: Record<string, ColumnTargetConfig> = yearTargets
+      ? { ...yearTargets['intervensi-spesifik'], ...yearTargets['masalah-gizi'] }
+      : {
+          ...this.datasetTargets()['intervensi-spesifik'],
+          ...this.datasetTargets()['masalah-gizi'],
+          ...this.columnTargets(),
+        };
     return {
       version: '1.0',
       name:
@@ -2346,7 +2525,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       enableCapaian: this.enableCapaian(),
       enableJumlah: this.enableJumlah(),
       enableAverage: this.enableAverage(),
-      columnTargets: { ...this.columnTargets() },
+      columnTargets: mergedTargets,
       columnConfigs: { ...this.columnConfigs() },
       sumColumns: { ...this.sumColumns() },
       avgColumns: { ...this.avgColumns() },
@@ -2380,78 +2559,6 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   // PENYIMPANAN EKSTERNAL GOOGLE APPS SCRIPT (CLOUD STORAGE)
   // ============================================================
 
-  openSaveDefaultConfirm(): void {
-    if (!this.file() && !this.workbook) {
-      this.errorMessage.set('Silakan pilih atau muat file Excel terlebih dahulu.');
-      return;
-    }
-
-    if (!this.isStorageConfigured()) {
-      this.configNotification.set({
-        type: 'warning',
-        message: 'Penyimpanan server belum dikonfigurasi.',
-      });
-      return;
-    }
-
-    this.showSaveDefaultConfirm.set(true);
-  }
-
-  closeSaveDefaultConfirm(): void {
-    this.showSaveDefaultConfirm.set(false);
-  }
-
-  async confirmSaveDefaultToCloud(): Promise<void> {
-    if (!this.file() && !this.workbook) {
-      this.showSaveDefaultConfirm.set(false);
-      return;
-    }
-
-    try {
-      this.isSavingDefault.set(true);
-
-      let buffer: ArrayBuffer | null = null;
-      if (this.file() && this.file()!.size > 0) {
-        buffer = await this.file()!.arrayBuffer();
-      } else if (this.workbook) {
-        buffer = ExcelWorkbookAdapter.writeToBuffer(this.workbook);
-      }
-
-      if (!buffer || buffer.byteLength === 0) {
-        this.errorMessage.set('Tidak ada data Excel yang valid untuk disimpan ke server.');
-        this.isSavingDefault.set(false);
-        this.showSaveDefaultConfirm.set(false);
-        return;
-      }
-
-      const preset = this.getCurrentPreset('Default Server Database');
-      const fileName = this.file()?.name || 'default-join-data.xlsx';
-
-      const res = await this.periodPartitionWorkspace.saveDefault(buffer, fileName, preset);
-      if (res.success) {
-        this.isDefaultData.set(true);
-        this.isCloudDefault.set(true);
-        this.showSaveDefaultConfirm.set(false);
-        this.configNotification.set({
-          type: 'success',
-          message:
-            res.message ||
-            'File Excel dan konfigurasi default berhasil disimpan (menimpa default lama).',
-        });
-      } else {
-        this.configNotification.set({
-          type: 'warning',
-          message: res.error || 'Gagal menyimpan konfigurasi default.',
-        });
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      this.errorMessage.set(`Gagal menyimpan konfigurasi default: ${msg}`);
-    } finally {
-      this.isSavingDefault.set(false);
-    }
-  }
-
   // ============================================================
   // GOOGLE DRIVE: MANAJEMEN PERIODE LINTAS TRIWULAN
   // ============================================================
@@ -2469,7 +2576,8 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     }
   }
 
-  isQuarterAvailable(year: number, quarter: QuarterSlot): boolean {
+  isQuarterAvailable(year: number | null, quarter: QuarterSlot): boolean {
+    if (year === null) return false;
     return this.periodSlots().some(
       (p) => p.year === year && p.quarter === quarter && (p.hasRaw || p.hasResult),
     );
@@ -2515,7 +2623,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   }
 
   openCustomYearInput(): void {
-    this.customYearValue.set(this.selectedYear());
+    this.customYearValue.set(this.selectedYear() ?? this.periodPartitionWorkspace.currentYear);
     this.showCustomYearInput.set(true);
   }
 
@@ -2533,8 +2641,10 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.periodPartitionWorkspace.addCustomYear(yr);
     this.showCustomYearInput.set(false);
+    // Acuan target tahun selalu diisi saat menambah tahun, apa pun status fitur target;
+    // tahun ditambahkan setelah modal dikonfirmasi.
+    this.openYearTargetModal(yr, 'add');
   }
 
   selectQuarter(quarter: QuarterSlot): void {
@@ -2543,9 +2653,16 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
 
   async loadSelectedPeriod(): Promise<void> {
     if (this.isProcessing() || this.isLoadingPeriod()) return;
+    const yr = this.selectedYear();
+    if (yr === null) {
+      this.configNotification.set({
+        type: 'warning',
+        message: 'Pilih atau tambahkan tahun terlebih dahulu.',
+      });
+      return;
+    }
     this.isLoadingPeriod.set(true);
     this.isProcessing.set(true);
-    const yr = this.selectedYear();
     const qr = this.selectedQuarter();
 
     try {
@@ -2592,8 +2709,19 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
           fileName,
           res.config as JoinConfigurationPreset,
         );
-        this.isCloudDefault.set(false);
-        this.isDefaultData.set(false);
+        this.applyYearTargetsToSession(yr);
+
+        // Arsip hasil join lama bisa hanya memuat sheet intervensi. Pulihkan tabel
+        // Masalah Gizi dari berkas mentah multi-sheet bila tersedia.
+        if (!this.isMasalahGizi() && !this.masalahGiziTable.hasData() && res.sourceRawExcelBuffer) {
+          try {
+            const sourceWorkbook = ExcelEngine.readWorkbook(res.sourceRawExcelBuffer);
+            this.loadMasalahGiziTable(undefined, sourceWorkbook);
+          } catch (err) {
+            console.warn('Gagal memulihkan tabel Masalah Gizi dari berkas mentah:', err);
+          }
+        }
+
         this.configNotification.set({
           type: 'success',
           message: `Berhasil memuat data periode ${yr} ${qr} (${res.resultExcelAvailable ? 'termasuk arsip hasil join' : 'data hasil join'}).`,
@@ -2604,11 +2732,11 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       if (res.config && typeof res.config === 'object') {
         const preset = res.config as JoinConfigurationPreset;
         this.applyConfiguration(preset, preset.name || `Periode ${yr} ${qr}`);
+        this.applyYearTargetsToSession(yr);
       } else if (this.canPreview()) {
         this.preview();
+        this.applyYearTargetsToSession(yr);
       }
-      this.isCloudDefault.set(false);
-      this.isDefaultData.set(false);
       this.configNotification.set({
         type: 'success',
         message: `Berhasil memuat data periode ${yr} ${qr} (${res.resultExcelAvailable ? 'termasuk arsip hasil join' : 'data mentah'}).`,
@@ -2631,6 +2759,25 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       return;
     }
 
+    const yr = this.selectedYear();
+    if (yr === null) {
+      this.configNotification.set({
+        type: 'warning',
+        message: 'Pilih atau tambahkan tahun terlebih dahulu sebelum menyimpan periode.',
+      });
+      return;
+    }
+
+    if (this.enableTarget() && !this.periodPartitionWorkspace.hasYearTargets(yr)) {
+      // Satu tahun wajib punya satu acuan target sebelum datanya disimpan.
+      this.configNotification.set({
+        type: 'warning',
+        message: `Tahun ${yr} belum memiliki acuan target. Lengkapi terlebih dahulu.`,
+      });
+      this.openYearTargetModal(yr, 'edit');
+      return;
+    }
+
     if (!this.file() && !this.workbook && this.resultRows().length === 0) {
       this.configNotification.set({
         type: 'warning',
@@ -2647,7 +2794,8 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   }
 
   async confirmSavePeriodToCloud(): Promise<void> {
-    if (!this.file() && !this.workbook && this.resultRows().length === 0) {
+    const yr = this.selectedYear();
+    if (yr === null || !this.file() && !this.workbook && this.resultRows().length === 0) {
       this.showSavePeriodConfirm.set(false);
       return;
     }
@@ -2778,6 +2926,10 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
           masalahGiziSpec = parsedSpec;
         }
 
+        if (!isCurrentlyGizi && this.masalahGiziTable.hasData()) {
+          masalahGiziSpec = this.masalahGiziTable.toExportSpec('MASALAH GIZI');
+        }
+
         const multiBuf = ExcelJoinEngine.buildMultiSheetJoinedBuffer([
           intervensiSpec,
           masalahGiziSpec,
@@ -2811,9 +2963,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
         rawBuffer = resultBuffer;
       }
 
-      const preset = this.getCurrentPreset(
-        `Drive ${this.selectedYear()} ${this.selectedQuarter()}`,
-      );
+      const preset = this.getCurrentPreset(`Drive ${yr} ${this.selectedQuarter()}`);
       const dataTarik = this.dataFetchTimestamp();
       const safeDataTarik = dataTarik
         ? DinkesSpreadsheetParser.formatTimestampForFilename(dataTarik)
@@ -2821,7 +2971,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       const tsFileName = safeDataTarik ? `${safeDataTarik}.xlsx` : undefined;
 
       const res = await this.periodPartitionWorkspace.savePeriodPartition({
-        year: this.selectedYear(),
+        year: yr,
         quarter: this.selectedQuarter(),
         rawExcelBuffer: rawBuffer,
         resultExcelBuffer: resultBuffer,
@@ -2829,21 +2979,21 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
         rawFileName:
           tsFileName ||
           this.file()?.name ||
-          `raw-data-${this.selectedYear()}-${this.selectedQuarter()}.xlsx`,
+          `raw-data-${yr}-${this.selectedQuarter()}.xlsx`,
         resultFileName:
           tsFileName ||
-          `joined-result-${this.selectedYear()}-${this.selectedQuarter()}.xlsx`,
+          `joined-result-${yr}-${this.selectedQuarter()}.xlsx`,
       });
 
       if (res.success) {
-        this.activePeriodLabel.set(`${this.selectedYear()} ${this.selectedQuarter()}`);
+        this.activePeriodLabel.set(`${yr} ${this.selectedQuarter()}`);
         this.showSavePeriodConfirm.set(false);
         await this.fetchPeriodSlots();
         this.configNotification.set({
           type: 'success',
           message:
             res.message ||
-            `Data periode ${this.selectedYear()} ${this.selectedQuarter()} (Data Mentah & Hasil Join) berhasil disimpan.`,
+            `Data periode ${yr} ${this.selectedQuarter()} (Data Mentah & Hasil Join) berhasil disimpan.`,
         });
       } else {
         this.configNotification.set({
@@ -2877,6 +3027,10 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
   async confirmDeletePeriod(): Promise<void> {
     const yr = this.selectedYear();
     const qr = this.selectedQuarter();
+    if (yr === null) {
+      this.showDeletePeriodConfirm.set(false);
+      return;
+    }
 
     try {
       this.isDeletingPeriod.set(true);
@@ -2908,31 +3062,58 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     }
   }
 
-  openResetDefaultConfirm(): void {
-    this.showResetDefaultConfirm.set(true);
+  /**
+   * Hanya tahun kosong (tanpa data periode tersimpan) yang boleh dihapus.
+   */
+  canDeleteSelectedYear(): boolean {
+    const yr = this.selectedYear();
+    return yr !== null && this.getYearQuarterCount(yr) === 0;
   }
 
-  closeResetDefaultConfirm(): void {
-    this.showResetDefaultConfirm.set(false);
-  }
-
-  async confirmResetToFactoryDefault(): Promise<void> {
-    this.showResetDefaultConfirm.set(false);
-    this.preservedPreset = null;
-    this.preservedPresetName = null;
-    this.excelJoinStore.clearState();
-    try {
-      if (this.isStorageConfigured()) {
-        await this.periodPartitionWorkspace.resetDefault();
-      }
-    } catch (e) {
-      console.warn('Gagal reset default di server:', e);
+  openDeleteYearConfirm(): void {
+    const yr = this.selectedYear();
+    if (yr === null || !this.canDeleteSelectedYear()) {
+      return;
     }
-    await this.resetToDefaultData();
-    this.configNotification.set({
-      type: 'success',
-      message: 'Data dan konfigurasi telah dikembalikan ke bawaan sistem awal.',
-    });
+    this.showDeleteYearConfirm.set(true);
+  }
+
+  closeDeleteYearConfirm(): void {
+    this.showDeleteYearConfirm.set(false);
+  }
+
+  async confirmDeleteYear(): Promise<void> {
+    const yr = this.selectedYear();
+    if (yr === null || !this.canDeleteSelectedYear()) {
+      this.showDeleteYearConfirm.set(false);
+      return;
+    }
+
+    try {
+      this.isDeletingYear.set(true);
+      const res = await this.periodPartitionWorkspace.deleteYear(yr);
+
+      if (res.success) {
+        this.showDeleteYearConfirm.set(false);
+        await this.fetchPeriodSlots();
+        this.configNotification.set({
+          type: 'success',
+          message: res.message || `Tahun ${yr} beserta acuan targetnya dihapus.`,
+        });
+      } else {
+        this.showDeleteYearConfirm.set(false);
+        this.configNotification.set({
+          type: 'warning',
+          message: res.error || `Gagal menghapus tahun ${yr}.`,
+        });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.errorMessage.set(`Gagal menghapus tahun ${yr}: ${msg}`);
+      this.showDeleteYearConfirm.set(false);
+    } finally {
+      this.isDeletingYear.set(false);
+    }
   }
 
   onConfigFileSelected(event: Event): void {
@@ -3110,13 +3291,8 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     if (this.canPreview()) {
       this.preview();
       this.reconcileOutputConfigs(preset);
+      this.mergeSavedDatasetTargets();
       this.saveCurrentStateToStore();
-
-      // Jika fitur target aktif dan ada kolom persentase yang belum diisi target,
-      // buka modal wajib isi target sebelum user dapat melanjutkan ke preview.
-      if (this.enableTarget() && this.percentageColumnsNeedingTarget().length > 0) {
-        this.openTargetModal();
-      }
     }
 
     const details: string[] = [];
@@ -3370,6 +3546,7 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
         this.updateColumnSumsAfterPreview(result.columns);
         this.updateColumnAvgsAfterPreview(result.columns);
         this.saveCurrentStateToStore();
+        this.loadMasalahGiziTable();
       }
     } catch (error) {
       console.error('JOIN ERROR:', error);
@@ -3545,14 +3722,17 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
       }
     }
 
+    if (!isCurrentlyGizi && this.masalahGiziTable.hasData()) {
+      masalahGiziSpec = this.masalahGiziTable.toExportSpec('MASALAH GIZI');
+    }
+
     if (intervensiSpec && masalahGiziSpec && intervensiSpec !== masalahGiziSpec) {
       intervensiSpec.fileName = fileName;
       intervensiSpec.additionalSheets = [masalahGiziSpec];
       ExcelJoinEngine.exportJoinedWorkbook(intervensiSpec);
     } else {
       ExcelJoinEngine.exportJoinedWorkbook(currentSpec);
-    }
-  }
+    }  }
 
   // ============================================================
   // HELPERS
@@ -3600,6 +3780,10 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     this.customColumnNames.set({});
     this.columnTargets.set({});
     this.columnConfigs.set({});
+    this.datasetTargets.set({ 'intervensi-spesifik': {}, 'masalah-gizi': {} });
+    this.showTargetModal.set(false);
+    this.modalTargetDrafts.set({});
+    this.modalTargetSections.set([]);
     this.showColumnSettings.set(false);
     this.enableJumlah.set(false);
     this.sumColumns.set({});
@@ -3608,19 +3792,16 @@ export class ExcelJoinComponent implements OnInit, OnDestroy {
     this.variableSearch.set({});
     this.errorMessage.set('');
     this.isJoining.set(false);
+    this.masalahGiziTable.clear();
   }
 
   clearFile(): void {
     if (this.selectedSheets().length > 0) {
       this.preservedPreset = this.getCurrentPreset(this.activePresetName() || undefined);
-      this.preservedPresetName =
-        this.activePresetName() ||
-        (this.isCloudDefault() ? 'Default Tersimpan' : 'Konfigurasi Sebelumnya');
+      this.preservedPresetName = this.activePresetName() || 'Konfigurasi Sebelumnya';
     }
     this.excelJoinStore.clearState();
     this.file.set(null);
-    this.isDefaultData.set(false);
-    this.isCloudDefault.set(false);
     this.showSettings.set(true);
     this.reset();
   }

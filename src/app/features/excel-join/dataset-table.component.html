@@ -1,0 +1,439 @@
+<section
+  class="mt-6 rounded-lg border border-slate-200 bg-white overflow-hidden"
+  [class]="'dataset-table-' + model().key"
+>
+  <div class="border-b border-slate-200 p-6">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div
+        role="button"
+        tabindex="0"
+        data-testid="dataset-table-header"
+        (click)="toggleContent()"
+        (keydown)="onHeaderKeydown($event)"
+        class="min-w-0 flex-1 cursor-pointer rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#525AFF] focus-visible:ring-offset-1"
+        [attr.aria-expanded]="contentExpanded()"
+        [attr.aria-controls]="'content-' + model().key"
+        [title]="contentExpanded() ? 'Klik untuk menyembunyikan rincian tabel' : 'Klik untuk menampilkan rincian tabel'"
+      >
+        <div class="flex items-center gap-2">
+          <svg
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            class="w-4 h-4 shrink-0 text-slate-400 transition-transform"
+            [class.rotate-180]="contentExpanded()"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+          <h2 class="font-semibold text-slate-900">{{ title() }}</h2>
+        </div>
+        @if (badgeLabel()) {
+          <div class="mt-2 flex flex-wrap items-center gap-3">
+            <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 px-2.5 py-0.5 text-xs font-medium text-slate-700">
+              {{ badgeLabel() }}
+            </span>
+          </div>
+        }
+        @if (description()) {
+          <p class="mt-1 text-xs text-slate-500">{{ description() }}</p>
+        }
+        <div class="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+          <span>{{ model().rowCount() }} baris · {{ model().columnCount() }} kolom</span>
+          @if (model().removedRowCount() > 0) {
+            <span class="rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+              {{ model().removedRowCount() }} baris dihapus
+            </span>
+            <button
+              type="button"
+              (click)="model().restoreRows(); $event.stopPropagation()"
+              class="text-xs font-medium text-slate-700 hover:text-slate-900 underline transition cursor-pointer"
+            >
+              Pulihkan Semua Baris
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  @if (contentExpanded()) {
+  <div [id]="'content-' + model().key" class="border-b border-slate-200 bg-slate-50/90 px-6 py-2.5">
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between min-h-[34px]">
+      <div class="flex flex-wrap items-center gap-2">
+        @if (model().selectedColumnForMove()) {
+          <div class="inline-flex items-center gap-1.5 rounded-full bg-indigo-100 border border-indigo-200 px-2.5 py-0.5 text-xs font-semibold text-indigo-900">
+            <span class="inline-block h-1.5 w-1.5 rounded-full bg-indigo-600"></span>
+            <span class="text-xs font-normal text-indigo-800">Kolom Aktif:</span>
+            <span class="max-w-[200px] truncate font-bold" [title]="model().getColumnDisplayName(model().selectedColumnForMove()!)">
+              {{ model().getColumnDisplayName(model().selectedColumnForMove()!) }}
+            </span>
+            @if (model().selectedColumnIndex() > 0) {
+              <span class="text-[11px] font-mono tabular-nums text-indigo-800 font-normal">
+                (Posisi {{ model().selectedColumnIndex() }} dari {{ model().columnCount() - 1 }})
+              </span>
+            }
+            <button
+              type="button"
+              (click)="model().clearSelectedColumnForMove()"
+              class="text-indigo-500 hover:text-indigo-800 ml-0.5 cursor-pointer font-bold text-xs p-0.5 inline-flex items-center"
+              title="Batal pilih kolom"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+        } @else {
+          <span class="text-xs text-slate-500">Klik header kolom untuk memilih, lalu geser kiri/kanan.</span>
+        }
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          (click)="model().moveSelectedColumnLeft()"
+          [disabled]="!model().canMoveSelectedColumnLeft()"
+          class="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-xs hover:bg-slate-100 active:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white transition cursor-pointer"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          <span>Geser Kiri</span>
+        </button>
+
+        <button
+          type="button"
+          (click)="model().moveSelectedColumnRight()"
+          [disabled]="!model().canMoveSelectedColumnRight()"
+          class="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-xs hover:bg-slate-100 active:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white transition cursor-pointer"
+        >
+          <span>Geser Kanan</span>
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+          </svg>
+        </button>
+
+        <div class="h-4 w-px bg-slate-300 mx-1"></div>
+
+        <button
+          type="button"
+          (click)="model().resetColumnOrder()"
+          class="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
+          title="Kembalikan urutan kolom ke urutan asal"
+        >
+          Reset Urutan
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overflow-x-auto p-6">
+    <table class="min-w-full border-collapse border border-slate-300 text-sm">
+      <thead>
+        @for (headerRow of model().htmlHeaderGrid(); track $index) {
+          <tr class="bg-gradient-to-b from-[#F2F5FA] to-[#E6ECF5]">
+            @for (cell of headerRow; track $index) {
+              @if (!cell.covered) {
+                @let isMovable = cell.colKey && !cell.colKey.startsWith('__') && cell.colKey !== model().resultColumns()[0];
+                @let isSelected = cell.colKey && model().selectedColumnForMove() === cell.colKey;
+                @let isEditing = cell.colKey && model().editingColumnKey() === cell.colKey;
+                @let canRename = cell.colKey && !cell.colKey.startsWith('__');
+                <th
+                  [attr.rowspan]="cell.rowspan > 1 ? cell.rowspan : null"
+                  [attr.colspan]="cell.colspan > 1 ? cell.colspan : null"
+                  (click)="!isEditing && isMovable ? model().selectColumnForMove(cell.colKey) : null"
+                  (dblclick)="canRename ? model().startEditingColumn(cell.colKey, $event) : null"
+                  class="border border-slate-300 px-3 py-2 text-center font-bold text-slate-800 text-xs tracking-wide max-w-xs break-words whitespace-normal transition-colors select-none"
+                  [class.cursor-pointer]="isMovable && !isEditing"
+                  [class.hover:bg-slate-200/90]="isMovable && !isSelected && !isEditing"
+                  [class.bg-[#EEF0FF]]="isSelected && !isEditing"
+                  [class.text-[#525AFF]]="isSelected && !isEditing"
+                  [class.bg-amber-50]="isEditing"
+                  [class.ring-2]="isSelected || isEditing"
+                  [class.ring-[#525AFF]]="isSelected && !isEditing"
+                  [class.ring-amber-500]="isEditing"
+                  [class.ring-inset]="isSelected || isEditing"
+                  [title]="isEditing ? 'Sedang mengubah nama kolom' : (canRename ? (cell.text + ' - Klik 2x untuk ubah nama kolom' + (isMovable ? ', atau klik 1x untuk geser' : '')) : cell.text)"
+                >
+                  @if (isEditing) {
+                    <div class="my-0.5" (click)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
+                      <input
+                        type="text"
+                        class="inline-column-rename-input w-full rounded border-2 border-amber-500 bg-white px-2 py-1 text-xs font-semibold text-slate-900 shadow-md focus:border-amber-600 focus:outline-none text-center"
+                        [value]="model().editingColumnValue()"
+                        (input)="model().editingColumnValue.set($any($event.target).value)"
+                        (keydown.enter)="model().saveInlineColumnRename(cell.colKey, $any($event.target).value)"
+                        (keydown.escape)="model().cancelInlineColumnRename()"
+                        (blur)="model().saveInlineColumnRename(cell.colKey, $any($event.target).value)"
+                        placeholder="Nama kolom..."
+                      />
+                      <div class="text-[10px] text-amber-700 font-normal mt-0.5 flex items-center justify-center gap-1.5">
+                        <span>↵ Simpan</span>
+                        <span>•</span>
+                        <span>Esc Batal</span>
+                      </div>
+                    </div>
+                  } @else {
+                    <div class="break-words leading-tight group/rename flex items-center justify-center gap-1">
+                      <span>{{ cell.text }}</span>
+                      @if (canRename) {
+                        <button
+                          type="button"
+                          (click)="model().startEditingColumn(cell.colKey, $event)"
+                          class="opacity-0 group-hover/rename:opacity-60 hover:!opacity-100 text-slate-400 hover:text-[#525AFF] cursor-pointer transition text-[11px] p-0.5 inline-flex items-center"
+                          title="Ubah nama kolom (Klik 2x pada header)"
+                        >
+                          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        </button>
+                      }
+                    </div>
+                  }
+                </th>
+              }
+            }
+          </tr>
+        }
+      </thead>
+
+      <tbody>
+        @for (row of model().resultRows(); track $index) {
+          <tr class="hover:bg-[#F2F5FA]/80 transition group">
+            <td class="w-12 border border-slate-300 px-2 py-2 text-center bg-white">
+              <button
+                type="button"
+                (click)="model().deleteRow($index)"
+                class="inline-flex items-center justify-center p-1 rounded text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
+                title="Hapus baris ini dari hasil"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </td>
+
+            <td class="w-14 border border-slate-300 px-3 py-2.5 text-center font-semibold text-slate-600 bg-slate-50/50">
+              {{ $index + 1 }}
+            </td>
+
+            @for (column of model().resultColumns(); track column; let colIdx = $index) {
+              @let formatClass = model().getCellFormatClass(row[column], column);
+              @let isTextCol = colIdx === 0 || model().columnConfigs()[column]?.dataType === 'string';
+              @let isColActive = column === model().selectedColumnForMove();
+              <td
+                class="whitespace-nowrap border border-slate-300 px-4 py-2.5 transition"
+                [class]="formatClass || (isColActive ? 'text-[#525AFF] bg-[#EEF0FF]/60 font-semibold' : 'text-slate-700 bg-white')"
+                [class.ring-1]="isColActive"
+                [class.ring-[#525AFF]/40]="isColActive"
+                [class.ring-inset]="isColActive"
+                [class.text-center]="!isTextCol"
+              >
+                {{ model().formatCellValue(row[column], column) }}
+              </td>
+            }
+
+            @if (model().enableTarget() && model().enableCapaian()) {
+              @let capaianVal = model().getRowCapaian(row);
+              @let capaianClass = model().getCapaianFormatClass(capaianVal);
+              <td
+                class="whitespace-nowrap border border-slate-300 px-4 py-2.5 text-center text-xs transition font-semibold"
+                [class]="capaianClass || 'text-slate-700 bg-white'"
+              >
+                {{ capaianVal }}
+              </td>
+            }
+          </tr>
+        }
+      </tbody>
+
+      @if (model().enableJumlah() || model().enableAverage() || model().enableTarget()) {
+        <tfoot>
+          @if (model().enableJumlah()) {
+            <tr class="border-t-2 border-[#4AB5B5]/60 bg-[#E8F7F7]/85 font-medium">
+              <td class="border border-[#4AB5B5]/30 px-2 py-2 text-center text-xs text-[#134E4E] font-bold">∑</td>
+              <td class="border border-[#4AB5B5]/30 px-3 py-2 text-center text-xs text-[#134E4E] font-bold">-</td>
+              @for (column of model().resultColumns(); track column; let idx = $index) {
+                @let isTextCol = idx === 0 || model().columnConfigs()[column]?.dataType === 'string';
+                <td class="whitespace-nowrap border border-[#4AB5B5]/30 px-3 py-2" [class.text-center]="!isTextCol">
+                  @if (idx === 0) {
+                    <div class="flex items-center gap-1.5 font-bold text-[#134E4E]">
+                      <span>Jumlah</span>
+                    </div>
+                  } @else if (model().columnConfigs()[column]?.dataType === 'string') {
+                    <div class="text-xs text-slate-400 italic text-center">-</div>
+                  } @else {
+                    <div class="flex items-center justify-center text-xs">
+                      @if (model().sumColumns()[column]) {
+                        <span class="font-bold text-[#134E4E] font-mono text-sm">
+                          {{ model().formatSumValue(model().getColumnSum(column)) }}
+                        </span>
+                      } @else {
+                        <span class="text-slate-400 font-normal italic">-</span>
+                      }
+                    </div>
+                  }
+                </td>
+              }
+              @if (model().enableTarget() && model().enableCapaian()) {
+                <td class="whitespace-nowrap border border-[#4AB5B5]/30 px-4 py-2 text-center text-xs font-semibold text-slate-400">-</td>
+              }
+            </tr>
+          }
+
+          @if (model().enableAverage()) {
+            <tr class="border-t-2 border-[#8FD9FB]/70 bg-[#F0FAFE]/90 font-medium">
+              <td class="border border-[#8FD9FB]/40 px-2 py-2 text-center text-xs text-[#1E3A8A] font-bold">x̄</td>
+              <td class="border border-[#8FD9FB]/40 px-3 py-2 text-center text-xs text-[#1E3A8A] font-bold">-</td>
+              @for (column of model().resultColumns(); track column; let idx = $index) {
+                @let isTextCol = idx === 0 || model().columnConfigs()[column]?.dataType === 'string';
+                <td class="whitespace-nowrap border border-[#8FD9FB]/40 px-3 py-2" [class.text-center]="!isTextCol">
+                  @if (idx === 0) {
+                    <div class="flex items-center gap-1.5 font-bold text-[#1E3A8A]">
+                      <span>Rata-rata</span>
+                    </div>
+                  } @else if (model().columnConfigs()[column]?.dataType === 'string') {
+                    <div class="text-xs text-slate-400 italic text-center">-</div>
+                  } @else {
+                    <div class="flex items-center justify-center text-xs">
+                      @if (model().avgColumns()[column]) {
+                        <span class="font-bold text-[#1E3A8A] font-mono text-sm">
+                          {{ model().formatAverageValue(model().getColumnAverage(column)) }}
+                        </span>
+                      } @else {
+                        <span class="text-slate-400 font-normal italic">-</span>
+                      }
+                    </div>
+                  }
+                </td>
+              }
+              @if (model().enableTarget() && model().enableCapaian()) {
+                <td class="whitespace-nowrap border border-[#8FD9FB]/40 px-4 py-2 text-center text-xs font-semibold text-slate-400">-</td>
+              }
+            </tr>
+          }
+
+          @if (model().enableTarget()) {
+            <tr class="border-t-2 border-slate-300 bg-slate-50 font-medium">
+              <td class="border border-slate-200 px-2 py-2 text-center text-xs text-slate-700 font-medium">-</td>
+              <td class="border border-slate-200 px-3 py-2 text-center text-xs text-slate-700 font-bold">-</td>
+              @for (column of model().resultColumns(); track column; let idx = $index) {
+                @let isTextCol = idx === 0 || model().columnConfigs()[column]?.dataType === 'string';
+                @let targetCfg = model().columnTargets()[column];
+                @let isEditingTarget = model().editingTargetColKey() === column;
+                <td
+                  class="whitespace-nowrap border border-slate-200 px-3 py-2 transition-colors select-none"
+                  [class.text-center]="!isTextCol"
+                  [class.bg-amber-50]="isEditingTarget"
+                  [class.ring-2]="isEditingTarget"
+                  [class.ring-amber-500]="isEditingTarget"
+                  [class.ring-inset]="isEditingTarget"
+                  [class.cursor-pointer]="!isTextCol && !isEditingTarget"
+                  (dblclick)="!isTextCol && !isEditingTarget ? model().startEditingTarget(column, $event) : null"
+                  [title]="isEditingTarget ? 'Sedang mengubah target kolom' : (!isTextCol ? 'Klik 2x untuk ubah target kolom' : '')"
+                >
+                  @if (idx === 0) {
+                    <div class="flex items-center gap-1.5 font-bold text-slate-900">
+                      <span>Target</span>
+                    </div>
+                  } @else if (model().columnConfigs()[column]?.dataType === 'string') {
+                    <div class="text-xs text-slate-400 italic text-center">-</div>
+                  } @else if (isEditingTarget) {
+                    <div class="my-0.5 flex flex-col items-center justify-center gap-1" (click)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
+                      <div class="flex items-center gap-1">
+                        <select
+                          class="rounded border border-amber-400 bg-white px-1 py-1 text-xs font-semibold text-slate-800 shadow-sm focus:border-amber-600 focus:outline-none"
+                          [value]="model().editingTargetOperator()"
+                          (change)="model().editingTargetOperator.set($any($event.target).value)"
+                        >
+                          <option value=">=">&gt;=</option>
+                          <option value="<=">&lt;=</option>
+                          <option value=">">&gt;</option>
+                          <option value="<">&lt;</option>
+                          <option value="==">==</option>
+                        </select>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          class="inline-target-value-input w-20 rounded border-2 border-amber-500 bg-white px-2 py-1 text-xs font-semibold text-slate-900 shadow-md focus:border-amber-600 focus:outline-none text-center"
+                          [value]="model().editingTargetValue()"
+                          (input)="model().editingTargetValue.set($any($event.target).value)"
+                          (keydown.enter)="model().saveInlineTargetEdit(column)"
+                          (keydown.escape)="model().cancelInlineTargetEdit()"
+                          placeholder="Target..."
+                        />
+                      </div>
+                      <div class="text-[10px] text-amber-700 font-normal flex items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          (click)="model().saveInlineTargetEdit(column)"
+                          class="hover:underline font-semibold cursor-pointer text-amber-800"
+                        >
+                          ↵ Simpan
+                        </button>
+                        <span>•</span>
+                        <button
+                          type="button"
+                          (click)="model().cancelInlineTargetEdit()"
+                          class="hover:underline cursor-pointer text-slate-500"
+                        >
+                          Esc Batal
+                        </button>
+                      </div>
+                    </div>
+                  } @else {
+                    <div class="break-words leading-tight group/target flex items-center justify-center gap-1">
+                      @if (targetCfg?.enabled && targetCfg?.value !== null) {
+                        <span class="font-bold text-slate-900 font-mono text-sm">
+                          {{ targetCfg?.operator }} {{ targetCfg?.value }}
+                        </span>
+                      } @else {
+                        <span class="text-slate-400 font-normal italic group-hover/target:hidden">-</span>
+                        <span class="text-[11px] text-[#525AFF] font-medium hidden group-hover/target:inline-flex items-center">
+                          + Target
+                        </span>
+                      }
+                      <button
+                        type="button"
+                        (click)="model().startEditingTarget(column, $event)"
+                        class="opacity-0 group-hover/target:opacity-60 hover:!opacity-100 text-slate-400 hover:text-[#525AFF] cursor-pointer transition text-[11px] p-0.5 inline-flex items-center"
+                        title="Ubah target kolom (Klik 2x pada sel)"
+                      >
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                        </svg>
+                      </button>
+                    </div>
+                  }
+                </td>
+              }
+              @if (model().enableCapaian()) {
+                <td class="whitespace-nowrap border border-slate-200 bg-slate-100 px-4 py-2 text-center text-xs font-bold text-slate-900">
+                  {{ model().activeTargetCount() }} target
+                </td>
+              }
+            </tr>
+          }
+        </tfoot>
+      }
+    </table>
+  </div>
+  } @else {
+    <div data-testid="dataset-table-hidden-placeholder" class="p-8 text-center bg-slate-50 border-t border-slate-200">
+      <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 mb-3">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-6 h-6">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+        </svg>
+      </div>
+      <h3 class="text-sm font-semibold text-slate-900 mb-1">{{ badgeLabel() || title() }} Disembunyikan</h3>
+      <p class="text-xs text-slate-500 max-w-md mx-auto mb-4">
+        Klik header tabel di atas untuk menampilkan rincian tabel.
+      </p>
+      <button
+        type="button"
+        (click)="toggleContent()"
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition cursor-pointer"
+      >
+        <span>Tampilkan Rincian Tabel</span>
+      </button>
+    </div>
+  }
+</section>

@@ -558,604 +558,6 @@ export class StuntingEvaluationEngine {
    */
 
 
-  static readonly DISTRICT_PREV_YEAR_OUTCOMES: Record<string, Record<string, number | null>> = {
-  "CILACAP": {
-    "1": 94.87,
-    "2": 98.78,
-    "3": 64.43,
-    "4": 14.05,
-    "5": 25.45,
-    "7": 90.43,
-    "8": 95.78,
-    "10": 39.26,
-    "11": 100,
-    "6a": 97.77,
-    "6b": 56.24,
-    "9a": 1.77,
-    "9b": 7.44,
-    "9c": 9.58,
-    "9d": 25.53
-  },
-  "BANYUMAS": {
-    "1": 100,
-    "2": 100,
-    "3": 48.38,
-    "4": 15.16,
-    "5": 16.91,
-    "7": 88.12,
-    "8": 97.8,
-    "10": 42.5,
-    "11": 100,
-    "6a": 99.51,
-    "6b": 11.35,
-    "9a": 2.42,
-    "9b": 3.12,
-    "9c": 7.24,
-    "9d": 63.83
-  },
-  "PURBALINGGA": {
-    "1": 99.14,
-    "2": 99.94,
-    "3": 53.15,
-    "4": 11.92,
-    "5": 47.59,
-    "7": 88.99,
-    "8": 88.8,
-    "10": 39.98,
-    "11": 100,
-    "6a": 96.49,
-    "6b": 23.86,
-    "9a": 3.54,
-    "9b": 6.39,
-    "9c": 10.1,
-    "9d": 24.73
-  },
-  "BANJARNEGARA": {
-    "1": 93.03,
-    "2": 96.43,
-    "3": 59.61,
-    "4": 19.4,
-    "5": 32.21,
-    "7": 88.05,
-    "8": 91.99,
-    "10": 45.48,
-    "11": 100,
-    "6a": 94.76,
-    "6b": 8.93,
-    "9a": 4.63,
-    "9b": 5.97,
-    "9c": 10.33,
-    "9d": 41.85
-  },
-  "KEBUMEN": {
-    "1": 90.37,
-    "2": 92.32,
-    "3": 8.74,
-    "4": 6.43,
-    "5": 16.76,
-    "7": 91.65,
-    "8": 93.47,
-    "10": 34.96,
-    "11": 100,
-    "6a": 98.24,
-    "6b": 2.35,
-    "9a": 5.25,
-    "9b": 6.95,
-    "9c": 5.37,
-    "9d": 18.87
-  },
-  "PURWOREJO": {
-    "1": 98.68,
-    "2": 87.26,
-    "3": 24.86,
-    "4": 5.95,
-    "5": 18.82,
-    "7": 92.89,
-    "8": 97.4,
-    "10": 36.49,
-    "11": 100,
-    "6a": 98.31,
-    "6b": 10.15,
-    "9a": 3.55,
-    "9b": 9.41,
-    "9c": 7.39,
-    "9d": 24.69
-  },
-  "WONOSOBO": {
-    "1": 97.15,
-    "2": 99.73,
-    "3": 14.81,
-    "4": 1.96,
-    "5": 19.37,
-    "7": 92.13,
-    "8": 98.81,
-    "10": 40.56,
-    "11": 100,
-    "6a": 97,
-    "6b": 1.77,
-    "9a": 2.25,
-    "9b": 5.27,
-    "9c": 6.08,
-    "9d": 20.69
-  },
-  "MAGELANG": {
-    "1": 86.58,
-    "2": 87.23,
-    "3": 26.97,
-    "4": 5.07,
-    "5": 25.99,
-    "7": 96.72,
-    "8": 94.23,
-    "10": 44.5,
-    "11": 100,
-    "6a": 95.68,
-    "6b": 3.42,
-    "9a": 1.36,
-    "9b": 3.67,
-    "9c": 3.05,
-    "9d": 1.8
-  },
-  "BOYOLALI": {
-    "1": 100.77,
-    "2": 99.38,
-    "3": 22.35,
-    "4": 7.12,
-    "5": 22.63,
-    "7": 90.13,
-    "8": 95.5,
-    "10": 41.81,
-    "11": 100,
-    "6a": 96.98,
-    "6b": 2.83,
-    "9a": 10.11,
-    "9b": 9.87,
-    "9c": 13.73,
-    "9d": 29.73
-  },
-  "KLATEN": {
-    "1": 98.87,
-    "2": 92.23,
-    "3": 37.94,
-    "4": 10.96,
-    "5": 35.36,
-    "7": 93.51,
-    "8": 89.06,
-    "10": 40.59,
-    "11": 100,
-    "6a": 98.59,
-    "6b": 8.47,
-    "9a": 1.22,
-    "9b": 4.84,
-    "9c": 9.18,
-    "9d": 31.76
-  },
-  "SUKOHARJO": {
-    "1": 95.52,
-    "2": 99.47,
-    "3": 7.91,
-    "4": 12.45,
-    "5": 47.32,
-    "7": 91.38,
-    "8": 99.51,
-    "10": 50.83,
-    "11": 100,
-    "6a": 99.91,
-    "6b": 17.08,
-    "9a": 9.23,
-    "9b": 5.89,
-    "9c": 14.59,
-    "9d": 71.83
-  },
-  "WONOGIRI": {
-    "1": 94.53,
-    "2": 99.96,
-    "3": 8.36,
-    "4": 4.74,
-    "5": 28.86,
-    "7": 78.78,
-    "8": 94.58,
-    "10": 40.11,
-    "11": 100,
-    "6a": 99.45,
-    "6b": 8.68,
-    "9a": 6.04,
-    "9b": 4.22,
-    "9c": 6.91,
-    "9d": 39.07
-  },
-  "KARANGANYAR": {
-    "1": 96.9,
-    "2": 97.91,
-    "3": 0.24,
-    "4": 0.95,
-    "5": 26.89,
-    "7": 89.7,
-    "8": 96.3,
-    "10": 44.24,
-    "11": 100,
-    "6a": 95.63,
-    "6b": 1.57,
-    "9a": 4.81,
-    "9b": 6.84,
-    "9c": 6.42,
-    "9d": 50
-  },
-  "SRAGEN": {
-    "1": 88.33,
-    "2": 85.11,
-    "3": 5.19,
-    "4": 0.41,
-    "5": 16.54,
-    "7": 95.05,
-    "8": 93.21,
-    "10": 49.42,
-    "11": 100,
-    "6a": 93.45,
-    "6b": 1.67,
-    "9a": 5.95,
-    "9b": 8.2,
-    "9c": 8.15,
-    "9d": 10.34
-  },
-  "GROBOGAN": {
-    "1": 95.18,
-    "2": 65.89,
-    "3": 48.69,
-    "4": 11,
-    "5": 35.83,
-    "7": 78.02,
-    "8": 92.43,
-    "10": 51.03,
-    "11": 100,
-    "6a": 93.96,
-    "6b": 14.94,
-    "9a": 0.04,
-    "9b": 13.46,
-    "9c": 3.88,
-    "9d": 20.65
-  },
-  "BLORA": {
-    "1": 99.93,
-    "2": 100,
-    "3": 76.31,
-    "4": 34.28,
-    "5": 39.38,
-    "7": 86.5,
-    "8": 93.82,
-    "10": 44.55,
-    "11": 100,
-    "6a": 99.04,
-    "6b": 34.05,
-    "9a": 2.2,
-    "9b": 6.59,
-    "9c": 10.88,
-    "9d": 32.18
-  },
-  "REMBANG": {
-    "1": 100,
-    "2": 100,
-    "3": 63.89,
-    "4": 20.29,
-    "5": 29.33,
-    "7": 91.81,
-    "8": 92.05,
-    "10": 49.36,
-    "11": 100,
-    "6a": 90.09,
-    "6b": 15.73,
-    "9a": 4.93,
-    "9b": 4.63,
-    "9c": 9.92,
-    "9d": 20.83
-  },
-  "PATI": {
-    "1": 77.2,
-    "2": 75.87,
-    "3": 16.91,
-    "4": 12.27,
-    "5": 12.07,
-    "7": 87.8,
-    "8": 95.43,
-    "10": 57.11,
-    "11": 100,
-    "6a": 92.82,
-    "6b": 7.64,
-    "9a": 1.43,
-    "9b": 7.17,
-    "9c": 8.29,
-    "9d": 25.1
-  },
-  "KUDUS": {
-    "1": 96.88,
-    "2": 91.08,
-    "3": 18.9,
-    "4": 2.55,
-    "5": 14.26,
-    "7": 77.15,
-    "8": 95.21,
-    "10": 63.37,
-    "11": 100,
-    "6a": 98.16,
-    "6b": 2.02,
-    "9a": 3.78,
-    "9b": 8.65,
-    "9c": 2.63,
-    "9d": 10.59
-  },
-  "JEPARA": {
-    "1": 90.68,
-    "2": 90.55,
-    "3": 31.97,
-    "4": 8.8,
-    "5": 34.72,
-    "7": 93.52,
-    "8": 91,
-    "10": 44.77,
-    "11": 100,
-    "6a": 96.58,
-    "6b": 1.19,
-    "9a": 5.22,
-    "9b": 12.17,
-    "9c": 8.3,
-    "9d": 4.94
-  },
-  "DEMAK": {
-    "1": 99.08,
-    "2": 99.96,
-    "3": 30.75,
-    "4": 12.93,
-    "5": 28.57,
-    "7": 94.78,
-    "8": 98.68,
-    "10": 49.42,
-    "11": 100,
-    "6a": 99.48,
-    "6b": 14.24,
-    "9a": 0.01,
-    "9b": 0,
-    "9c": 16.14,
-    "9d": 69.33
-  },
-  "SEMARANG": {
-    "1": 92.23,
-    "2": 92.78,
-    "3": 54.78,
-    "4": 17.06,
-    "5": 27.16,
-    "7": 86.22,
-    "8": 98.15,
-    "10": 45.94,
-    "11": 100,
-    "6a": 97.84,
-    "6b": 6.95,
-    "9a": 1.87,
-    "9b": 7.87,
-    "9c": 12.96,
-    "9d": 3.7
-  },
-  "TEMANGGUNG": {
-    "1": 95.78,
-    "2": 99.91,
-    "3": 21.28,
-    "4": 5.54,
-    "5": 5.79,
-    "7": 79.75,
-    "8": 95.77,
-    "10": 38.93,
-    "11": 100,
-    "6a": 98.52,
-    "6b": 3.06,
-    "9a": 0.01,
-    "9b": 5.32,
-    "9c": 10.99,
-    "9d": 4.26
-  },
-  "KENDAL": {
-    "1": 93.84,
-    "2": 93.88,
-    "3": 46.84,
-    "4": 21.71,
-    "5": 17.17,
-    "7": 85.76,
-    "8": 96.15,
-    "10": 43.45,
-    "11": 100,
-    "6a": 97.83,
-    "6b": 9.21,
-    "9a": 3.62,
-    "9b": 6.44,
-    "9c": 4.27,
-    "9d": 8.3
-  },
-  "BATANG": {
-    "1": 98.8,
-    "2": 95.16,
-    "3": 58.24,
-    "4": 35.35,
-    "5": 40.64,
-    "7": 90.74,
-    "8": 94.56,
-    "10": 42.49,
-    "11": 100,
-    "6a": 95.3,
-    "6b": 88.23,
-    "9a": 2.18,
-    "9b": 7.83,
-    "9c": 18.05,
-    "9d": 20.66
-  },
-  "PEKALONGAN": {
-    "1": 99.21,
-    "2": 92.01,
-    "3": 44.15,
-    "4": 17,
-    "5": 24.86,
-    "7": 92.85,
-    "8": 94.61,
-    "10": 50.64,
-    "11": 100,
-    "6a": 94.9,
-    "6b": 3.89,
-    "9a": 0.73,
-    "9b": 0.88,
-    "9c": 4.06,
-    "9d": 82.33
-  },
-  "PEMALANG": {
-    "1": 94.26,
-    "2": 99.73,
-    "3": 42.07,
-    "4": 4.53,
-    "5": 19.44,
-    "7": 78.62,
-    "8": 98.27,
-    "10": 39.18,
-    "11": 100,
-    "6a": 98.29,
-    "6b": 3.05,
-    "9a": 0.83,
-    "9b": 4.17,
-    "9c": 2.05,
-    "9d": 33.07
-  },
-  "TEGAL": {
-    "1": 97.93,
-    "2": 99.76,
-    "3": 30.58,
-    "4": 5.98,
-    "5": 14.9,
-    "7": 93.4,
-    "8": 94.62,
-    "10": 40.84,
-    "11": 100,
-    "6a": 94.99,
-    "6b": 1.26,
-    "9a": 3.04,
-    "9b": 2.92,
-    "9c": 2.97,
-    "9d": 59.7
-  },
-  "BREBES": {
-    "1": 97.41,
-    "2": 86.93,
-    "3": 26.77,
-    "4": 5.2,
-    "5": 27.09,
-    "7": 92.59,
-    "8": 84.28,
-    "10": 43.49,
-    "11": 100,
-    "6a": 89.51,
-    "6b": 1.54,
-    "9a": 2.77,
-    "9b": 2.72,
-    "9c": 5.03,
-    "9d": 17.63
-  },
-  "KOTA MAGELANG": {
-    "1": 98.69,
-    "2": 97.46,
-    "3": 97.52,
-    "4": 35.89,
-    "5": 19,
-    "7": 77.12,
-    "8": 91.27,
-    "10": 42.09,
-    "11": 100,
-    "6a": 97,
-    "6b": 8.82,
-    "9a": 8.39,
-    "9b": 12.43,
-    "9c": 19.76,
-    "9d": 50
-  },
-  "KOTA SURAKARTA": {
-    "1": 40.9,
-    "2": 97.69,
-    "3": 13.11,
-    "4": 1.08,
-    "5": 91.51,
-    "7": 91.92,
-    "8": 98.29,
-    "10": 48.94,
-    "11": 100,
-    "6a": 98.99,
-    "6b": 16.66,
-    "9a": 15.74,
-    "9b": 15.9,
-    "9c": 22.39,
-    "9d": 100
-  },
-  "KOTA SALATIGA": {
-    "1": 98.27,
-    "2": 99.72,
-    "3": 25.98,
-    "4": 8.3,
-    "5": 0,
-    "7": 76.55,
-    "8": 99.03,
-    "10": 66.66,
-    "11": 100,
-    "6a": 94.92,
-    "6b": 27.27,
-    "9a": 9.56,
-    "9b": 18.22,
-    "9c": 15.1,
-    "9d": 83.33
-  },
-  "KOTA SEMARANG": {
-    "1": 94.66,
-    "2": 98.83,
-    "3": 14.33,
-    "4": 6.02,
-    "5": 7.72,
-    "7": 96.89,
-    "8": 98.81,
-    "10": 70.67,
-    "11": 100,
-    "6a": 89.34,
-    "6b": 10.38,
-    "9a": 12.42,
-    "9b": 33.38,
-    "9c": 34.61,
-    "9d": 102.43
-  },
-  "KOTA PEKALONGAN": {
-    "1": 99.4,
-    "2": 99.01,
-    "3": 70.98,
-    "4": 40.07,
-    "5": 44.31,
-    "7": 94.45,
-    "8": 95.96,
-    "10": 45.22,
-    "11": 100,
-    "6a": 95.06,
-    "6b": 73.85,
-    "9a": 1.35,
-    "9b": 4.31,
-    "9c": 4.89,
-    "9d": 83.46
-  },
-  "KOTA TEGAL": {
-    "1": 98.39,
-    "2": 97.96,
-    "3": 10.07,
-    "4": 3.55,
-    "5": 9.22,
-    "7": 92.17,
-    "8": 96.68,
-    "10": 66.13,
-    "11": 100,
-    "6a": 98.41,
-    "6b": 4.71,
-    "9a": 2.88,
-    "9b": 1.44,
-    "9c": 0.24,
-    "9d": 5
-  }
-};
-
   static readonly DINKES_STANDARD_INDICATORS = [
     {
       no: '1',
@@ -1166,7 +568,6 @@ export class StuntingEvaluationEngine {
       meanKeywords: ['% skrining anemia', '% rematri anemia', '% anemia'],
       defaultTargetCurrent: 77,
       defaultTargetPrev: 75,
-      defaultActualPrev: 90.58,
       polarity: 'positive' as IndicatorPolarity,
     },
     {
@@ -1178,7 +579,6 @@ export class StuntingEvaluationEngine {
       meanKeywords: ['% konsumsi ttd', '% rematri ttd', '% ttd'],
       defaultTargetCurrent: 67,
       defaultTargetPrev: 65,
-      defaultActualPrev: 89.34,
       polarity: 'positive' as IndicatorPolarity,
     },
     {
@@ -1190,7 +590,6 @@ export class StuntingEvaluationEngine {
       meanKeywords: ['% anc 6x', '% anc'],
       defaultTargetCurrent: 60,
       defaultTargetPrev: 80,
-      defaultActualPrev: 91.46,
       polarity: 'positive' as IndicatorPolarity,
     },
     {
@@ -1202,7 +601,6 @@ export class StuntingEvaluationEngine {
       meanKeywords: ['% ttd/mms', '% bumil ttd', '% ttd bumil'],
       defaultTargetCurrent: 39,
       defaultTargetPrev: 48,
-      defaultActualPrev: 91.1,
       polarity: 'positive' as IndicatorPolarity,
     },
     {
@@ -1214,7 +612,6 @@ export class StuntingEvaluationEngine {
       meanKeywords: ['% bumil pmt', '% pmt bumil', '% kek mt', '% bumil kek'],
       defaultTargetCurrent: 85,
       defaultTargetPrev: 84,
-      defaultActualPrev: 71.72,
       polarity: 'positive' as IndicatorPolarity,
     },
     {
@@ -1226,7 +623,6 @@ export class StuntingEvaluationEngine {
       meanKeywords: ['% d/s', '% pertumbuhan'],
       defaultTargetCurrent: 90,
       defaultTargetPrev: 80,
-      defaultActualPrev: 94.38,
       polarity: 'positive' as IndicatorPolarity,
     },
     {
@@ -1238,7 +634,6 @@ export class StuntingEvaluationEngine {
       meanKeywords: ['% tumbang', '% perkembangan'],
       defaultTargetCurrent: 55,
       defaultTargetPrev: 50,
-      defaultActualPrev: 88.51,
       polarity: 'positive' as IndicatorPolarity,
     },
     {
@@ -1250,7 +645,6 @@ export class StuntingEvaluationEngine {
       meanKeywords: ['% asi', '% asi eksklusif'],
       defaultTargetCurrent: 76,
       defaultTargetPrev: 73,
-      defaultActualPrev: 90.24,
       polarity: 'positive' as IndicatorPolarity,
     },
     {
@@ -1262,7 +656,6 @@ export class StuntingEvaluationEngine {
       meanKeywords: ['% mpasi', '% mp-asi'],
       defaultTargetCurrent: 76,
       defaultTargetPrev: 73,
-      defaultActualPrev: 93.66,
       polarity: 'positive' as IndicatorPolarity,
     },
     {
@@ -1274,7 +667,6 @@ export class StuntingEvaluationEngine {
       meanKeywords: ['% bb tidak naik (t) dapat mt', '% bb tidak naik', '% tidak naik (t)'],
       defaultTargetCurrent: 70,
       defaultTargetPrev: 65,
-      defaultActualPrev: 23.4,
       polarity: 'positive' as IndicatorPolarity,
     },
     {
@@ -1286,7 +678,6 @@ export class StuntingEvaluationEngine {
       meanKeywords: ['% bb kurang dapat mt', '% bb kurang mt', '% bb kurang'],
       defaultTargetCurrent: 70,
       defaultTargetPrev: 65,
-      defaultActualPrev: 55.6,
       polarity: 'positive' as IndicatorPolarity,
     },
     {
@@ -1298,7 +689,6 @@ export class StuntingEvaluationEngine {
       meanKeywords: ['% gizi kurang dapat mt', '% gizi kurang mt', '% gizi kurang'],
       defaultTargetCurrent: 70,
       defaultTargetPrev: 65,
-      defaultActualPrev: 59.81,
       polarity: 'positive' as IndicatorPolarity,
     },
     {
@@ -1310,7 +700,6 @@ export class StuntingEvaluationEngine {
       meanKeywords: ['% talak gibur', '% gizi buruk', '% talak'],
       defaultTargetCurrent: 92,
       defaultTargetPrev: 91,
-      defaultActualPrev: 96.86,
       polarity: 'positive' as IndicatorPolarity,
     },
     {
@@ -1322,7 +711,6 @@ export class StuntingEvaluationEngine {
       meanKeywords: ['% idl', '% imunisasi lengkap'],
       defaultTargetCurrent: 56.25,
       defaultTargetPrev: 97,
-      defaultActualPrev: 99.46,
       polarity: 'positive' as IndicatorPolarity,
     },
     {
@@ -1334,7 +722,6 @@ export class StuntingEvaluationEngine {
       meanKeywords: ['% babs', '% stop babs'],
       defaultTargetCurrent: '8653 desa',
       defaultTargetPrev: '8653 desa',
-      defaultActualPrev: 100,
       polarity: 'positive' as IndicatorPolarity,
     },
   ];
@@ -1391,7 +778,6 @@ export class StuntingEvaluationEngine {
       sumCol?: string | null;
       dataCol?: string | null;
       defaultTargetPrev?: number | string | null;
-      defaultActualPrev?: number | string | null;
       targetPrevYear?: number | string | null;
       actualPrevYear?: number | string | null;
     },
@@ -1411,18 +797,14 @@ export class StuntingEvaluationEngine {
             ? IndicatorEvaluator.parseSmartNumber(indicator.targetPrevYear)
             : null;
 
+    // Nilai capaian tahun lalu hanya dari data yang benar-benar dimuat,
+    // tanpa angka bawaan.
     const defaultActual =
-      typeof indicator.defaultActualPrev === 'number'
-        ? indicator.defaultActualPrev
-        : indicator.defaultActualPrev !== null &&
-            indicator.defaultActualPrev !== undefined &&
-            indicator.defaultActualPrev !== '-'
-          ? IndicatorEvaluator.parseSmartNumber(indicator.defaultActualPrev)
-          : indicator.actualPrevYear !== null &&
-              indicator.actualPrevYear !== undefined &&
-              indicator.actualPrevYear !== '-'
-            ? IndicatorEvaluator.parseSmartNumber(indicator.actualPrevYear)
-            : null;
+      indicator.actualPrevYear !== null &&
+      indicator.actualPrevYear !== undefined &&
+      indicator.actualPrevYear !== '-'
+        ? IndicatorEvaluator.parseSmartNumber(indicator.actualPrevYear)
+        : null;
 
     if (!tw4Dataset || !tw4Dataset.columns || tw4Dataset.columns.length === 0) {
       return { targetPrevYear: defaultTarget, actualPrevYear: defaultActual };
@@ -1528,18 +910,6 @@ export class StuntingEvaluationEngine {
         foundActual = IndicatorEvaluator.calculateColumnAverage(tw4Dataset.regionRows, matchedCol);
       }
     }
-    if (foundActual === null && regionName && regionName !== 'province' && StuntingEvaluationEngine.DISTRICT_PREV_YEAR_OUTCOMES) {
-      const regUpper = regionName.trim().toUpperCase();
-      const cleanReg = regUpper.replace(/^(KABUPATEN|KOTA|KAB\.)\s+/i, '').trim();
-      const matchKey = Object.keys(StuntingEvaluationEngine.DISTRICT_PREV_YEAR_OUTCOMES).find((k) => {
-        if (k === regUpper) return true;
-        const cleanK = k.replace(/^(KABUPATEN|KOTA|KAB\.)\s+/i, '').trim();
-        return cleanK === cleanReg;
-      });
-      if (matchKey && indicator.no && StuntingEvaluationEngine.DISTRICT_PREV_YEAR_OUTCOMES[matchKey]?.[String(indicator.no)] !== undefined) {
-        foundActual = StuntingEvaluationEngine.DISTRICT_PREV_YEAR_OUTCOMES[matchKey][String(indicator.no)];
-      }
-    }
     if (foundActual !== null) {
       foundActual = Number.isInteger(foundActual) ? foundActual : Math.round(foundActual * 100) / 100;
     }
@@ -1627,18 +997,6 @@ export class StuntingEvaluationEngine {
               options.regionName,
             );
             actualPrev = regPrev.actualPrevYear;
-          }
-          if (actualPrev === null && StuntingEvaluationEngine.DISTRICT_PREV_YEAR_OUTCOMES) {
-            const regUpper = options.regionName.trim().toUpperCase();
-            const cleanReg = regUpper.replace(/^(KABUPATEN|KOTA|KAB\.)\s+/i, '').trim();
-            const matchKey = Object.keys(StuntingEvaluationEngine.DISTRICT_PREV_YEAR_OUTCOMES).find((k) => {
-              if (k === regUpper) return true;
-              const cleanK = k.replace(/^(KABUPATEN|KOTA|KAB\.)\s+/i, '').trim();
-              return cleanK === cleanReg;
-            });
-            if (matchKey && sub.no && StuntingEvaluationEngine.DISTRICT_PREV_YEAR_OUTCOMES[matchKey]?.[String(sub.no)] !== undefined) {
-              actualPrev = StuntingEvaluationEngine.DISTRICT_PREV_YEAR_OUTCOMES[matchKey][String(sub.no)];
-            }
           }
           if (actualPrev === null && sub.actualPrevYear !== null && sub.actualPrevYear !== undefined && String(sub.actualPrevYear).trim() !== '') {
             actualPrev = IndicatorEvaluator.parseSmartNumber(sub.actualPrevYear);
@@ -2088,5 +1446,3 @@ export class StuntingEvaluationEngine {
   }
 }
 
-
-export const DISTRICT_PREV_YEAR_OUTCOMES = StuntingEvaluationEngine.DISTRICT_PREV_YEAR_OUTCOMES;

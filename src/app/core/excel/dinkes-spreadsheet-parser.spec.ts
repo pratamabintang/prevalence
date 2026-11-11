@@ -83,6 +83,19 @@ describe('DinkesSpreadsheetParser', () => {
       expect(DinkesSpreadsheetParser.detectPreJoinedSheet(wb)).toBe('MASALAH GIZI');
       expect(DinkesSpreadsheetParser.detectMasalahGiziPreJoinedSheet(wb)).toBe('MASALAH GIZI');
     });
+
+    it('harus mendeteksi sheet MASALAH GIZI dengan header dua tingkat Jumlah/%', () => {
+      const wb = XLSX.utils.book_new();
+      const rows = [
+        ['No', 'Kabupaten/Kota', 'BBLR', 'BBLR', 'Stunting', 'Stunting'],
+        ['', '', 'Jumlah', '%', 'Jumlah', '%'],
+        [1, 'CILACAP', 571, 6.53, 4027, 5.11],
+      ];
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'MASALAH GIZI');
+
+      expect(DinkesSpreadsheetParser.detectPreJoinedSheet(wb)).toBe('MASALAH GIZI');
+      expect(DinkesSpreadsheetParser.detectMasalahGiziPreJoinedSheet(wb)).toBe('MASALAH GIZI');
+    });
   });
 
   describe('parse - Format Pre-Joined', () => {
@@ -199,6 +212,69 @@ describe('DinkesSpreadsheetParser', () => {
       expect(result.columnTargets['BBLR - %']?.value).toBe(5.5);
       expect(result.totalRow!['BBLR - Jumlah']).toBe(1367);
       expect(result.summaryRow!['BBLR - %']).toBe(7.96);
+    });
+
+    it('harus menggabungkan header dua tingkat (Jumlah/%) menjadi kunci indikator yang benar', () => {
+      const wb = XLSX.utils.book_new();
+      const header = [
+        'No',
+        'Kabupaten/Kota',
+        'BBLR',
+        'BBLR',
+        'BB Tidak Naik',
+        'BB Tidak Naik',
+        'Stunting',
+        'Stunting',
+        'Insiden Stunting',
+        'Insiden Stunting',
+        'Capaian',
+      ];
+      const subHeader = [
+        '',
+        '',
+        'Jumlah',
+        '%',
+        'Jumlah',
+        '%',
+        'Jumlah',
+        '%',
+        'Jumlah',
+        '%',
+        '',
+      ];
+      const rows = [
+        header,
+        subHeader,
+        [1, 'CILACAP', 571, 6.53, 33778, 42.85, 4027, 5.11, 9453, 272, 5],
+        [2, 'BANYUMAS', 796, 9.39, 33490, 47.42, 9044, 12.81, 21699, 1104, 5],
+        ['-', 'Jumlah', 1367, '-', 67268, '-', 13071, '-', 31152, '-', '-'],
+        ['-', 'Rata-rata', '-', 7.96, '-', 45.135, '-', 8.96, '-', 688, '-'],
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb, ws, 'MASALAH GIZI');
+
+      const result = DinkesSpreadsheetParser.parse(wb, { preferredSheetName: 'MASALAH GIZI' });
+
+      expect(result.columns).toEqual([
+        'Kabupaten/Kota',
+        'BBLR - Jumlah',
+        'BBLR - %',
+        'BB Tidak Naik - Jumlah',
+        'BB Tidak Naik - %',
+        'Stunting - Jumlah',
+        'Stunting - %',
+        'Insiden Stunting - Jumlah',
+        'Insiden Stunting - %',
+      ]);
+      expect(result.regionRows.length).toBe(2);
+      expect(result.regionRows[0]['Kabupaten/Kota']).toBe('CILACAP');
+      expect(result.regionRows[0]['Stunting - %']).toBe(5.11);
+      expect(result.regionRows[0]['Insiden Stunting - %']).toBe(272);
+      expect(result.regionRows[1]['BBLR - Jumlah']).toBe(796);
+      expect(result.columnConfigs['Stunting - %']?.dataType).toBe('percentage');
+      expect(result.columnConfigs['Stunting - Jumlah']?.dataType).toBe('number');
+      expect(result.totalRow!['BBLR - Jumlah']).toBe(1367);
+      expect(result.summaryRow!['Stunting - %']).toBe(8.96);
     });
   });
 

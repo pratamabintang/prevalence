@@ -65,6 +65,7 @@ export interface GasPeriodLoadResult {
   fileName?: string;
   rawExcelBuffer?: ArrayBuffer;
   resultExcelBuffer?: ArrayBuffer;
+  sourceRawExcelBuffer?: ArrayBuffer;
   config?: unknown;
   resultExcelAvailable?: boolean;
   isResultExcel?: boolean;

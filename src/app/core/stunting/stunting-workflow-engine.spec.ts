@@ -562,10 +562,10 @@ describe('StuntingWorkflowEngine', () => {
         columns: ['Kabupaten/Kota', '% Skrining Anemia'],
       });
 
-      engine.autoPopulateIndicators(null); // Initially default values (75, 90.58)
+      engine.autoPopulateIndicators(null); // Target default 75; capaian tahun lalu tetap null
       let sub = engine.categories()[0].subCategories.find((s) => s.no === '1');
       expect(sub?.targetPrevYear).toBe(75);
-      expect(sub?.actualPrevYear).toBe(90.58);
+      expect(sub?.actualPrevYear).toBeNull();
 
       const mockTw4Dataset: any = {
         columns: ['Kabupaten/Kota', '% Skrining Anemia (TW4)'],

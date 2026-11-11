@@ -772,11 +772,12 @@ describe('StuntingEvaluationEngine', () => {
   });
 
   describe('extractIndicatorPrevYearValues', () => {
-    it('should fallback to default target and actual when tw4Dataset is null or empty', () => {
-      const std = StuntingEvaluationEngine.DINKES_STANDARD_INDICATORS[0]; // Remaja putri skrining anemia: defaultTargetPrev: 75, defaultActualPrev: 90.58
+    it('should fall back to default target only, with null actual, when tw4Dataset is null or empty', () => {
+      const std = StuntingEvaluationEngine.DINKES_STANDARD_INDICATORS[0]; // Remaja putri skrining anemia: defaultTargetPrev: 75
       const res = StuntingEvaluationEngine.extractIndicatorPrevYearValues(std, null);
       expect(res.targetPrevYear).toBe(75);
-      expect(res.actualPrevYear).toBe(90.58);
+      // Tanpa angka capaian bawaan: actualPrevYear tetap null
+      expect(res.actualPrevYear).toBeNull();
     });
 
     it('should derive target and actual from preceding year TW4 dataset when matching indicator is available', () => {

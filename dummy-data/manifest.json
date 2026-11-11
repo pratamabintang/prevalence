@@ -1,0 +1,74 @@
+[
+  {
+    "year": 2024,
+    "quarter": 1,
+    "step": 0,
+    "fileName": "TW1-2024.xlsx"
+  },
+  {
+    "year": 2024,
+    "quarter": 2,
+    "step": 1,
+    "fileName": "TW2-2024.xlsx"
+  },
+  {
+    "year": 2024,
+    "quarter": 3,
+    "step": 2,
+    "fileName": "TW3-2024.xlsx"
+  },
+  {
+    "year": 2024,
+    "quarter": 4,
+    "step": 3,
+    "fileName": "TW4-2024.xlsx"
+  },
+  {
+    "year": 2025,
+    "quarter": 1,
+    "step": 4,
+    "fileName": "TW1-2025.xlsx"
+  },
+  {
+    "year": 2025,
+    "quarter": 2,
+    "step": 5,
+    "fileName": "TW2-2025.xlsx"
+  },
+  {
+    "year": 2025,
+    "quarter": 3,
+    "step": 6,
+    "fileName": "TW3-2025.xlsx"
+  },
+  {
+    "year": 2025,
+    "quarter": 4,
+    "step": 7,
+    "fileName": "TW4-2025.xlsx"
+  },
+  {
+    "year": 2026,
+    "quarter": 1,
+    "step": 8,
+    "fileName": "TW1-2026.xlsx"
+  },
+  {
+    "year": 2026,
+    "quarter": 2,
+    "step": 9,
+    "fileName": "TW2-2026.xlsx"
+  },
+  {
+    "year": 2026,
+    "quarter": 3,
+    "step": 10,
+    "fileName": "TW3-2026.xlsx"
+  },
+  {
+    "year": 2026,
+    "quarter": 4,
+    "step": 11,
+    "fileName": "TW4-2026.xlsx"
+  }
+]

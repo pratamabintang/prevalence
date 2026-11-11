@@ -105,8 +105,10 @@ export class StuntingMonitoringComponent implements OnInit {
   // MULTI-QUARTER CLOUD STORAGE STATE (GOOGLE APPS SCRIPT)
   // ============================================================
   currentYear = new Date().getFullYear();
-  availableYears = signal<number[]>([2026, 2025, 2024, 2023, 2022]);
-  selectedYear = signal<number>(2026);
+  // Mengikuti PeriodPartitionWorkspace: tanpa tahun bawaan, terisi dari data/acuan server
+  // atau tahun yang didaftarkan pengguna.
+  availableYears = signal<number[]>([]);
+  selectedYear = signal<number | null>(null);
   periodSlots = signal<GasPeriodItem[]>([]);
   isLoadingPeriods = signal<boolean>(false);
   isLoadingCloudData = signal<boolean>(false);
@@ -373,9 +375,10 @@ export class StuntingMonitoringComponent implements OnInit {
     try {
       const periods = await this.periodPartitionWorkspace.refreshPeriods();
       this.periodSlots.set(periods);
-      this.availableYears.set(this.periodPartitionWorkspace.availableYears());
-      if (!this.periodPartitionWorkspace.availableYears().includes(this.selectedYear())) {
-        this.selectedYear.set(this.periodPartitionWorkspace.availableYears()[0]);
+      const wsYears = this.periodPartitionWorkspace.availableYears();
+      this.availableYears.set(wsYears);
+      if (!wsYears.includes(this.selectedYear() ?? NaN)) {
+        this.selectedYear.set(wsYears.length > 0 ? wsYears[0] : null);
       }
       this.updateQuarterSlotsSelectionForYear(this.selectedYear());
     } catch (err) {
@@ -423,14 +426,20 @@ export class StuntingMonitoringComponent implements OnInit {
    * Menyinkronkan nilai target dan capaian tahun lalu (Stage 2) dari TW4 tahun sebelumnya ke seluruh indikator.
    */
   async syncPreviousYearTw4Data(): Promise<void> {
-    const prevYear = this.selectedYear() - 1;
+    const currentYear = this.selectedYear();
+    if (currentYear === null) return;
+    const prevYear = currentYear - 1;
     const tw4Dataset = await this.loadPreviousYearTw4Dataset(prevYear);
     if (tw4Dataset) {
       this.workflowEngine.applyPreviousYearTw4Data(tw4Dataset);
     }
   }
 
-  updateQuarterSlotsSelectionForYear(year: number): void {
+  updateQuarterSlotsSelectionForYear(year: number | null): void {
+    if (year === null) {
+      this.selectedQuarterSlots.set({ TW1: true, TW2: false, TW3: false, TW4: false });
+      return;
+    }
     const hasTw1 = this.isQuarterAvailableInCloud(year, 'TW1');
     const hasTw2 = this.isQuarterAvailableInCloud(year, 'TW2');
     const hasTw3 = this.isQuarterAvailableInCloud(year, 'TW3');
@@ -455,7 +464,8 @@ export class StuntingMonitoringComponent implements OnInit {
     }
   }
 
-  isQuarterAvailableInCloud(year: number, quarter: QuarterSlot): boolean {
+  isQuarterAvailableInCloud(year: number | null, quarter: QuarterSlot): boolean {
+    if (year === null) return false;
     return (
       this.periodSlots().some(
         (p) => p.year === year && p.quarter === quarter && (p.hasRaw || p.hasResult),
@@ -463,7 +473,8 @@ export class StuntingMonitoringComponent implements OnInit {
     );
   }
 
-  getQuarterCloudInfo(year: number, quarter: QuarterSlot): GasPeriodItem | undefined {
+  getQuarterCloudInfo(year: number | null, quarter: QuarterSlot): GasPeriodItem | undefined {
+    if (year === null) return undefined;
     return (
       this.periodSlots().find((p) => p.year === year && p.quarter === quarter) ||
       this.periodPartitionWorkspace.getQuarterSlotItem(year, quarter)
@@ -524,6 +535,10 @@ export class StuntingMonitoringComponent implements OnInit {
       }
 
       const year = this.selectedYear();
+      if (year === null) {
+        this.notificationMessage.set('Pilih tahun anggaran terlebih dahulu.');
+        return;
+      }
       const selectedSlotValues = selectedSlots.map((s) => s.value);
       const resolution = await this.periodPartitionWorkspace.loadMultiQuarters(
         year,

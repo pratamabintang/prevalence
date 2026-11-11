@@ -14,8 +14,6 @@ describe('ExcelJoinStore', () => {
       size: 1024,
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     },
-    isDefaultData: false,
-    isCloudDefault: false,
     showSettings: false,
     activePresetName: 'Konfigurasi Uji Coba',
     sheets: [
@@ -77,14 +75,14 @@ describe('ExcelJoinStore', () => {
     store = TestBed.inject(ExcelJoinStore);
   });
 
-  it('should initialize with hasState() returning false when storage is empty (new tab scenario)', () => {
+  it('should initialize with hasState() returning false on a fresh application session', () => {
     expect(store.hasState()).toBe(false);
     expect(store.getState()).toBeNull();
     expect(store.getWorkbook()).toBeNull();
     expect(store.getFile()).toBeNull();
   });
 
-  it('should save state to memory and sessionStorage and return hasState() true', () => {
+  it('should save state to memory and return hasState() true', () => {
     const mockState = createMockState();
     const mockWb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet([['Kabupaten/Kota', 'Stunting %'], ['CILACAP', 15.2]]);
@@ -99,12 +97,6 @@ describe('ExcelJoinStore', () => {
     expect(retrieved?.customColumnNames['Stunting %']).toBe('Prevalensi Stunting');
     expect(retrieved?.resultRows.length).toBe(2);
     expect(store.getWorkbook()).toBe(mockWb);
-
-    // Verify sessionStorage item exists
-    const rawSession = sessionStorage.getItem(ExcelJoinStore.STORAGE_KEY);
-    expect(rawSession).toBeTruthy();
-    const parsedSession = JSON.parse(rawSession!);
-    expect(parsedSession.fileInfo.name).toBe('Test_Workbook.xlsx');
   });
 
   it('should generate a valid non-empty File when getFile() is called with an in-memory workbook', () => {
@@ -121,7 +113,7 @@ describe('ExcelJoinStore', () => {
     expect(generatedFile!.size).toBeGreaterThan(0);
   });
 
-  it('should clear in-memory state and sessionStorage when clearState() is called', () => {
+  it('should clear in-memory state when clearState() is called', () => {
     const mockState = createMockState();
     store.saveState(mockState);
     expect(store.hasState()).toBe(true);
@@ -131,40 +123,17 @@ describe('ExcelJoinStore', () => {
     expect(store.hasState()).toBe(false);
     expect(store.getState()).toBeNull();
     expect(store.getWorkbook()).toBeNull();
-    expect(sessionStorage.getItem(ExcelJoinStore.STORAGE_KEY)).toBeNull();
   });
 
-  it('should restore state from sessionStorage across same-tab route transitions', () => {
-    const mockState = createMockState();
-    sessionStorage.setItem(ExcelJoinStore.STORAGE_KEY, JSON.stringify(mockState));
+  it('should ignore stale sessionStorage remnants so a fresh app session starts clean', () => {
+    // Simulasi sisa state dari versi aplikasi lama yang masih memakai sessionStorage
+    sessionStorage.setItem(ExcelJoinStore.LEGACY_STORAGE_KEY, JSON.stringify(createMockState()));
 
-    // Create a new store instance simulating re-injection in the same tab
+    // Store baru (simulasi muat ulang aplikasi) harus membersihkan dan mengabaikannya
     const freshStore = new ExcelJoinStore();
 
-    expect(freshStore.hasState()).toBe(true);
-    const state = freshStore.getState();
-    expect(state?.fileInfo?.name).toBe('Test_Workbook.xlsx');
-    expect(state?.resultRows.length).toBe(2);
-    expect(state?.customColumnNames['Stunting %']).toBe('Prevalensi Stunting');
-  });
-
-  it('should handle sessionStorage QuotaExceededError gracefully without crashing', () => {
-    const mockState = createMockState();
-    const originalSetItem = sessionStorage.setItem;
-    sessionStorage.setItem = () => {
-      const err = new Error('QuotaExceededError');
-      err.name = 'QuotaExceededError';
-      throw err;
-    };
-
-    expect(() => {
-      store.saveState(mockState);
-    }).not.toThrow();
-
-    // In-memory state should still be available even if sessionStorage threw quota error
-    expect(store.hasState()).toBe(true);
-    expect(store.getState()?.fileInfo?.name).toBe('Test_Workbook.xlsx');
-
-    sessionStorage.setItem = originalSetItem;
+    expect(freshStore.hasState()).toBe(false);
+    expect(freshStore.getState()).toBeNull();
+    expect(sessionStorage.getItem(ExcelJoinStore.LEGACY_STORAGE_KEY)).toBeNull();
   });
 });

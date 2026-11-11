@@ -14,9 +14,10 @@ import {
   ParsedDinkesDataset,
   ParseDinkesOptions,
 } from '../excel/dinkes-spreadsheet-parser';
-import { IndicatorEvaluator } from '../evaluation/indicator-evaluator';
+import { ColumnTargetConfig, IndicatorEvaluator } from '../evaluation/indicator-evaluator';
 import { JoinPresetExecutionSpec } from '../excel/excel-join-engine';
 import { MASALAH_GIZI_JOIN_CONFIG } from '../../features/excel-join/masalah-gizi-join-config';
+import { LocalStorageAdapter, StorageAdapter } from './preset-store';
 
 export interface QuarterDataset {
   year: number;
@@ -26,6 +27,7 @@ export interface QuarterDataset {
   dataset: ParsedDinkesDataset;
   rawBuffer?: ArrayBuffer;
   resultBuffer?: ArrayBuffer;
+  config?: JoinPresetExecutionSpec;
 }
 
 export interface MultiQuarterResolutionResult {
@@ -54,6 +56,13 @@ export interface SavePeriodPartitionSpec {
 export const MIN_PERIOD_YEAR = 2000;
 export const MAX_PERIOD_YEAR = 2100;
 
+export type YearTargetDatasetKey = 'intervensi-spesifik' | 'masalah-gizi';
+export type YearTargetSet = Record<YearTargetDatasetKey, Record<string, ColumnTargetConfig>>;
+
+const YEAR_TARGET_STORAGE_KEY = 'dinkes_year_indicator_targets';
+const YEAR_TARGET_DATASET_KEYS: readonly YearTargetDatasetKey[] = ['intervensi-spesifik', 'masalah-gizi'];
+const YEAR_TARGET_OPERATORS: readonly string[] = ['<=', '>=', '>', '<', '=='];
+
 /**
  * PeriodPartitionWorkspace: Modul dalam (Deep Module) untuk orkestrasi partisi periode Google Drive.
  * Mengoordinasikan penemuan slot, pemuatan multi-kuartal, fallback prioritas (lokal menimpa cloud),
@@ -65,20 +74,23 @@ export const MAX_PERIOD_YEAR = 2100;
 export class PeriodPartitionWorkspace {
   private readonly gasStorage: GasStorageService;
   private readonly backendStorage?: BackendStorageService;
+  private readonly storage: StorageAdapter = new LocalStorageAdapter();
 
   readonly currentYear = new Date().getFullYear();
-  private readonly _availableYears = signal<number[]>(
-    Array.from({ length: 6 }, (_, i) => this.currentYear - i),
-  );
+  // Tanpa tahun bawaan: daftar tahun hanya terisi dari data periode server,
+  // acuan target tahunan, atau tahun yang didaftarkan pengguna.
+  private readonly _availableYears = signal<number[]>([]);
   private readonly _customYears = signal<number[]>([]);
   private readonly _periodSlots = signal<GasPeriodItem[]>([]);
   private readonly _isLoading = signal<boolean>(false);
-  private readonly _selectedYear = signal<number>(this.currentYear);
+  private readonly _selectedYear = signal<number | null>(null);
+  private readonly _yearlyTargets = signal<Record<number, YearTargetSet>>({});
 
   readonly availableYears: Signal<number[]> = this._availableYears.asReadonly();
   readonly periodSlots: Signal<GasPeriodItem[]> = this._periodSlots.asReadonly();
   readonly isLoading: Signal<boolean> = this._isLoading.asReadonly();
-  readonly selectedYear: Signal<number> = this._selectedYear.asReadonly();
+  readonly selectedYear: Signal<number | null> = this._selectedYear.asReadonly();
+  readonly yearlyTargets: Signal<Record<number, YearTargetSet>> = this._yearlyTargets.asReadonly();
 
   constructor(gasStorage?: GasStorageService, backendStorage?: BackendStorageService) {
     this.gasStorage = gasStorage ?? inject(GasStorageService);
@@ -133,21 +145,193 @@ export class PeriodPartitionWorkspace {
 
   private applyRemotePeriods(periods: GasPeriodItem[]): GasPeriodItem[] {
     this._periodSlots.set(periods);
+    this.syncAvailableYears();
+    return periods;
+  }
 
-    const yearsFromRemote = Array.from(new Set(periods.map((p) => p.year)));
-    const fallbackYears = Array.from({ length: 6 }, (_, i) => this.currentYear - i);
-    // Pertahankan tahun kustom yang didaftarkan dalam sesi atau yang aktif di server
+  /**
+   * Menyusun ulang daftar tahun dari data periode server, acuan target, dan tahun kustom;
+   * tahun aktif digeser ke urutan pertama bila tahunnya hilang dari daftar.
+   */
+  private syncAvailableYears(): void {
+    const yearsFromSlots = Array.from(new Set(this._periodSlots().map((p) => p.year)));
+    // Tahun dengan acuan target tetap tampil meski belum ada data periode tersimpan
+    const yearsFromTargets = Object.keys(this._yearlyTargets())
+      .map(Number)
+      .filter((y) => this.isValidYear(y));
     const activeCustomYears = this._customYears();
 
     const mergedYears = Array.from(
-      new Set([...yearsFromRemote, ...fallbackYears, ...activeCustomYears]),
+      new Set([...yearsFromSlots, ...yearsFromTargets, ...activeCustomYears]),
     ).sort((a, b) => b - a);
 
     this._availableYears.set(mergedYears);
-    if (!mergedYears.includes(this._selectedYear())) {
-      this._selectedYear.set(mergedYears[0]);
+    if (!mergedYears.includes(this._selectedYear() ?? NaN)) {
+      this._selectedYear.set(mergedYears.length > 0 ? mergedYears[0] : null);
     }
-    return periods;
+  }
+
+  /**
+   * Mengambil acuan target tahunan untuk satu tahun, atau undefined bila belum diisi.
+   */
+  getYearTargets(year: number): YearTargetSet | undefined {
+    return this._yearlyTargets()[year];
+  }
+
+  /**
+   * Menyetujui apakah sebuah tahun sudah memiliki acuan target dengan minimal satu kolom.
+   */
+  hasYearTargets(year: number): boolean {
+    const set = this._yearlyTargets()[year];
+    if (!set) return false;
+    return YEAR_TARGET_DATASET_KEYS.some((k) => Object.keys(set[k]).length > 0);
+  }
+
+  /**
+   * Menyimpan acuan target tahunan untuk satu tahun. Menjadi sumber tunggal target
+   * bagi seluruh triwulan tahun tersebut. Server backend utama; localStorage sebagai
+   * cermin fallback agar setup tanpa backend tetap memiliki acuan.
+   */
+  async setYearTargets(
+    year: number,
+    targets: YearTargetSet,
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    if (!this.isValidYear(year)) {
+      return { success: false, error: 'Tahun harus berupa angka 4 digit antara 2000 dan 2100.' };
+    }
+
+    this._yearlyTargets.update((curr) => ({ ...curr, [year]: targets }));
+    this.writeLocalYearTargets(this._yearlyTargets());
+    this.syncAvailableYears();
+
+    if (this.backendStorage?.isConfigured()) {
+      try {
+        const res = await this.backendStorage.saveYearTargets(year, targets);
+        return { success: res.success, message: res.message, error: res.error };
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { success: false, error: msg };
+      }
+    }
+
+    return {
+      success: true,
+      message: 'Acuan target tahun disimpan secara lokal (server backend tidak aktif).',
+    };
+  }
+
+  /**
+   * Memuat acuan target tahunan dari Server Backend (utama) atau cermin localStorage (fallback).
+   */
+  async loadYearTargets(): Promise<void> {
+    if (this.backendStorage?.isConfigured()) {
+      try {
+        const res = await this.backendStorage.getYearTargets();
+        if (res.success) {
+          const normalized = this.normalizeYearTargets(res.targets);
+          this._yearlyTargets.set(normalized);
+          this.writeLocalYearTargets(normalized);
+          this.syncAvailableYears();
+          return;
+        }
+      } catch (err: unknown) {
+        console.warn('[PeriodPartitionWorkspace] Gagal memuat acuan target dari server:', err);
+      }
+    }
+
+    this._yearlyTargets.set(this.readLocalYearTargets());
+    this.syncAvailableYears();
+  }
+
+  /**
+   * Menghapus tahun kosong (tanpa data periode tersimpan) dari daftar beserta
+   * acuan targetnya. Tahun dengan data periode tidak boleh dihapus lewat sini.
+   */
+  async deleteYear(year: number): Promise<{ success: boolean; message?: string; error?: string }> {
+    if (!this.isValidYear(year)) {
+      return { success: false, error: 'Tahun tidak valid.' };
+    }
+
+    const hasPeriodData = this._periodSlots().some(
+      (p) => p.year === year && (p.hasRaw || p.hasResult),
+    );
+    if (hasPeriodData) {
+      return {
+        success: false,
+        error: `Tahun ${year} masih memiliki data periode dan tidak dapat dihapus.`,
+      };
+    }
+
+    if (this.backendStorage?.isConfigured()) {
+      try {
+        const res = await this.backendStorage.deleteYearTargets(year);
+        if (!res.success) {
+          return { success: false, error: res.error };
+        }
+      } catch (err: unknown) {
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : 'Gagal menghapus acuan target di server.',
+        };
+      }
+    }
+
+    this._yearlyTargets.update((curr) => {
+      const next = { ...curr };
+      delete next[year];
+      return next;
+    });
+    this.writeLocalYearTargets(this._yearlyTargets());
+    this._customYears.set(this._customYears().filter((y) => y !== year));
+    this.syncAvailableYears();
+
+    return { success: true, message: `Tahun ${year} beserta acuan targetnya dihapus.` };
+  }
+
+  private normalizeYearTargets(
+    raw: Record<string, Record<string, Record<string, { enabled: boolean; operator: string; value: number | null }>>>,
+  ): Record<number, YearTargetSet> {
+    const result: Record<number, YearTargetSet> = {};
+    for (const [rawYear, datasets] of Object.entries(raw)) {
+      const year = Number(rawYear);
+      if (!this.isValidYear(year) || !datasets || typeof datasets !== 'object') continue;
+
+      const yearSet: YearTargetSet = { 'intervensi-spesifik': {}, 'masalah-gizi': {} };
+      for (const datasetKey of YEAR_TARGET_DATASET_KEYS) {
+        const columns = datasets[datasetKey];
+        if (!columns || typeof columns !== 'object') continue;
+        for (const [columnKey, cell] of Object.entries(columns)) {
+          if (!cell || typeof cell !== 'object') continue;
+          yearSet[datasetKey][columnKey] = {
+            enabled: Boolean(cell.enabled),
+            operator: (YEAR_TARGET_OPERATORS.includes(cell.operator)
+              ? cell.operator
+              : '>=') as ColumnTargetConfig['operator'],
+            value: typeof cell.value === 'number' && !isNaN(cell.value) ? cell.value : null,
+          };
+        }
+      }
+      result[year] = yearSet;
+    }
+    return result;
+  }
+
+  private readLocalYearTargets(): Record<number, YearTargetSet> {
+    try {
+      const raw = this.storage.getItem(YEAR_TARGET_STORAGE_KEY);
+      if (!raw) return {};
+      return this.normalizeYearTargets(JSON.parse(raw));
+    } catch {
+      return {};
+    }
+  }
+
+  private writeLocalYearTargets(targets: Record<number, YearTargetSet>): void {
+    try {
+      this.storage.setItem(YEAR_TARGET_STORAGE_KEY, JSON.stringify(targets));
+    } catch (err: unknown) {
+      console.warn('[PeriodPartitionWorkspace] Gagal mencerminkan acuan target ke localStorage:', err);
+    }
   }
 
   /**
@@ -157,6 +341,8 @@ export class PeriodPartitionWorkspace {
   async refreshPeriods(customUrl?: string): Promise<GasPeriodItem[]> {
     this._isLoading.set(true);
     try {
+      await this.loadYearTargets();
+
       if (!customUrl && this.backendStorage?.isConfigured()) {
         const backendRes = await this.backendStorage.listPeriods();
         if (backendRes.success && Array.isArray(backendRes.periods)) {
@@ -243,6 +429,7 @@ export class PeriodPartitionWorkspace {
               : (slotItem?.rawFileName || `${year}_${quarter}_raw-data.xlsx`),
           rawExcelBuffer: primaryRawOrRes,
           resultExcelBuffer: backendRes.resultExcelBuffer,
+          sourceRawExcelBuffer: backendRes.rawExcelBuffer,
           config: backendRes.config,
           resultExcelAvailable: hasResult,
           isResultExcel:
@@ -253,7 +440,8 @@ export class PeriodPartitionWorkspace {
       }
     }
 
-    return this.gasStorage.loadPeriod(year, quarter, { preferResult, customUrl });
+    const gasRes = await this.gasStorage.loadPeriod(year, quarter, { preferResult, customUrl });
+    return { ...gasRes, sourceRawExcelBuffer: gasRes.rawExcelBuffer };
   }
 
   /**
@@ -296,6 +484,7 @@ export class PeriodPartitionWorkspace {
       dataset,
       rawBuffer: res.rawExcelBuffer,
       resultBuffer: res.resultExcelBuffer,
+      config: preset,
     };
   }
 
@@ -346,6 +535,7 @@ export class PeriodPartitionWorkspace {
             fileName: localFile.name,
             dataset,
             rawBuffer: buf,
+            config: slotPreset,
           });
           continue;
         } catch (err) {

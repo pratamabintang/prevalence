@@ -78,8 +78,22 @@ export function migrateSchema(db: DatabaseType): void {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    -- 8. Acuan Target Tahunan per Kolom Dataset (berlaku untuk TW1-TW4 tahun tersebut)
+    CREATE TABLE IF NOT EXISTS year_indicator_targets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      year INTEGER NOT NULL CHECK(year BETWEEN 2000 AND 2100),
+      dataset_key TEXT NOT NULL CHECK(dataset_key IN ('intervensi-spesifik', 'masalah-gizi')),
+      column_key TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      operator TEXT NOT NULL DEFAULT '>=' CHECK(operator IN ('<=', '>=', '>', '<', '==')),
+      value REAL,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(year, dataset_key, column_key)
+    );
+
     -- Indeks performa untuk kueri observasi dan tren
     CREATE INDEX IF NOT EXISTS idx_obs_period_district ON period_observations(period_id, district_id);
     CREATE INDEX IF NOT EXISTS idx_obs_indicator ON period_observations(indicator_key);
+    CREATE INDEX IF NOT EXISTS idx_year_targets_year ON year_indicator_targets(year);
   `);
 }

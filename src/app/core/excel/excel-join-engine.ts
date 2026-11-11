@@ -40,6 +40,7 @@ export interface JoinPresetExecutionSpec {
   enableJumlah?: boolean;
   enableAverage?: boolean;
   enableTarget?: boolean;
+  enableCapaian?: boolean;
 }
 
 export interface JoinedDatasetResult {
@@ -755,7 +756,7 @@ export class ExcelJoinEngine {
       avgColumns: preset.avgColumns,
       enableTarget: preset.enableTarget ?? true,
       columnTargets: preset.columnTargets,
-      enableCapaian: false,
+      enableCapaian: preset.enableCapaian ?? false,
     };
   }
 

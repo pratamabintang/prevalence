@@ -597,18 +597,6 @@
                   Periode: {{ activePeriod() }}
                 </span>
               }
-              <span
-                class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold border"
-                [class.bg-indigo-50]="activeDataset() === 'intervensi-spesifik'"
-                [class.text-indigo-700]="activeDataset() === 'intervensi-spesifik'"
-                [class.border-indigo-200]="activeDataset() === 'intervensi-spesifik'"
-                [class.bg-amber-50]="activeDataset() === 'masalah-gizi'"
-                [class.text-amber-700]="activeDataset() === 'masalah-gizi'"
-                [class.border-amber-200]="activeDataset() === 'masalah-gizi'"
-              >
-                <span class="h-1.5 w-1.5 rounded-full" [class.bg-indigo-600]="activeDataset() === 'intervensi-spesifik'" [class.bg-amber-600]="activeDataset() === 'masalah-gizi'"></span>
-                {{ activeDataset() === 'masalah-gizi' ? 'Masalah Gizi' : 'Intervensi Spesifik' }}
-              </span>
               @if (selectedSheet()) {
                 <span
                   class="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-medium text-emerald-800"
@@ -1956,13 +1944,6 @@
                       <h3 class="text-sm font-bold text-slate-900">
                         {{ item.series.label }}
                       </h3>
-                      <span
-                        class="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                        [style.backgroundColor]="item.series.color + '1a'"
-                        [style.color]="item.series.color"
-                      >
-                        Kolom Indikator
-                      </span>
                     </div>
 
                     <!-- METRIK SUMMARY STATS -->

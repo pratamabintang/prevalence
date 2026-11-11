@@ -3,6 +3,7 @@ import cors from 'cors';
 import { healthRouter } from './routes/health';
 import { districtsRouter } from './routes/districts';
 import { configsRouter } from './routes/configs';
+import { targetsRouter } from './routes/targets';
 import { periodsRouter } from './routes/periods';
 import { defaultRouter } from './routes/default';
 import { analyticsRouter } from './routes/analytics';
@@ -31,6 +32,7 @@ export function createApp(): Express {
   app.use('/api', healthRouter);
   app.use('/api', districtsRouter);
   app.use('/api', configsRouter);
+  app.use('/api', targetsRouter);
   app.use('/api', periodsRouter);
   app.use('/api', defaultRouter);
   app.use('/api', analyticsRouter);
