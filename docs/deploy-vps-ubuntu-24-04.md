@@ -20,6 +20,8 @@ Terkait: `docs/docker-deployment-guide.md` (detail arsitektur kontainer).
 
 ## 1. Install Docker + plugin Compose
 
+Banyak image VPS Ubuntu 24.04 sudah membawa Docker. Cek dulu dengan `docker --version`. Perintah di bawah aman dijalankan ulang: kalau paketnya sudah ada, apt hanya melaporkan `already the newest version`.
+
 ```bash
 sudo apt-get update
 sudo apt-get install -y ca-certificates curl
@@ -95,6 +97,14 @@ EOF
 chmod 600 .env
 ```
 
+Kalau tidak mau mengarang password, biarkan shell yang membuatnya dan tampilkan sekali saja:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(15).toString('base64').replace(/[^A-Za-z0-9]/g, '').slice(0, 20))"
+```
+
+Catat password yang dipakai. Tidak ada jalur pemulihan selain membacanya kembali dari `/opt/dinkes/.env`.
+
 - `DATA_ADMIN_ID` / `DATA_ADMIN_PASSWORD`: login halaman `/data`.
 - `AUTH_SECRET`: kunci tanda tangan token sesi. Kalau berubah, semua sesi login lama gugur.
 - Jangan commit `.env`, jangan kirim lewat chat.
@@ -141,9 +151,26 @@ Database masih kosong di tahap ini: `/api/periods` mengembalikan `[]`, tapi wila
 
 ## 7. Pindahkan data dari komputer lokal
 
-Data lokal: `server/data/dinkes.db` (2,99 MB, sudah rapat WAL) + `server/uploads/` (0,9 MB). Sudah distage ke `.scratch/deploy-seed/`, total 3,9 MB.
+Di komputer lokal, rapatkan WAL dulu supaya `dinkes.db` konsisten, lalu salin db dan folder uploads ke satu folder staging:
 
-**Di Windows (PowerShell):**
+```powershell
+Stop-Process -Id (Get-NetTCPConnection -LocalPort 3000 -State Listen).OwningProcess   # hentikan server dev
+```
+
+```bash
+node -e "const D=require('./server/node_modules/better-sqlite3');const db=new D('server/data/dinkes.db');console.log(db.pragma('wal_checkpoint(TRUNCATE)'));db.close()"
+```
+
+```powershell
+Remove-Item .scratch\deploy-seed -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory .scratch\deploy-seed | Out-Null
+Copy-Item server\data\dinkes.db .scratch\deploy-seed\dinkes.db
+Copy-Item server\uploads .scratch\deploy-seed\uploads -Recurse
+```
+
+Ukurannya sekitar 4 MB (db ±3 MB + uploads ±0,9 MB).
+
+**Kirim ke VPS (PowerShell):**
 
 ```powershell
 scp -r D:\intern\dinkes-2\.scratch\deploy-seed USER@IP:/tmp/dinkes-seed
@@ -160,6 +187,12 @@ sudo docker compose up -d
 
 `docker compose down` **tidak** menghapus volume `dinkes_storage` (hanya menghapus kontainer). Jangan tambahkan `-v`.
 
+Setelah selesai, hapus salinan data dari `/tmp` VPS supaya tidak tertinggal:
+
+```bash
+rm -rf /tmp/dinkes-seed
+```
+
 Cek hasil:
 
 ```bash
@@ -172,6 +205,44 @@ Harus terlihat 12 periode (2024–2026 × TW1–TW4) dan target per tahun terisi
 ```bash
 sudo docker compose exec dinkes-app ls -l /data/uploads/2026/TW4
 ```
+
+### 7b. Samakan path berkas (wajib bila DB berasal dari Windows)
+
+Bila `dinkes.db` dibuat di Windows, kolom `period_files.file_path` berisi path gaya Windows yang **relatif** (`uploads\2024\TW1\joined-result.xlsx`). Di dalam kontainer path itu tidak bisa dibuka — `cwd` ada di `/app` dan pemisahnya backslash — sehingga unduhan hasil join mengembalikan `404 ... tidak ditemukan di server`, padahal berkasnya ada di volume.
+
+Bentuk yang benar adalah path absolut ala Linux: `/data/uploads/2024/TW1/joined-result.xlsx` (sama dengan yang ditulis server saat unggah langsung di VPS).
+
+Jalankan:
+
+```bash
+cd /opt/dinkes
+sudo docker compose exec -T dinkes-app node -e '
+const D = require("/app/server/node_modules/better-sqlite3");
+const db = new D("/data/dinkes.db");
+const info = db.prepare(
+  "UPDATE period_files " +
+  "SET file_path = ? || SUBSTR(REPLACE(file_path, char(92), ?), LENGTH(?) + 1) " +
+  "WHERE REPLACE(file_path, char(92), ?) LIKE ? || ?"
+).run("/data/uploads/", "/", "uploads/", "/", "uploads", "/%");
+console.log("period_files diperbarui:", info.changes);
+db.close();
+'
+```
+
+Catatan SQL: `char(92)` adalah backslash, dipakai supaya tidak perlu meng-escape `\` di dalam string SQLite.
+
+Verifikasi:
+
+```bash
+for t in 2024/TW1 2025/TW4 2026/TW4; do
+  curl -s -o /dev/null -w "$t status=%{http_code} size=%{size_download}\n" \
+    "http://127.0.0.1/api/periods/$t/download/result"
+done
+```
+
+Ketiganya harus `200` dengan ukuran ±76 KB. Berkas `raw` memang `404` bila hanya berkas hasil join yang diunggah — itu normal.
+
+Bila di masa depan data dipindah lagi dari Windows, ulangi langkah ini.
 
 ## 8. Verifikasi akhir
 
@@ -201,6 +272,14 @@ sudo docker compose up -d --build
 
 Volume `dinkes_storage` tidak tersentuh, jadi data aman. Kalau `.env` berubah, `docker compose up -d` akan me-restart kontainer dengan nilai baru.
 
+Setelah build pertama, cache build menumpuk sekitar 1,3 GB. Bila disk mulai sempit:
+
+```bash
+sudo docker builder prune -f
+```
+
+Cache dibuang tanpa memengaruhi image yang sedang dipakai, tapi build berikutnya jadi lebih lambat.
+
 ## Backup
 
 Simpan `dinkes.db` dan `uploads/` keluar dari volume:
@@ -212,10 +291,15 @@ tar -czf /tmp/dinkes-$(date +%F).tar.gz -C /tmp dinkes-$(date +%F).db uploads-$(
 ls -lh /tmp/dinkes-$(date +%F).tar.gz
 ```
 
-Sebelum menyalin, checkpoint WAL-nya dulu supaya konsisten:
+Sebelum menyalin, checkpoint WAL-nya dulu supaya konsisten. Perhatikan path modul harus lengkap (`/app/server/node_modules/...`), karena `cwd` kontainer ada di `/app`:
 
 ```bash
-sudo docker compose exec dinkes-app sh -c "node -e \"const D=require('better-sqlite3');const db=new D('/data/dinkes.db');console.log(db.pragma('wal_checkpoint(TRUNCATE)'));db.close()\""
+sudo docker compose exec -T dinkes-app node -e '
+const D = require("/app/server/node_modules/better-sqlite3");
+const db = new D("/data/dinkes.db");
+console.log(db.pragma("wal_checkpoint(TRUNCATE)"));
+db.close();
+'
 ```
 
 Lalu unduh dengan `scp` dari komputer lokal:
@@ -251,3 +335,5 @@ sudo docker compose up -d
 | `ports: !override` error | Compose < 2.24 | Pakai `sed` di langkah 5 |
 | `502 Bad Gateway` di browser | Backend Node belum siap / crash | `sudo docker compose logs dinkes-app` |
 | Unggah Excel gagal di atas 50 MB | Batas Nginx | Ubah `client_max_body_size` di `docker/nginx.conf`, rebuild |
+| Unduh hasil join `404` padahal berkas ada di volume | `file_path` masih gaya Windows | Kerjakan langkah 7b |
+| Semua periode hilang setelah `docker compose down` | Volume ikut terhapus karena `-v` | Jangan pakai `-v`; restore dari backup |
