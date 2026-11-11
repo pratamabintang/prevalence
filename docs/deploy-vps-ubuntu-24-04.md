@@ -73,7 +73,7 @@ cd /opt/dinkes
 git log --oneline -1
 ```
 
-Commit terakhir harus `01b589b feat: target tahunan dinamis, perbaikan Beranda, siap deploy Docker`. Kalau beda, `git pull` dan ulangi.
+Commit terakhir harus memuat `feat: target tahunan dinamis, perbaikan Beranda, siap deploy Docker` (hash `9f7c0d4` atau lebih baru). Kalau tidak, periksa branch dan `git pull`.
 
 ## 4. Buat `.env`
 
