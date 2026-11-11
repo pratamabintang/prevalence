@@ -97,11 +97,15 @@ EOF
 chmod 600 .env
 ```
 
-Kalau tidak mau mengarang password, biarkan shell yang membuatnya dan tampilkan sekali saja:
+Kalau tidak mau mengarang password, biarkan shell yang membuatnya:
 
 ```bash
-node -e "console.log(require('crypto').randomBytes(15).toString('base64').replace(/[^A-Za-z0-9]/g, '').slice(0, 20))"
+ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'   # tanpa 0 O o 1 I l i
+RAW=$(openssl rand -base64 60 | tr -dc "$ALPHABET")
+echo "${RAW:0:5}-${RAW:5:5}-${RAW:10:5}-${RAW:15:5}"
 ```
+
+Alfabetnya sengaja membuang `0`, `O`, `o`, `1`, `I`, `l`, dan `i` supaya sandi tidak salah dibaca saat diketik ulang. Sandi kelompok `xxxxx-xxxxx-xxxxx-xxxxx` juga lebih mudah dicocokkan.
 
 Catat password yang dipakai. Tidak ada jalur pemulihan selain membacanya kembali dari `/opt/dinkes/.env`.
 
@@ -336,4 +340,6 @@ sudo docker compose up -d
 | `502 Bad Gateway` di browser | Backend Node belum siap / crash | `sudo docker compose logs dinkes-app` |
 | Unggah Excel gagal di atas 50 MB | Batas Nginx | Ubah `client_max_body_size` di `docker/nginx.conf`, rebuild |
 | Unduh hasil join `404` padahal berkas ada di volume | `file_path` masih gaya Windows | Kerjakan langkah 7b |
+| Login `/data` ditolak padahal sandi benar | Env kontainer belum ikut berubah setelah `.env` diedit | `sudo docker compose up -d --force-recreate`, lalu cek `sudo docker compose exec -T dinkes-app printenv DATA_ADMIN_ID` |
+| `node: command not found` di host VPS | Node hanya ada di dalam kontainer | Pakai `openssl`/`sed`/`python3` di host, atau panggil lewat `sudo docker compose exec -T dinkes-app node -e '...'` |
 | Semua periode hilang setelah `docker compose down` | Volume ikut terhapus karena `-v` | Jangan pakai `-v`; restore dari backup |
